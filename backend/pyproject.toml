@@ -1,0 +1,22 @@
+[project]
+name = "skill-eval-platform-backend"
+version = "0.1.0"
+description = "Minimal FastAPI walking skeleton for Skill Eval Platform"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "email-validator>=2.2,<3",
+  "fastapi>=0.115,<1",
+  "pydantic-settings>=2.7,<3",
+  "python-multipart>=0.0.20,<1",
+  "uvicorn[standard]>=0.34,<1",
+]
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28,<1",
+  "pytest>=8.3,<9",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

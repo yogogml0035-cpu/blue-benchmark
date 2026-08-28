@@ -1,0 +1,93 @@
+import hashlib
+import hmac
+import secrets
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from fastapi import Request, Response
+
+from app.features.auth import repository
+from app.features.auth.schemas import LoginRequest, RegisterRequest, User
+from app.lib.errors import AppError
+from app.lib.settings import settings
+
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 120_000)
+    return f"{salt.hex()}${digest.hex()}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    try:
+        salt_hex, digest_hex = stored.split("$", 1)
+        expected = bytes.fromhex(digest_hex)
+        actual = hashlib.pbkdf2_hmac(
+            "sha256", password.encode(), bytes.fromhex(salt_hex), 120_000
+        )
+    except (ValueError, TypeError):
+        return False
+    return hmac.compare_digest(actual, expected)
+
+
+def to_user(record: repository.UserRecord) -> User:
+    return User(id=record.id, username=record.username, email=record.email, created_at=record.created_at)
+
+
+def optional_current_user(request: Request) -> repository.UserRecord | None:
+    token = request.cookies.get(settings.session_cookie_name)
+    user_id = repository.get_user_id_by_session(token)
+    return repository.get_user(user_id) if user_id else None
+
+
+def require_current_user(request: Request) -> repository.UserRecord:
+    user = optional_current_user(request)
+    if not user:
+        raise AppError(401, "AUTH_REQUIRED", "请先登录。")
+    return user
+
+
+def _set_session(response: Response, user: repository.UserRecord) -> None:
+    token = secrets.token_urlsafe(32)
+    repository.create_session(token, user.id)
+    response.set_cookie(
+        settings.session_cookie_name,
+        token,
+        httponly=True,
+        samesite="lax",
+        secure=settings.session_cookie_secure,
+        path="/",
+    )
+
+
+def register(payload: RegisterRequest, response: Response) -> User:
+    if repository.find_by_username(payload.username):
+        raise AppError(409, "USERNAME_TAKEN", "用户名已被使用。")
+    if payload.email and repository.find_by_email(str(payload.email)):
+        raise AppError(409, "EMAIL_TAKEN", "邮箱已被使用。")
+    user = repository.UserRecord(
+        id=str(uuid4()),
+        username=payload.username,
+        email=str(payload.email) if payload.email else None,
+        password_hash=_hash_password(payload.password),
+        created_at=datetime.now(timezone.utc),
+    )
+    repository.add_user(user)
+    _set_session(response, user)
+    return to_user(user)
+
+
+def login(payload: LoginRequest, response: Response) -> User:
+    record = repository.find_by_username(payload.identifier) or repository.find_by_email(
+        payload.identifier
+    )
+    if not record or not _verify_password(payload.password, record.password_hash):
+        raise AppError(401, "INVALID_CREDENTIALS", "用户名或密码错误。")
+    _set_session(response, record)
+    return to_user(record)
+
+
+def logout(request: Request, response: Response) -> None:
+    repository.revoke_session(request.cookies.get(settings.session_cookie_name))
+    response.delete_cookie(settings.session_cookie_name, path="/")
+
