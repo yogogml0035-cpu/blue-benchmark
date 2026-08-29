@@ -1,0 +1,41 @@
+{
+  "id": "00-bootstrap-guidelines",
+  "name": "00-bootstrap-guidelines",
+  "title": "Bootstrap Guidelines",
+  "description": "Replace generic Trellis templates with source-backed backend, frontend, and cross-layer guidelines",
+  "status": "in_progress",
+  "dev_type": "docs",
+  "scope": ".trellis/spec/** and .trellis/tasks/00-bootstrap-guidelines/** only",
+  "package": null,
+  "priority": "P1",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-08-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": null,
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/spec/backend/",
+    ".trellis/spec/frontend/",
+    ".trellis/spec/guides/",
+    ".trellis/tasks/00-bootstrap-guidelines/prd.md"
+  ],
+  "notes": "Guideline content rebuilt and verified from the current in-memory FastAPI Stub, Next.js App Router frontend, API tests, generated OpenAPI types, and project docs. Ready for developer review before archive.",
+  "meta": {
+    "content_status": "verified_ready_for_review",
+    "current_boundary": "in-memory stub walking skeleton",
+    "future_plans_are_not_current_rules": true,
+    "verification": {
+      "backend_pytest": "4 passed, 1 dependency deprecation warning",
+      "frontend_typecheck": "passed",
+      "spec_index_and_links": "passed",
+      "non_scope_files": "37 unchanged"
+    }
+  }
+}

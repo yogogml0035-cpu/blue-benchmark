@@ -1,0 +1,39 @@
+# 前端质量与验证
+
+## 当前自动化边界
+
+`frontend/package.json` 当前提供 `typecheck` 和 `build`，没有 lint、单元测试或 Playwright 脚本；仓库也没有前端测试文件。不要把 ESLint、Vitest、Jest、Playwright 或覆盖率写成已存在的质量门。
+
+现行命令：
+
+```bash
+cd frontend && pnpm typecheck
+cd frontend && pnpm build
+make test
+```
+
+`make test` 运行后端 pytest 和前端 typecheck；涉及 App Router、生产门控或构建边界时再运行 `make build`。
+
+## 状态验收
+
+四个页面通过 `?preview=` 提供开发态预演，支持 README 中列出的 loading、empty、success、error、unauthorized，以及资源页的 forbidden、not_found 和 Case 的 question/review。预演 fixture 使用生成 DTO，可以作为类型回归证据，但不是浏览器自动化测试。
+
+真实闭环仍按 `README.md` 人工验收：注册、建场景、上传、提问、审改、确认、刷新、跨账号 403、解析失败、AI 失败重试。只有实际执行后才能声称浏览器路径跑通。
+
+## Review 清单
+
+- [ ] App Router 页面仍然薄，交互只下沉到必要的 Client Component。
+- [ ] 组件通过 Feature Service 请求，未直接 `fetch` 或复制 DTO。
+- [ ] 受保护页在会话完成前不渲染私有数据；401/403/404/409 行为正确。
+- [ ] 命令期间禁止重复提交，成功后采用服务端快照。
+- [ ] 新状态已同步 `STATE_META`、进度派生、错误视图和预演 fixture。
+- [ ] 表单标签、键盘操作、焦点、busy、alert 与 reduced-motion 没有回退。
+- [ ] 样式复用全局 token；大块 Feature 样式在 colocated CSS Module。
+- [ ] `pnpm typecheck` 通过；路由/生产门控变更还通过 `pnpm build`。
+
+## 禁止用假证据收口
+
+- Typecheck 通过不等于交互已验收。
+- 预演 fixture 可渲染不等于真实 API 已连通。
+- 页面能打开不等于后端、授权和完整 Case Builder 闭环可用。
+- README 或技术合同写了未来能力，不等于仓库已经实现。
