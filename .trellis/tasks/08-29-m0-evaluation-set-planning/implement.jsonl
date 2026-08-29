@@ -1,0 +1,14 @@
+{"file":".trellis/spec/backend/index.md","reason":"后端规范入口与质量门"}
+{"file":".trellis/spec/backend/structure-and-boundaries.md","reason":"Feature、Router、Service、Repository 和跨 Feature 依赖边界"}
+{"file":".trellis/spec/backend/errors-and-api-responses.md","reason":"错误码、业务失败状态和响应安全合同"}
+{"file":".trellis/spec/frontend/index.md","reason":"前端规范入口与质量门"}
+{"file":".trellis/spec/frontend/structure-and-boundaries.md","reason":"App Router、Feature Service、生成类型和共享层边界"}
+{"file":".trellis/spec/frontend/state-model.md","reason":"服务端资源、后台状态、表单与预演状态分层"}
+{"file":".trellis/spec/frontend/components-and-styling.md","reason":"交互、可访问性与现有设计系统复用要求"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"Pydantic、OpenAPI、生成类型、Service、UI 与测试同步合同"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/repository-evidence.md","reason":"当前源码事实与必须替换的 Walking Skeleton 边界"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/framework-evidence.md","reason":"Deep Agents 与 LangGraph 实时官方边界和选型结论"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/sample-evidence.md","reason":"三份真实输入的结构、角色与验收边界"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/ui-adversarial-review.md","reason":"前端信息架构、渐进披露与设计系统修订证据"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/deep-agents-adversarial-review.md","reason":"Deep Agents 权限、结构化输出、模型兼容、长文件与线程陷阱"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/checkpointer-adversarial-review.md","reason":"共创 Checkpointer、HITL、accepted 分支、业务投影一致性与恢复合同"}
