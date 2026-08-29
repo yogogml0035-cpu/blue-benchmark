@@ -42,7 +42,7 @@
 | `Attachment` | 一个 TXT/Markdown 材料 | 服务端存储键、原文件名、类型、大小、解析文本/摘要 | `case-builder` 业务表 + 本地文件 |
 | `CaseBuilderSession` | 一次案例共创过程，也是 Case Builder 状态的唯一业务来源 | `source_case_id`、内部 `thread_id`、状态、当前问题/草案投影、草案修订号、最后一次恢复标识、错误 | `case-builder` 业务表 |
 | `GraphCheckpoint` | LangGraph 恢复执行所需的内部状态 | 节点状态、暂停值、执行游标 | LangGraph Checkpoint 表 |
-| `CandidateCase` | 老师确认后的候选用例快照 | 最终内容、来源案例、草案修订号、确认人和确认时间 | `case-builder` 业务表 |
+| `CandidateCase` | 老师确认后的候选用例快照 | 最终内容、来源案例、草案修订号、确认人（ID + 用户名）和确认时间 | `case-builder` 业务表 |
 
 约束：
 
@@ -209,6 +209,7 @@ AI 草案和人工确认稿共用同一结构，避免前后端维护两份语�
   "draft_revision": 1,
   "content": {},
   "confirmed_by": "user-uuid",
+  "confirmed_by_username": "teacher-a",
   "confirmed_at": "2026-08-28T08:30:00Z"
 }
 ```

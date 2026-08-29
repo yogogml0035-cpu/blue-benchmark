@@ -83,6 +83,7 @@ def test_default_flow_waits_for_input_then_confirms(client: TestClient):
     confirmed = response.json()["case"]
     assert confirmed["state"] == "confirmed"
     assert confirmed["candidate_case"]["id"]
+    assert confirmed["candidate_case"]["confirmed_by_username"] == "teacher-a"
 
     retry = client.post(
         f"/api/workspaces/{workspace_id}/cases/{case['id']}/confirmation",

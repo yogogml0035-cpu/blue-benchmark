@@ -34,7 +34,7 @@ import {
 } from "@/src/features/case-builder/services/caseBuilderService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
 import { stamp } from "@/src/lib/format";
-import { PreviewBar, usePreviewState, type PreviewState } from "@/src/lib/preview/preview";
+import { PREVIEW_ENABLED, PreviewBar, usePreviewState, type PreviewState } from "@/src/lib/preview/preview";
 
 type Load =
   | { status: "loading" }
@@ -391,7 +391,10 @@ export function CaseDetail({ workspaceId, caseId }: { workspaceId: string; caseI
             title="解析失败"
             tone="fault"
           >
-            <p className="mono faint">retryable · false — 同一个文件重试没有意义</p>
+            <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
+              同一个文件重试没有意义，请修正后重新上传。
+            </p>
+            {PREVIEW_ENABLED && <p className="mono faint">retryable · false</p>}
           </StatePanel>
         )}
 
@@ -417,9 +420,14 @@ export function CaseDetail({ workspaceId, caseId }: { workspaceId: string; caseI
             title="整理失败"
             tone="fault"
           >
-            <p className="mono faint">
-              retryable · {String(builder.last_error?.retryable ?? false)} — 重试沿用同一个会话，不会新建
+            <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
+              重试会沿用同一个会话，不会从头开始。
             </p>
+            {PREVIEW_ENABLED && (
+              <p className="mono faint">
+                retryable · {String(builder.last_error?.retryable ?? false)}
+              </p>
+            )}
           </StatePanel>
         )}
 

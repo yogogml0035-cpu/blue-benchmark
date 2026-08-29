@@ -1014,6 +1014,10 @@
             "type": "string",
             "title": "Confirmed By"
           },
+          "confirmed_by_username": {
+            "type": "string",
+            "title": "Confirmed By Username"
+          },
           "confirmed_at": {
             "type": "string",
             "format": "date-time",
@@ -1027,6 +1031,7 @@
           "draft_revision",
           "content",
           "confirmed_by",
+          "confirmed_by_username",
           "confirmed_at"
         ],
         "title": "CandidateCase"

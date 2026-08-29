@@ -1,5 +1,6 @@
 import type { components } from "@/src/lib/api/generated";
 import { stamp } from "@/src/lib/format";
+import { PREVIEW_ENABLED } from "@/src/lib/preview/preview";
 
 import styles from "./caseDetail.module.css";
 
@@ -27,8 +28,14 @@ export function ConfirmedCard({ candidate }: { candidate: CandidateCase }) {
         </div>
         <div className={styles.confirmRow}>
           <span className={styles.confirmKey}>确认人</span>
-          <span className={styles.confirmValue}>{candidate.confirmed_by}</span>
+          <span className={styles.confirmValue}>{candidate.confirmed_by_username}</span>
         </div>
+        {PREVIEW_ENABLED && (
+          <div className={styles.confirmRow}>
+            <span className={styles.confirmKey}>确认人 ID</span>
+            <span className={styles.confirmValue}>{candidate.confirmed_by}</span>
+          </div>
+        )}
         <div className={styles.confirmRow}>
           <span className={styles.confirmKey}>确认时间</span>
           <span className={styles.confirmValue}>{stamp(candidate.confirmed_at)}</span>

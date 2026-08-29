@@ -332,6 +332,7 @@ def confirm(
         draft_revision=payload.draft_revision,
         content=payload.content,
         confirmed_by=user.id,
+        confirmed_by_username=user.username,
         confirmed_at=timestamp,
     )
     # Stub 没有数据库事务；单次内存提交同时替换候选快照和业务状态。

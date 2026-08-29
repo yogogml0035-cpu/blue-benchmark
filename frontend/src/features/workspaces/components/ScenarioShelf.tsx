@@ -21,7 +21,7 @@ import {
 } from "@/src/features/workspaces/services/workspaceService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
 import { stamp } from "@/src/lib/format";
-import { PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
+import { PREVIEW_ENABLED, PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
 
 import styles from "./ScenarioShelf.module.css";
 
@@ -206,7 +206,7 @@ export function ScenarioShelf() {
         {created && (
           <Note tone="green" title={`已创建「${created.name}」`}>
             <span className="row" style={{ gap: "var(--s-3)" }}>
-              <span className="mono">{created.id}</span>
+              {PREVIEW_ENABLED && <span className="mono">{created.id}</span>}
               <Link href={`/workspaces/${created.id}/cases/new`}>向这个场景上传真实案例 →</Link>
             </span>
           </Note>
@@ -218,7 +218,7 @@ export function ScenarioShelf() {
               <h2 className="doc-title-sm">{empty ? "创建你的第一个业务场景" : "新建场景"}</h2>
               {empty && (
                 <p className="secondary" style={{ marginTop: "var(--s-1)" }}>
-                  用客户或场景命名，例如「客户 A 新闻稿」。可见性由服务端固定为 private。
+                  用客户或场景命名，例如「客户 A 新闻稿」。这个场景仅自己可见。
                 </p>
               )}
             </div>
@@ -267,7 +267,7 @@ export function ScenarioShelf() {
                   创建场景
                 </Button>
                 <span className="muted" style={{ fontSize: "var(--t-13)" }}>
-                  可见性由服务端固定为 private
+                  仅自己可见
                 </span>
               </div>
             </form>
@@ -296,7 +296,7 @@ export function ScenarioShelf() {
           ) : empty ? (
             <div className="inset stack-sm" style={{ padding: "var(--s-6)", textAlign: "center" }}>
               <p className="secondary">还没有场景，创建你的第一个业务场景。</p>
-              <p className="mono faint">GET /api/workspaces → items: []</p>
+              {PREVIEW_ENABLED && <p className="mono faint">GET /api/workspaces → items: []</p>}
             </div>
           ) : (
             <div className={styles.shelf}>
@@ -314,7 +314,7 @@ export function ScenarioShelf() {
                   </div>
                   <div className={styles.cardFoot}>
                     <span className="mono faint">
-                      {workspace.visibility} · {stamp(workspace.created_at)}
+                      私有 · {stamp(workspace.created_at)}
                     </span>
                     <Link
                       className={styles.cardAction}

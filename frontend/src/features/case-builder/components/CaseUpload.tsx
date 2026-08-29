@@ -20,7 +20,7 @@ import {
   type Workspace,
 } from "@/src/features/workspaces/services/workspaceService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
-import { PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
+import { PREVIEW_ENABLED, PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
 
 import styles from "./caseDetail.module.css";
 
@@ -362,19 +362,23 @@ export function CaseUpload({ workspaceId }: { workspaceId: string }) {
                 <li>· 解析失败不提供重试，修正材料后重新上传。</li>
               </ul>
             </div>
-            <hr className="hair" />
-            <div className="stack-sm">
-              <span className="section-label">Stub 分支</span>
-              <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
-                当前后端是内存 Stub。在文件内容里写入下面的标记即可复现对应分支：
-              </p>
-              <ul className="stack-sm">
-                <li className="mono">默认 → 先提问一次</li>
-                <li className="mono">[stub:waiting_for_confirmation]</li>
-                <li className="mono">[stub:ai_failed]</li>
-                <li className="mono">空文件 → parse_failed</li>
-              </ul>
-            </div>
+            {PREVIEW_ENABLED && (
+              <>
+                <hr className="hair" />
+                <div className="stack-sm">
+                  <span className="section-label">Stub 分支（仅开发构建）</span>
+                  <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
+                    当前后端是内存 Stub。在文件内容里写入下面的标记即可复现对应分支：
+                  </p>
+                  <ul className="stack-sm">
+                    <li className="mono">默认 → 先提问一次</li>
+                    <li className="mono">[stub:waiting_for_confirmation]</li>
+                    <li className="mono">[stub:ai_failed]</li>
+                    <li className="mono">空文件 → parse_failed</li>
+                  </ul>
+                </div>
+              </>
+            )}
           </aside>
         </div>
       </main>

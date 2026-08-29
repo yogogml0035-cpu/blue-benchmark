@@ -259,6 +259,8 @@ export interface components {
             content: components["schemas"]["DraftContent"];
             /** Confirmed By */
             confirmed_by: string;
+            /** Confirmed By Username */
+            confirmed_by_username: string;
             /**
              * Confirmed At
              * Format: date-time

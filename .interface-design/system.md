@@ -205,4 +205,8 @@ mono       12 / tabular-nums      ID、编号、时间戳、错误码、数字
 - 页面只调本 Feature 的 Service；Service 只调 `lib/api/client`。
 - 新增控件先看 `src/components/ui/` 有没有；重复第二次就抽成组件。
 - 新增装饰性图标/徽记前先问是否必要——历史反馈四连：符号要少。
+- **开发/验收辅助信息不得出现在面向业务老师的界面**：Stub 标记说明、`GET /api/...` 合同原文、
+  `retryable` 原始值、完整 UUID 等，一律用 `PREVIEW_ENABLED` 门控，生产构建不渲染；
+  同一语义用中文人话常显（如 `private` → 「私有」）。错误码（`403 · FORBIDDEN`、
+  `PARSED_CONTENT_EMPTY`）是可上报的标识，保留 mono 原样展示。
 - 全站验收：搜索 `卷宗|收件|校样|校订|落章|案号|审校台|原件|追问单` 必须为 0 结果。

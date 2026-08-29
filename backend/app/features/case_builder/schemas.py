@@ -108,6 +108,7 @@ class CandidateCase(BaseModel):
     draft_revision: int = Field(ge=1)
     content: DraftContent
     confirmed_by: str
+    confirmed_by_username: str
     confirmed_at: datetime
 
 

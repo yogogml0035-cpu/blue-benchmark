@@ -192,6 +192,7 @@ export const PREVIEW_CASE_CONFIRMED: Case = {
     draft_revision: 1,
     content: DRAFT,
     confirmed_by: USER_ID,
+    confirmed_by_username: "teacher-a",
     confirmed_at: "2026-08-29T01:31:00Z",
   },
 };
