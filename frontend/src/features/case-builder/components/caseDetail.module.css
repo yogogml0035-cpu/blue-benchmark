@@ -1,6 +1,6 @@
-/* 评测集平台案例详情：进程条、来源分组、追问卡、收录卡、上传投放区。 */
+/* 评测集平台案例详情：进度提示、题卡聚焦阅读、来源分组、追问卡、题卡收尾、上传投放区。 */
 
-/* ================= 进程条 ================= */
+/* ================= 进度提示 ================= */
 
 .track {
   display: grid;
@@ -100,9 +100,173 @@
   white-space: nowrap;
 }
 
-/* ================= 来源分组 ================= */
+/* ================= 聚焦阅读（签名元素 ①） ================= */
+
+.focus {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.ticks {
+  display: flex;
+  gap: 6px;
+}
+
+.tick {
+  flex: 1;
+  height: 3px;
+  border: 0;
+  border-radius: 2px;
+  background: rgb(0 0 0 / 10%);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 180ms var(--ease-out);
+}
+
+.tick[data-state="done"] {
+  background: var(--text-3);
+}
+
+.tick[data-state="active"] {
+  background: var(--accent);
+}
+
+.focusCard {
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: 20px;
+  box-shadow: var(--lift);
+  padding: var(--s-10) var(--s-8);
+  display: grid;
+  gap: var(--s-4);
+  animation: enter 260ms var(--ease-out) both;
+}
+
+.focusCount {
+  font-size: var(--t-12);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.focusTitle {
+  font-size: var(--t-20);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.focusBody {
+  display: grid;
+  gap: var(--s-4);
+  font-size: 17px;
+  line-height: 1.75;
+}
+
+.focusFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--hair-soft);
+}
+
+.focusQuiet {
+  border: 0;
+  background: none;
+  font-size: var(--t-13);
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 6px 0;
+}
+
+.focusQuiet:hover {
+  color: var(--text);
+}
+
+.focusNext {
+  border: 0;
+  background: none;
+  font-size: var(--t-15);
+  font-weight: 550;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 6px 0;
+}
+
+.focusNext:hover {
+  text-decoration: underline;
+}
+
+/* 聚焦卡内的编辑控件：无边框，hover/focus 才出现弱底 */
+.focusInput {
+  width: calc(100% + 16px);
+  margin: 0 -8px;
+  border: 0;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 17px;
+  line-height: 1.75;
+  color: var(--text);
+  transition: background-color 140ms var(--ease-out);
+}
+
+.focusInput::placeholder {
+  color: var(--text-3);
+}
+
+.focusInput:hover:not(:disabled) {
+  background: rgb(0 0 0 / 3%);
+}
+
+.focusInput:focus {
+  outline: none;
+  background: rgb(0 0 0 / 4%);
+}
+
+.focusInput:disabled {
+  color: var(--text-3);
+}
+
+/* 定稿卡 */
+.signLead {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.signSub {
+  font-size: var(--t-14);
+  color: var(--text-2);
+}
+
+.signLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--hair-soft);
+}
+
+.signHint {
+  font-size: var(--t-13);
+  color: var(--text-3);
+}
+
+/* ================= 来源分组（签名元素 ②） ================= */
 
 .groups {
+  display: grid;
+  gap: var(--s-4);
+}
+
+/* 只读快照：分组之间拉开到 32px，读起来是文稿不是表单 */
+.groupsAll {
   display: grid;
   gap: var(--s-8);
 }
@@ -121,18 +285,26 @@
   border-bottom: 1px solid var(--hair-soft);
 }
 
+.subGroup {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.subGroup + .subGroup {
+  margin-top: var(--s-2);
+}
+
+.subGroupLabel {
+  font-size: var(--t-12);
+  font-weight: 600;
+  color: var(--text-3);
+}
+
 /* ================= 字段与条目 ================= */
 
 .fieldRow {
   display: grid;
   gap: var(--s-2);
-}
-
-.fieldLabelRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-3);
 }
 
 .fieldName {
@@ -173,51 +345,37 @@
   min-width: 0;
 }
 
-/* ================= 查看原文 ================= */
+/* ================= 原文（出处行内展开） ================= */
 
 .refs {
-  display: inline-block;
+  display: grid;
+  gap: var(--s-2);
+  justify-items: start;
 }
 
-.refsSummary {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
+.refsLink {
+  border: 0;
+  background: none;
+  padding: 0;
   font-size: var(--t-12);
-  color: var(--text-2);
-  list-style: none;
-  white-space: nowrap;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color 140ms var(--ease-out);
 }
 
-.refsSummary::-webkit-details-marker {
-  display: none;
-}
-
-.refsSummary:hover {
-  color: var(--text);
-}
-
-.refsChevron {
-  transition: transform 140ms var(--ease-out);
-}
-
-.refs[open] .refsChevron {
-  transform: rotate(180deg);
-}
-
-.refs[open] .refsSummary {
-  color: var(--text);
+.refsLink:hover {
+  color: var(--accent);
 }
 
 .refsList {
   display: grid;
   gap: var(--s-2);
-  margin-top: var(--s-2);
+  width: 100%;
   padding: var(--s-3);
   background: var(--surface-2);
   border: 1px solid var(--hair-soft);
   border-radius: var(--r-control);
+  animation: enter 180ms var(--ease-out) both;
 }
 
 .refItem {
@@ -226,21 +384,8 @@
 }
 
 .refHead {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
   font-size: var(--t-12);
-  color: var(--text-2);
-}
-
-.refKind {
-  padding: 1px 6px;
-  border: 1px solid var(--hair);
-  border-radius: var(--r-chip);
-  color: var(--text-2);
-  font-size: 11px;
-  white-space: nowrap;
+  color: var(--text-3);
 }
 
 .refQuote {
@@ -249,7 +394,7 @@
   color: var(--text-2);
 }
 
-/* ================= 追问卡 ================= */
+/* ================= 追问卡（签名元素 ③） ================= */
 
 .ask {
   display: grid;
@@ -290,35 +435,38 @@
   gap: var(--s-3);
 }
 
-/* ================= 收录卡 ================= */
+/* ================= 题卡收尾（已定稿） ================= */
 
 .confirmCard {
   display: grid;
-  gap: var(--s-4);
-  padding: var(--s-5);
-  background: var(--green-tint);
-  border: 1px solid rgb(29 138 75 / 18%);
-  border-radius: var(--r-card);
-}
-
-.confirmRow {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
   gap: var(--s-3);
+  padding: var(--s-6);
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: 20px;
+  box-shadow: var(--lift);
+}
+
+.confirmLead {
+  display: flex;
   align-items: baseline;
+  gap: var(--s-3);
+  font-size: var(--t-18);
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 
-.confirmKey {
-  font-size: var(--t-12);
-  font-weight: 600;
-  color: rgb(29 138 75 / 85%);
-}
-
-.confirmValue {
-  font-family: var(--font-mono);
+.confirmSign {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
   font-size: var(--t-13);
-  color: var(--text);
-  overflow-wrap: anywhere;
+  color: var(--text-3);
+}
+
+.confirmSign strong {
+  font-weight: 600;
+  color: var(--text-2);
 }
 
 /* ================= 上传 ================= */
@@ -403,18 +551,11 @@
   gap: var(--s-2);
 }
 
-.row {
+.rowPlain {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 28px;
+  grid-template-columns: minmax(0, 1fr) 28px;
   gap: var(--s-2);
   align-items: center;
-}
-
-.rowIndex {
-  font-family: var(--font-mono);
-  font-size: var(--t-12);
-  color: var(--text-3);
-  text-align: right;
 }
 
 .tags {
@@ -446,19 +587,6 @@
   color: var(--text-2);
 }
 
-.checklist {
-  display: grid;
-  gap: 6px;
-}
-
-.checkItem {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  gap: var(--s-2);
-  align-items: baseline;
-  font-size: var(--t-13);
-}
-
 .dimension {
   display: grid;
   gap: var(--s-3);
@@ -471,30 +599,12 @@
   gap: var(--s-2);
 }
 
-/* 维度类型不表达来源，只用字重与描边区分强弱。 */
-.kind {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: var(--r-chip);
+/* 维度类型后缀：纯文字，不做徽标 */
+.kindSuffix {
   font-size: var(--t-12);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.kind_hard_gate {
-  background: var(--text);
-  color: var(--surface);
-}
-
-.kind_required_quality {
-  border: 1px solid rgb(0 0 0 / 20%);
-  color: var(--text-2);
-}
-
-.kind_diagnostic {
-  border: 1px dashed rgb(0 0 0 / 20%);
+  font-weight: 400;
   color: var(--text-3);
+  margin-left: var(--s-2);
 }
 
 .added {
@@ -507,25 +617,6 @@
   font-size: var(--t-12);
   font-weight: 600;
   white-space: nowrap;
-}
-
-.revStamp {
-  font-family: var(--font-mono);
-  font-size: var(--t-12);
-  color: var(--text-3);
-  white-space: nowrap;
-}
-
-.confirmFoot {
-  display: grid;
-  gap: var(--s-4);
-}
-
-@media (min-width: 860px) {
-  .confirmFoot {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-  }
 }
 
 .jsonEscape summary {
@@ -555,4 +646,10 @@
   font-size: var(--t-12);
   line-height: 1.6;
   resize: vertical;
+}
+
+@media (max-width: 720px) {
+  .focusCard {
+    padding: var(--s-6) var(--s-5);
+  }
 }

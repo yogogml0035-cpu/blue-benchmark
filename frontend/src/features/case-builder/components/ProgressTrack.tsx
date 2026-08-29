@@ -28,9 +28,9 @@ const LABEL_STYLE: Record<StepStatus, CSSProperties> = {
 };
 
 /**
- * 沉淀流程条：上传 → 解析 → AI 整理 → 需要补充 → 审改 → 收录。
- * 当前步用状态自身的语义色着色，已完成用中性灰，
- * 本闭环只有四条路由且流程线性，这条进程条本身就是导航。
+ * 沉淀流程条：上传 → 解析 → AI 整理 → 需要补充 → 审改 → 定稿。
+ * 只在等待态出现（解析中、整理中、需要补充），作为安静的方向提示；
+ * 进入审改后由题卡自己的刻度接管，不再重复表达。
  */
 export function ProgressTrack({
   state,
@@ -44,22 +44,17 @@ export function ProgressTrack({
   const steps = trackFor(state, { answered, hasDraft });
   const color = TONE_COLOR[STATE_META[state].tone];
   return (
-    <div className="stack-sm">
-      <ol className={styles.track}>
-        {steps.map((step: Step) => (
-          <li className={styles.step} key={step.key}>
-            <span className={styles.stepMark} style={{ color }}>
-              <span aria-hidden="true" className={DOT[step.status]} />
-            </span>
-            <span className={styles.stepLabel} style={LABEL_STYLE[step.status]}>
-              {step.label}
-            </span>
-          </li>
-        ))}
-      </ol>
-      <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
-        {STATE_META[state].next}
-      </p>
-    </div>
+    <ol className={styles.track}>
+      {steps.map((step: Step) => (
+        <li className={styles.step} key={step.key}>
+          <span className={styles.stepMark} style={{ color }}>
+            <span aria-hidden="true" className={DOT[step.status]} />
+          </span>
+          <span className={styles.stepLabel} style={LABEL_STYLE[step.status]}>
+            {step.label}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }

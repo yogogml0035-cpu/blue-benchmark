@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/src/components/ui/Button";
-import { Check } from "@/src/components/ui/Glyph";
 import { Note } from "@/src/components/ui/Note";
-import { DraftView } from "@/src/features/case-builder/components/DraftView";
+import {
+  DraftView,
+  type DraftSection,
+  type Editable,
+} from "@/src/features/case-builder/components/DraftView";
 import type { DraftContent } from "@/src/features/case-builder/services/caseBuilderService";
 import type { PageFault } from "@/src/lib/api/pageFault";
 
@@ -13,7 +16,7 @@ import styles from "./caseDetail.module.css";
 
 type Requirement = { key: string; label: string; ok: boolean };
 
-/** 确认完整性来自 case-builder 合同 §4.2，逐条在页脚显示，未满足就不放开确认按钮。 */
+/** 定稿完整性来自 case-builder 合同 §4.2；不满足时只在定稿按钮下写一句缺什么。 */
 function requirementsFor(draft: DraftContent): Requirement[] {
   const filled = (value: string | undefined | null) => Boolean(value && value.trim());
   return [
@@ -32,7 +35,7 @@ function requirementsFor(draft: DraftContent): Requirement[] {
     },
     {
       key: "dimension",
-      label: "至少一个带判定标准的维度",
+      label: "每个维度都有名称和判定标准",
       ok:
         draft.dimensions.length > 0 &&
         draft.dimensions.every((item) => filled(item.criterion) && filled(item.name)),
@@ -82,6 +85,24 @@ function normalize(draft: DraftContent): DraftContent {
   };
 }
 
+type SectionKey = DraftSection | "sign";
+
+const SECTIONS: { key: SectionKey; label: string }[] = [
+  { key: "summary", label: "场景摘要" },
+  { key: "goal", label: "任务与要求" },
+  { key: "outcome", label: "参考结果" },
+  { key: "sources", label: "来源 · 事实与判断" },
+  { key: "dimensions", label: "判定维度" },
+  { key: "gaps", label: "证据缺口" },
+  { key: "tags", label: "标签" },
+  { key: "sign", label: "定稿" },
+];
+
+/**
+ * 聚焦阅读器：题稿一屏一节，最后一节是定稿卡。
+ * 刻度可点，→/空格 下一节，← 上一节。读和改同构（DraftView），
+ * 修改发生在当前节内，不打断节奏。
+ */
 export function DraftEditor({
   draft: serverDraft,
   draftRevision,
@@ -99,135 +120,177 @@ export function DraftEditor({
 }) {
   const [draft, setDraft] = useState<DraftContent>(serverDraft);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [index, setIndex] = useState(0);
+  const [jsonOpen, setJsonOpen] = useState(false);
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState("");
 
-  // 服务端换了修订号就意味着换了一份草稿，本地修改不能跨修订号残留。
+  // 服务端换了修订号就意味着换了一份题稿，本地修改不跨修订号残留。
   useEffect(() => {
     setDraft(serverDraft);
     setAddedIds(new Set());
     setJsonText(JSON.stringify(serverDraft, null, 2));
     setJsonError("");
+    setIndex(0);
   }, [serverDraft, draftRevision]);
 
   const requirements = useMemo(() => requirementsFor(draft), [draft]);
   const complete = requirements.every((item) => item.ok);
+  const missing = requirements.filter((item) => !item.ok).map((item) => item.label);
   const stale = fault?.code === "STALE_DRAFT" || fault?.code === "CASE_ALREADY_CONFIRMED";
 
+  const section = SECTIONS[index];
+  const editable: Editable = useMemo(
+    () => ({
+      busy,
+      addedIds,
+      onAdded: (id) => setAddedIds((current) => new Set(current).add(id)),
+      onChange: setDraft,
+    }),
+    [addedIds, busy],
+  );
+
+  // 键盘：→/空格 下一节，← 上一节。输入框聚焦时不抢按键。
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === "ArrowRight" || event.key === " ") {
+        event.preventDefault();
+        setIndex((i) => Math.min(i + 1, SECTIONS.length - 1));
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setIndex((i) => Math.max(i - 1, 0));
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
-    <section className="sheet">
-      <div className="sheet-head">
-        <div className="row-between">
-          <div className="stack-sm">
-            <h2 className="doc-title-sm">标准草稿 · 待你确认</h2>
-            <p className="secondary" style={{ fontSize: "var(--t-14)" }}>
-              逐条审阅，可直接修改。AI 只能提出带出处的草稿，确认收录的决定权在你。
-            </p>
-          </div>
-          <span className={styles.revStamp}>v{draftRevision}</span>
-        </div>
-      </div>
-
-      <div className="stack-lg" style={{ padding: "var(--s-6) var(--s-5)" }}>
-        <DraftView
-          draft={draft}
-          editable={{
-            busy,
-            addedIds,
-            onAdded: (id) => setAddedIds((current) => new Set(current).add(id)),
-            onChange: setDraft,
-          }}
-        />
-
-        <details className={styles.jsonEscape}>
-          <summary>直接编辑 JSON（提交的就是这份内容）</summary>
-          <textarea
-            className={styles.jsonArea}
-            disabled={busy}
-            onChange={(event) => setJsonText(event.target.value)}
-            spellCheck={false}
-            value={jsonText}
+    <section className={styles.focus} aria-label="题稿审读">
+      <nav aria-label="阅读进度" className={styles.ticks}>
+        {SECTIONS.map((item, i) => (
+          <button
+            aria-current={i === index || undefined}
+            aria-label={item.label}
+            className={styles.tick}
+            data-state={i < index ? "done" : i === index ? "active" : "pending"}
+            key={item.key}
+            onClick={() => setIndex(i)}
+            type="button"
           />
-          <div className="row" style={{ marginTop: "var(--s-2)" }}>
-            <Button
-              disabled={busy}
-              onClick={() => {
-                try {
-                  setDraft(JSON.parse(jsonText) as DraftContent);
-                  setJsonError("");
-                } catch {
-                  setJsonError("这段内容不是合法 JSON，表单没有改动。");
-                }
-              }}
-              size="sm"
-            >
-              应用到上面的草稿
-            </Button>
-            <Button
-              disabled={busy}
-              onClick={() => setJsonText(JSON.stringify(draft, null, 2))}
-              size="sm"
-              variant="quiet"
-            >
-              从草稿重新载入
-            </Button>
-            {jsonError && <span className="field-error">{jsonError}</span>}
-          </div>
-        </details>
-      </div>
+        ))}
+      </nav>
 
-      <div className="sheet-foot stack">
-        {fault && (
-          <Note
-            code={fault.code}
-            title={stale ? "这份草稿已经不是最新的" : "确认没有被接受"}
-            tone="fail"
-          >
-            {fault.message}
-            {stale && (
-              <span style={{ display: "block", marginTop: "var(--s-2)" }}>
-                <Button onClick={onReload} size="sm">
-                  重新读取案例
-                </Button>
-              </span>
+      <div className={styles.focusCard} key={section.key}>
+        <p className={styles.focusCount}>
+          {index + 1} / {SECTIONS.length}
+        </p>
+        <h2 className={styles.focusTitle}>{section.label}</h2>
+
+        {section.key !== "sign" ? (
+          <div className={styles.focusBody}>
+            <DraftView draft={draft} editable={editable} section={section.key} />
+          </div>
+        ) : (
+          <div className={styles.focusBody}>
+            <p className={styles.signLead}>
+              以上 {SECTIONS.length - 1} 节，题 v{draftRevision}。
+            </p>
+            <p className={styles.signSub}>读完了，就把这份题收进场景，往后每次改版拿它对照。</p>
+
+            {fault && (
+              <Note
+                code={fault.code}
+                title={stale ? "这份题稿已经不是最新的" : "定稿没有被接受"}
+                tone="fail"
+              >
+                {fault.message}
+                {stale && (
+                  <span style={{ display: "block", marginTop: "var(--s-2)" }}>
+                    <Button onClick={onReload} size="sm">
+                      重新读取案例
+                    </Button>
+                  </span>
+                )}
+              </Note>
             )}
-          </Note>
-        )}
-        <div className={styles.confirmFoot}>
-          <div className="stack-sm">
-            <span className="section-label">确认前必须满足</span>
-            <div className={styles.checklist}>
-              {requirements.map((item) => (
-                <div className={styles.checkItem} key={item.key}>
-                  <span
-                    aria-hidden="true"
-                    style={{ color: item.ok ? "var(--green)" : "var(--text-3)" }}
-                  >
-                    {item.ok ? <Check size={13} /> : "○"}
-                  </span>
-                  <span style={{ color: item.ok ? "var(--text-2)" : "var(--text-3)" }}>
-                    {item.label}
-                  </span>
-                </div>
-              ))}
+
+            <details
+              className={styles.jsonEscape}
+              onToggle={(event) => setJsonOpen(event.currentTarget.open)}
+              open={jsonOpen}
+            >
+              <summary>直接编辑 JSON（提交的就是这份内容）</summary>
+              <textarea
+                aria-label="题稿 JSON"
+                className={styles.jsonArea}
+                disabled={busy}
+                onChange={(event) => setJsonText(event.target.value)}
+                spellCheck={false}
+                value={jsonText}
+              />
+              <div className="row" style={{ marginTop: "var(--s-2)" }}>
+                <Button
+                  disabled={busy}
+                  onClick={() => {
+                    try {
+                      setDraft(JSON.parse(jsonText) as DraftContent);
+                      setJsonError("");
+                    } catch {
+                      setJsonError("这段内容不是合法 JSON，题稿没有改动。");
+                    }
+                  }}
+                  size="sm"
+                >
+                  应用到题稿
+                </Button>
+                <Button
+                  disabled={busy}
+                  onClick={() => setJsonText(JSON.stringify(draft, null, 2))}
+                  size="sm"
+                  variant="quiet"
+                >
+                  从题稿重新载入
+                </Button>
+                {jsonError && <span className="field-error">{jsonError}</span>}
+              </div>
+            </details>
+
+            <div className={styles.signLine}>
+              <span className={styles.signHint}>
+                {complete ? "读完了，定稿。" : `还差：${missing.join("、")}`}
+              </span>
+              <Button
+                busy={busy}
+                busyLabel="正在定稿…"
+                disabled={!complete}
+                onClick={() => onConfirm(normalize(draft))}
+                size="lg"
+                variant="primary"
+              >
+                定稿
+              </Button>
             </div>
           </div>
-          <div className="stack-sm" style={{ justifyItems: "start" }}>
-            <Button
-              busy={busy}
-              busyLabel="正在收录…"
-              disabled={!complete}
-              onClick={() => onConfirm(normalize(draft))}
-              size="lg"
-              variant="primary"
-            >
-              确认收录为标准案例
-            </Button>
-            <span className="mono faint">
-              {complete ? "将保存一条候选标准案例" : "还有必填项没有满足"}
-            </span>
-          </div>
-        </div>
+        )}
+
+        <footer className={styles.focusFoot}>
+          {index > 0 ? (
+            <button className={styles.focusQuiet} onClick={() => setIndex(index - 1)} type="button">
+              上一节
+            </button>
+          ) : (
+            <span />
+          )}
+          {section.key !== "sign" && (
+            <button className={styles.focusNext} onClick={() => setIndex(index + 1)} type="button">
+              {index === SECTIONS.length - 2 ? "读完，去定稿" : "下一节"}
+            </button>
+          )}
+        </footer>
       </div>
     </section>
   );

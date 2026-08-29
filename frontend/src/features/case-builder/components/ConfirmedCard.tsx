@@ -7,39 +7,20 @@ import styles from "./caseDetail.module.css";
 type CandidateCase = components["schemas"]["CandidateCase"];
 
 /**
- * 收录卡：确认之后的信息块。只陈述数据库里真实存在的事实，
- * 并按合同明确声明这条候选标准案例还没有进入评测集、也没有触发评测。
+ * 已定稿的题卡收尾：版本 + 签名行。加入评测集、版本发布属于后续阶段，
+ * 不在这张卡里声明——卡只说「它定了」。
  */
 export function ConfirmedCard({ candidate }: { candidate: CandidateCase }) {
   return (
     <section className={`${styles.confirmCard} enter`}>
-      <span className="state state-green" style={{ justifySelf: "start" }}>
-        <span className="dot" />
-        已收录
-      </span>
-      <div className="stack-sm">
-        <div className={styles.confirmRow}>
-          <span className={styles.confirmKey}>候选标准案例</span>
-          <span className={styles.confirmValue}>{candidate.id}</span>
-        </div>
-        <div className={styles.confirmRow}>
-          <span className={styles.confirmKey}>草稿版本</span>
-          <span className={styles.confirmValue}>v{candidate.draft_revision}</span>
-        </div>
-        <div className={styles.confirmRow}>
-          <span className={styles.confirmKey}>确认人</span>
-          <span className={styles.confirmValue}>{candidate.confirmed_by_username}</span>
-        </div>
-        {PREVIEW_ENABLED && (
-          <div className={styles.confirmRow}>
-            <span className={styles.confirmKey}>确认人 ID</span>
-            <span className={styles.confirmValue}>{candidate.confirmed_by}</span>
-          </div>
-        )}
-        <div className={styles.confirmRow}>
-          <span className={styles.confirmKey}>确认时间</span>
-          <span className={styles.confirmValue}>{stamp(candidate.confirmed_at)}</span>
-        </div>
+      <div className={styles.confirmLead}>
+        <span aria-hidden="true" className="dot" style={{ background: "var(--green)" }} />
+        题 v{candidate.draft_revision} · 已定稿
+      </div>
+      <div className={styles.confirmSign}>
+        <strong>{candidate.confirmed_by_username}</strong>
+        <span>{stamp(candidate.confirmed_at)}</span>
+        {PREVIEW_ENABLED && <span className="mono faint">{candidate.id.slice(0, 8)}</span>}
       </div>
     </section>
   );

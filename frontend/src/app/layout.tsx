@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "评测集平台", template: "%s" },
   description:
-    "把一次真实交付沉淀成一条白纸黑字的标准：AI 只整理带出处的标准草稿，收录的决定权在业务老师。",
+    "把一次真实交付沉淀成一条白纸黑字的题：AI 只整理带出处的题稿，定稿权在业务老师。",
   icons: { icon: "/icon.svg" },
 };
 

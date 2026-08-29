@@ -46,7 +46,7 @@ export function QuestionCard({
         <label className="field">
           <span className="field-label">
             <span>你的回答</span>
-            <span className="field-hint">1–10000 字 · {answer.trim().length}</span>
+            <span className="field-hint">{answer.trim().length} / 10000</span>
           </span>
           <AutoTextarea
             autoFocus
@@ -55,7 +55,7 @@ export function QuestionCard({
             maxLength={10000}
             minRows={3}
             onChange={(event) => setAnswer(event.target.value)}
-            placeholder="直接写清楚哪一个结果是你最终认可的，以及为什么。"
+            placeholder="写清楚哪一个结果是你最终认可的，以及为什么。"
             value={answer}
           />
         </label>
@@ -68,7 +68,6 @@ export function QuestionCard({
           <Button busy={busy} busyLabel="正在提交回答…" disabled={!ready} type="submit" variant="primary">
             提交回答并继续
           </Button>
-          <span className="mono faint">回答会作为「你的判断」的证据写进草稿</span>
         </div>
       </form>
     </section>

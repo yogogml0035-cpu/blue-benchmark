@@ -32,7 +32,7 @@ export const STATE_META: Record<CaseState, { label: string; tone: Tone; next: st
     tone: "red",
     next: "这份材料无法进入 AI 整理。修正后重新上传，不提供无意义的重试。",
   },
-  ready_for_ai: { label: "待整理", tone: "neutral", next: "材料已就绪，即将自动整理一版标准草稿。" },
+  ready_for_ai: { label: "待整理", tone: "neutral", next: "材料已就绪，即将自动整理一版题稿。" },
   generating: { label: "AI 整理中", tone: "active", next: "同一时刻只允许一次运行，请稍候。" },
   waiting_for_input: {
     label: "需要补充",
@@ -40,12 +40,12 @@ export const STATE_META: Record<CaseState, { label: string; tone: Tone; next: st
     next: "回答当前这一个问题，AI 会带着回答继续整理。",
   },
   waiting_for_confirmation: {
-    label: "待你确认",
+    label: "待你定稿",
     tone: "active",
-    next: "逐条审阅、按需修改，然后确认收录。",
+    next: "分节读完、按需修改，然后定稿。",
   },
   ai_failed: { label: "整理失败", tone: "red", next: "按提示的原因决定是否重试同一个会话。" },
-  confirmed: { label: "已收录", tone: "green", next: "候选标准案例已保存，本页转为只读。" },
+  confirmed: { label: "已定稿", tone: "green", next: "题已保存，本页转为只读。" },
 };
 
 export type StepStatus = "done" | "active" | "pending" | "failed" | "skipped";
@@ -88,7 +88,7 @@ export function trackFor(
         step("draft", "AI 整理", "pending"),
         step("ask", "需要补充", "pending"),
         step("review", "审改", "pending"),
-        step("confirm", "收录", "pending"),
+        step("confirm", "定稿", "pending"),
       ];
     case "parse_failed":
       return [
@@ -97,7 +97,7 @@ export function trackFor(
         step("draft", "AI 整理", "skipped"),
         step("ask", "需要补充", "skipped"),
         step("review", "审改", "skipped"),
-        step("confirm", "收录", "skipped"),
+        step("confirm", "定稿", "skipped"),
       ];
     case "ready_for_ai":
     case "generating":
@@ -107,7 +107,7 @@ export function trackFor(
         step("draft", "AI 整理", "active"),
         step("ask", "需要补充", "pending"),
         step("review", "审改", "pending"),
-        step("confirm", "收录", "pending"),
+        step("confirm", "定稿", "pending"),
       ];
     case "ai_failed":
       return [
@@ -116,7 +116,7 @@ export function trackFor(
         step("draft", "AI 整理", "failed"),
         step("ask", "需要补充", "pending"),
         step("review", "审改", "pending"),
-        step("confirm", "收录", "pending"),
+        step("confirm", "定稿", "pending"),
       ];
     case "waiting_for_input":
       return [
@@ -125,7 +125,7 @@ export function trackFor(
         step("draft", "AI 整理", "done"),
         step("ask", "需要补充", "active"),
         step("review", "审改", "pending"),
-        step("confirm", "收录", "pending"),
+        step("confirm", "定稿", "pending"),
       ];
     case "waiting_for_confirmation":
       return [
@@ -134,7 +134,7 @@ export function trackFor(
         step("draft", "AI 整理", "done"),
         step("ask", "需要补充", answered ? "done" : "skipped"),
         step("review", "审改", "active"),
-        step("confirm", "收录", "pending"),
+        step("confirm", "定稿", "pending"),
       ];
     case "confirmed":
       return [
@@ -143,7 +143,7 @@ export function trackFor(
         step("draft", "AI 整理", "done"),
         step("ask", "需要补充", answered || hasDraft ? "done" : "skipped"),
         step("review", "审改", "done"),
-        step("confirm", "收录", "done"),
+        step("confirm", "定稿", "done"),
       ];
   }
 }

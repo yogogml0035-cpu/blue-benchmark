@@ -125,7 +125,7 @@ export function ScenarioShelf() {
           <StatePanel
             actions={<ButtonLink href={loginHref("/workspaces")} variant="primary">去登录</ButtonLink>}
             code="401 · AUTH_REQUIRED"
-            description="场景列表只属于登录用户。会话失效或尚未登录时，这里不会渲染任何私有内容。"
+            description="登录后查看你的场景。"
             title="需要登录才能查看场景"
             tone="locked"
           />
@@ -187,12 +187,7 @@ export function ScenarioShelf() {
       <PreviewBar states={["loading", "empty", "success", "error", "unauthorized"]} />
       <main className="page page-mid stack-lg">
         <div className="row-between">
-          <div className="stack-sm">
-            <h1 className="doc-title">场景</h1>
-            <p className="secondary">
-              每个场景是一个私有业务空间。真实案例、标准草稿和候选标准案例都继承场景的归属，其他账号读不到。
-            </p>
-          </div>
+          <h1 className="doc-title">场景</h1>
           {!empty && !loading && (
             <Button
               onClick={() => setComposerOpen((open) => !open)}
@@ -215,10 +210,10 @@ export function ScenarioShelf() {
         {composerVisible && (
           <section className="sheet enter">
             <div className="sheet-head">
-              <h2 className="doc-title-sm">{empty ? "创建你的第一个业务场景" : "新建场景"}</h2>
+              <h2 className="doc-title-sm">{empty ? "创建你的第一个场景" : "新建场景"}</h2>
               {empty && (
                 <p className="secondary" style={{ marginTop: "var(--s-1)" }}>
-                  用客户或场景命名，例如「客户 A 新闻稿」。这个场景仅自己可见。
+                  用客户或任务命名，例如「客户 A 新闻稿」。
                 </p>
               )}
             </div>

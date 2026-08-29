@@ -20,8 +20,8 @@ const MODES = [
   { value: "register" as const, label: "注册" },
 ];
 
-/** 登录页脚下的整条链路，让老师知道自己将要进入哪一条流程。 */
-const FLOW = ["场景", "上传", "AI 整理", "需要补充", "审改", "收录"];
+/** 页脚一行流程，让老师知道将要进入哪一条。 */
+const FLOW = ["场景", "上传", "AI 整理", "需要补充", "审改", "定稿"];
 
 function fieldOf(fault: PageFault | null): "username" | "email" | null {
   if (fault?.code === "USERNAME_TAKEN") return "username";
@@ -95,14 +95,13 @@ export function AuthPanel() {
             评测集平台
           </span>
           <p className="secondary">
-            把一次真实交付沉淀成一条白纸黑字的标准。标准由你确认，AI 只整理带出处的草稿。
+            把一次真实交付沉淀成一条白纸黑字的题。题由你定稿，AI 只整理带出处的题稿。
           </p>
         </div>
 
         {(forcedUnauthorized || returnTo) && (
-          <Note code="AUTH_REQUIRED" title="需要登录才能查看" tone="amber">
-            登录后会回到{" "}
-            <span className="mono">{returnTo ?? "/workspaces/…/cases/…"}</span>。
+          <Note code="AUTH_REQUIRED" title="需要登录" tone="amber">
+            登录后会回到你刚才要去的地方。
           </Note>
         )}
 
@@ -118,17 +117,9 @@ export function AuthPanel() {
           <section className="sheet enter">
             <div className="sheet-pad stack">
               <div className="stack-sm">
-                <span className="state state-green">
-                  <span className="dot" />
-                  已登录
-                </span>
                 <h1 className="doc-title-sm">
-                  当前账号：
                   {session.status === "authenticated" ? session.user.username : "teacher-a"}
                 </h1>
-                <p className="secondary">
-                  这个会话已经通过认证。直接进入场景列表，或换一个账号验证越权分支。
-                </p>
               </div>
               <div className="row">
                 <Button
@@ -243,7 +234,7 @@ export function AuthPanel() {
 
               {pristine && !shownFault && (
                 <Note tone="info" title="表单还是空的">
-                  本地 Stub 不预置账号，第一次使用请切到「注册」创建一个。
+                  第一次使用请切到「注册」创建一个账号。
                 </Note>
               )}
 

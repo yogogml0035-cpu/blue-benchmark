@@ -136,7 +136,7 @@ export function CaseUpload({ workspaceId }: { workspaceId: string }) {
           <StatePanel
             actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>}
             code="401 · AUTH_REQUIRED"
-            description="上传前必须确认身份。真实案例会继承场景归属，未登录时页面不会读取任何场景信息。"
+            description="上传前需要登录。"
             title="需要登录才能向这个场景上传"
             tone="locked"
           />
@@ -161,9 +161,9 @@ export function CaseUpload({ workspaceId }: { workspaceId: string }) {
   if (fault && fault.kind !== "conflict") {
     const copy =
       fault.kind === "forbidden"
-        ? { title: "这个场景不属于当前账号", body: "私有场景只对所有者可见，页面不会用缓存继续渲染场景内容。" }
+        ? { title: "这个场景不属于当前账号", body: "场景只对所有者可见。" }
         : fault.kind === "not_found"
-          ? { title: "场景不存在", body: "地址里的场景编号在你的授权范围内查不到。" }
+          ? { title: "场景不存在", body: "查不到这个场景。" }
           : { title: "读取场景失败", body: fault.message };
     return (
       <>
@@ -195,15 +195,11 @@ export function CaseUpload({ workspaceId }: { workspaceId: string }) {
       {previewBar}
       <main className="page page-mid stack-lg">
         <div className="stack-sm">
-          <span className="section-label">上传真实案例</span>
           <h1 className="doc-title">上传一份真实案例</h1>
           {loading ? (
             <SkeletonLine height={14} width="58%" />
           ) : (
-            <p className="secondary">
-              上传到「{shownWorkspace?.name}」。材料会在本次请求里同步保存并解析，
-              解析成功后详情页会自动请 AI 整理一版标准草稿。
-            </p>
+            <p className="secondary">上传到「{shownWorkspace?.name}」。</p>
           )}
         </div>
 
@@ -346,9 +342,6 @@ export function CaseUpload({ workspaceId }: { workspaceId: string }) {
                   取消
                 </ButtonLink>
               </div>
-              {!file && !fileError && !loading && (
-                <p className="mono faint">尚未选择材料 · 上传按钮保持禁用</p>
-              )}
             </form>
           </section>
 
@@ -356,10 +349,8 @@ export function CaseUpload({ workspaceId }: { workspaceId: string }) {
             <div className="stack-sm">
               <span className="section-label">上传须知</span>
               <ul className="stack-sm secondary" style={{ fontSize: "var(--t-13)" }}>
-                <li>· 一个真实案例本阶段只收一个材料。</li>
-                <li>· 扩展名、声明类型和实际可解码内容都会被检查。</li>
-                <li>· 解析为空不会调用模型，会留下一条可追踪的失败记录。</li>
-                <li>· 解析失败不提供重试，修正材料后重新上传。</li>
+                <li>· 一个案例收一个材料，解析为空不会进入整理。</li>
+                <li>· 解析失败不重试，修正材料后重新上传。</li>
               </ul>
             </div>
             {PREVIEW_ENABLED && (

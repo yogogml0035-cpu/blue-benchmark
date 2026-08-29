@@ -6,11 +6,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DeskRail } from "@/src/components/shell/DeskRail";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
 import { Note } from "@/src/components/ui/Note";
-import { SkeletonClaim, SkeletonLine } from "@/src/components/ui/Skeleton";
+import { SkeletonLine } from "@/src/components/ui/Skeleton";
 import { StatePanel } from "@/src/components/ui/StatePanel";
 import { UserChip } from "@/src/features/auth/components/UserChip";
 import { useSession } from "@/src/features/auth/hooks/useSession";
-import { AttachmentStrip } from "@/src/features/case-builder/components/AttachmentStrip";
 import { ConfirmedCard } from "@/src/features/case-builder/components/ConfirmedCard";
 import { DraftEditor } from "@/src/features/case-builder/components/DraftEditor";
 import { DraftView } from "@/src/features/case-builder/components/DraftView";
@@ -36,6 +35,8 @@ import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault"
 import { stamp } from "@/src/lib/format";
 import { PREVIEW_ENABLED, PreviewBar, usePreviewState, type PreviewState } from "@/src/lib/preview/preview";
 
+import styles from "./caseDetail.module.css";
+
 type Load =
   | { status: "loading" }
   | { status: "ready"; case: Case }
@@ -49,26 +50,27 @@ const PREVIEW_CASES: Partial<Record<PreviewState, Case>> = {
   success: PREVIEW_CASE_CONFIRMED,
 };
 
-/** 整理中的占位：撑住草稿最终的版面高度，AI 返回时页面不跳。 */
+/** 整理中的占位：撑住题稿最终的版面高度，AI 返回时页面不跳。 */
 function DraftSkeleton({ title }: { title: string }) {
   return (
-    <section aria-busy="true" className="sheet">
-      <div className="sheet-head spread">
-        <span className="row" style={{ gap: "var(--s-2)" }}>
-          <span className="state state-active">
-            <span className="dot pulse-dot" />
-            {title}
-          </span>
+    <div aria-busy="true" style={{ maxWidth: 640, margin: "0 auto", width: "100%" }}>
+      <div className="stack-sm" style={{ marginBottom: "var(--s-4)" }}>
+        <div className="row" style={{ gap: 6 }}>
+          {[24, 32, 40, 48, 56, 64, 72, 80].map((width) => (
+            <SkeletonLine height={3} key={width} width={`${width}px`} />
+          ))}
+        </div>
+      </div>
+      <section className="sheet sheet-pad stack">
+        <span className="state state-active">
+          <span className="dot pulse-dot" />
+          {title}
         </span>
-        <SkeletonLine height={11} width="72px" />
-      </div>
-      <div className="sheet-pad stack">
-        <SkeletonClaim lines={2} />
-        <SkeletonClaim lines={1} />
-        <SkeletonClaim lines={3} />
-        <SkeletonClaim lines={2} />
-      </div>
-    </section>
+        <SkeletonLine height={20} width="46%" />
+        <SkeletonLine height={60} />
+        <SkeletonLine height={40} width="80%" />
+      </section>
+    </div>
   );
 }
 
@@ -222,11 +224,11 @@ export function CaseDetail({ workspaceId, caseId }: { workspaceId: string; caseI
       <>
         {rail}
         {previewBar}
-        <main className="page page-wide">
+        <main className="page page-mid">
           <StatePanel
             actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>}
             code="401 · AUTH_REQUIRED"
-            description="地址里带着案例编号也不代表有权限。会话失效时页面不会渲染标题、材料、草稿或候选标准案例。"
+            description="登录后才能查看这个真实案例。"
             title="需要登录才能查看这个真实案例"
             tone="locked"
           />
@@ -251,13 +253,13 @@ export function CaseDetail({ workspaceId, caseId }: { workspaceId: string; caseI
       fault.kind === "forbidden"
         ? {
             title: "这个真实案例不属于当前账号",
-            body: "真实案例、材料、草稿和候选标准案例都继承场景归属。页面不会用已有缓存继续渲染任何内容。",
+            body: "案例、材料和题稿都继承场景归属。",
             hint: "403",
           }
         : fault.kind === "not_found"
           ? {
               title: "真实案例不存在",
-              body: "在你的授权范围内查不到这个案例。不会用另一个场景编号猜测读取。",
+              body: "在你的场景里查不到这个案例。",
               hint: "404",
             }
           : { title: "案例读取失败", body: fault.message, hint: "500" };
@@ -265,7 +267,7 @@ export function CaseDetail({ workspaceId, caseId }: { workspaceId: string; caseI
       <>
         {rail}
         {previewBar}
-        <main className="page page-wide">
+        <main className="page page-mid">
           <StatePanel
             actions={
               <>
@@ -294,7 +296,7 @@ export function CaseDetail({ workspaceId, caseId }: { workspaceId: string; caseI
       <>
         {rail}
         {previewBar}
-        <main aria-busy="true" className="page page-wide stack-lg">
+        <main aria-busy="true" className="page page-mid stack-lg">
           <section className="sheet">
             <div className="sheet-head spread">
               <SkeletonLine height={11} width="120px" />
@@ -323,50 +325,40 @@ export function CaseDetail({ workspaceId, caseId }: { workspaceId: string; caseI
     <>
       {rail}
       {previewBar}
-      <main className="page page-wide stack-lg">
-        <section className="sheet">
-          <div className="sheet-head spread">
-            <span className="mono faint">案例编号 · {shown.id.slice(0, 8)}</span>
-            <div className="row" style={{ gap: "var(--s-2)" }}>
-              <span className={`state ${TONE_CLASS[meta.tone]}`}>
-                <span
-                  className={`dot${state === "generating" || state === "parsing" ? " pulse-dot" : ""}`}
-                />
-                {meta.label}
-              </span>
-              <Button
-                busy={refreshing}
-                busyLabel="读取中…"
-                disabled={busy}
-                onClick={() => void read({ auto: false, silent: true })}
-                size="sm"
-                variant="quiet"
-              >
-                刷新
-              </Button>
-            </div>
-          </div>
-          <div className="sheet-pad stack">
+      <main className="page page-mid stack-lg">
+        <header className="stack-sm">
+          <div className="spread">
             <h1 className="doc-title">{shown.title}</h1>
-            <AttachmentStrip attachment={shown.attachment} />
-            {shown.task_description && (
-              <div className="inset stack-sm">
-                <span className="section-label">任务说明</span>
-                <p className="doc-body">{shown.task_description}</p>
-              </div>
-            )}
-            <span className="mono faint">
-              上传于 {stamp(shown.created_at)} · 更新于 {stamp(shown.updated_at)}
+            <span className={`state ${TONE_CLASS[meta.tone]}`}>
+              <span
+                className={`dot${state === "generating" || state === "parsing" ? " pulse-dot" : ""}`}
+              />
+              {meta.label}
             </span>
           </div>
-          <div className="sheet-foot">
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span className="mono faint">
+              {shown.attachment.original_name} · {stamp(shown.created_at)}
+            </span>
+            <Button
+              busy={refreshing}
+              busyLabel="读取中…"
+              disabled={busy}
+              onClick={() => void read({ auto: false, silent: true })}
+              size="sm"
+              variant="quiet"
+            >
+              刷新
+            </Button>
+          </div>
+          {state !== "waiting_for_confirmation" && state !== "confirmed" && (
             <ProgressTrack
               answered={answered || hasTeacherAnswer(draft)}
               hasDraft={Boolean(draft)}
               state={state}
             />
-          </div>
-        </section>
+          )}
+        </header>
 
         {commandFault && state !== "waiting_for_confirmation" && state !== "waiting_for_input" && (
           <Note code={commandFault.code} title="上一个命令没有被接受" tone="fail">
@@ -385,15 +377,11 @@ export function CaseDetail({ workspaceId, caseId }: { workspaceId: string; caseI
             }
             code={builder.last_error?.code}
             description={
-              builder.last_error?.message ??
-              "这份材料无法解析。已经留下可追踪的失败记录，但不会进入 AI 整理。"
+              builder.last_error?.message ?? "这份材料无法解析，不会进入 AI 整理。"
             }
             title="解析失败"
             tone="fault"
           >
-            <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
-              同一个文件重试没有意义，请修正后重新上传。
-            </p>
             {PREVIEW_ENABLED && <p className="mono faint">retryable · false</p>}
           </StatePanel>
         )}
@@ -420,9 +408,6 @@ export function CaseDetail({ workspaceId, caseId }: { workspaceId: string; caseI
             title="整理失败"
             tone="fault"
           >
-            <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
-              重试会沿用同一个会话，不会从头开始。
-            </p>
             {PREVIEW_ENABLED && (
               <p className="mono faint">
                 retryable · {String(builder.last_error?.retryable ?? false)}
@@ -452,24 +437,10 @@ export function CaseDetail({ workspaceId, caseId }: { workspaceId: string; caseI
         )}
 
         {state === "confirmed" && shown.candidate_case && (
-          <div className="stack">
+          <div className="stack-lg">
             <ConfirmedCard candidate={shown.candidate_case} />
-            <Note title="这是一条候选标准案例" tone="info">
-              它还没有加入评测集，也没有触发任何评测。加入评测集、版本发布和评测属于后续阶段。
-            </Note>
-            <section className="sheet">
-              <div className="sheet-head row-between">
-                <div className="stack-sm">
-                  <h2 className="doc-title-sm">已确认的标准内容</h2>
-                  <p className="secondary" style={{ fontSize: "var(--t-14)" }}>
-                    以下内容与数据库中保存的候选标准案例逐字一致，本页转为只读。
-                  </p>
-                </div>
-                <span className="mono faint">v{shown.candidate_case.draft_revision}</span>
-              </div>
-              <div style={{ padding: "var(--s-6) var(--s-5)" }}>
-                <DraftView draft={shown.candidate_case.content} />
-              </div>
+            <section className={styles.confirmCard}>
+              <DraftView draft={shown.candidate_case.content} section="all" />
             </section>
           </div>
         )}
