@@ -150,7 +150,7 @@
 - 未来只有真实运行数据证明某类规范化任务包能以更低成本获得等价质量时，才评估替换实现或新增快速路径；该可能性不纳入 M0 范围，也不做永久禁止。
 - M0 只直接集成 Deep Agents 作为唯一 AI Runtime，不额外创建第二个 LangChain Agent，也暂不手写自定义 LangGraph；Deep Agents 对 LangChain 和 LangGraph 的内部依赖不构成应用层的第二套编排。
 - Deep Agent 负责证据理解、语义检查、结构化候选变更、下一条最高价值问题和“可以定稿”的建议；它不能成为业务事实、权限、结构完整性、状态转换、幂等、版本冻结或审计的最终权威。
-- `create_deep_agent(response_format=...)` 的输出只从 `structured_response` 读取。AI Profile 必须显式固定 ProviderStrategy 或 ToolStrategy；OpenAI-compatible 传输不等于支持 JSON Schema 或强制 `tool_choice`，未经真实 capability Spike 验证不得进入生产配置。
+- `create_deep_agent(response_format=...)` 的输出只从 `structured_response` 读取。真实 capability Spike 已将当前 AI Profile 固定为 ToolStrategy；ProviderStrategy/AutoStrategy、自由文本 JSON 和未经验证的模型路由不得进入生产配置。
 - 每个 Agent 使用小型、分阶段 Schema。若指定模型/供应商不能稳定返回有效工具调用与结构化结果，实施必须停下更换模型或适配器，不静默退化为自由文本 JSON。应用仍对 Pydantic 结果做证据 locator、归属、阻塞缺口和状态前置条件复验。
 - EvidenceRef 使用服务端文件 ID 与已验证 locator，不信任模型输出的宿主路径。长文件必须先读 manifest/行数，再用显式 `limit` 和 `offset` 分页至 EOF；不得依赖 `read_file` 默认 100 行后宣称完成分析。
 - FastAPI 业务服务、确定性规则和 PostgreSQL 业务表是 M0 的业务事实源。只有老师的显式操作才能完成定稿或冻结；模型私有 reasoning、Checkpoint 和消息历史都不是业务证据。
@@ -191,7 +191,7 @@
 - 多成员协作、角色权限、审批流和组织级治理。
 - 上传内容的自动敏感信息识别、DLP、PII 脱敏和按片段授权；若未来开放给未培训用户、跨组织使用或进入生产合规范围，再单独设计。
 - LangGraph Store/StoreBackend Memory、MemoryMiddleware、跨场景长期记忆、自定义业务 middleware 和 Agent event/token streaming。`standard_cocreator` 的 PostgreSQL Checkpointer 与 ask-user 中断属于 M0；其他 Agent 不保留跨轮 thread。
-- 在本轮规划批准前修改产品代码或启动实现。
+- 在新的最终规划摘要获再次批准前修改产品代码、运行 `task.py start` 或启动实施。
 
 ## Acceptance Criteria
 
@@ -212,3 +212,8 @@
 - [ ] `standard_cocreator` 使用 PostgreSQL Checkpointer 后，可以在进程重启后用同一稳定 thread 和明确 Checkpoint 恢复；`ask_teacher + respond` 每次只产生一个待答问题，或经 Spike 明确选择同一 thread 的完成式问答降级。
 - [ ] Checkpoint 已推进但业务投影提交失败时，不重复调用模型即可恢复投影；陈旧业务 revision、错误 checkpoint 指针、并发 resume 和 AI Profile/Graph Schema 不兼容都必须 fail closed。
 - [ ] Checkpoint 加密、保留和清理策略可验证；清理已完成 session 的 Checkpoint 后，老师仍能完整查看已确认题、场景标准、形成记录和冻结版本。
+- [ ] 五个顺序子任务都有独立 PRD、design、implement、文件所有权和已校验的实现/检查上下文；父任务只负责跨子任务合同和最终集成。
+- [ ] 锁定依赖和当前 Claude/Bedrock relay 的真实 Spike 固定 `ToolStrategy`，禁止 ProviderStrategy/temperature；无 Checkpointer 的 Agent 不传 `durability="sync"`。
+- [ ] 场景工作台规划态 Preview 在桌面和 390px 窄屏通过三导航、单焦点、单主动作、全屏 sheet、无横向溢出、Escape 和焦点返回检查。
+- [ ] 三份真实样本已复制到 Git-ignored `.local-samples/m0/`，源/目标 SHA-256 一致；默认测试不会自动发现或读取该目录。
+- [ ] PostgreSQL、独立 Checkpointer 连接、单消费者、存储根、迁移顺序和无凭证配置合同明确。

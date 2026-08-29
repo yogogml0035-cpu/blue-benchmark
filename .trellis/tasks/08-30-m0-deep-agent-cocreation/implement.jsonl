@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "后端规范入口与开发前门"}
+{"file": ".trellis/spec/backend/structure-and-boundaries.md", "reason": "AI Adapter 与 Feature Service 依赖边界"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/framework-evidence.md", "reason": "Deep Agents LangGraph 官方边界"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/deep-agents-adversarial-review.md", "reason": "工具 权限 输出和长文件风险"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/checkpointer-adversarial-review.md", "reason": "accepted Checkpoint HITL 和恢复合同"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/prestart-spike-results.md", "reason": "锁定版本与真实 provider PostgreSQL Spike 结果"}

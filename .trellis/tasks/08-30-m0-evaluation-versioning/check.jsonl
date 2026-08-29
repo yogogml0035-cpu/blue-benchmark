@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "冻结幂等 哈希 历史不可变质量门"}
+{"file": ".trellis/spec/backend/errors-and-api-responses.md", "reason": "冻结错误和重试语义审查"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "API 下载和生成合同一致性"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/sample-evidence.md", "reason": "版本包分区与真实样本角色审查"}

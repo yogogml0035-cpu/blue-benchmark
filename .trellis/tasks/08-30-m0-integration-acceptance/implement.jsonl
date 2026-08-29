@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "后端全链路质量门"}
+{"file": ".trellis/spec/frontend/quality-and-verification.md", "reason": "前端构建和浏览器验收门"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "完整用户路径与生成合同同步"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/sample-evidence.md", "reason": "三份真实材料的任务和角色边界"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/prestart-spike-results.md", "reason": "Provider Checkpointer 权限和恢复基线"}

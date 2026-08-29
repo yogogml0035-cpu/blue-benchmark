@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/quality-and-verification.md", "reason": "类型 构建 状态和人工验收门"}
+{"file": ".trellis/spec/frontend/components-and-styling.md", "reason": "键盘 焦点 busy 与 reduced motion 审查"}
+{"file": ".trellis/spec/frontend/type-and-api-contracts.md", "reason": "生成类型和服务合同审查"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/ui-adversarial-review.md", "reason": "卡片墙 多栏 AI 装饰与内部实体回归审查"}

@@ -14,20 +14,20 @@
 
 ## 2. Phase 0 — Replace obsolete planning contracts
 
-- [ ] 按 `research/ui-adversarial-review.md` 更新 `.interface-design/system.md`：保留来源分组、一屏一节和浅色可访问性；加入“当前 / 题 / 版本”、一问一变一确认、按需“标准与依据”、中性主动作、较少表面和上下文文字预算。
-- [ ] 删除设计文档中的过时规则：评测集（未来）、禁止任何场景内导航、所有说明强制 30 字、生产 JSON 编辑器、默认机器码、通用卡片墙、高饱和蓝主按钮和四路由假设。
-- [ ] 重写 `docs/architecture.md` 的 M0 边界，明确 Deep Agents 是唯一 AI Runtime、FastAPI/业务表是业务权威、`standard_cocreator` 使用 PostgreSQL Checkpointer、其他 Agent 按 attempt 重跑、M0 不使用 Store/Memory 且不手写自定义 LangGraph。
-- [ ] 重写或拆分 `docs/features/case-builder.md`，删除“单文件、同步 AI、一个 SourceCase 恰好一题”的旧合同。
-- [ ] 新增或重写 ADR-0001：保留“业务状态与 Checkpoint 分离、同时持久化”原则，把旧手写 LangGraph/同步 HTTP 方案替换为 Deep Agents + OperationJob + accepted Checkpoint 指针 + `ask_teacher/respond` + 业务 CAS；明确 Store/Memory 仍不启用。
-- [ ] 文档所有能力继续标注“计划”，直到相应源码、测试和真实运行证据存在。
+- [x] 已按 `research/ui-adversarial-review.md` 更新 `.interface-design/system.md`：保留来源分组、一屏一节和浅色可访问性；加入“当前 / 题 / 版本”、一问一变一确认、按需“标准与依据”、中性主动作、较少表面和上下文文字预算，并明确这些是尚未实现的目标合同。
+- [x] 已删除设计系统中的过时规则：评测集（未来）、禁止任何场景内导航、所有说明强制 30 字、生产 JSON 编辑器、默认机器码、通用卡片墙、高饱和蓝主按钮和四路由假设。
+- [ ] 实施开始后，在当前文档重组结果上建立新的 `docs/architecture.md` M0 事实边界；本轮发现原文件已被其他改动删除，因此未恢复或覆盖。
+- [ ] 实施开始后建立新的 case-builder/evaluation-set Feature 文档；当前旧文件已被其他改动删除，本轮未恢复或覆盖。
+- [x] 已在任务 `research/adr-0002-m0-runtime-and-persistence.md` 固化“业务状态与 Checkpoint 分离、同时持久化”、Deep Agents + OperationJob + accepted Checkpoint + ask_teacher/respond + CAS，明确 Store/Memory 禁用。实施后再迁入项目 ADR 事实层。
+- [x] 当前新增文档均标注规划/Preview/Spike 状态，没有把未来能力写成已运行产品事实。
 
 Validation:
 
 ```bash
-rg -n "同步执行|恰好一个|LangGraph.*唯一|评测集（未来）|Asset Rail|Formation Receipt" docs .interface-design/system.md
+rg -n "评测集（未来）|Asset Rail|Formation Receipt" .interface-design/system.md .trellis/tasks/08-29-m0-evaluation-set-planning
 ```
 
-预期：只剩明确的历史说明或“已被替代”描述，没有两个并存的当前方案。
+预期：只剩明确的历史/迁移说明，没有两个并存的当前方案。`docs/` 若继续被当前外部改动删除，则实施时按最终目录结构新建事实文档，不在本轮恢复。
 
 ## 3. Phase 1 — Persistence and domain foundation
 
@@ -75,8 +75,8 @@ cd backend && uv run pytest -q
 - [ ] 增加 Worker 启动工具面断言：batch Agent只允许 read/list/search，co-creator 额外只允许纯 `ask_teacher`，coverage Agent无文件工具，三者均无 task/execute/write/edit/delete；断言失败时 Worker fail closed。
 - [ ] 实现无共享可变状态的只读 `EvidenceBackend`：从 typed `AgentRunContext` 解析当前 scope，只读 canonical view，写/改/删固定拒绝；开发 FilesystemBackend 只作为隔离临时目录对照，不进入生产默认。
 - [ ] 验证 `batch_analyzer` 只能读当前批次、`standard_cocreator` 只能读当前任务包、`coverage_reviewer` 无文件工具；替换内置 FilesystemMiddleware 时把 backend、permissions 和 read-tool allowlist 一起传给替换实例，permission 按 allow `/evidence/**` → deny read `/**` → deny write `/**` 排序，并用越权路径测试证明默认 allow 被兜住。
-- [ ] 设计真实 endpoint capability matrix：普通工具调用、specific/forced `tool_choice`、ProviderStrategy、ToolStrategy、invalid_tool_calls、空 tools、中文嵌套 Schema、多轮 tool/message roundtrip、非流式 invoke，以及 `interrupt_on + response_format + respond + 同一 thread resume`。
-- [ ] 只选择一个实测稳定的 structured-output 策略；若没有策略通过，停止并更换模型/adapter 或缩小 Schema，不做自由文本 JSON 生产降级。
+- [x] 已执行真实 endpoint capability matrix：普通工具调用、specific/forced `tool_choice`、ProviderStrategy、ToolStrategy、invalid_tool_calls、空 tools、中文嵌套 Schema、多轮 tool/message roundtrip、非流式 invoke，以及 `interrupt_on + response_format + respond + 同一 thread resume`；结果见 `research/prestart-spike-results.md`。
+- [x] 当前 AI Profile 固定 ToolStrategy；ProviderStrategy 实测失败，禁止 AutoStrategy 或自由文本 JSON 降级。模型/adapter/Schema 变化时必须重跑矩阵并升级 Profile。
 - [ ] 实现 `EvidenceAnalyzer`、`StandardCoCreator`、`CoverageReviewer` 三个 Protocol；`StandardCoCreator` 明确提供 start/resume/reproject，生产 adapter 使用三个命名 Deep Agent，测试 adapter 使用 Fake。它们共享 AI Profile，但不是 subagents。
 - [ ] 分别定义小型 `BatchAnalysis`、`AskTeacherInput`、`CoCreationResult`、完成式降级 `CoCreationTurn`、`CoverageReview` Pydantic Schema；从 `structured_response` 或唯一 `ask_teacher` action request 读取后，再执行 locator、文件归属、阻塞缺口和业务状态复验。
 - [ ] 定义 EvidenceRef locator union（line range / JSON pointer / event id）并回查 canonical extracted view；模型输出路径和 quote 不能直接成为业务证据。
@@ -85,7 +85,7 @@ cd backend && uv run pytest -q
 - [ ] 实现纯 `ask_teacher` 工具并配置 `interrupt_on={ask_teacher: allowed_decisions=[respond]}`；工具不得访问业务库或写文件。中断边界的 AIMessage 必须只有一个 ask_teacher tool call；与读取/结构化输出工具并发、零个/多个问题、其他 interrupt 或额外 decision 类型时 fail closed。
 - [ ] 使用加密 `AsyncPostgresSaver` 编译 `standard_cocreator`；FastAPI/Worker lifespan 持有 Checkpointer 连接生命周期，部署迁移单独调用 setup。`batch_analyzer` 与 `coverage_reviewer` 不维护稳定 thread。
 - [ ] 固定并测试 Deep Agents 非流式 invoke 输出协议版本，确保能稳定读取 interrupts、action_requests、review_configs、最终 value/structured_response 和 produced checkpoint config；不得混用不同文档版本的返回形状。
-- [ ] 共创 session 使用服务端 stable thread；每次 start/resume 显式传同一 thread 和业务表中的 accepted checkpoint_id，并优先 `durability="sync"`。Spike 必须证明 `Command(resume)` 能从指定的 interrupted checkpoint 恢复，而不是隐式使用 thread latest；浏览器、模型和上传文件都不能提供 thread/checkpoint/interrupt ID。
+- [x] Spike 已证明共创 session 可用服务端 stable thread、显式 accepted checkpoint_id 和 `durability="sync"` 跨新进程恢复，而不是隐式使用 thread latest；实现仍需保持浏览器、模型和上传文件不能提供内部 ID。
 - [ ] 若锁定版本不支持显式 checkpoint resume，采用 fail-closed fallback：未接受 produced 分支只能先重投影，业务/兼容性冲突必须 continuity reset 到新 thread；禁止在旧 thread 上回退恢复或默默采用 latest。
 - [ ] 验证 `interrupt()` 恢复时节点前置代码重跑：Graph 内不写业务表、不发送外部消息、不产生不可幂等副作用；业务答案先写 `CoCreationTurn`，Worker 再执行 `Command(resume=respond)`。
 - [ ] 实现完成式问答降级并固定到 `ai_profile_version`：如果目标模型无法稳定组合 HITL 与 response_format，仍在相同 Checkpointer thread 中用普通多轮消息继续；不得静默切换模式或退回无 Checkpointer。
@@ -233,14 +233,14 @@ make build
 
 在运行 `task.py start` 前必须满足：
 
-- [ ] 用户批准最新 PRD、design.md 和 implement.md 总结。
-- [ ] 根据该计划创建并链接子任务，明确每个子任务文件所有权。
-- [ ] `implement.jsonl` 与 `check.jsonl` 已包含真实规划/规范上下文。
-- [ ] Deep Agents/Checkpointer 版本、默认 subagent 关闭、EvidenceBackend、替换 FilesystemMiddleware 的 backend/permissions 继承、response_format、invalid_tool_calls、100 行截断和 middleware onion 顺序 Spike 有明确验收命令与结果矩阵。
-- [ ] `standard_cocreator` Spike 已验证：stable thread、加密 AsyncPostgresSaver、`ask_teacher/respond`、单中断约束、显式 checkpoint_id、`durability="sync"`、进程重启 resume、projection_pending 重投影、并发/陈旧分支拒绝、兼容版本和完成式同-thread 降级。
-- [ ] Checkpoint 迁移、加密 key 注入、访问权限、活动 session 保护、保留/删除和业务独立回查策略已经确定，不包含真实凭证。
-- [ ] ADR 已明确业务表、OperationJob、Checkpointer 和 Store/Memory 四者职责，没有把“同在 PostgreSQL”写成同一事实源。
-- [ ] 场景工作台静态 Preview 的桌面/窄屏审查通过：只有“当前 / 题 / 版本”、一个焦点面和一个主动作；`.interface-design/system.md` 的替换条款已确定。
-- [ ] PostgreSQL 和本地存储开发配置已确定，不包含真实凭证。
-- [ ] 真实微信临时样本仍可读取，或用户批准复制到稳定、Git-ignored 的本地目录。
-- [ ] 未修改产品代码；本轮规划批准与实施批准分开。
+- [ ] 用户批准本次最终 PRD、design.md、implement.md 与子任务总结；这是当前唯一未满足门禁。
+- [x] 已创建并链接 5 个子任务，每个都有顺序依赖、文件所有权、PRD、design 和 implement。
+- [x] 父任务与 5 个子任务的 `implement.jsonl` / `check.jsonl` 都含真实规范/研究上下文并通过 validate。
+- [x] Deep Agents/Checkpointer 锁定版本、默认 subagent 关闭、EvidenceBackend、Filesystem replacement、ToolStrategy、invalid_tool_calls、100 行截断、模型工具面和 middleware onion 顺序均有可重复 Spike 与结果矩阵。
+- [x] `standard_cocreator` Spike 已验证 stable thread、加密 AsyncPostgresSaver、`ask_teacher/respond`、单中断、显式 checkpoint_id、sync durability、跨新进程 resume、无模型重投影、CAS、stale branch 拒绝和完成式同-thread 降级。
+- [x] Checkpoint 迁移、AES key 注入、访问隔离、活动 session 保护、保留/删除和业务独立回查策略已确定，不含真实凭证。
+- [x] 任务内 ADR 已明确业务表、OperationJob、Checkpointer 和 Store/Memory 四者职责。现有 `docs/` 正被其他改动删除，本轮未恢复或覆盖。
+- [x] 场景工作台规划态 Preview 已通过桌面/窄屏审查：只有“当前 / 题 / 版本”、一个焦点面和一个主动作；`.interface-design/system.md` 已标注目标合同尚未实现。
+- [x] PostgreSQL、单消费者和本地存储开发配置已确定，不包含真实凭证。
+- [x] 三份样本仍可读取，并已复制到稳定、Git-ignored `.local-samples/m0/`；源/目标 SHA-256 一致。
+- [x] 未修改 `backend/`、`frontend/` 产品代码，未运行 `task.py start`；规划批准与实施批准保持分开。

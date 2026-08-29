@@ -5,7 +5,7 @@
   "description": "基于 M0-M2 递进构想，规划当前 M0 的业务流程、前端交互、后端领域边界与验收标准。",
   "status": "planning",
   "dev_type": null,
-  "scope": null,
+  "scope": "m0-cross-layer",
   "package": null,
   "priority": "P2",
   "creator": "hsikey",
@@ -18,7 +18,13 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "08-30-m0-persistence-ingestion",
+    "08-30-m0-deep-agent-cocreation",
+    "08-30-m0-evaluation-versioning",
+    "08-30-m0-frontend-workflow",
+    "08-30-m0-integration-acceptance"
+  ],
   "parent": null,
   "relatedFiles": [],
   "notes": "",

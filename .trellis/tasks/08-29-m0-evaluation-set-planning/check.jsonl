@@ -10,3 +10,7 @@
 {"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/ui-adversarial-review.md","reason":"核对 UI 是否重新泄漏技术实体、永久多栏和旧设计冲突"}
 {"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/deep-agents-adversarial-review.md","reason":"核对权限默认、结构化输出策略、长文件覆盖和重试语义"}
 {"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/checkpointer-adversarial-review.md","reason":"核对 thread/Checkpoint 权威边界、interrupt 恢复、分支漂移、加密清理和 fail-closed 验收"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/prestart-spike-results.md","reason":"核对实现是否偏离已验证 provider 和 Checkpointer 能力矩阵"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/ui-preview-review.md","reason":"核对生产 UI 是否保持三导航、单焦点、单主动作和响应式 sheet"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/development-environment.md","reason":"核对迁移、启动、配置占位和本地样本隔离"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/adr-0002-m0-runtime-and-persistence.md","reason":"核对四类状态权威没有合并或越界"}

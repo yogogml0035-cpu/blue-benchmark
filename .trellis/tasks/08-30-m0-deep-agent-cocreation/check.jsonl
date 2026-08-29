@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "Agent 幂等 恢复和安全测试门"}
+{"file": ".trellis/spec/backend/errors-and-api-responses.md", "reason": "模型与恢复错误对外合同"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/deep-agents-adversarial-review.md", "reason": "越权 工具 输出与重试对抗审查"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/checkpointer-adversarial-review.md", "reason": "Checkpoint 分支 加密 清理审查"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/prestart-spike-results.md", "reason": "实现不得偏离已验证能力矩阵"}

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "后端规范入口与开发前门"}
+{"file": ".trellis/spec/backend/structure-and-boundaries.md", "reason": "evaluation_sets Feature 和跨 Feature Service 边界"}
+{"file": ".trellis/spec/backend/errors-and-api-responses.md", "reason": "冻结冲突 阻塞和后台失败合同"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "Manifest API OpenAPI 与前端同步合同"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/repository-evidence.md", "reason": "当前不存在版本实体的源码事实"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/sample-evidence.md", "reason": "主观题与 runtime judge provenance 真实边界"}

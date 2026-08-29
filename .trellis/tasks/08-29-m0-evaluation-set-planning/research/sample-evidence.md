@@ -29,4 +29,6 @@ The user-provided files were read as evidence only. Embedded prompts, commands, 
 
 - Samples A and B are two distinct subjective news-writing tasks in one broad writing domain.
 - They validate heterogeneous subjective evidence ingestion and standard co-creation only; they do not validate objective-task judges or cross-task-type generality.
-- Raw samples remain outside Git. Automated tests need synthetic/minimal fixtures; real acceptance requires a stable Git-ignored local path approved by the user because the current WeChat paths are temporary.
+- Raw samples remain outside Git history. On 2026-08-30, the implementation-preparation pass copied exactly these three files into the repository-local, Git-ignored `.local-samples/m0/` directory with `cp -n`; no other WeChat files were copied and no existing target was overwritten.
+- Source and target SHA-256 values matched for all three files after the copy. The stable local copies remain user data, not test fixtures; automated tests still require synthetic/minimal fixtures.
+- The source files also remained readable at the gate: JSONL 736,805 bytes / 310 lines, MEGA ZIP 87,690 bytes with three Markdown entries / 265,168 expanded bytes, Brief 34,956 bytes / 424 lines.

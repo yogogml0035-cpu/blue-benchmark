@@ -89,7 +89,7 @@ Checked again against live LangChain/Deep Agents docs on 2026-08-30, including C
 
 - The three Agent instances share a model key, so a HarnessProfile exclusion of filesystem tools would affect all of them.
 - `coverage_reviewer` needs no file tools while the other two do.
-- Correction: give coverage review its own StateBackend and replace its FilesystemMiddleware with `tools=[]`. Keep only truly global safety invariants in HarnessProfile.
+- Spike correction for `deepagents==0.7.11`: `FilesystemMiddleware(tools=[])` is invalid because `read_file` is mandatory in any explicit list. Keep the required StateBackend/filesystem scaffold, then use the stateless sync/async `ModelToolSurfaceMiddleware` to expose only the CoverageReview ToolStrategy schema and reject any hidden or hallucinated filesystem call before execution. Keep only truly global safety invariants in HarnessProfile.
 
 ## Finding 14 — “All context is in Checkpoint” is technically false and unsafe as a design rule
 

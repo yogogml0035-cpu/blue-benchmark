@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "后端规范入口与开发前门"}
+{"file": ".trellis/spec/backend/structure-and-boundaries.md", "reason": "数据库基础设施与 Feature Repository Service 边界"}
+{"file": ".trellis/spec/backend/errors-and-api-responses.md", "reason": "上传 后台操作和安全错误合同"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "Pydantic OpenAPI 生成类型同步合同"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/repository-evidence.md", "reason": "当前内存 Stub 与待替换边界证据"}

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端规范入口与开发前门"}
+{"file": ".trellis/spec/frontend/structure-and-boundaries.md", "reason": "App Router Feature Service 与共享层边界"}
+{"file": ".trellis/spec/frontend/state-model.md", "reason": "StudioProjection 后台状态与表单瞬态分层"}
+{"file": ".trellis/spec/frontend/components-and-styling.md", "reason": "组件 交互 可访问性和视觉约束"}
+{"file": ".trellis/spec/frontend/type-and-api-contracts.md", "reason": "OpenAPI 生成 DTO 与 Feature Service 合同"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/ui-adversarial-review.md", "reason": "三导航 聚焦画布 渐进披露与技术词隔离"}

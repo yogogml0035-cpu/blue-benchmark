@@ -8,3 +8,5 @@ node_modules/
 .next/
 *.tsbuildinfo
 storage/uploads/
+.local-samples/
+.playwright-cli/

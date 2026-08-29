@@ -12,3 +12,7 @@
 {"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/ui-adversarial-review.md","reason":"前端信息架构、渐进披露与设计系统修订证据"}
 {"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/deep-agents-adversarial-review.md","reason":"Deep Agents 权限、结构化输出、模型兼容、长文件与线程陷阱"}
 {"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/checkpointer-adversarial-review.md","reason":"共创 Checkpointer、HITL、accepted 分支、业务投影一致性与恢复合同"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/prestart-spike-results.md","reason":"锁定依赖、真实 provider、权限、PostgreSQL Checkpointer 和恢复实跑结果"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/ui-preview-review.md","reason":"场景工作台桌面窄屏信息架构与交互验收结果"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/development-environment.md","reason":"PostgreSQL、Worker、存储、配置和启动顺序合同"}
+{"file":".trellis/tasks/08-29-m0-evaluation-set-planning/research/adr-0002-m0-runtime-and-persistence.md","reason":"业务表、OperationJob、Checkpointer 与 Store Memory 的权威边界"}

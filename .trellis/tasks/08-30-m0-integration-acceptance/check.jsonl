@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "持久化 幂等 恢复和安全审查"}
+{"file": ".trellis/spec/frontend/quality-and-verification.md", "reason": "真实 UI 状态和构建审查"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "端到端合同与运行证据审查"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/sample-evidence.md", "reason": "真实样本分类与主观验收审查"}
+{"file": ".trellis/tasks/08-29-m0-evaluation-set-planning/research/prestart-spike-results.md", "reason": "已验证能力不被实现漂移破坏"}

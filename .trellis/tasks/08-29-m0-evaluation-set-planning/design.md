@@ -226,7 +226,7 @@ class CoverageReviewer(Protocol):
 
 ### 6.2 Verified configuration shape
 
-以下是实现方向，不是可直接粘贴的最终源码；Spike 必须以锁定版本的真实签名为准：
+以下配置形状已经由 `research/prestart-spike-results.md` 对锁定版本完成实跑；实现仍需通过 Adapter 工厂封装私有兼容点，不能把示意代码散落到 Feature：
 
 ```python
 from dataclasses import dataclass
@@ -237,21 +237,24 @@ from deepagents import (
     create_deep_agent,
     register_harness_profile,
 )
-from deepagents.backends import CompositeBackend, StateBackend
-from deepagents.middleware import FilesystemMiddleware
+from deepagents.backends import StateBackend
+from deepagents.middleware.filesystem import FilesystemMiddleware
 from deepagents.profiles import GeneralPurposeSubagentProfile
 from langchain.agents.middleware import (
     ModelCallLimitMiddleware,
     ModelRetryMiddleware,
     ToolCallLimitMiddleware,
 )
+from langchain.agents.structured_output import ToolStrategy
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.checkpoint.serde.encrypted import EncryptedSerializer
 
 register_harness_profile(
     EXACT_MODEL_KEY,
     HarnessProfile(
-        excluded_tools=frozenset({"execute"}),
+        excluded_tools=frozenset({
+            "task", "write_todos", "execute", "write_file", "edit_file", "delete"
+        }),
         general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
     ),
 )
@@ -267,12 +270,7 @@ class AgentRunContext:
     graph_schema_version: str
     deadline_at: str
 
-backend = CompositeBackend(
-    default=StateBackend(),
-    routes={
-        "/evidence/": EvidenceBackend(),
-    },
-)
+backend = EvidenceBackend()
 
 permissions = [
     FilesystemPermission(
@@ -288,22 +286,26 @@ permissions = [
 
 filesystem = FilesystemMiddleware(
     backend=backend,
-    permissions=permissions,
     tools=["read_file", "ls", "glob", "grep"],
+    # deepagents==0.7.11 的锁定签名；由 Adapter 工厂集中断言和封装。
+    _permissions=permissions,
 )
 
 batch_analyzer = create_deep_agent(
     name="batch_analyzer",
     model=profile_model,
-    backend=backend,
     middleware=[
         filesystem,
+        ModelToolSurfaceMiddleware({
+            "read_file", "ls", "glob", "grep", "BatchAnalysis"
+        }),
         ModelCallLimitMiddleware(run_limit=profile_model_call_limit),
         ToolCallLimitMiddleware(run_limit=profile_tool_call_limit),
         ModelRetryMiddleware(max_retries=profile_model_retries),
     ],
+    permissions=permissions,
     context_schema=AgentRunContext,
-    response_format=selected_response_strategy(BatchAnalysis),
+    response_format=ToolStrategy(BatchAnalysis),
 )
 
 # 由 FastAPI/Worker lifespan 持有整个 context manager 生命周期；
@@ -317,30 +319,35 @@ async with AsyncPostgresSaver.from_conn_string(
         name="standard_cocreator",
         model=profile_model,
         tools=[ask_teacher],
-        backend=backend,
         middleware=[
             filesystem,
+            ModelToolSurfaceMiddleware({
+                "read_file", "ls", "glob", "grep", "ask_teacher",
+                "CoCreationResult",
+            }),
             ModelCallLimitMiddleware(run_limit=profile_model_call_limit),
             ToolCallLimitMiddleware(run_limit=profile_tool_call_limit),
             ModelRetryMiddleware(max_retries=profile_model_retries),
         ],
+        permissions=permissions,
         interrupt_on={
             "ask_teacher": {"allowed_decisions": ["respond"]},
         },
         context_schema=AgentRunContext,
-        response_format=selected_response_strategy(CoCreationResult),
+        response_format=ToolStrategy(CoCreationResult),
         checkpointer=checkpointer,
     )
     yield standard_cocreator
 ```
 
-上方只是配置形状，具体构造与连接池生命周期必须以锁定版本 Spike 为准。`batch_analyzer`、`coverage_reviewer` 不传稳定 Checkpointer；`standard_cocreator` 使用异步 PostgreSQL Checkpointer。`coverage_reviewer` 使用独立 `StateBackend`，并以同名 `FilesystemMiddleware(backend=state_backend, tools=[])` 替换内置文件中间件，不借助全局 HarnessProfile 隐藏文件工具，以免影响同模型的另外两个 Agent。三个 Agent都不传 `store`、`memory`、`skills` 或 `subagents`。
+`batch_analyzer`、`coverage_reviewer` 不传稳定 Checkpointer；`standard_cocreator` 使用异步 PostgreSQL Checkpointer。`coverage_reviewer` 保留 Deep Agents 必需的空 `StateBackend`/Filesystem scaffold，但用 `ModelToolSurfaceMiddleware({"CoverageReview"})` 在模型调用前只暴露结构化输出工具，并在 `after_model` 同步/异步 hook 中拒绝任何隐藏或幻觉工具调用；这是因为 0.7.11 的 `FilesystemMiddleware(tools=...)` 要求列表中必须包含 `read_file`，不能用 `tools=[]` 表达“无文件工具”。三个 Agent都不传 `store`、`memory`、`skills` 或 `subagents`。
 
 关键约束：
 
 - `EvidenceBackend` 实现 Deep Agents `BackendProtocol`，从 `AgentRunContext.evidence_scope` 解析服务端授权范围；`read/ls/glob/grep` 只返回 canonical extracted view，`write/edit/delete` 固定返回拒绝。它不保存 per-run 可变成员，也不接受前端路径。
 - 工具 allowlist 和路径 permission 必须同时存在于需要文件访问的 Agent。Permissions first-match-wins，未命中默认允许，因此 allow 当前 evidence 目录后必须追加 read catch-all deny 与 write catch-all deny。
-- 传入同名 `FilesystemMiddleware` 会替换 Deep Agents 内置实例，而不是与之合并。替换实例必须自己持有 `backend` 和 `permissions`；只在 `create_deep_agent()` 顶层传值会留下权限未继承的漏洞。
+- 传入同名 `FilesystemMiddleware` 会替换 Deep Agents 内置实例，而不是与之合并。锁定的 0.7.11 公开 `backend=` 与 `tools=`，但权限参数仍是私有 `_permissions=`；Adapter 工厂必须同时把同一规则传给替换实例与 `create_deep_agent(permissions=...)`，启动时断言签名和最终工具面。版本漂移时 fail closed，不能静默退回默认 allow。
+- `ModelToolSurfaceMiddleware` 是唯一新增的安全中间件：`wrap_model_call`/`awrap_model_call` 过滤该 Agent 可见工具，`after_model`/`aafter_model` 在工具节点前拒绝任何不在 allowlist 的 tool call。它无共享可变状态，不读写业务表，也不修改 prompt、输出或权限。
 - 开发 Spike 可以使用隔离临时目录的 `FilesystemBackend(virtual_mode=True)` 做对照；生产 Worker 使用 `EvidenceBackend`，不把宿主文件树暴露给 Web 运行时。
 - 默认 general-purpose subagent 必须通过进程启动时注册的安全 HarnessProfile 关闭；Todo 目前是 opt-in，因此只需不添加；不配置同步/异步 subagent、Skills 或 Memory。
 - HarnessProfile 注册表按 provider/model key 全局生效且重注册会合并。安全 Profile 是进程级不可变配置，不承载会话级 AI Profile 版本；不同 `ai_profile_version` 使用独立 Agent 图实例和显式调用参数。
@@ -349,17 +356,13 @@ async with AsyncPostgresSaver.from_conn_string(
 - Checkpointer serializer 必须加密；加密 key 通过部署环境注入，不进入配置文件、日志、Checkpoint 或测试制品。Checkpointer `setup()` 只在受控迁移步骤执行，不在 Web 请求或 Worker claim 时执行。
 - 静态系统提示词由代码和 AI Profile 版本控制。场景、题、权威草稿与 turn id 作为 typed input/context 传入，不能让老师输入成为系统提示词模板。
 - 上传文件内的 Prompt、Skill 说明和工具调用是引用数据，不改变系统提示词和工具权限。
-- Middleware 顺序固定进 AI Profile 并用测试证明：`ModelCallLimit` 限制逻辑模型步骤，`ToolCallLimit` 限制真实工具调用，`ModelRetry` 只处理标记为可重试的传输错误并有独立小上限；内置文件读取不配置 ToolRetry。不得未经实测宣称传输 retry 一定计入逻辑 model-call limit，最终还由 OperationJob deadline、token/cost ceiling 和 attempt 上限兜底。
+- Middleware 顺序固定进 AI Profile并用测试证明：`ModelCallLimit` 限制逻辑模型步骤，`ToolCallLimit` 限制真实工具调用，`ModelRetry` 只处理标记为可重试的传输错误并有独立小上限；内置文件读取不配置 ToolRetry。实测一次逻辑模型步骤在 `run_limit=1` 下可发生两次物理传输尝试，因此传输 retry 单独计数，最终还由 OperationJob deadline、token/cost ceiling 和 attempt 上限兜底。
 
 ### 6.3 Structured output capability gate
 
-Deep Agents 当前公开 `response_format=`，结构结果位于 `state["structured_response"]`。但具体策略由模型能力决定：
+Deep Agents 公开 `response_format=`，结构结果位于 `state["structured_response"]`。真实 endpoint Spike 已验证普通/强制工具调用、空 tools、多轮 ToolMessage、中文嵌套 Schema、`ask_teacher/respond` 与同 thread 结构化恢复；固定使用 `ToolStrategy`。Provider 原生 `json_schema` 返回 `AnthropicInvalidRequestError`，因此 M0 不使用 `ProviderStrategy`，也不允许 AutoStrategy 在运行时自行切换。当前模型路由同时拒绝 `temperature`，Adapter 不发送该参数。
 
-1. Provider 明确支持且实测通过原生 JSON Schema → `ProviderStrategy`。
-2. Provider 支持稳定工具调用和强制 `tool_choice` → `ToolStrategy`。
-3. 仅 OpenAI-compatible、仅 JSON mode 或拒绝 forced tool choice → 不自动视为通过。
-
-M0 不提供自由文本 JSON 生产降级。Spike 必须用真实 endpoint 记录 raw tool calls、parsed result 与 parsing error，并验证：普通工具调用、forced/specific tool choice、响应策略、多轮 tool/message roundtrip、空 tools、invalid_tool_calls 和复杂中文字段。如果没有策略稳定通过，停止并更换模型/适配器或缩小 Schema。
+M0 不提供自由文本 JSON 生产降级。任何 parsing error、非空 `invalid_tool_calls`、零个或多个 `ask_teacher`、额外工具调用或非 `respond` decision 都使 attempt fail closed；更换模型、适配器或 Schema 后必须重跑同一能力矩阵并升级 `ai_profile_version`。
 
 三个最终 response Schema 和 ask-user 工具输入都应小而有界：
 
@@ -415,7 +418,7 @@ AgentAttempt: run_id + base_checkpoint_id + produced_checkpoint_id + result_hash
 - `batch_analyzer` 和 `coverage_reviewer` 没有人工 interrupt。每个业务 attempt 使用新 run/thread；进程崩溃后从确定性输入重跑，只有完整验证结果才一次提交业务表。
 - `standard_cocreator` 从创建 `CoCreationSession` 起固定一个服务端 thread。首次 start 使用普通输入；后续 ask-user 恢复必须使用相同 thread 和业务表记录的明确 `checkpoint_id`，不能只传 thread_id 读取“最新”。
 - 若锁定版本不支持从指定 interrupted checkpoint 执行 `Command(resume)`，系统不得伪造 accepted-branch 恢复：同一 thread 必须禁止产生可继续的未接受分支；`projection_pending` 先完成投影，revision/兼容性冲突则从业务投影 continuity reset 到新 thread。
-- 共创 start/resume 优先显式使用 `durability="sync"`，使每个 super-step 在继续前完成持久化；具体性能开销进入 Spike，只有证据证明不可接受时才评估 `async`。中断 payload 与 resume payload 必须是小型 JSON 可序列化对象。
+- 共创 start/resume 显式使用 `durability="sync"`，使每个 super-step 在继续前完成持久化；Spike 已验证跨新进程恢复。`batch_analyzer` 与 `coverage_reviewer` 无 Checkpointer，必须省略 durability 参数：锁定的 LangGraph 1.2.11 在“无 Checkpointer + sync durability”组合上会触发内部 `AttributeError`。中断 payload 与 resume payload 必须是小型 JSON 可序列化对象。
 - `ask_teacher` 的 tool call 被 HumanInTheLoopMiddleware 截获后形成 pending interrupt。Adapter 只接受一个 action request，且 review config 只能为 `respond`。老师回答转换为 synthetic tool result 后，Agent 在同一 thread 继续。
 - interrupt 所在节点恢复时会从节点开头重跑；因此 `ask_teacher` 及其之前的 Agent 路径没有业务写入、外部发送或非幂等副作用。所有业务写入都在 Graph 边界外由 Service 完成。
 - 完成式问答降级仍使用相同 thread：Agent 结束当前 invoke 并返回唯一问题，下一轮普通 invoke 追加老师回答。选择降级后，一个 `ai_profile_version` 内不得在 interrupt 模式和完成式模式之间静默切换。
@@ -430,6 +433,7 @@ Middleware 只承载跨 Agent、与单次执行生命周期直接相关的横切
 | Concern | Owner | Hook/style | M0 decision |
 |---|---|---|---|
 | 文件可见性与只读 | `EvidenceBackend` + 替换后的 `FilesystemMiddleware` | Backend policy + built-in permission | 必须；不用自定义 `wrap_tool_call` 重复鉴权 |
+| 每个 Agent 的最小模型工具面 | `ModelToolSurfaceMiddleware` | sync/async `wrap_model_call` 过滤 + `after_model` 拒绝隐藏调用 | 必须；只做 allowlist 和 fail-closed，不执行业务逻辑 |
 | 老师问答暂停 | Deep Agents `interrupt_on` + HumanInTheLoopMiddleware | `ask_teacher` tool call 前中断 | 仅 `standard_cocreator`；allowed decision 只有 `respond`；需要 Checkpointer |
 | 恢复后的悬空工具调用 | Deep Agents built-in | `PatchToolCallsMiddleware` | 保留默认实例；不自行重写消息配对 |
 | 逻辑模型/工具调用上限 | LangChain built-in | `ModelCallLimitMiddleware` / `ToolCallLimitMiddleware` | 必须，使用 `run_limit`，不使用跨轮 `thread_limit` |
@@ -446,7 +450,7 @@ Middleware 只承载跨 Agent、与单次执行生命周期直接相关的横切
 
 ### 6.8 AI Profile
 
-`ai_profile_version` 固定 Deep Agents/LangChain/LangGraph/Checkpointer adapter 版本、模型 adapter、模型 ID、Agent invoke 输出协议版本、三个 Agent 的 structured-output 策略、静态系统提示词、middleware 顺序、最小工具/权限、Schema、调用限制和 `standard_cocreator` 的问答模式。`graph_schema_version` 单独标识可恢复的 Graph/State/interrupt 合同。安全 HarnessProfile 是按精确模型键注册的进程级不变量，不与会话 Profile 混为一个全局可变对象。
+`ai_profile_version` 固定 Deep Agents/LangChain/LangGraph/Checkpointer adapter 版本、模型 adapter、模型 ID、Agent invoke 输出协议版本、三个 Agent 的 structured-output 策略、静态系统提示词、middleware 顺序、最小工具/权限、Schema、调用限制和 `standard_cocreator` 的问答模式。首个已验证基线是 Python 3.13.15、deepagents 0.7.11、langchain 1.3.18、langchain-core 1.6.1、langgraph 1.2.11、langgraph-checkpoint 4.2.0、langgraph-checkpoint-postgres 3.1.2、langchain-anthropic 1.7.0、psycopg 3.3.4、psycopg-pool 3.3.1 与 pycryptodome 3.23.0。`graph_schema_version` 单独标识可恢复的 Graph/State/interrupt 合同。安全 HarnessProfile 是按精确模型键注册的进程级不变量，不与会话 Profile 混为一个全局可变对象。
 
 - 同一个 `CoCreationSession` 的 start、resume、业务 retry 和 projection recovery 必须使用原 `ai_profile_version + graph_schema_version`。
 - 新部署必须能够路由并加载仍有活动 session 的旧兼容 Agent 图；不能只保留“当前最新版”构造器。
@@ -454,7 +458,7 @@ Middleware 只承载跨 Agent、与单次执行生命周期直接相关的横切
 - 模型、Prompt 或结构化输出策略升级不自动迁移 Checkpoint。已确认业务资产不因 Checkpoint 或 Profile 清理失效。
 - Checkpoint 加密 key/codec 轮换是显式运维动作：旧 key 在活动 thread 完成或迁移前必须可读，或先将 session continuity reset 到新 thread；不能直接替换 key 后让旧 Checkpoint 静默损坏。
 
-模型不能按品牌选择。先用两份真实主观样本跑能力回归：文件遍历、尾部反馈、工具 JSON、中文结构化输出、多轮追问、证据 locator 和总成本/时延。当前 `ChatOpenAI + LLM_BASE_URL` 只是一条待验证集成候选；OpenAI-compatible transport 不是生产证据。
+模型不能只按品牌选择。当前 Claude/Bedrock relay 已通过工具、ToolStrategy、HITL 与恢复协议 Spike，但仍需在集成子任务用两份真实主观样本跑文件遍历、尾部反馈、证据 locator、质量和总成本/时延回归。通过框架矩阵不等于真实业务样本验收。
 
 M0 不在应用层额外创建普通 LangChain Agent，也不手写自定义 LangGraph。先用 Deep Agents 原生 Checkpointer + HumanInTheLoopMiddleware 表达单问题暂停；只有 capability Spike 证明该组合无法与选定模型、`response_format` 和后台恢复合同稳定共存时，才另立任务评估自定义 LangGraph。
 
@@ -646,7 +650,7 @@ evaluation-set-v1/
 - `candidate_case` 的业务含义迁移为已定稿 `QuestionRevision`；不能继续把 `confirmed` 写成“已加入评测集”。
 - 旧 ADR-0001 的核心原则“业务状态与 Checkpoint 分离、同时持久化”继续保留；其中“手写 LangGraph、同步 HTTP、回答/确认全部使用 `Command(resume)`、候选题由 Graph 节点写入”的具体方案被本设计替代。实现时新增 ADR 或重写 ADR-0001，明确 Deep Agents、OperationJob、`ask_teacher`、accepted Checkpoint 指针和业务 CAS，不允许两份当前方案并存。
 - Checkpointer migrations 与业务 migrations 分开执行和回滚；应用启动只验证 schema ready，不自动建表。当前没有真实 session，因此首次引入无需迁移旧 Checkpoint；后续升级必须保留活动 `ai_profile_version + graph_schema_version` 的恢复能力。
-- `.interface-design/system.md` 中“评测集（未来）”、四路由、禁止任何场景内导航、全局 30 字预算、生产 JSON 逃生口、默认机器码、通用卡片网格和高饱和蓝主按钮规则需要在前端实施时更新。新事实是“当前 / 题 / 版本”、一问一变一确认、按需标准与依据、上下文文字预算、较少表面和中性主动作；规划阶段不提前把未来设计写成当前源码事实。
+- `.interface-design/system.md` 已在实施前更新为带状态说明的目标合同：移除“评测集（未来）”、四路由、全局 30 字、生产 JSON、默认机器码和高饱和蓝主按钮，加入“当前 / 题 / 版本”、一问一变一确认、按需标准与依据、上下文文字预算、较少表面和中性主动作。产品源码仍未实现这些目标，不能把设计合同冒充运行证据。
 
 ## 11. Failure, Recovery, and Rollback
 
@@ -668,7 +672,7 @@ evaluation-set-v1/
 - Checkpoint 清理只删除执行连续性，不删除任何业务资产。活动/待答/失败可重试 session 不得被普通保留任务清理；已完成 session 按配置策略清理并验证业务回查仍完整。
 - 版本打包失败保持下一版本草稿可编辑，重试沿用相同冻结请求幂等键。
 - 已冻结版本不可回滚修改；业务上“回滚”通过从历史版本派生新的下一版本草稿并再次冻结完成。
-- 原始真实样本位于微信临时目录，不自动复制进 Git。正式验收前需要用户确认一个稳定、本地且被 Git 忽略的样本目录；自动化测试使用合成或脱敏的最小 fixture。
+- 三份原始真实样本已用 no-overwrite 方式复制到 Git-ignored `.local-samples/m0/` 并核对源/目标 SHA-256；它们不进入 Git，也不被默认 CI 自动发现。自动化测试仍使用合成或脱敏最小 fixture。
 
 ## 12. Observability
 
