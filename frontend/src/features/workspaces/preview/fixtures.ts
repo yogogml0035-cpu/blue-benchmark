@@ -1,7 +1,7 @@
 import type { Workspace } from "@/src/features/workspaces/services/workspaceService";
 
 /**
- * 状态预演用的卷宗，只用 OpenAPI 生成的 Workspace 类型构造，
+ * 状态预演用的场景，只用 OpenAPI 生成的 Workspace 类型构造，
  * 字段一旦和后端合同漂移就会在 typecheck 阶段报错。
  */
 export const PREVIEW_WORKSPACES: Workspace[] = [

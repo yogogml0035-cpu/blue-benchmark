@@ -2,20 +2,25 @@ import type { ReactNode } from "react";
 
 import { AutoTextarea } from "@/src/components/ui/AutoTextarea";
 import { Button } from "@/src/components/ui/Button";
-import { Cross, Plus } from "@/src/components/ui/Glyph";
-import { ClaimBlock, ClaimText } from "@/src/features/case-builder/components/ClaimBlock";
+import { Cross } from "@/src/components/ui/Glyph";
+import {
+  FieldRow,
+  GroupSection,
+  ItemText,
+  SourceItem,
+} from "@/src/features/case-builder/components/SourceGroup";
 import type { DraftContent } from "@/src/features/case-builder/services/caseBuilderService";
 import type { components } from "@/src/lib/api/generated";
 
-import styles from "./caseBuilder.module.css";
+import styles from "./caseDetail.module.css";
 
 type Dimension = components["schemas"]["Dimension"];
 type DimensionKind = Dimension["kind"];
 
-const KIND_META: Record<DimensionKind, { label: string; className: string }> = {
-  hard_gate: { label: "硬门槛", className: styles.kindGate },
-  required_quality: { label: "必要质量", className: styles.kindQuality },
-  diagnostic: { label: "诊断", className: styles.kindDiagnostic },
+const KIND_LABEL: Record<DimensionKind, string> = {
+  hard_gate: "硬门槛",
+  required_quality: "必要质量",
+  diagnostic: "诊断",
 };
 
 export const KIND_OPTIONS = [
@@ -24,9 +29,9 @@ export const KIND_OPTIONS = [
   { value: "diagnostic" as const, label: "诊断" },
 ];
 
-export function KindChip({ kind }: { kind: DimensionKind }) {
-  const meta = KIND_META[kind];
-  return <span className={`${styles.kind} ${meta.className}`}>{meta.label}</span>;
+/** 维度类型徽记：不表达来源，只用字重与描边区分强弱。 */
+function KindBadge({ kind }: { kind: DimensionKind }) {
+  return <span className={`${styles.kind} ${styles[`kind_${kind}`]}`}>{KIND_LABEL[kind]}</span>;
 }
 
 export type Editable = {
@@ -37,20 +42,29 @@ export type Editable = {
   busy: boolean;
 };
 
-function GroupHead({ title, aside }: { title: string; aside?: ReactNode }) {
-  return (
-    <div className={styles.groupHead}>
-      <span className="section-label">{title}</span>
-      {aside}
-    </div>
-  );
-}
-
 function nextId(prefix: string, existing: { id: string }[]) {
   const used = existing
     .map((item) => Number.parseInt(item.id.replace(/^\D+/, ""), 10))
     .filter((value) => Number.isFinite(value));
   return `${prefix}-${(used.length ? Math.max(...used) : 0) + 1}`;
+}
+
+function RemoveButton({ onClick, busy, label }: { onClick: () => void; busy: boolean; label: string }) {
+  return (
+    <Button
+      aria-label={label}
+      className="btn-icon"
+      disabled={busy}
+      onClick={onClick}
+      variant="quiet"
+    >
+      <Cross size={13} />
+    </Button>
+  );
+}
+
+function AddedBadge() {
+  return <span className={styles.added}>本次新增</span>;
 }
 
 function StringRows({
@@ -83,21 +97,16 @@ function StringRows({
             placeholder={placeholder}
             value={value}
           />
-          <Button
-            aria-label={`删除第 ${index + 1} 条`}
-            className="btn-icon"
-            disabled={busy}
+          <RemoveButton
+            busy={busy}
+            label={`删除第 ${index + 1} 条`}
             onClick={() => onChange(values.filter((_, position) => position !== index))}
-            variant="quiet"
-          >
-            <Cross size={13} />
-          </Button>
+          />
         </div>
       ))}
       <div>
         <Button disabled={busy} onClick={() => onChange([...values, ""])} size="sm">
-          <Plus size={13} />
-          {addLabel}
+          添加{addLabel}
         </Button>
       </div>
     </div>
@@ -105,36 +114,22 @@ function StringRows({
 }
 
 function StringList({ values, empty }: { values: string[]; empty: string }) {
-  if (values.length === 0) return <ClaimText>{empty}</ClaimText>;
+  if (values.length === 0) return <ItemText>{empty}</ItemText>;
   return (
     <ol className={styles.rows}>
       {values.map((value, index) => (
         <li className={styles.row} key={index} style={{ gridTemplateColumns: "18px 1fr" }}>
           <span className={styles.rowIndex}>{index + 1}</span>
-          <span className={styles.claimText}>{value}</span>
+          <span className={styles.fieldText}>{value}</span>
         </li>
       ))}
     </ol>
   );
 }
 
-function RemoveButton({ onClick, busy, label }: { onClick: () => void; busy: boolean; label: string }) {
-  return (
-    <Button
-      aria-label={label}
-      className="btn-icon"
-      disabled={busy}
-      onClick={onClick}
-      variant="quiet"
-    >
-      <Cross size={13} />
-    </Button>
-  );
-}
-
 /**
- * 校样：把一份 DraftContent 逐条铺在纸上，每条带来源墨线和引注边栏。
- * 读和改共用同一个字段顺序，避免确认稿和只读快照长成两个不同的东西。
+ * 标准草稿：读和改共用同一份结构与字段顺序，
+ * 避免确认稿和只读快照长成两个不同的东西。
  */
 export function DraftView({
   draft,
@@ -146,8 +141,7 @@ export function DraftView({
   const busy = editable?.busy ?? false;
   const patch = (next: Partial<DraftContent>) => editable?.onChange({ ...draft, ...next });
   const added = (id: string) => editable?.addedIds.has(id) ?? false;
-  const addedBadge = (id: string) =>
-    added(id) ? <span className="chip">本次新增</span> : undefined;
+  const addedBadge = (id: string) => (added(id) ? <AddedBadge /> : undefined);
 
   const facts = draft.facts ?? [];
   const judgments = draft.teacher_judgments ?? [];
@@ -156,487 +150,490 @@ export function DraftView({
   const tags = draft.tags ?? [];
 
   return (
-    <div className={styles.claims}>
-      <ClaimBlock field="场景摘要" refs={draft.scenario.evidence_refs ?? []} source="ai">
-        {editable ? (
-          <AutoTextarea
-            aria-label="场景摘要"
-            className="control control-doc"
-            disabled={busy}
-            onChange={(event) =>
-              patch({ scenario: { ...draft.scenario, summary: event.target.value } })
-            }
-            value={draft.scenario.summary}
-          />
-        ) : (
-          <ClaimText>{draft.scenario.summary}</ClaimText>
-        )}
-      </ClaimBlock>
-
-      <ClaimBlock field="任务目标" source="draft">
-        {editable ? (
-          <AutoTextarea
-            aria-label="任务目标"
-            className="control control-doc"
-            disabled={busy}
-            onChange={(event) => patch({ task_goal: event.target.value })}
-            value={draft.task_goal}
-          />
-        ) : (
-          <ClaimText>{draft.task_goal}</ClaimText>
-        )}
-      </ClaimBlock>
-
-      <ClaimBlock field="输入材料" source="draft">
-        {editable ? (
-          <AutoTextarea
-            aria-label="输入材料"
-            className="control control-doc"
-            disabled={busy}
-            onChange={(event) => patch({ input_summary: event.target.value })}
-            value={draft.input_summary}
-          />
-        ) : (
-          <ClaimText>{draft.input_summary}</ClaimText>
-        )}
-      </ClaimBlock>
-
-      <ClaimBlock field="主要能力" source="draft">
-        {editable ? (
-          <input
-            aria-label="主要能力"
-            className="control"
-            disabled={busy}
-            onChange={(event) => patch({ primary_capability: event.target.value })}
-            value={draft.primary_capability}
-          />
-        ) : (
-          <ClaimText>{draft.primary_capability}</ClaimText>
-        )}
-      </ClaimBlock>
-
-      <ClaimBlock field="输出要求" source="draft">
-        {editable ? (
-          <StringRows
-            addLabel="输出要求"
-            busy={busy}
-            onChange={(next) => patch({ output_requirements: next })}
-            placeholder="例如：交付 Markdown 正文"
-            values={draft.output_requirements}
-          />
-        ) : (
-          <StringList empty="未列出" values={draft.output_requirements} />
-        )}
-      </ClaimBlock>
-
-      <ClaimBlock field="禁止的错误" source="draft">
-        {editable ? (
-          <StringRows
-            addLabel="禁止项"
-            busy={busy}
-            onChange={(next) => patch({ prohibited_errors: next })}
-            placeholder="例如：不得编造产品参数"
-            values={draft.prohibited_errors ?? []}
-          />
-        ) : (
-          <StringList empty="未列出" values={draft.prohibited_errors ?? []} />
-        )}
-      </ClaimBlock>
-
-      <ClaimBlock
-        field="参考结果"
-        refs={draft.reference_outcome?.evidence_refs ?? []}
-        source="teacher"
-      >
-        {editable ? (
-          <div className="stack-sm">
+    <div className={styles.groups}>
+      <GroupSection title="任务与要求">
+        <FieldRow label="场景摘要" refs={draft.scenario.evidence_refs ?? []}>
+          {editable ? (
             <AutoTextarea
-              aria-label="老师认可的结果"
-              className="control control-doc"
-              disabled={busy}
-              onChange={(event) =>
-                patch({
-                  reference_outcome: {
-                    accepted_result: event.target.value,
-                    rationale: draft.reference_outcome?.rationale ?? "",
-                    evidence_refs: draft.reference_outcome?.evidence_refs ?? [],
-                  },
-                })
-              }
-              placeholder="老师认可的完整结果"
-              value={draft.reference_outcome?.accepted_result ?? ""}
-            />
-            <AutoTextarea
-              aria-label="认可原因"
+              aria-label="场景摘要"
               className="control"
               disabled={busy}
               onChange={(event) =>
-                patch({
-                  reference_outcome: {
-                    accepted_result: draft.reference_outcome?.accepted_result ?? "",
-                    rationale: event.target.value,
-                    evidence_refs: draft.reference_outcome?.evidence_refs ?? [],
-                  },
-                })
+                patch({ scenario: { ...draft.scenario, summary: event.target.value } })
               }
-              placeholder="认可或否定的原因"
-              value={draft.reference_outcome?.rationale ?? ""}
+              value={draft.scenario.summary}
             />
-          </div>
-        ) : draft.reference_outcome ? (
-          <div className="stack-sm">
-            <ClaimText>{draft.reference_outcome.accepted_result}</ClaimText>
-            <p className="mark secondary">因为：{draft.reference_outcome.rationale}</p>
-          </div>
-        ) : (
-          <ClaimText>尚未确定参考结果。</ClaimText>
-        )}
-      </ClaimBlock>
+          ) : (
+            <ItemText>{draft.scenario.summary}</ItemText>
+          )}
+        </FieldRow>
 
-      <GroupHead
+        <FieldRow label="任务目标">
+          {editable ? (
+            <AutoTextarea
+              aria-label="任务目标"
+              className="control"
+              disabled={busy}
+              onChange={(event) => patch({ task_goal: event.target.value })}
+              value={draft.task_goal}
+            />
+          ) : (
+            <ItemText>{draft.task_goal}</ItemText>
+          )}
+        </FieldRow>
+
+        <FieldRow label="材料概述">
+          {editable ? (
+            <AutoTextarea
+              aria-label="材料概述"
+              className="control"
+              disabled={busy}
+              onChange={(event) => patch({ input_summary: event.target.value })}
+              value={draft.input_summary}
+            />
+          ) : (
+            <ItemText>{draft.input_summary}</ItemText>
+          )}
+        </FieldRow>
+
+        <FieldRow label="主要能力">
+          {editable ? (
+            <input
+              aria-label="主要能力"
+              className="control"
+              disabled={busy}
+              onChange={(event) => patch({ primary_capability: event.target.value })}
+              value={draft.primary_capability}
+            />
+          ) : (
+            <ItemText>{draft.primary_capability}</ItemText>
+          )}
+        </FieldRow>
+
+        <FieldRow label="输出要求">
+          {editable ? (
+            <StringRows
+              addLabel="输出要求"
+              busy={busy}
+              onChange={(next) => patch({ output_requirements: next })}
+              placeholder="例如：交付 Markdown 正文"
+              values={draft.output_requirements}
+            />
+          ) : (
+            <StringList empty="未列出" values={draft.output_requirements} />
+          )}
+        </FieldRow>
+
+        <FieldRow label="禁止的错误">
+          {editable ? (
+            <StringRows
+              addLabel="禁止项"
+              busy={busy}
+              onChange={(next) => patch({ prohibited_errors: next })}
+              placeholder="例如：不得编造产品参数"
+              values={draft.prohibited_errors ?? []}
+            />
+          ) : (
+            <StringList empty="未列出" values={draft.prohibited_errors ?? []} />
+          )}
+        </FieldRow>
+
+        <FieldRow label="参考结果" refs={draft.reference_outcome?.evidence_refs ?? []}>
+          {editable ? (
+            <div className="stack-sm">
+              <AutoTextarea
+                aria-label="老师认可的结果"
+                className="control"
+                disabled={busy}
+                onChange={(event) =>
+                  patch({
+                    reference_outcome: {
+                      accepted_result: event.target.value,
+                      rationale: draft.reference_outcome?.rationale ?? "",
+                      evidence_refs: draft.reference_outcome?.evidence_refs ?? [],
+                    },
+                  })
+                }
+                placeholder="老师认可的完整结果"
+                value={draft.reference_outcome?.accepted_result ?? ""}
+              />
+              <AutoTextarea
+                aria-label="认可原因"
+                className="control"
+                disabled={busy}
+                onChange={(event) =>
+                  patch({
+                    reference_outcome: {
+                      accepted_result: draft.reference_outcome?.accepted_result ?? "",
+                      rationale: event.target.value,
+                      evidence_refs: draft.reference_outcome?.evidence_refs ?? [],
+                    },
+                  })
+                }
+                placeholder="认可或否定的原因"
+                value={draft.reference_outcome?.rationale ?? ""}
+              />
+            </div>
+          ) : draft.reference_outcome ? (
+            <div className="stack-sm">
+              <ItemText>{draft.reference_outcome.accepted_result}</ItemText>
+              <p className="secondary" style={{ fontSize: "var(--t-14)" }}>
+                因为：{draft.reference_outcome.rationale}
+              </p>
+            </div>
+          ) : (
+            <ItemText>尚未确定参考结果。</ItemText>
+          )}
+        </FieldRow>
+      </GroupSection>
+
+      {/* ================= 事实（输入里明确存在） ================= */}
+      <GroupSection
         aside={<span className="mono faint">{facts.length} 条</span>}
-        title="输入材料中的事实"
-      />
-      {facts.length === 0 ? (
-        <p className="muted" style={{ paddingLeft: "var(--s-4)" }}>
-          未提取到事实。
-        </p>
-      ) : (
-        facts.map((fact, index) => (
-          <ClaimBlock
-            actions={
-              editable ? (
-                <RemoveButton
-                  busy={busy}
-                  label={`删除事实 ${index + 1}`}
-                  onClick={() =>
-                    patch({ facts: facts.filter((item) => item.id !== fact.id) })
-                  }
-                />
-              ) : undefined
-            }
-            badge={addedBadge(fact.id)}
-            field={`事实 ${index + 1}`}
-            key={fact.id}
-            refs={fact.evidence_refs ?? []}
-            source={added(fact.id) ? "teacher" : "fact"}
-          >
-            {editable ? (
-              <AutoTextarea
-                aria-label={`事实 ${index + 1}`}
-                className="control control-doc"
-                disabled={busy}
-                onChange={(event) =>
-                  patch({
-                    facts: facts.map((item) =>
-                      item.id === fact.id ? { ...item, text: event.target.value } : item,
-                    ),
-                  })
-                }
-                value={fact.text}
-              />
-            ) : (
-              <ClaimText>{fact.text}</ClaimText>
-            )}
-          </ClaimBlock>
-        ))
-      )}
-
-      <GroupHead
-        aside={<span className="mono faint">{judgments.length} 条</span>}
-        title="老师明确表达的判断"
-      />
-      {editable && (
-        <div style={{ paddingLeft: "var(--s-4)" }}>
-          <Button
-            disabled={busy}
-            onClick={() => {
-              const id = nextId("judgment", judgments);
-              editable.onAdded(id);
-              patch({ teacher_judgments: [...judgments, { id, text: "", evidence_refs: [] }] });
-            }}
-            size="sm"
-          >
-            <Plus size={13} />
-            补一条判断
-          </Button>
-        </div>
-      )}
-      {judgments.length === 0 ? (
-        <p className="muted" style={{ paddingLeft: "var(--s-4)", paddingTop: "var(--s-2)" }}>
-          尚无老师判断。
-        </p>
-      ) : (
-        judgments.map((judgment, index) => (
-          <ClaimBlock
-            actions={
-              editable ? (
-                <RemoveButton
-                  busy={busy}
-                  label={`删除判断 ${index + 1}`}
-                  onClick={() =>
+        title="事实（输入里明确存在）"
+      >{facts.length === 0 ? (
+          <p className="muted" style={{ fontSize: "var(--t-14)" }}>
+            未提取到事实。
+          </p>
+        ) : (
+          facts.map((fact, index) => (
+            <SourceItem
+              actions={
+                editable ? (
+                  <RemoveButton
+                    busy={busy}
+                    label={`删除事实 ${index + 1}`}
+                    onClick={() =>
+                      patch({ facts: facts.filter((item) => item.id !== fact.id) })
+                    }
+                  />
+                ) : undefined
+              }
+              badge={addedBadge(fact.id)}
+              key={fact.id}
+              refs={fact.evidence_refs ?? []}
+            >
+              {editable ? (
+                <AutoTextarea
+                  aria-label={`事实 ${index + 1}`}
+                  className="control"
+                  disabled={busy}
+                  onChange={(event) =>
                     patch({
-                      teacher_judgments: judgments.filter((item) => item.id !== judgment.id),
+                      facts: facts.map((item) =>
+                        item.id === fact.id ? { ...item, text: event.target.value } : item,
+                      ),
                     })
                   }
+                  value={fact.text}
                 />
-              ) : undefined
-            }
-            badge={addedBadge(judgment.id)}
-            field={`判断 ${index + 1}`}
-            key={judgment.id}
-            refs={judgment.evidence_refs ?? []}
-            source="teacher"
-          >
-            {editable ? (
-              <AutoTextarea
-                aria-label={`判断 ${index + 1}`}
-                className="control control-doc"
-                disabled={busy}
-                onChange={(event) =>
-                  patch({
-                    teacher_judgments: judgments.map((item) =>
-                      item.id === judgment.id ? { ...item, text: event.target.value } : item,
-                    ),
-                  })
-                }
-                placeholder="老师明确表达的判断"
-                value={judgment.text}
-              />
-            ) : (
-              <ClaimText>{judgment.text}</ClaimText>
-            )}
-          </ClaimBlock>
-        ))
-      )}
+              ) : (
+                <ItemText>{fact.text}</ItemText>
+              )}
+            </SourceItem>
+          ))
+        )}
+      </GroupSection>
 
-      <GroupHead
-        aside={<span className="mono faint">等待老师取舍</span>}
+      {/* ================= 你的判断 ================= */}
+      <GroupSection
+        aside={
+          editable && (
+            <Button
+              disabled={busy}
+              onClick={() => {
+                const id = nextId("judgment", judgments);
+                editable.onAdded(id);
+                patch({ teacher_judgments: [...judgments, { id, text: "", evidence_refs: [] }] });
+              }}
+              size="sm"
+            >
+              添加判断
+            </Button>
+          )
+        }
+        title="你的判断"
+      >
+        {judgments.length === 0 ? (
+          <p className="muted" style={{ fontSize: "var(--t-14)" }}>
+            尚无老师判断。
+          </p>
+        ) : (
+          judgments.map((judgment, index) => (
+            <SourceItem
+              actions={
+                editable ? (
+                  <RemoveButton
+                    busy={busy}
+                    label={`删除判断 ${index + 1}`}
+                    onClick={() =>
+                      patch({
+                        teacher_judgments: judgments.filter((item) => item.id !== judgment.id),
+                      })
+                    }
+                  />
+                ) : undefined
+              }
+              badge={addedBadge(judgment.id)}
+              key={judgment.id}
+              refs={judgment.evidence_refs ?? []}
+            >
+              {editable ? (
+                <AutoTextarea
+                  aria-label={`判断 ${index + 1}`}
+                  className="control"
+                  disabled={busy}
+                  onChange={(event) =>
+                    patch({
+                      teacher_judgments: judgments.map((item) =>
+                        item.id === judgment.id ? { ...item, text: event.target.value } : item,
+                      ),
+                    })
+                  }
+                  placeholder="你明确表达的判断"
+                  value={judgment.text}
+                />
+              ) : (
+                <ItemText>{judgment.text}</ItemText>
+              )}
+            </SourceItem>
+          ))
+        )}
+      </GroupSection>
+
+      {/* ================= AI 推断的候选标准 ================= */}
+      <GroupSection
+        aside={<span className="mono faint">等待你取舍</span>}
         title="AI 推断的候选标准"
-      />
-      {proposals.length === 0 ? (
-        <p className="muted" style={{ paddingLeft: "var(--s-4)" }}>
-          AI 没有额外的候选标准。
-        </p>
-      ) : (
-        proposals.map((proposal, index) => (
-          <ClaimBlock
-            actions={
-              editable ? (
-                <RemoveButton
-                  busy={busy}
-                  label={`删除候选标准 ${index + 1}`}
-                  onClick={() =>
+      >
+        {proposals.length === 0 ? (
+          <p className="muted" style={{ fontSize: "var(--t-14)" }}>
+            AI 没有额外的候选标准。
+          </p>
+        ) : (
+          proposals.map((proposal, index) => (
+            <SourceItem
+              actions={
+                editable ? (
+                  <RemoveButton
+                    busy={busy}
+                    label={`删除候选标准 ${index + 1}`}
+                    onClick={() =>
+                      patch({
+                        proposed_standards: proposals.filter((item) => item.id !== proposal.id),
+                      })
+                    }
+                  />
+                ) : undefined
+              }
+              key={proposal.id}
+              refs={proposal.evidence_refs ?? []}
+            >
+              {editable ? (
+                <AutoTextarea
+                  aria-label={`候选标准 ${index + 1}`}
+                  className="control"
+                  disabled={busy}
+                  onChange={(event) =>
                     patch({
-                      proposed_standards: proposals.filter((item) => item.id !== proposal.id),
+                      proposed_standards: proposals.map((item) =>
+                        item.id === proposal.id ? { ...item, text: event.target.value } : item,
+                      ),
                     })
                   }
+                  value={proposal.text}
                 />
-              ) : undefined
-            }
-            field={`候选标准 ${index + 1}`}
-            key={proposal.id}
-            refs={proposal.evidence_refs ?? []}
-            source="ai"
-          >
-            {editable ? (
-              <AutoTextarea
-                aria-label={`候选标准 ${index + 1}`}
-                className="control control-doc"
-                disabled={busy}
-                onChange={(event) =>
-                  patch({
-                    proposed_standards: proposals.map((item) =>
-                      item.id === proposal.id ? { ...item, text: event.target.value } : item,
-                    ),
-                  })
-                }
-                value={proposal.text}
-              />
-            ) : (
-              <ClaimText>{proposal.text}</ClaimText>
-            )}
-          </ClaimBlock>
-        ))
-      )}
+              ) : (
+                <ItemText>{proposal.text}</ItemText>
+              )}
+            </SourceItem>
+          ))
+        )}
+      </GroupSection>
 
-      <GroupHead
+      {/* ================= 证据缺口 ================= */}
+      <GroupSection
         aside={<span className="mono faint">保留未知，不伪装成事实</span>}
-        title="未知与证据缺口"
-      />
-      {unknowns.length === 0 ? (
-        <p className="muted" style={{ paddingLeft: "var(--s-4)" }}>
-          没有登记的缺口。
-        </p>
-      ) : (
-        unknowns.map((unknown, index) => (
-          <ClaimBlock
+        title="证据缺口"
+      >
+        {unknowns.length === 0 ? (
+          <p className="muted" style={{ fontSize: "var(--t-14)" }}>
+            没有登记的缺口。
+          </p>
+        ) : (
+          unknowns.map((unknown, index) => (
+            <SourceItem
+              actions={
+                editable ? (
+                  <RemoveButton
+                    busy={busy}
+                    label={`移除缺口 ${index + 1}`}
+                    onClick={() =>
+                      patch({ unknowns: unknowns.filter((item) => item.id !== unknown.id) })
+                    }
+                  />
+                ) : undefined
+              }
+              badge={
+                unknown.blocking ? (
+                  <span className="state state-amber">
+                    <span className="dot" />
+                    阻塞
+                  </span>
+                ) : undefined
+              }
+              key={unknown.id}
+            >
+              {editable ? (
+                <div className="stack-sm">
+                  <AutoTextarea
+                    aria-label={`缺口 ${index + 1}`}
+                    className="control"
+                    disabled={busy}
+                    onChange={(event) =>
+                      patch({
+                        unknowns: unknowns.map((item) =>
+                          item.id === unknown.id ? { ...item, text: event.target.value } : item,
+                        ),
+                      })
+                    }
+                    value={unknown.text}
+                  />
+                  {unknown.blocking && (
+                    <p className="field-error">
+                      阻塞缺口必须先解决：补进事实或判断后移除这一条，才能确认。
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <ItemText>{unknown.text}</ItemText>
+              )}
+            </SourceItem>
+          ))
+        )}
+      </GroupSection>
+
+      {/* ================= 判定维度 ================= */}
+      <GroupSection
+        aside={
+          <span className="row" style={{ gap: "var(--s-3)" }}>
+            <span className="mono faint">{draft.dimensions.length} 个</span>
+            {editable && (
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  const id = nextId("dimension", draft.dimensions);
+                  editable.onAdded(id);
+                  patch({
+                    dimensions: [
+                      ...draft.dimensions,
+                      { id, name: "", kind: "required_quality", criterion: "", evidence_refs: [] },
+                    ],
+                  });
+                }}
+                size="sm"
+              >
+                新增维度
+              </Button>
+            )}
+          </span>
+        }
+        title="判定维度"
+      >
+        {draft.dimensions.map((dimension, index) => (
+          <SourceItem
             actions={
               editable ? (
                 <RemoveButton
                   busy={busy}
-                  label={`移除缺口 ${index + 1}`}
+                  label={`删除维度 ${index + 1}`}
                   onClick={() =>
-                    patch({ unknowns: unknowns.filter((item) => item.id !== unknown.id) })
+                    patch({
+                      dimensions: draft.dimensions.filter((item) => item.id !== dimension.id),
+                    })
                   }
                 />
               ) : undefined
             }
             badge={
-              unknown.blocking ? (
-                <span className="state state-fail">
-                  <span className="dot" />
-                  阻塞
-                </span>
-              ) : undefined
+              <>
+                <KindBadge kind={dimension.kind} />
+                {editable && addedBadge(dimension.id)}
+              </>
             }
-            field={`缺口 ${index + 1}`}
-            key={unknown.id}
-            source="gap"
+            key={dimension.id}
+            refs={dimension.evidence_refs ?? []}
           >
             {editable ? (
-              <div className="stack-sm">
+              <div className={styles.dimension}>
+                <div className={styles.dimensionHead}>
+                  <input
+                    aria-label={`维度 ${index + 1} 名称`}
+                    className="control"
+                    disabled={busy}
+                    onChange={(event) =>
+                      patch({
+                        dimensions: draft.dimensions.map((item) =>
+                          item.id === dimension.id ? { ...item, name: event.target.value } : item,
+                        ),
+                      })
+                    }
+                    placeholder="维度名称，例如 事实准确性"
+                    style={{ flex: "1 1 200px", width: "auto" }}
+                    value={dimension.name}
+                  />
+                  <div className="segmented" role="group">
+                    {KIND_OPTIONS.map((option) => (
+                      <button
+                        aria-pressed={dimension.kind === option.value}
+                        className="segmented-item"
+                        disabled={busy}
+                        key={option.value}
+                        onClick={() =>
+                          patch({
+                            dimensions: draft.dimensions.map((item) =>
+                              item.id === dimension.id ? { ...item, kind: option.value } : item,
+                            ),
+                          })
+                        }
+                        type="button"
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <AutoTextarea
-                  aria-label={`缺口 ${index + 1}`}
-                  className="control control-doc"
-                  disabled={busy}
-                  onChange={(event) =>
-                    patch({
-                      unknowns: unknowns.map((item) =>
-                        item.id === unknown.id ? { ...item, text: event.target.value } : item,
-                      ),
-                    })
-                  }
-                  value={unknown.text}
-                />
-                {unknown.blocking && (
-                  <p className="field-error">
-                    <span aria-hidden="true">↳</span>
-                    <span>阻塞缺口必须先解决：补进事实或判断后移除这一条，才能确认。</span>
-                  </p>
-                )}
-              </div>
-            ) : (
-              <ClaimText>{unknown.text}</ClaimText>
-            )}
-          </ClaimBlock>
-        ))
-      )}
-
-      <GroupHead
-        aside={<span className="mono faint">{draft.dimensions.length} 个</span>}
-        title="判定维度"
-      />
-      {editable && (
-        <div style={{ paddingLeft: "var(--s-4)" }}>
-          <Button
-            disabled={busy}
-            onClick={() => {
-              const id = nextId("dimension", draft.dimensions);
-              editable.onAdded(id);
-              patch({
-                dimensions: [
-                  ...draft.dimensions,
-                  { id, name: "", kind: "required_quality", criterion: "", evidence_refs: [] },
-                ],
-              });
-            }}
-            size="sm"
-          >
-            <Plus size={13} />
-            新增维度
-          </Button>
-        </div>
-      )}
-      {draft.dimensions.map((dimension, index) => (
-        <ClaimBlock
-          actions={
-            editable ? (
-              <RemoveButton
-                busy={busy}
-                label={`删除维度 ${index + 1}`}
-                onClick={() =>
-                  patch({
-                    dimensions: draft.dimensions.filter((item) => item.id !== dimension.id),
-                  })
-                }
-              />
-            ) : undefined
-          }
-          badge={
-            editable ? (
-              addedBadge(dimension.id)
-            ) : (
-              <KindChip kind={dimension.kind} />
-            )
-          }
-          field={editable ? `维度 ${index + 1}` : dimension.name || `维度 ${index + 1}`}
-          key={dimension.id}
-          refs={dimension.evidence_refs ?? []}
-          source="draft"
-        >
-          {editable ? (
-            <div className={styles.dimension}>
-              <div className={styles.dimensionHead}>
-                <input
-                  aria-label={`维度 ${index + 1} 名称`}
+                  aria-label={`维度 ${index + 1} 判定标准`}
                   className="control"
                   disabled={busy}
                   onChange={(event) =>
                     patch({
                       dimensions: draft.dimensions.map((item) =>
-                        item.id === dimension.id ? { ...item, name: event.target.value } : item,
+                        item.id === dimension.id
+                          ? { ...item, criterion: event.target.value }
+                          : item,
                       ),
                     })
                   }
-                  placeholder="维度名称，例如 事实准确性"
-                  style={{ flex: "1 1 200px", width: "auto" }}
-                  value={dimension.name}
+                  placeholder="怎样才算通过"
+                  value={dimension.criterion}
                 />
-                <div className="segmented" role="group">
-                  {KIND_OPTIONS.map((option) => (
-                    <button
-                      aria-pressed={dimension.kind === option.value}
-                      className="segmented-item"
-                      disabled={busy}
-                      key={option.value}
-                      onClick={() =>
-                        patch({
-                          dimensions: draft.dimensions.map((item) =>
-                            item.id === dimension.id ? { ...item, kind: option.value } : item,
-                          ),
-                        })
-                      }
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
               </div>
-              <AutoTextarea
-                aria-label={`维度 ${index + 1} 判定标准`}
-                className="control control-doc"
-                disabled={busy}
-                onChange={(event) =>
-                  patch({
-                    dimensions: draft.dimensions.map((item) =>
-                      item.id === dimension.id ? { ...item, criterion: event.target.value } : item,
-                    ),
-                  })
-                }
-                placeholder="怎样才算通过"
-                value={dimension.criterion}
-              />
-            </div>
-          ) : (
-            <ClaimText>{dimension.criterion}</ClaimText>
-          )}
-        </ClaimBlock>
-      ))}
+            ) : (
+              <div className="stack-sm">
+                <span className={styles.fieldText} style={{ fontWeight: 550 }}>
+                  {dimension.name || `维度 ${index + 1}`}
+                </span>
+                <ItemText>{dimension.criterion}</ItemText>
+              </div>
+            )}
+          </SourceItem>
+        ))}
+      </GroupSection>
 
-      <GroupHead title="标签" />
-      <div style={{ paddingLeft: "var(--s-4)" }}>
+      {/* ================= 标签 ================= */}
+      <GroupSection title="标签">
         {editable ? (
           <div className={styles.tags}>
             {tags.map((tag, index) => (
@@ -672,15 +669,17 @@ export function DraftView({
         ) : tags.length ? (
           <div className={styles.tags}>
             {tags.map((tag) => (
-              <span className="chip" key={tag}>
+              <span className={styles.tagRead} key={tag}>
                 {tag}
               </span>
             ))}
           </div>
         ) : (
-          <p className="muted">无标签。</p>
+          <p className="muted" style={{ fontSize: "var(--t-14)" }}>
+            无标签。
+          </p>
         )}
-      </div>
+      </GroupSection>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-/** 字段：标签 + 控件 + 字段级校注。错误直接落在对应字段，不堆到表单顶部。 */
+/** 字段：标签 + 控件 + 字段级错误提示。错误直接落在对应字段，不堆到表单顶部。 */
 export function Field({
   label,
   hint,

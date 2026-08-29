@@ -1,40 +1,32 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { SealMark } from "@/src/components/ui/Glyph";
-
 export type Crumb = { label: string; href?: string };
 
 /**
- * 桌沿：全站唯一的持久化导航。本闭环只有四条路由且流程是线性的，
- * 侧边栏在这里只会是假的脚手架，所以导航由“卷宗面包屑 + 状态进程条”承担。
+ * 顶栏：全站唯一的持久化导航。本闭环只有四条路由且流程是线性的，
+ * 侧边栏在这里只会是假的脚手架，所以导航由“场景面包屑 + 状态进程条”承担。
  */
 export function DeskRail({ crumbs = [], right }: { crumbs?: Crumb[]; right?: ReactNode }) {
   return (
     <header className="rail">
       <div className="rail-group" style={{ overflow: "hidden" }}>
         <Link
-          className="rail-group"
           href="/workspaces"
           style={{
-            color: "var(--ink)",
+            color: "var(--text)",
             textDecoration: "none",
-            gap: "var(--s-2)",
             whiteSpace: "nowrap",
             flex: "none",
+            fontWeight: 650,
+            fontSize: "var(--t-15)",
+            letterSpacing: "-0.01em",
           }}
         >
-          <span style={{ color: "var(--seal)", display: "flex" }}>
-            <SealMark size={17} />
-          </span>
-          <span style={{ fontWeight: 600, letterSpacing: "-0.01em" }}>审校台</span>
+          评测集平台
         </Link>
         {crumbs.length > 0 && (
-          <nav
-            aria-label="卷宗位置"
-            className="rail-group"
-            style={{ gap: "var(--s-2)", overflow: "hidden" }}
-          >
+          <nav aria-label="当前位置" className="rail-group" style={{ gap: "var(--s-2)", overflow: "hidden" }}>
             {crumbs.map((crumb, index) => (
               <span
                 className="rail-group"
@@ -48,7 +40,7 @@ export function DeskRail({ crumbs = [], right }: { crumbs?: Crumb[]; right?: Rea
                   <Link
                     href={crumb.href}
                     style={{
-                      color: "var(--ink-secondary)",
+                      color: "var(--text-2)",
                       fontSize: "var(--t-13)",
                       whiteSpace: "nowrap",
                     }}
@@ -58,7 +50,7 @@ export function DeskRail({ crumbs = [], right }: { crumbs?: Crumb[]; right?: Rea
                 ) : (
                   <span
                     style={{
-                      color: "var(--ink-secondary)",
+                      color: "var(--text-2)",
                       fontSize: "var(--t-13)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",

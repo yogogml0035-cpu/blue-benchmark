@@ -6,7 +6,7 @@ import { type DragEvent, type FormEvent, useEffect, useState } from "react";
 import { DeskRail } from "@/src/components/shell/DeskRail";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
 import { Field } from "@/src/components/ui/Field";
-import { ArrowLeft, Cross, Upload } from "@/src/components/ui/Glyph";
+import { Cross } from "@/src/components/ui/Glyph";
 import { Note } from "@/src/components/ui/Note";
 import { SkeletonLine } from "@/src/components/ui/Skeleton";
 import { StatePanel } from "@/src/components/ui/StatePanel";
@@ -22,7 +22,7 @@ import {
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
 import { PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
 
-import styles from "./caseBuilder.module.css";
+import styles from "./caseDetail.module.css";
 
 const ACCEPTED = [".txt", ".md"];
 
@@ -31,7 +31,7 @@ function extensionOf(name: string) {
   return index === -1 ? "" : name.slice(index).toLowerCase();
 }
 
-export function CaseIntake({ workspaceId }: { workspaceId: string }) {
+export function CaseUpload({ workspaceId }: { workspaceId: string }) {
   const router = useRouter();
   const preview = usePreviewState();
   const session = useSession();
@@ -90,7 +90,7 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!file) {
-      setFileError("请先选择一个 .txt 或 .md 原件。");
+      setFileError("请先选择一个 .txt 或 .md 材料。");
       return;
     }
     setBusy(true);
@@ -112,8 +112,8 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
   const rail = (
     <DeskRail
       crumbs={[
-        { label: shownWorkspace?.name ?? "卷宗", href: "/workspaces" },
-        { label: "收件" },
+        { label: shownWorkspace?.name ?? "场景", href: "/workspaces" },
+        { label: "上传真实案例" },
       ]}
       right={
         <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />
@@ -136,8 +136,8 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
           <StatePanel
             actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>}
             code="401 · AUTH_REQUIRED"
-            description="收件前必须确认身份。案例会继承卷宗归属，未登录时页面不会读取任何卷宗信息。"
-            title="需要登录才能向这份卷宗收件"
+            description="上传前必须确认身份。真实案例会继承场景归属，未登录时页面不会读取任何场景信息。"
+            title="需要登录才能向这个场景上传"
             tone="locked"
           />
         </main>
@@ -147,9 +147,9 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
 
   const fault: PageFault | null =
     preview === "forbidden"
-      ? { kind: "forbidden", code: "FORBIDDEN", message: "你无权访问这个私有场景。" }
+      ? { kind: "forbidden", code: "FORBIDDEN", message: "你无权访问这个场景。" }
       : preview === "not_found"
-        ? { kind: "not_found", code: "RESOURCE_NOT_FOUND", message: "卷宗不存在。" }
+        ? { kind: "not_found", code: "RESOURCE_NOT_FOUND", message: "场景不存在。" }
         : preview === "error"
           ? { kind: "failed", code: "NETWORK_UNREACHABLE", message: "无法连接后端服务，请确认 FastAPI 已启动后重试。" }
           : !preview && session.status === "failed"
@@ -161,10 +161,10 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
   if (fault && fault.kind !== "conflict") {
     const copy =
       fault.kind === "forbidden"
-        ? { title: "这份卷宗不属于当前账号", body: "私有场景只对所有者可见，页面不会用缓存继续渲染卷宗内容。" }
+        ? { title: "这个场景不属于当前账号", body: "私有场景只对所有者可见，页面不会用缓存继续渲染场景内容。" }
         : fault.kind === "not_found"
-          ? { title: "卷宗不存在", body: "地址里的卷宗 ID 在你的授权范围内查不到。" }
-          : { title: "读取卷宗失败", body: fault.message };
+          ? { title: "场景不存在", body: "地址里的场景编号在你的授权范围内查不到。" }
+          : { title: "读取场景失败", body: fault.message };
     return (
       <>
         {rail}
@@ -173,8 +173,7 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
           <StatePanel
             actions={
               <ButtonLink href="/workspaces" variant="primary">
-                <ArrowLeft />
-                回到卷宗架
+                回到场景
               </ButtonLink>
             }
             code={`${fault.kind === "forbidden" ? "403" : fault.kind === "not_found" ? "404" : "500"} · ${fault.code}`}
@@ -196,20 +195,20 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
       {previewBar}
       <main className="page page-mid stack-lg">
         <div className="stack-sm">
-          <span className="section-label">收件</span>
-          <h1 className="doc-title">向卷宗提交一份真实案例</h1>
+          <span className="section-label">上传真实案例</span>
+          <h1 className="doc-title">上传一份真实案例</h1>
           {loading ? (
             <SkeletonLine height={14} width="58%" />
           ) : (
             <p className="secondary">
-              收件到「{shownWorkspace?.name}」。原件在这次请求里同步保存并解析，
-              解析成功后详情页会自动请 AI 起草一次。
+              上传到「{shownWorkspace?.name}」。材料会在本次请求里同步保存并解析，
+              解析成功后详情页会自动请 AI 整理一版标准草稿。
             </p>
           )}
         </div>
 
         {preview === "success" && (
-          <Note tone="cleared" title="已建立案例并解析完成">
+          <Note tone="green" title="已建立真实案例并解析完成">
             <span className="row" style={{ gap: "var(--s-3)" }}>
               <span className="mono">state · ready_for_ai</span>
               <span className="mono faint">201 CaseDetail</span>
@@ -222,7 +221,7 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
             <form className="sheet-pad stack" onSubmit={submit}>
               <Field hint="1–200 字" htmlFor="case-title" label="案例标题">
                 {loading ? (
-                  <SkeletonLine height={38} />
+                  <SkeletonLine height={40} />
                 ) : (
                   <input
                     className="control"
@@ -259,7 +258,7 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
 
               <div className="field">
                 <span className="field-label">
-                  <span>原件</span>
+                  <span>材料</span>
                   <span className="field-hint">恰好一个 .txt 或 .md</span>
                 </span>
                 {loading ? (
@@ -273,7 +272,7 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
                     }}
                     onRemove={
                       <Button
-                        aria-label="移除已选文件"
+                        aria-label="移除已选材料"
                         className="btn-icon"
                         disabled={busy}
                         onClick={() => setFile(null)}
@@ -303,14 +302,13 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
                       type="file"
                     />
                     <span style={{ fontWeight: 550 }}>
-                      {dragging ? "松手即收件" : "把原件拖到这里，或点击选择"}
+                      {dragging ? "松手即上传" : "把材料拖到这里，或点击选择"}
                     </span>
                     <span className="mono faint">.txt · .md · UTF-8</span>
                   </label>
                 )}
                 {fileError && (
                   <p className="field-error">
-                    <span aria-hidden="true">↳</span>
                     <span>{fileError}</span>
                   </p>
                 )}
@@ -329,40 +327,39 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
                   tone="fail"
                 >
                   {submitFault.message}
-                  {submitFault.code === "FILE_TOO_LARGE" && " 请拆分后重新收件。"}
+                  {submitFault.code === "FILE_TOO_LARGE" && " 请拆分后重新上传。"}
                 </Note>
               )}
 
               <div className="row">
                 <Button
                   busy={busy}
-                  busyLabel="正在保存并解析…"
+                  busyLabel="正在上传并解析…"
                   disabled={loading || !title.trim() || !file}
                   size="lg"
                   type="submit"
                   variant="primary"
                 >
-                  <Upload />
-                  收件并解析
+                  上传并解析
                 </Button>
                 <ButtonLink href="/workspaces" variant="quiet">
                   取消
                 </ButtonLink>
               </div>
               {!file && !fileError && !loading && (
-                <p className="mono faint">尚未选择原件 · 收件按钮保持禁用</p>
+                <p className="mono faint">尚未选择材料 · 上传按钮保持禁用</p>
               )}
             </form>
           </section>
 
           <aside className="sheet stack" style={{ padding: "var(--s-5)", gap: "var(--s-4)" }}>
             <div className="stack-sm">
-              <span className="section-label">收件须知</span>
+              <span className="section-label">上传须知</span>
               <ul className="stack-sm secondary" style={{ fontSize: "var(--t-13)" }}>
-                <li>· 一个案例本阶段只收一个原件。</li>
+                <li>· 一个真实案例本阶段只收一个材料。</li>
                 <li>· 扩展名、声明类型和实际可解码内容都会被检查。</li>
                 <li>· 解析为空不会调用模型，会留下一条可追踪的失败记录。</li>
-                <li>· 解析失败不提供重试，修正文件后重新收件。</li>
+                <li>· 解析失败不提供重试，修正材料后重新上传。</li>
               </ul>
             </div>
             <hr className="hair" />
@@ -372,7 +369,7 @@ export function CaseIntake({ workspaceId }: { workspaceId: string }) {
                 当前后端是内存 Stub。在文件内容里写入下面的标记即可复现对应分支：
               </p>
               <ul className="stack-sm">
-                <li className="mono">默认 → 先追问一次</li>
+                <li className="mono">默认 → 先提问一次</li>
                 <li className="mono">[stub:waiting_for_confirmation]</li>
                 <li className="mono">[stub:ai_failed]</li>
                 <li className="mono">空文件 → parse_failed</li>

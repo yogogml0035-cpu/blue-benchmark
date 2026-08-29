@@ -74,7 +74,7 @@ flowchart LR
 |---|---|---|---|
 | 业务 PostgreSQL 表 | 用户、Session、空间、源案例、外部可见状态、草案投影、候选用例 | 是 | 只能经所属 Feature Service |
 | LangGraph PostgreSQL Checkpoint | 节点游标、图状态、暂停值、恢复所需执行上下文 | 否，仅为执行事实源 | 仅 `case-builder` Workflow 适配器 |
-| `storage/uploads` | 原始 TXT/Markdown 二进制 | 是，附件原件 | 仅本地文件适配器；数据库只保存服务端生成的相对键和元数据 |
+| `storage/uploads` | 原始 TXT/Markdown 二进制 | 是，附件材料 | 仅本地文件适配器；数据库只保存服务端生成的相对键和元数据 |
 
 Checkpoint 不能替代业务表。浏览器也不能提交或选择 `thread_id`；服务端为每个 `case_builder_session` 生成一个稳定 UUID 并保存映射。详细理由见 [ADR-0001](./adr/0001-business-state-and-langgraph-checkpoints.md)。
 

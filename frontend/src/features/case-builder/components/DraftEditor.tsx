@@ -3,14 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/src/components/ui/Button";
-import { Check, Refresh } from "@/src/components/ui/Glyph";
+import { Check } from "@/src/components/ui/Glyph";
 import { Note } from "@/src/components/ui/Note";
-import { ProvenanceLegend } from "@/src/features/case-builder/components/ClaimBlock";
 import { DraftView } from "@/src/features/case-builder/components/DraftView";
 import type { DraftContent } from "@/src/features/case-builder/services/caseBuilderService";
 import type { PageFault } from "@/src/lib/api/pageFault";
 
-import styles from "./caseBuilder.module.css";
+import styles from "./caseDetail.module.css";
 
 type Requirement = { key: string; label: string; ok: boolean };
 
@@ -103,7 +102,7 @@ export function DraftEditor({
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState("");
 
-  // 服务端换了修订号就意味着换了一份校样，本地修改不能跨修订号残留。
+  // 服务端换了修订号就意味着换了一份草稿，本地修改不能跨修订号残留。
   useEffect(() => {
     setDraft(serverDraft);
     setAddedIds(new Set());
@@ -120,19 +119,16 @@ export function DraftEditor({
       <div className="sheet-head">
         <div className="row-between">
           <div className="stack-sm">
-            <h2 className="doc-title-sm">校样：逐条审阅，可直接改</h2>
-            <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
-              AI 只能提出带出处的草案。左侧墨线说明每一条是谁说的，右侧是它的引注。
+            <h2 className="doc-title-sm">标准草稿 · 待你确认</h2>
+            <p className="secondary" style={{ fontSize: "var(--t-14)" }}>
+              逐条审阅，可直接修改。AI 只能提出带出处的草稿，确认收录的决定权在你。
             </p>
           </div>
-          <span className={styles.revStamp}>第 {draftRevision} 校</span>
-        </div>
-        <div style={{ paddingTop: "var(--s-3)" }}>
-          <ProvenanceLegend />
+          <span className={styles.revStamp}>v{draftRevision}</span>
         </div>
       </div>
 
-      <div style={{ padding: "var(--s-2) var(--s-5) var(--s-5)" }}>
+      <div className="stack-lg" style={{ padding: "var(--s-6) var(--s-5)" }}>
         <DraftView
           draft={draft}
           editable={{
@@ -143,8 +139,8 @@ export function DraftEditor({
           }}
         />
 
-        <details className={styles.jsonEscape} style={{ marginTop: "var(--s-6)" }}>
-          <summary>▸ 直接编辑 JSON（提交的就是这份内容）</summary>
+        <details className={styles.jsonEscape}>
+          <summary>直接编辑 JSON（提交的就是这份内容）</summary>
           <textarea
             className={styles.jsonArea}
             disabled={busy}
@@ -165,7 +161,7 @@ export function DraftEditor({
               }}
               size="sm"
             >
-              应用到上面的校样
+              应用到上面的草稿
             </Button>
             <Button
               disabled={busy}
@@ -173,7 +169,7 @@ export function DraftEditor({
               size="sm"
               variant="quiet"
             >
-              从校样重新载入
+              从草稿重新载入
             </Button>
             {jsonError && <span className="field-error">{jsonError}</span>}
           </div>
@@ -184,14 +180,13 @@ export function DraftEditor({
         {fault && (
           <Note
             code={fault.code}
-            title={stale ? "这份校样已经不是最新的" : "确认没有被接受"}
+            title={stale ? "这份草稿已经不是最新的" : "确认没有被接受"}
             tone="fail"
           >
             {fault.message}
             {stale && (
               <span style={{ display: "block", marginTop: "var(--s-2)" }}>
                 <Button onClick={onReload} size="sm">
-                  <Refresh size={13} />
                   重新读取案例
                 </Button>
               </span>
@@ -206,11 +201,11 @@ export function DraftEditor({
                 <div className={styles.checkItem} key={item.key}>
                   <span
                     aria-hidden="true"
-                    style={{ color: item.ok ? "var(--prov-cleared)" : "var(--ink-faint)" }}
+                    style={{ color: item.ok ? "var(--green)" : "var(--text-3)" }}
                   >
                     {item.ok ? <Check size={13} /> : "○"}
                   </span>
-                  <span style={{ color: item.ok ? "var(--ink-secondary)" : "var(--ink-muted)" }}>
+                  <span style={{ color: item.ok ? "var(--text-2)" : "var(--text-3)" }}>
                     {item.label}
                   </span>
                 </div>
@@ -220,16 +215,16 @@ export function DraftEditor({
           <div className="stack-sm" style={{ justifyItems: "start" }}>
             <Button
               busy={busy}
-              busyLabel="正在确认并保存…"
+              busyLabel="正在收录…"
               disabled={!complete}
               onClick={() => onConfirm(normalize(draft))}
               size="lg"
               variant="primary"
             >
-              确认并落章
+              确认收录为标准案例
             </Button>
             <span className="mono faint">
-              {complete ? "将保存一条候选用例" : "还有必填项没有满足"}
+              {complete ? "将保存一条候选标准案例" : "还有必填项没有满足"}
             </span>
           </div>
         </div>

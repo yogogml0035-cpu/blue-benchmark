@@ -1,12 +1,15 @@
+import type { CSSProperties } from "react";
+
 import {
   STATE_META,
+  TONE_COLOR,
   type CaseState,
   type Step,
   type StepStatus,
   trackFor,
 } from "@/src/features/case-builder/lib/caseState";
 
-import styles from "./caseBuilder.module.css";
+import styles from "./caseDetail.module.css";
 
 const DOT: Record<StepStatus, string> = {
   done: styles.dotDone,
@@ -16,26 +19,18 @@ const DOT: Record<StepStatus, string> = {
   skipped: styles.dotSkipped,
 };
 
-const LABEL_STYLE: Record<StepStatus, React.CSSProperties> = {
-  done: { color: "var(--ink-secondary)" },
-  active: { color: "var(--ink)", fontWeight: 600 },
-  pending: { color: "var(--ink-faint)" },
-  failed: { color: "var(--seal)", fontWeight: 600 },
-  skipped: { color: "var(--ink-faint)" },
-};
-
-const TONE_INK: Record<string, string> = {
-  neutral: "var(--ink-secondary)",
-  ai: "var(--prov-ai)",
-  gap: "var(--prov-gap)",
-  teacher: "var(--prov-teacher)",
-  cleared: "var(--prov-cleared)",
-  fail: "var(--seal)",
+const LABEL_STYLE: Record<StepStatus, CSSProperties> = {
+  done: { color: "var(--text-2)" },
+  active: { color: "var(--text)", fontWeight: 600 },
+  pending: { color: "var(--text-3)" },
+  failed: { color: "var(--red)", fontWeight: 600 },
+  skipped: { color: "var(--text-3)" },
 };
 
 /**
- * 校样流程条。当前步用状态自身的语义色着色，已完成用中性墨色，
- * 避免把六个步骤染成六种颜色而稀释掉“来源墨色”的语义。
+ * 沉淀流程条：上传 → 解析 → AI 整理 → 需要补充 → 审改 → 收录。
+ * 当前步用状态自身的语义色着色，已完成用中性灰，
+ * 本闭环只有四条路由且流程线性，这条进程条本身就是导航。
  */
 export function ProgressTrack({
   state,
@@ -47,13 +42,13 @@ export function ProgressTrack({
   hasDraft: boolean;
 }) {
   const steps = trackFor(state, { answered, hasDraft });
-  const ink = TONE_INK[STATE_META[state].tone] ?? "var(--ink)";
+  const color = TONE_COLOR[STATE_META[state].tone];
   return (
     <div className="stack-sm">
       <ol className={styles.track}>
         {steps.map((step: Step) => (
           <li className={styles.step} key={step.key}>
-            <span className={styles.stepMark} style={{ color: ink }}>
+            <span className={styles.stepMark} style={{ color }}>
               <span aria-hidden="true" className={DOT[step.status]} />
             </span>
             <span className={styles.stepLabel} style={LABEL_STYLE[step.status]}>

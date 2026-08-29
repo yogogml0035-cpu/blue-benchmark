@@ -5,7 +5,6 @@ import { type FormEvent, useState } from "react";
 
 import { Button } from "@/src/components/ui/Button";
 import { Field } from "@/src/components/ui/Field";
-import { ArrowRight, SealMark } from "@/src/components/ui/Glyph";
 import { Note } from "@/src/components/ui/Note";
 import { Segmented } from "@/src/components/ui/Segmented";
 import { SkeletonLine } from "@/src/components/ui/Skeleton";
@@ -21,8 +20,8 @@ const MODES = [
   { value: "register" as const, label: "注册" },
 ];
 
-/** 追问阶段之前的整条链路，放在登录纸下沿，让老师知道自己将要进入哪一条流程。 */
-const FLOW = ["卷宗", "收件", "起草", "追问", "校订", "落章"];
+/** 登录页脚下的整条链路，让老师知道自己将要进入哪一条流程。 */
+const FLOW = ["场景", "上传", "AI 整理", "需要补充", "审改", "收录"];
 
 function fieldOf(fault: PageFault | null): "username" | "email" | null {
   if (fault?.code === "USERNAME_TAKEN") return "username";
@@ -92,19 +91,16 @@ export function AuthPanel() {
       <PreviewBar states={["loading", "empty", "success", "error", "unauthorized"]} />
       <main className="page page-narrow stack-lg">
         <div className="stack-sm" style={{ justifyItems: "start" }}>
-          <span className="row" style={{ gap: "var(--s-2)", color: "var(--seal)" }}>
-            <SealMark size={20} />
-            <span style={{ color: "var(--ink)", fontWeight: 600, fontSize: "var(--t-16)" }}>
-              审校台
-            </span>
+          <span style={{ fontWeight: 650, fontSize: "var(--t-18)", letterSpacing: "-0.01em" }}>
+            评测集平台
           </span>
           <p className="secondary">
-            把一份真实案例校订成一条可复核的候选用例。标准由你确认，AI 只提供带出处的草案。
+            把一次真实交付沉淀成一条白纸黑字的标准。标准由你确认，AI 只整理带出处的草稿。
           </p>
         </div>
 
         {(forcedUnauthorized || returnTo) && (
-          <Note code="AUTH_REQUIRED" title="需要登录才能打开这份卷宗" tone="gap">
+          <Note code="AUTH_REQUIRED" title="需要登录才能查看" tone="amber">
             登录后会回到{" "}
             <span className="mono">{returnTo ?? "/workspaces/…/cases/…"}</span>。
           </Note>
@@ -113,16 +109,16 @@ export function AuthPanel() {
         {checking ? (
           <section className="sheet sheet-pad stack" aria-busy="true">
             <SkeletonLine height={18} width="120px" />
-            <SkeletonLine height={38} />
-            <SkeletonLine height={38} />
+            <SkeletonLine height={40} />
+            <SkeletonLine height={40} />
             <SkeletonLine height={40} />
             <span className="mono faint">正在读取当前会话…</span>
           </section>
         ) : alreadySignedIn ? (
-          <section className="sheet enter" style={{ borderTop: "2px solid var(--prov-cleared)" }}>
+          <section className="sheet enter">
             <div className="sheet-pad stack">
               <div className="stack-sm">
-                <span className="state state-cleared">
+                <span className="state state-green">
                   <span className="dot" />
                   已登录
                 </span>
@@ -131,7 +127,7 @@ export function AuthPanel() {
                   {session.status === "authenticated" ? session.user.username : "teacher-a"}
                 </h1>
                 <p className="secondary">
-                  这个会话已经通过认证。直接进入卷宗架，或换一个账号验证越权分支。
+                  这个会话已经通过认证。直接进入场景列表，或换一个账号验证越权分支。
                 </p>
               </div>
               <div className="row">
@@ -140,8 +136,7 @@ export function AuthPanel() {
                   size="lg"
                   variant="primary"
                 >
-                  进入卷宗架
-                  <ArrowRight />
+                  进入场景
                 </Button>
                 <Button busy={busy} busyLabel="正在退出…" onClick={switchAccount} size="lg">
                   换个账号
@@ -152,7 +147,7 @@ export function AuthPanel() {
         ) : (
           <section className="sheet enter">
             <div className="sheet-head spread">
-              <h1 className="doc-title-sm">{mode === "login" ? "登录" : "建立账号"}</h1>
+              <h1 className="doc-title-sm">{mode === "login" ? "登录" : "创建账号"}</h1>
               <Segmented
                 disabled={busy}
                 label="登录或注册"
@@ -248,26 +243,26 @@ export function AuthPanel() {
 
               {pristine && !shownFault && (
                 <Note tone="info" title="表单还是空的">
-                  本地 Stub 不预置账号，第一次使用请切到「注册」建立一个。
+                  本地 Stub 不预置账号，第一次使用请切到「注册」创建一个。
                 </Note>
               )}
 
               <Button
                 block
                 busy={busy}
-                busyLabel={mode === "register" ? "正在建立账号…" : "正在登录…"}
+                busyLabel={mode === "register" ? "正在创建账号…" : "正在登录…"}
                 size="lg"
                 type="submit"
                 variant="primary"
               >
-                {mode === "register" ? "注册并进入卷宗架" : "登录"}
+                {mode === "register" ? "注册并进入" : "登录"}
               </Button>
             </form>
 
             <div className="sheet-foot">
               <div className="row mono faint" style={{ gap: "var(--s-2)" }}>
                 {FLOW.map((step, index) => (
-                  <span key={step} style={index === 0 ? { color: "var(--ink-secondary)" } : undefined}>
+                  <span key={step} style={index === 0 ? { color: "var(--text-2)" } : undefined}>
                     {index > 0 && <span style={{ paddingRight: "var(--s-2)" }}>·</span>}
                     {step}
                   </span>

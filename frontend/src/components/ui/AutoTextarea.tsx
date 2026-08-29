@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, type TextareaHTMLAttributes } from "react";
 
 /**
- * 校样里的文本长度差异很大：一句话的任务目标和一整段参考结果共用同一个控件。
+ * 草稿里的文本长度差异很大：一句话的任务目标和一整段参考结果共用同一个控件。
  * 固定高度会把长文截成半行，所以编辑器里的文本框一律按内容自动增高。
  */
 export function AutoTextarea({

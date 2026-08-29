@@ -10,14 +10,14 @@ export function SkeletonLine({
 }
 
 export function SkeletonBlock({ height = 96 }: { height?: number }) {
-  return <div className="skeleton" style={{ height, borderRadius: "var(--r-sm)" }} />;
+  return <div className="skeleton" style={{ height, borderRadius: "var(--r-chip)" }} />;
 }
 
-/** 一段带首行标题的骨架文本，用来占住“主张块”的位置。 */
+/** 一段带首行标题的骨架文本，用来占住草稿正文的位置。 */
 export function SkeletonClaim({ lines = 2 }: { lines?: number }) {
   return (
-    <div className="stack-sm" style={{ paddingLeft: 14, borderLeft: "3px solid var(--rule)" }}>
-      <SkeletonLine height={9} width="88px" />
+    <div className="stack-sm">
+      <SkeletonLine height={11} width="88px" />
       {Array.from({ length: lines }, (_, index) => (
         <SkeletonLine key={index} width={index === lines - 1 ? "62%" : "100%"} />
       ))}

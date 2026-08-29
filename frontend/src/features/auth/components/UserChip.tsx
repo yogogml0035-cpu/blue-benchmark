@@ -24,7 +24,7 @@ export function UserChip({ session, previewName }: { session: Session; previewNa
       style={{
         fontSize: "var(--t-14)",
         fontWeight: 550,
-        color: "var(--ink)",
+        color: "var(--text)",
         letterSpacing: "-0.005em",
         whiteSpace: "nowrap",
       }}

@@ -5,18 +5,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DeskRail } from "@/src/components/shell/DeskRail";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
-import { ArrowLeft, Refresh, Upload } from "@/src/components/ui/Glyph";
 import { Note } from "@/src/components/ui/Note";
 import { SkeletonClaim, SkeletonLine } from "@/src/components/ui/Skeleton";
 import { StatePanel } from "@/src/components/ui/StatePanel";
 import { UserChip } from "@/src/features/auth/components/UserChip";
 import { useSession } from "@/src/features/auth/hooks/useSession";
 import { AttachmentStrip } from "@/src/features/case-builder/components/AttachmentStrip";
+import { ConfirmedCard } from "@/src/features/case-builder/components/ConfirmedCard";
 import { DraftEditor } from "@/src/features/case-builder/components/DraftEditor";
 import { DraftView } from "@/src/features/case-builder/components/DraftView";
 import { ProgressTrack } from "@/src/features/case-builder/components/ProgressTrack";
-import { QuerySlip } from "@/src/features/case-builder/components/QuerySlip";
-import { SealBlock } from "@/src/features/case-builder/components/SealBlock";
+import { QuestionCard } from "@/src/features/case-builder/components/QuestionCard";
 import { hasTeacherAnswer, STATE_META, TONE_CLASS } from "@/src/features/case-builder/lib/caseState";
 import {
   PREVIEW_CASE_AI_FAILED,
@@ -37,8 +36,6 @@ import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault"
 import { stamp } from "@/src/lib/format";
 import { PreviewBar, usePreviewState, type PreviewState } from "@/src/lib/preview/preview";
 
-import styles from "./caseBuilder.module.css";
-
 type Load =
   | { status: "loading" }
   | { status: "ready"; case: Case }
@@ -52,13 +49,13 @@ const PREVIEW_CASES: Partial<Record<PreviewState, Case>> = {
   success: PREVIEW_CASE_CONFIRMED,
 };
 
-/** 起草中的占位：撑住校样最终的版面高度，AI 返回时页面不跳。 */
-function ProofSkeleton({ title }: { title: string }) {
+/** 整理中的占位：撑住草稿最终的版面高度，AI 返回时页面不跳。 */
+function DraftSkeleton({ title }: { title: string }) {
   return (
     <section aria-busy="true" className="sheet">
       <div className="sheet-head spread">
         <span className="row" style={{ gap: "var(--s-2)" }}>
-          <span className="state state-ai">
+          <span className="state state-active">
             <span className="dot pulse-dot" />
             {title}
           </span>
@@ -75,7 +72,7 @@ function ProofSkeleton({ title }: { title: string }) {
   );
 }
 
-export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId: string }) {
+export function CaseDetail({ workspaceId, caseId }: { workspaceId: string; caseId: string }) {
   const router = useRouter();
   const preview = usePreviewState();
   const session = useSession();
@@ -97,7 +94,7 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
       try {
         const result = await getCase(workspaceId, caseId);
         let current = result.case;
-        // 合同要求解析就绪后自动请一次草案；后端状态保护负责防止重复运行。
+        // 合同要求解析就绪后自动请一次草稿；后端状态保护负责防止重复运行。
         if (auto && current.state === "ready_for_ai" && !generationStarted.current) {
           generationStarted.current = true;
           setBusy(true);
@@ -195,8 +192,8 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
   const rail = (
     <DeskRail
       crumbs={[
-        { label: "卷宗架", href: "/workspaces" },
-        { label: shown?.title ?? "案例" },
+        { label: "场景", href: "/workspaces" },
+        { label: shown?.title ?? "真实案例" },
       ]}
       right={
         <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />
@@ -229,8 +226,8 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
           <StatePanel
             actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>}
             code="401 · AUTH_REQUIRED"
-            description="地址里带着案例 ID 也不代表有权限。会话失效时页面不会渲染标题、原件、草案或候选用例。"
-            title="需要登录才能打开这份案例"
+            description="地址里带着案例编号也不代表有权限。会话失效时页面不会渲染标题、材料、草稿或候选标准案例。"
+            title="需要登录才能查看这个真实案例"
             tone="locked"
           />
         </main>
@@ -240,9 +237,9 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
 
   const fault: PageFault | null =
     preview === "forbidden"
-      ? { kind: "forbidden", code: "FORBIDDEN", message: "你无权访问这个案例。" }
+      ? { kind: "forbidden", code: "FORBIDDEN", message: "你无权访问这个真实案例。" }
       : preview === "not_found"
-        ? { kind: "not_found", code: "RESOURCE_NOT_FOUND", message: "案例不存在。" }
+        ? { kind: "not_found", code: "RESOURCE_NOT_FOUND", message: "真实案例不存在。" }
         : !preview && session.status === "failed"
           ? session.fault
           : !preview && load.status === "failed"
@@ -253,14 +250,14 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
     const copy =
       fault.kind === "forbidden"
         ? {
-            title: "这份案例不属于当前账号",
-            body: "案例、原件、草案和候选用例都继承卷宗归属。页面不会用已有缓存继续渲染任何内容。",
+            title: "这个真实案例不属于当前账号",
+            body: "真实案例、材料、草稿和候选标准案例都继承场景归属。页面不会用已有缓存继续渲染任何内容。",
             hint: "403",
           }
         : fault.kind === "not_found"
           ? {
-              title: "案例不存在",
-              body: "在你的授权范围内查不到这个案例。不会用另一个卷宗 ID 猜测读取。",
+              title: "真实案例不存在",
+              body: "在你的授权范围内查不到这个案例。不会用另一个场景编号猜测读取。",
               hint: "404",
             }
           : { title: "案例读取失败", body: fault.message, hint: "500" };
@@ -273,12 +270,10 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
             actions={
               <>
                 <ButtonLink href="/workspaces" variant="primary">
-                  <ArrowLeft />
-                  回到卷宗架
+                  回到场景
                 </ButtonLink>
                 {fault.kind === "failed" && (
                   <Button onClick={() => void read({ auto: false, silent: false })}>
-                    <Refresh />
                     重新读取
                   </Button>
                 )}
@@ -314,7 +309,7 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
               <SkeletonLine height={12} />
             </div>
           </section>
-          <ProofSkeleton title="正在读取案例快照" />
+          <DraftSkeleton title="正在读取案例快照" />
         </main>
       </>
     );
@@ -331,7 +326,7 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
       <main className="page page-wide stack-lg">
         <section className="sheet">
           <div className="sheet-head spread">
-            <span className="mono faint">案号 · {shown.id.slice(0, 8)}</span>
+            <span className="mono faint">案例编号 · {shown.id.slice(0, 8)}</span>
             <div className="row" style={{ gap: "var(--s-2)" }}>
               <span className={`state ${TONE_CLASS[meta.tone]}`}>
                 <span
@@ -347,7 +342,6 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
                 size="sm"
                 variant="quiet"
               >
-                <Refresh size={13} />
                 刷新
               </Button>
             </div>
@@ -362,7 +356,7 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
               </div>
             )}
             <span className="mono faint">
-              收件 {stamp(shown.created_at)} · 更新 {stamp(shown.updated_at)}
+              上传于 {stamp(shown.created_at)} · 更新于 {stamp(shown.updated_at)}
             </span>
           </div>
           <div className="sheet-foot">
@@ -380,22 +374,21 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
           </Note>
         )}
 
-        {state === "parsing" && <ProofSkeleton title="正在解析原件" />}
+        {state === "parsing" && <DraftSkeleton title="正在解析材料" />}
 
         {state === "parse_failed" && (
           <StatePanel
             actions={
               <ButtonLink href={`/workspaces/${workspaceId}/cases/new`} variant="primary">
-                <Upload />
-                修正后重新收件
+                修正后重新上传
               </ButtonLink>
             }
             code={builder.last_error?.code}
             description={
               builder.last_error?.message ??
-              "这份原件无法解析。已经留下可追踪的失败记录，但不会进入 AI。"
+              "这份材料无法解析。已经留下可追踪的失败记录，但不会进入 AI 整理。"
             }
-            title="原件退回"
+            title="解析失败"
             tone="fault"
           >
             <p className="mono faint">retryable · false — 同一个文件重试没有意义</p>
@@ -403,7 +396,7 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
         )}
 
         {(state === "ready_for_ai" || state === "generating") && (
-          <ProofSkeleton title={state === "generating" ? "AI 起草中" : "正在请 AI 起草"} />
+          <DraftSkeleton title={state === "generating" ? "AI 整理中" : "正在请 AI 整理"} />
         )}
 
         {state === "ai_failed" && (
@@ -411,19 +404,17 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
             actions={
               builder.last_error?.retryable ? (
                 <Button busy={busy} busyLabel="正在重试…" onClick={onRetry} variant="primary">
-                  <Refresh />
-                  重试 AI
+                  重试 AI 整理
                 </Button>
               ) : (
                 <ButtonLink href="/workspaces" variant="primary">
-                  <ArrowLeft />
-                  回到卷宗架
+                  回到场景
                 </ButtonLink>
               )
             }
             code={builder.last_error?.code}
             description={builder.last_error?.message ?? "AI 处理失败。"}
-            title="AI 起草失败"
+            title="整理失败"
             tone="fault"
           >
             <p className="mono faint">
@@ -433,7 +424,7 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
         )}
 
         {state === "waiting_for_input" && builder.pending_question && (
-          <QuerySlip
+          <QuestionCard
             busy={busy}
             fault={commandFault}
             onSubmit={onAnswer}
@@ -454,23 +445,21 @@ export function CaseFile({ workspaceId, caseId }: { workspaceId: string; caseId:
 
         {state === "confirmed" && shown.candidate_case && (
           <div className="stack">
-            <SealBlock candidate={shown.candidate_case} />
-            <Note title="这是一条候选用例" tone="info">
-              它还不是回归集成员，也没有触发任何评测。加入回归集、版本发布和评测属于后续合同。
+            <ConfirmedCard candidate={shown.candidate_case} />
+            <Note title="这是一条候选标准案例" tone="info">
+              它还没有加入评测集，也没有触发任何评测。加入评测集、版本发布和评测属于后续阶段。
             </Note>
             <section className="sheet">
               <div className="sheet-head row-between">
                 <div className="stack-sm">
-                  <h2 className="doc-title-sm">已确认的最终快照</h2>
-                  <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
-                    以下内容与数据库中保存的候选用例逐字一致，本页转为只读。
+                  <h2 className="doc-title-sm">已确认的标准内容</h2>
+                  <p className="secondary" style={{ fontSize: "var(--t-14)" }}>
+                    以下内容与数据库中保存的候选标准案例逐字一致，本页转为只读。
                   </p>
                 </div>
-                <span className={styles.revStamp}>
-                  第 {shown.candidate_case.draft_revision} 校
-                </span>
+                <span className="mono faint">v{shown.candidate_case.draft_revision}</span>
               </div>
-              <div style={{ padding: "var(--s-2) var(--s-5) var(--s-5)" }}>
+              <div style={{ padding: "var(--s-6) var(--s-5)" }}>
                 <DraftView draft={shown.candidate_case.content} />
               </div>
             </section>

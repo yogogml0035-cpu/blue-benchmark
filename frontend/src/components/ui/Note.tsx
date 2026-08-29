@@ -1,17 +1,8 @@
 import type { ReactNode } from "react";
 
-import { AlertMark, CheckMark, InfoMark, QueryMark } from "@/src/components/ui/Glyph";
+type Tone = "fail" | "amber" | "green" | "info";
 
-type Tone = "fail" | "gap" | "cleared" | "info";
-
-const TONE: Record<Tone, { className: string; mark: ReactNode }> = {
-  fail: { className: "note-fail", mark: <AlertMark /> },
-  gap: { className: "note-gap", mark: <QueryMark /> },
-  cleared: { className: "note-cleared", mark: <CheckMark /> },
-  info: { className: "note-info", mark: <InfoMark /> },
-};
-
-/** 校注：纸面上的编辑批注，用来表达错误、缺口、已核验和普通提示。 */
+/** 提示块：安静的弱底色 + 语义色圆点 + 一句原因。机器码原样展示，便于验收对照。 */
 export function Note({
   tone = "info",
   title,
@@ -20,14 +11,15 @@ export function Note({
 }: {
   tone?: Tone;
   title?: string;
-  /** 机器可读错误码，按合同以等宽字呈现，便于验收时对照。 */
+  /** 机器可读错误码，以等宽字呈现，便于验收时对照合同。 */
   code?: string;
   children?: ReactNode;
 }) {
-  const meta = TONE[tone];
   return (
-    <div className={`note ${meta.className}`} role={tone === "fail" ? "alert" : undefined}>
-      <span className="note-mark">{meta.mark}</span>
+    <div className={`note note-${tone}`} role={tone === "fail" ? "alert" : undefined}>
+      <span aria-hidden="true" className="note-mark">
+        <span className="dot" />
+      </span>
       <div className="stack-sm">
         {title && <div className="note-title">{title}</div>}
         {children && <div>{children}</div>}

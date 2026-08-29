@@ -32,8 +32,8 @@ const LABELS: Record<PreviewState, string> = {
   unauthorized: "unauthorized",
   forbidden: "forbidden",
   not_found: "not-found",
-  question: "追问",
-  review: "校订",
+  question: "提问",
+  review: "审改",
 };
 
 export function usePreviewState(): PreviewState | null {

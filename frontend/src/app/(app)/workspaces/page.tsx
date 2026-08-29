@@ -2,17 +2,17 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { PageFallback } from "@/src/components/ui/PageFallback";
-import { WorkspaceShelf } from "@/src/features/workspaces/components/WorkspaceShelf";
+import { ScenarioShelf } from "@/src/features/workspaces/components/ScenarioShelf";
 
 export const metadata: Metadata = {
-  title: "卷宗架 · 审校台",
-  description: "当前账号的私有场景列表，并可内联建立新的私有卷宗。",
+  title: "场景 · 评测集平台",
+  description: "当前账号的私有业务场景列表，并可内联创建新的场景。",
 };
 
 export default function WorkspacesPage() {
   return (
     <Suspense fallback={<PageFallback />}>
-      <WorkspaceShelf />
+      <ScenarioShelf />
     </Suspense>
   );
 }

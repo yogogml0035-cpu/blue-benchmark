@@ -2,7 +2,7 @@ import type { Case, DraftContent } from "@/src/features/case-builder/services/ca
 
 /**
  * 状态预演用的案例快照，全部用 OpenAPI 生成的 Case / DraftContent 类型构造。
- * 引注只指向本快照自己的附件 id、案例 id 和问题 id，与确认接口的证据校验规则一致。
+ * 证据只指向本快照自己的附件 id、案例 id 和问题 id，与确认接口的证据校验规则一致。
  */
 const CASE_ID = "6d2f1a84-91cc-4d0b-8c33-51a7e9b4c210";
 const ATTACHMENT_ID = "8a41c7e2-5b39-4f61-9d02-7c5e3b1f8a44";
@@ -134,7 +134,7 @@ export const PREVIEW_CASE_PARSE_EMPTY: Case = {
     last_error: {
       stage: "parse",
       code: "PARSED_CONTENT_EMPTY",
-      message: "文件内容为空，不能进入 AI 分析。",
+      message: "文件内容为空，不能进入 AI 整理。",
       retryable: false,
     },
   },
@@ -151,7 +151,7 @@ export const PREVIEW_CASE_AI_FAILED: Case = {
     last_error: {
       stage: "ai",
       code: "MODEL_OUTPUT_INVALID",
-      message: "AI 返回的草案结构不完整，请重试。",
+      message: "AI 返回的草稿结构不完整，请重试。",
       retryable: true,
     },
   },
