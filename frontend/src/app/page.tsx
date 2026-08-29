@@ -1,14 +1,6 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
 
-export default function HomePage() {
-  return (
-    <main>
-      <div className="card stack">
-        <h1>Skill Eval Platform</h1>
-        <p className="muted">Case Builder Walking Skeleton（FastAPI Stub）</p>
-        <Link href="/login">进入登录</Link>
-      </div>
-    </main>
-  );
+/** 本闭环没有首页大盘；根路径直接进卷宗架，未登录时由该页跳登录。 */
+export default function RootPage() {
+  redirect("/workspaces");
 }
-
