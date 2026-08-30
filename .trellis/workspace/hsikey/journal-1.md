@@ -29,3 +29,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 2: M0 Deep Agent 与共创
+<!-- trellis-session: v=2 fp=53a89ed1d74c4f64 -->
+
+**Date**: 2026-08-30
+**Task**: M0 Deep Agent 与共创
+**Branch**: `main`
+
+### Summary
+
+完成受限 Deep Agents AI runtime、只读证据后端、任务分组、稳定共创会话、HITL 问答、Checkpoint 恢复与 continuity reset；通过 38 个后端测试、OpenAPI、schema migration 和 main 构建复验。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `440acdb` | feat(cocreation): implement M0 restricted agents and co-creation |
+
+### Status
+
+[OK] **Completed**
