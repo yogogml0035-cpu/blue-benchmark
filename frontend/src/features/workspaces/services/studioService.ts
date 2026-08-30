@@ -32,12 +32,12 @@ export function getStudioProjection(workspaceId: string, batchId?: string | null
 
 export function createUploadBatch(
   workspaceId: string,
-  input: { title: string; taskDescription?: string | null; files: File[]; commandId?: string },
+  input: { title: string; taskDescription?: string | null; files: File[]; commandId: string },
 ) {
   const form = new FormData();
   form.set("title", input.title);
   if (input.taskDescription) form.set("task_description", input.taskDescription);
-  if (input.commandId) form.set("command_id", input.commandId);
+  form.set("command_id", input.commandId);
   for (const file of input.files) {
     form.append("files", file);
   }
@@ -64,7 +64,7 @@ export function updateFileDisposition(
   fileId: string,
   input: FileDispositionRequest,
 ) {
-  return apiFetch<EvidenceFileSummary>(
+  return apiFetch<UploadBatchResponse>(
     `${studioBase(workspaceId)}/upload-batches/${batchId}/files/${fileId}/disposition`,
     {
       method: "PATCH",

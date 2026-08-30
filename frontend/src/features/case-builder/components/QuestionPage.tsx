@@ -43,6 +43,7 @@ export function QuestionPage({
   const router = useRouter();
   const preview = usePreviewState();
   const session = useSession();
+  const reloadSession = session.reload;
 
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [busy, setBusy] = useState(false);
@@ -103,19 +104,31 @@ export function QuestionPage({
       cocreationSession.status !== "projection_pending"
     ) return;
     const sessionId = cocreationSession.id;
+    let active = true;
     const timer = setTimeout(() => {
       void getCoCreationSession(workspaceId, sessionId)
         .then((result) => {
+          if (!active) return;
           setLoad((current) =>
             current.status === "ready"
               ? { ...current, session: result.session }
               : current,
           );
         })
-        .catch(() => undefined);
+        .catch((cause: unknown) => {
+          if (!active) return;
+          const fault = toPageFault(cause);
+          if (fault.kind === "unauthorized" || fault.kind === "forbidden" || fault.kind === "not_found") {
+            setLoad({ status: "failed", fault });
+            if (fault.kind === "unauthorized") reloadSession();
+          }
+        });
     }, 2000);
-    return () => clearTimeout(timer);
-  }, [preview, load, workspaceId]);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [load, preview, reloadSession, workspaceId]);
 
   async function submitAnswer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -349,8 +362,15 @@ export function QuestionPage({
               </span>
             </div>
             <p className="secondary">
-              AI 正在整理你的回答和现有资料，完成后会显示本轮更新。
+              {status === "projection_pending"
+                ? "AI 结果已经保存，正在等待业务投影恢复。"
+                : "AI 正在整理你的回答和现有资料，完成后会显示本轮更新。"}
             </p>
+            {status === "projection_pending" && (
+              <Button busy={busy} busyLabel="正在恢复…" onClick={onRetry} variant="primary">
+                恢复本轮结果
+              </Button>
+            )}
           </section>
         )}
 

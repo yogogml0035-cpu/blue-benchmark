@@ -58,4 +58,17 @@ make test
 - [ ] `make contract-check` 能在不改写生成文件的情况下发现后端 OpenAPI 或前端生成类型漂移；显式真实样本 runner 使用临时数据库/存储并只输出阶段标记。
 - [ ] 版本 API/download 读取前校验 Manifest 身份、三分区 hash、ready marker 和 ZIP 条目内容；历史派生不能绕过同一完整性检查。
 - [ ] 并发同命令/同草稿写入有 row lock 或唯一约束兜底，错误 payload 返回 409，不以 500 暴露竞态。
+- [ ] OperationJob 的相同 target/revision/command 若跨 `kind` 必须显式冲突，不能返回另一种 operation；批次分析提交同时校验 operation attempt CAS 和批次仍处于分析态。
+- [ ] batch analyzer 的 `evidence_refs` 既要属于整批 scope，也要属于各自 group 的 `evidence_file_ids`；迟到或跨组结果不能替换已发布提案。
 - [ ] `cd backend && uv run pytest -q` 通过；跨层变更还通过 `make test`。
+
+## 真实 AI / Checkpointer 回归门
+
+- [ ] `make ai-smoke` 只证明当前 Provider 的一次结构化调用；不能外推文件工具、HITL 或业务 E2E。
+- [ ] 真实 Worker 必须在同一隔离 PostgreSQL 业务库/Checkpointer 库上运行；先迁移业务 schema，再显式 `make checkpoint-setup`，失败不 claim。
+- [ ] 真实模型请求有有限 timeout，长处理期间能续租，重启/lease reclaim 不产生第二个业务结果。
+- [ ] `standard_cocreator` 的 `question_id/question -> id/text`、`respond.message`、`context=context` 和 accepted Checkpoint 指针有生产 adapter 回归；completion fallback 按当前 kind 使用单一 wire schema，再进入严格业务 Schema。
+- [ ] Checkpoint serializer 显式 allowlist 应用类型，并在 `LANGGRAPH_STRICT_MSGPACK=true` 下执行 read/delete；删除 completed thread 后业务资产仍可读。
+- [ ] 真实 runner 必须显式传 `--samples-dir`，每轮命令使用全局唯一 nonce，只输出阶段/计数/错误类型；禁止把 `EvalData`、凭证、正文或 raw model output 写入 Git。
+- [ ] pnpm v11 的 `allowBuilds` 必须在 `frontend/pnpm-workspace.yaml` 明确列出需要执行的依赖脚本；`make test` 与 `make build` 都要在该配置下通过。
+- [ ] 前端上传 command 在同一表单重试时稳定；静默轮询遇到失权/资源消失要清空旧快照，旧路由的迟到响应不能覆盖新资源；`projection_pending` 必须有重投影入口。

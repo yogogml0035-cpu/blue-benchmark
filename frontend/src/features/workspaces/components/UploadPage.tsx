@@ -38,6 +38,7 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
   const [busy, setBusy] = useState(false);
   const [submitFault, setSubmitFault] = useState<PageFault | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [commandId, setCommandId] = useState(() => crypto.randomUUID());
 
   const authenticated = session.status === "authenticated";
   const returnTo = `/workspaces/${workspaceId}`;
@@ -54,10 +55,12 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
       return;
     }
     setFileError("");
+    if (submitFault) setCommandId(crypto.randomUUID());
     setFiles((current) => [...current, candidate]);
   }
 
   function removeFile(index: number) {
+    if (submitFault) setCommandId(crypto.randomUUID());
     setFiles((current) => current.filter((_, i) => i !== index));
   }
 
@@ -74,6 +77,7 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
         title: title.trim(),
         taskDescription: taskDescription.trim() || null,
         files,
+        commandId,
       });
       router.push(`/workspaces/${workspaceId}?batch=${result.batch.id}`);
     } catch (cause) {

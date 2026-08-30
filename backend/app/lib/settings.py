@@ -30,6 +30,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AI_API_KEY"),
     )
     ai_base_url: str = ""
+    ai_request_timeout_seconds: float = Field(default=180.0, gt=0, le=900)
+    ai_max_cocreation_questions: int = Field(default=12, ge=1, le=50)
     ai_model_call_limit: int = 12
     ai_tool_call_limit: int = 40
     ai_model_retries: int = 1

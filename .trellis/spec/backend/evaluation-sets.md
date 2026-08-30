@@ -32,7 +32,7 @@
 - 标准升级提案批准同样创建合同新修订并使旧题判定依据进入复核；拒绝或仅本题保留不能改变场景合同。
 - Manifest 使用固定排序和 JSON 序列化，记录合同快照、题 revision、来源文件 hash、分区 hash、冻结人/时间、风险确认和 `overall_sha256`。ZIP 固定条目顺序/时间戳；API 和下载都校验 Manifest、三个分区和 ZIP 内容一致。
 - Manifest 的 `version.id/workspace_id/number` 必须分别等于 `EvaluationSetVersion` 的数据库字段；freeze command 在同一 workspace 不能复用于另一份草稿。历史派生前也必须先完成整包完整性校验，不能只读 Manifest。
-- freeze 先 staging 和 ready marker，再以 draft revision CAS 创建 `EvaluationSetVersion`；打包或 DB 失败不能留下可见版本。相同 `freeze_command_id` 重试只返回同一版本。
+- freeze 先 staging 和 ready marker，再以 draft revision CAS 创建 `EvaluationSetVersion`；打包或 DB 失败不能留下可见版本。相同 `freeze_command_id` 重试只返回同一版本。draft 创建 command 在终态后重放仍返回原 draft，不因 active draft 已清除而创建第二份 lineage；OperationJob command 若跨 `coverage_review` / `freeze_package` kind 复用必须冲突。
 - API 不返回 storage key、绝对路径、Checkpoint、原始消息或 private reasoning；教师完整下载包时，调用方必须把 runtime 分区与 judge/provenance 分开使用。
 
 ### 4. Validation & Error Matrix

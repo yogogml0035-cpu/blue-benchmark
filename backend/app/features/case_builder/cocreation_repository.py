@@ -34,6 +34,7 @@ from app.lib.database.models import (
     StandardPromotionProposalRow,
     TaskPackageRow,
     TeacherFeedbackRow,
+    OperationJobRow,
     UploadBatchRow,
     WorkspaceRow,
 )
@@ -314,7 +315,14 @@ def list_task_packages_for_workspace(workspace_id: str) -> list[TaskPackageRecor
         return [_task(row) for row in rows]
 
 
-def replace_proposals(batch_id: str, analysis: BatchAnalysis, *, expected_revision: int) -> list[TaskPackageRecord]:
+def replace_proposals(
+    batch_id: str,
+    analysis: BatchAnalysis,
+    *,
+    expected_revision: int,
+    operation_job_id: str | None = None,
+    operation_attempt: int | None = None,
+) -> list[TaskPackageRecord]:
     now = _now()
     with session_scope() as session:
         batch = session.scalar(select(UploadBatchRow).where(UploadBatchRow.id == batch_id).with_for_update())
@@ -322,6 +330,16 @@ def replace_proposals(batch_id: str, analysis: BatchAnalysis, *, expected_revisi
             raise KeyError(batch_id)
         if batch.revision != expected_revision:
             raise RepositoryConflict("upload batch revision changed")
+        if operation_job_id is not None:
+            operation = session.get(OperationJobRow, operation_job_id, with_for_update=True)
+            if (
+                operation is None
+                or operation.status != "running"
+                or operation.attempts != operation_attempt
+            ):
+                raise RepositoryConflict("batch analysis operation attempt is stale")
+        if batch.status not in {"analyzing", "inspecting", "queued"}:
+            raise RepositoryConflict("upload batch no longer accepts an analysis result")
         existing = session.scalars(
             select(TaskPackageRow).where(
                 TaskPackageRow.upload_batch_id == batch_id,

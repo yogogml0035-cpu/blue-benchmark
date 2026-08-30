@@ -47,7 +47,9 @@ def upload_case(client: TestClient, workspace_id: str, text: str) -> dict:
 
 
 def test_openapi_and_health(client: TestClient):
-    assert client.get("/healthz").json()["persistence"] == "business database"
+    health = client.get("/healthz").json()
+    assert health["persistence"] == "business database"
+    assert health["ai"] == "production"
     schema = client.get("/api/openapi.json").json()
     assert "/api/workspaces/{workspace_id}/cases/{case_id}/confirmation" in schema["paths"]
     assert "CaseDetail" in schema["components"]["schemas"]

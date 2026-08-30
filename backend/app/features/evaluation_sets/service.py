@@ -224,6 +224,9 @@ def _base_members_from_manifest(version: repository.EvaluationSetVersionRecord) 
 
 def create_draft(workspace_id: str, payload: DraftCreateRequest, user: UserRecord) -> WorkingSetDraftResponse:
     workspace_service.assert_owner(workspace_id, user)
+    created_by_command = repository.get_draft_by_create_command(workspace_id, payload.command_id)
+    if created_by_command is not None:
+        return _response(created_by_command)
     existing = repository.get_active_draft(workspace_id)
     if existing is not None:
         return _response(existing)
@@ -396,13 +399,16 @@ def request_coverage_review(
         OperationJobStatus.running,
     }:
         raise AppError(409, "COVERAGE_IN_PROGRESS", "当前草稿已有覆盖审查正在处理。")
-    operation_repository.create_or_get(
-        kind="coverage_review",
-        target_type="working_set_draft",
-        target_id=draft.id,
-        command_id=payload.command_id,
-        business_revision=draft.revision,
-    )
+    try:
+        operation_repository.create_or_get(
+            kind="coverage_review",
+            target_type="working_set_draft",
+            target_id=draft.id,
+            command_id=payload.command_id,
+            business_revision=draft.revision,
+        )
+    except operation_repository.OperationCommandConflict as exc:
+        raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一种版本操作。") from exc
     return _response(repository.get_draft(draft.id) or draft)
 
 
@@ -535,6 +541,9 @@ def freeze(
             command_id=payload.command_id,
             business_revision=draft.revision,
         )
+    except operation_repository.OperationCommandConflict as exc:
+        repository.clear_freeze_intent(draft.id, payload.command_id)
+        raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一种版本操作。") from exc
     except Exception:
         repository.clear_freeze_intent(draft.id, payload.command_id)
         raise

@@ -5639,13 +5639,13 @@
           },
           "ai": {
             "type": "string",
-            "title": "Ai",
-            "default": "stub"
+            "title": "Ai"
           }
         },
         "type": "object",
         "required": [
-          "service"
+          "service",
+          "ai"
         ],
         "title": "HealthResponse"
       },

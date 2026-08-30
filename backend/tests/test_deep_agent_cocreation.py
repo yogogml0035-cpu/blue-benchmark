@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+import app.lib.ai_runtime.adapters as adapters
 
 from app.features.auth import repository as auth_repository
 from app.features.case_builder import cocreation_repository
@@ -16,16 +17,26 @@ from app.lib.ai_runtime.adapters import (
     FakeCoverageReviewer,
     FakeEvidenceAnalyzer,
     FakeStandardCoCreator,
+    AgentRunResult,
     RuntimeAdapters,
     DeepAgentsCoverageReviewer,
     DeepAgentsEvidenceAnalyzer,
     DeepAgentsStandardCoCreator,
+    _bounded_evidence_context,
+    _normalize_evidence_refs,
+    _assert_batch_output_scope,
+    _allow_teacher_interrupt,
+    _checkpoint_id_from_state,
+    _completion_evidence_refs,
+    _ensure_completion_source_scope_refs,
+    _normalize_nested_evidence_refs,
+    _prune_completion_fields,
 )
 from app.lib.ai_runtime.context import AgentRunContext
 from app.lib.ai_runtime.profile import get_ai_profile
 from app.lib.ai_runtime.evidence import EvidenceDocument, ReadOnlyEvidenceBackend
 from app.lib.ai_runtime.evidence import EvidenceValidationError, validate_evidence_refs
-from app.features.case_builder.cocreation_schemas import AgentEvidenceRef, BatchAnalysis, CoCreationAgentResult, CoverageReview, JsonPointerLocator
+from app.features.case_builder.cocreation_schemas import AgentEvidenceRef, BatchAnalysis, CoCreationAgentResult, CoCreationKind, CoverageReview, JsonPointerLocator
 from app.lib.ai_runtime.middleware import ModelToolSurfaceMiddleware
 from app.lib.ai_runtime.adapters import _question_from_interrupt
 from langchain.agents.middleware.types import ToolCallRequest
@@ -148,6 +159,393 @@ def test_read_only_backend_is_scoped_and_reads_to_eof(tmp_path: Path):
     assert backend.grep("line-130", path="/evidence").matches[0]["line"] == 130
 
 
+def test_evidence_context_capsule_keeps_head_and_tail_without_sending_full_file(tmp_path: Path):
+    storage = LocalStorage(tmp_path)
+    content = "\n".join(["head-marker", *[f"middle-{index}" for index in range(1, 2_000)], "tail-marker"])
+    stored = storage.stage_bytes("batch", "file", content.encode())
+    storage.publish(stored.key, "evidence/batch/file")
+    document = EvidenceDocument(
+        file_id="file",
+        name="long.md",
+        storage_key="evidence/batch/file",
+        size_bytes=len(content),
+        sha256=stored.sha256,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 2_001},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+
+    capsule = _bounded_evidence_context({"file": document}, storage)
+
+    assert len(capsule) < 5_000
+    assert "head-marker" in capsule
+    assert "tail-marker" in capsule
+    assert "middle-1000" not in capsule
+
+
+def test_evidence_ref_keeps_verified_locator_but_drops_noncanonical_quote(tmp_path: Path):
+    storage = LocalStorage(tmp_path)
+    content = "line one\nline two\n"
+    stored = storage.stage_bytes("batch", "file", content.encode())
+    storage.publish(stored.key, "evidence/batch/file")
+    document = EvidenceDocument(
+        file_id="file",
+        name="evidence.md",
+        storage_key="evidence/batch/file",
+        size_bytes=len(content),
+        sha256=stored.sha256,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 2},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+    ref = AgentEvidenceRef(
+        source_id="file",
+        locator={"kind": "line_range", "start_line": 1, "end_line": 1},
+        quote="model-normalized quote",
+    )
+
+    normalized = _normalize_evidence_refs([ref], {"file": document}, storage)
+
+    assert normalized[0].locator is not None
+    assert normalized[0].quote is None
+
+
+def test_evidence_ref_drops_quote_when_only_source_id_is_verifiable(tmp_path: Path):
+    storage = LocalStorage(tmp_path)
+    content = "line one\nline two\n"
+    stored = storage.stage_bytes("batch", "file", content.encode())
+    storage.publish(stored.key, "evidence/batch/file")
+    document = EvidenceDocument(
+        file_id="file",
+        name="evidence.md",
+        storage_key="evidence/batch/file",
+        size_bytes=len(content),
+        sha256=stored.sha256,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 2},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+    ref = AgentEvidenceRef(source_id="file", quote="model-normalized quote")
+
+    normalized = _normalize_evidence_refs([ref], {"file": document}, storage)
+
+    assert normalized[0].locator is None
+    assert normalized[0].quote is None
+
+
+def test_completion_result_keeps_model_refs_for_validation():
+    document = EvidenceDocument(
+        file_id="file",
+        name="evidence.md",
+        storage_key="evidence/file",
+        size_bytes=0,
+        sha256="0" * 64,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 0},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+    raw = {
+        "phase": "complete",
+        "contract": {
+            "task_boundary": "boundary",
+            "evidence_refs": [{"source_id": "model-invented"}],
+        },
+    }
+
+    result = _completion_evidence_refs(raw, {"file": document})
+
+    assert result["contract"]["evidence_refs"] == [{"source_id": "model-invented"}]
+
+
+def test_completion_result_does_not_invent_missing_nested_refs():
+    document = EvidenceDocument(
+        file_id="file",
+        name="evidence.md",
+        storage_key="evidence/file",
+        size_bytes=0,
+        sha256="0" * 64,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 0},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+
+    result = _completion_evidence_refs(
+        {"phase": "complete", "judgment_package": {"minimum_quality_line": "usable"}},
+        {"file": document},
+    )
+
+    assert "evidence_refs" not in result["judgment_package"]
+
+
+def test_completion_result_maps_file_id_to_source_id_before_validation():
+    result = _completion_evidence_refs(
+        {"evidence_refs": [{"source_id": "file", "file_id": None}]},
+        {},
+    )
+
+    assert result["evidence_refs"] == [{"source_id": "file"}]
+
+
+def test_completion_result_adds_only_confirmed_runtime_scope_refs_when_omitted():
+    runtime = EvidenceDocument(
+        file_id="runtime",
+        name="runtime.md",
+        storage_key="evidence/runtime",
+        size_bytes=0,
+        sha256="0" * 64,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 0},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+    provenance = EvidenceDocument(
+        file_id="provenance",
+        name="trace.md",
+        storage_key="evidence/provenance",
+        size_bytes=0,
+        sha256="0" * 64,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 0},
+        role="provenance",
+        ignored=False,
+        visibility="provenance",
+    )
+
+    result = _ensure_completion_source_scope_refs(
+        {"contract": {"task_boundary": "boundary"}},
+        {"runtime": runtime, "provenance": provenance},
+    )
+
+    assert result["contract"]["evidence_refs"] == [{"source_id": "runtime"}]
+
+
+def test_completion_result_prunes_model_only_fields():
+    raw = {
+        "phase": "complete",
+        "delta": {"added": ["x"], "status": "completed"},
+        "blocking_gaps": [{"id": "gap-1", "text": "需要老师确认", "extra": True}],
+    }
+
+    result = _prune_completion_fields(raw)
+
+    assert result["delta"] == {"added": ["x"]}
+    assert result["blocking_gaps"] == [{"id": "gap-1", "text": "需要老师确认"}]
+
+
+def test_virtual_evidence_paths_are_canonicalized_only_for_known_files():
+    storage = LocalStorage()
+    stored = storage.stage_bytes("batch", "file", b"evidence")
+    storage.publish(stored.key, "evidence/batch/file")
+    document = EvidenceDocument(
+        file_id="file",
+        name="evidence.md",
+        storage_key="evidence/batch/file",
+        size_bytes=len(b"evidence"),
+        sha256=stored.sha256,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 1},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+    result = BatchAnalysis(
+        groups=[
+            {
+                "proposal_key": "group-1",
+                "title": "任务",
+                "summary": "摘要",
+                "evidence_file_ids": ["/evidence/file"],
+                "attempts": [
+                    {
+                        "attempt_key": "attempt-1",
+                        "label": "尝试",
+                        "evidence_file_ids": ["/evidence/file"],
+                    }
+                ],
+                "evidence_refs": [{"source_id": "/evidence/file"}],
+            }
+        ],
+        file_roles={"/evidence/file": "runtime"},
+    )
+
+    normalized = _normalize_nested_evidence_refs(result, {"file": document}, storage)
+
+    group = normalized.groups[0]
+    assert group.evidence_file_ids == ["file"]
+    assert group.attempts[0].evidence_file_ids == ["file"]
+    assert group.evidence_refs[0].source_id == "file"
+    assert normalized.file_roles == {"file": "runtime"}
+
+
+def test_unknown_virtual_evidence_path_stays_out_of_scope():
+    document = EvidenceDocument(
+        file_id="file",
+        name="evidence.md",
+        storage_key="evidence/file",
+        size_bytes=0,
+        sha256="0" * 64,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 0},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+    result = BatchAnalysis(
+        groups=[],
+        unassigned_file_ids=["/evidence/unknown"],
+        file_roles={"/evidence/unknown": "runtime"},
+    )
+
+    normalized = _normalize_nested_evidence_refs(result, {"file": document})
+
+    assert normalized.unassigned_file_ids == ["/evidence/unknown"]
+    assert set(normalized.file_roles) == {"/evidence/unknown"}
+
+
+def test_batch_output_scope_checks_all_file_reference_fields():
+    document = EvidenceDocument(
+        file_id="file",
+        name="evidence.md",
+        storage_key="evidence/file",
+        size_bytes=0,
+        sha256="0" * 64,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 0},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+
+    with pytest.raises(EvidenceValidationError, match="out-of-scope"):
+        _assert_batch_output_scope(
+            BatchAnalysis(unassigned_file_ids=["unknown"], file_roles={"file": "runtime"}),
+            {"file": document},
+        )
+
+
+def test_batch_output_scope_rejects_cross_group_evidence_references():
+    first = EvidenceDocument(
+        file_id="first",
+        name="first.md",
+        storage_key="evidence/first",
+        size_bytes=0,
+        sha256="0" * 64,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 0},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+    second = EvidenceDocument(
+        file_id="second",
+        name="second.md",
+        storage_key="evidence/second",
+        size_bytes=0,
+        sha256="0" * 64,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 0},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+
+    with pytest.raises(EvidenceValidationError, match="cross-group"):
+        _assert_batch_output_scope(
+            BatchAnalysis(
+                groups=[
+                    {
+                        "proposal_key": "group-1",
+                        "title": "第一组",
+                        "summary": "摘要",
+                        "evidence_file_ids": ["first"],
+                        "evidence_refs": [{"source_id": "second"}],
+                    }
+                ]
+            ),
+            {"first": first, "second": second},
+        )
+
+
+def test_batch_analyzer_retries_once_after_scope_violation(monkeypatch: pytest.MonkeyPatch):
+    profile = get_ai_profile()
+    context = AgentRunContext(
+        user_id="u",
+        workspace_id="w",
+        target_type="upload_batch",
+        target_id="batch",
+        thread_key="batch-repair",
+        business_revision=0,
+        evidence_file_ids=("file",),
+        evidence_scope="/evidence/batch",
+        ai_profile_version=profile.version,
+        graph_schema_version="m0-cocreation-graph-v2",
+    )
+    document = EvidenceDocument(
+        file_id="file",
+        name="evidence.md",
+        storage_key="evidence/file",
+        size_bytes=0,
+        sha256="0" * 64,
+        parse_state="parsed",
+        canonical_view={"kind": "text", "line_count": 0},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+    outputs = iter(
+        [
+            AgentRunResult(BatchAnalysis(unassigned_file_ids=["unknown"])),
+            AgentRunResult(BatchAnalysis(unassigned_file_ids=["file"])),
+        ]
+    )
+    analyzer = DeepAgentsEvidenceAnalyzer(
+        model=ChatOpenAI(model="test-model", api_key="test-secret", base_url="https://models.example/v1", streaming=False),
+        model_spec="openai:test-model",
+    )
+    calls = 0
+
+    monkeypatch.setattr("app.lib.ai_runtime.adapters._bounded_evidence_context", lambda _documents: "{}")
+    monkeypatch.setattr(analyzer, "_graph", lambda *_args, **_kwargs: object())
+
+    def invoke(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return next(outputs)
+
+    monkeypatch.setattr(analyzer, "_invoke", invoke)
+
+    result = analyzer.analyze(context, {"file": document})
+
+    assert calls == 2
+    assert result.result.unassigned_file_ids == ["file"]
+
+
+def test_filesystem_permissions_allow_evidence_directory_but_not_host_root():
+    from deepagents.middleware.filesystem import _check_fs_permission
+
+    rules = DeepAgentsEvidenceAnalyzer._permissions(["file"])
+
+    assert _check_fs_permission(rules, "read", "/evidence") == "allow"
+    assert _check_fs_permission(rules, "read", "/evidence/file") == "allow"
+    assert _check_fs_permission(rules, "read", "/etc/passwd") == "deny"
+    assert _check_fs_permission(rules, "write", "/evidence/file") == "deny"
+
+
+def test_checkpoint_id_reader_accepts_a_returned_config():
+    assert _checkpoint_id_from_state({"configurable": {"checkpoint_id": "next"}}) == "next"
+
+
 def test_model_tool_surface_and_hitl_envelope_fail_closed():
     middleware = ModelToolSurfaceMiddleware({"read_file", "ask_teacher"})
     hidden = middleware.wrap_tool_call(
@@ -173,6 +571,129 @@ def test_model_tool_surface_and_hitl_envelope_fail_closed():
                 ],
             }
         )
+
+
+def test_ask_teacher_args_map_to_business_question_contract():
+    question = _question_from_interrupt(
+        {
+            "action_requests": [
+                {
+                    "name": "ask_teacher",
+                    "args": {
+                        "question_id": "question-1",
+                        "question": "需要确认什么？",
+                        "reason": "补齐边界。",
+                        "gap_type": "scope",
+                    },
+                }
+            ],
+            "review_configs": [
+                {"action_name": "ask_teacher", "allowed_decisions": ["respond"]}
+            ],
+        }
+    )
+
+    assert question.id == "question-1"
+    assert question.text == "需要确认什么？"
+
+
+def test_cocreation_resume_uses_hitl_message_field(monkeypatch: pytest.MonkeyPatch):
+    from langgraph.types import Command
+
+    class CapturingGraph:
+        def invoke(self, payload, **_kwargs):
+            assert isinstance(payload, Command)
+            assert payload.resume == {"decisions": [{"type": "respond", "message": "老师回答"}]}
+            return {"messages": [], "structured_response": CoCreationAgentResult(phase="complete").model_dump(mode="json")}
+
+        def get_state(self, _config):
+            return None
+
+    profile = get_ai_profile()
+    context = AgentRunContext(
+        user_id="u",
+        workspace_id="w",
+        target_type="task",
+        target_id="t",
+        thread_key="resume-message-field",
+        business_revision=1,
+        evidence_file_ids=(),
+        evidence_scope="/evidence/task",
+        ai_profile_version=profile.version,
+        graph_schema_version="m0-cocreation-graph-v2",
+    )
+    creator = DeepAgentsStandardCoCreator(
+        checkpointer=object(),
+        model=ChatOpenAI(model="test-model", api_key="test-secret", base_url="https://models.example/v1", streaming=False),
+        model_spec="openai:test-model",
+    )
+    monkeypatch.setattr(creator, "_graph", lambda *_args, **_kwargs: CapturingGraph())
+
+    result = creator.resume(context, CoCreationKind.scenario_contract, "accepted", "老师回答")
+
+    assert result.result.phase == "complete"
+
+
+def test_cocreation_resume_adds_completion_guard_at_question_budget(monkeypatch: pytest.MonkeyPatch):
+    class StructuredModel:
+        def invoke(self, _payload):
+            return CoCreationAgentResult(
+                phase="complete",
+                contract=None,
+                judgment_package=None,
+            )
+
+    class CapturingModel:
+        def with_structured_output(self, *_args, **_kwargs):
+            return StructuredModel()
+
+    profile = get_ai_profile()
+    context = AgentRunContext(
+        user_id="u",
+        workspace_id="w",
+        target_type="task",
+        target_id="t",
+        thread_key="resume-budget-guard",
+        business_revision=12,
+        co_creation_question_count=12,
+        evidence_file_ids=(),
+        evidence_scope="/evidence/task",
+        ai_profile_version=profile.version,
+        graph_schema_version="m0-cocreation-graph-v2",
+    )
+    creator = DeepAgentsStandardCoCreator(
+        checkpointer=object(),
+        model=ChatOpenAI(model="test-model", api_key="test-secret", base_url="https://models.example/v1", streaming=False),
+        model_spec="openai:test-model",
+    )
+    monkeypatch.setattr(creator, "_model", lambda: CapturingModel())
+    monkeypatch.setattr(creator, "_persist_completion_checkpoint", lambda *_args: "produced")
+
+    with pytest.raises(ValueError, match="runtime evidence scope"):
+        creator.resume(context, CoCreationKind.scenario_contract, "accepted", "老师回答")
+
+
+
+def test_teacher_interrupt_is_auto_accepted_at_question_budget():
+    from types import SimpleNamespace
+
+    below_budget = SimpleNamespace(runtime=SimpleNamespace(context=SimpleNamespace(co_creation_question_count=11)))
+    at_budget = SimpleNamespace(runtime=SimpleNamespace(context=SimpleNamespace(co_creation_question_count=12)))
+
+    assert _allow_teacher_interrupt(below_budget) is True
+    assert _allow_teacher_interrupt(at_budget) is False
+
+
+def test_auto_accepted_teacher_tool_returns_completion_signal():
+    assert "QUESTION_BUDGET_EXHAUSTED" in adapters.ask_teacher.invoke(
+        {
+            "question_id": "q",
+            "question": "q",
+            "reason": "r",
+            "gap_type": "scope",
+            "evidence_refs": [],
+        }
+    )
 
 
 def test_json_and_event_locators_are_checked_against_content(tmp_path: Path):
@@ -203,6 +724,7 @@ def test_stateless_real_adapter_does_not_require_checkpoint_state():
     class StatelessGraph:
         def invoke(self, payload, **kwargs):
             assert "durability" not in kwargs
+            assert kwargs["context"] == context
             return {"messages": [], "structured_response": CoverageReview().model_dump(mode="json")}
 
         def get_state(self, _config):
@@ -244,7 +766,7 @@ def test_production_graphs_construct_with_role_specific_tool_surfaces():
         evidence_file_ids=(),
         evidence_scope="/evidence/task",
         ai_profile_version=profile.version,
-        graph_schema_version="m0-cocreation-graph-v1",
+        graph_schema_version="m0-cocreation-graph-v2",
     )
     model = ChatOpenAI(
         model="test-model",
@@ -299,7 +821,7 @@ def test_production_graph_explicitly_disables_empty_skill_and_memory_sources(mon
         evidence_file_ids=(),
         evidence_scope="/evidence/none",
         ai_profile_version=get_ai_profile().version,
-        graph_schema_version="m0-cocreation-graph-v1",
+        graph_schema_version="m0-cocreation-graph-v2",
     )
 
     adapter._graph(context, {}, CoverageReview, allowed_tools={"CoverageReview"})

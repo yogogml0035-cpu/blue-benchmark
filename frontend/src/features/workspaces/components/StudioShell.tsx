@@ -203,28 +203,44 @@ export function StudioShell({
 export function useStudioData(workspaceId: string, batchId?: string | null) {
   const preview = usePreviewState();
   const session = useSession();
+  const reloadSession = session.reload;
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [refreshing, setRefreshing] = useState(false);
+  const requestGeneration = useRef(0);
 
   const read = useCallback(
     async (silent: boolean) => {
+      const generation = ++requestGeneration.current;
       if (silent) setRefreshing(true);
       try {
         const projection = await getStudioProjection(workspaceId, batchId ?? null);
+        if (generation !== requestGeneration.current) return null;
         setLoad({ status: "ready", projection });
         return projection;
       } catch (cause) {
+        if (generation !== requestGeneration.current) return null;
         const fault = toPageFault(cause);
-        setLoad((current) =>
-          current.status === "ready" && silent ? current : { status: "failed", fault },
-        );
+        if (fault.kind === "unauthorized" || fault.kind === "forbidden" || fault.kind === "not_found") {
+          setLoad({ status: "failed", fault });
+          if (fault.kind === "unauthorized") reloadSession();
+        } else {
+          setLoad((current) =>
+            current.status === "ready" && silent ? current : { status: "failed", fault },
+          );
+        }
         return null;
       } finally {
-        setRefreshing(false);
+        if (generation === requestGeneration.current) setRefreshing(false);
       }
     },
-    [workspaceId, batchId],
+    [batchId, reloadSession, workspaceId],
   );
+
+  useEffect(() => {
+    return () => {
+      requestGeneration.current += 1;
+    };
+  }, [batchId, preview, session.status, workspaceId]);
 
   useEffect(() => {
     if (preview) {

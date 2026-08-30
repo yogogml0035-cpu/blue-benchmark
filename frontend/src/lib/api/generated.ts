@@ -1333,10 +1333,7 @@ export interface components {
              * @default business database
              */
             persistence: string;
-            /**
-             * Ai
-             * @default stub
-             */
+            /** Ai */
             ai: string;
         };
         /** ImpactReviewDecisionRequest */

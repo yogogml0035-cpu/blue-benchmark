@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -107,6 +108,10 @@ def test_sync_checkpointer_uses_encrypted_saver_and_closes_connection(monkeypatc
     ) as saver:
         assert saver.__class__.__name__ == "PostgresSaver"
         assert saver.serde.__class__.__name__ == "EncryptedSerializer"
+        assert (
+            "CoCreationAgentResult"
+            in repr(getattr(saver.serde.serde, "_allowed_msgpack_modules", None))
+        )
 
     assert connect_args["autocommit"] is True
     assert connect_args["prepare_threshold"] == 0
@@ -126,6 +131,7 @@ def test_production_worker_installs_real_adapters_for_context_lifetime(monkeypat
         return fake_model, identity
 
     monkeypatch.setattr("app.lib.ai_runtime.model.build_runtime_model", fake_build_runtime_model)
+    monkeypatch.setattr("app.lib.ai_runtime.adapters._assert_production_tool_surfaces", lambda *_args: None)
 
     @contextmanager
     def fake_checkpointer():
@@ -209,3 +215,27 @@ def test_worker_module_help_does_not_emit_runpy_warning() -> None:
     assert result.returncode == 0
     assert "RuntimeWarning" not in result.stderr
     assert "runpy" not in result.stderr
+
+
+def test_worker_renews_a_long_running_operation_lease(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    job = SimpleNamespace(id="long-running-job", kind="batch_analysis")
+    renewed: list[tuple[str, str]] = []
+    completed = object()
+
+    monkeypatch.setattr(worker_module.repository, "release_expired", lambda: 0)
+    monkeypatch.setattr(worker_module.repository, "claim_next", lambda _worker_id: job)
+    monkeypatch.setattr(
+        worker_module.repository,
+        "renew",
+        lambda job_id, worker_id: renewed.append((job_id, worker_id)),
+    )
+    monkeypatch.setattr(worker_module.repository, "complete", lambda *_args: completed)
+    monkeypatch.setattr(worker_module.settings, "operation_lease_seconds", 1)
+
+    worker = worker_module.OperationWorker(worker_id="heartbeat-worker")
+    worker.register("batch_analysis", lambda _job: (time.sleep(0.45), {})[1])
+
+    assert worker.run_once() is completed
+    assert renewed == [("long-running-job", "heartbeat-worker")]

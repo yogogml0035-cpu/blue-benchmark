@@ -34,9 +34,18 @@ export function StudioPage({ workspaceId }: { workspaceId: string }) {
       return;
     }
     if (session.status !== "authenticated") return;
+    let active = true;
+    setWorkspace(null);
     getWorkspace(workspaceId)
-      .then((result) => setWorkspace(result.workspace))
-      .catch(() => undefined);
+      .then((result) => {
+        if (active) setWorkspace(result.workspace);
+      })
+      .catch(() => {
+        if (active) setWorkspace(null);
+      });
+    return () => {
+      active = false;
+    };
   }, [preview, session.status, workspaceId]);
 
   if (load.status === "loading") {

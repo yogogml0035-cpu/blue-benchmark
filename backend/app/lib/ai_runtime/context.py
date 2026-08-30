@@ -15,6 +15,8 @@ class AgentRunContext(BaseModel):
     target_id: str = Field(min_length=1, max_length=255)
     thread_key: str = Field(min_length=1, max_length=254)
     business_revision: int = Field(ge=0)
+    co_creation_question_count: int = Field(default=0, ge=0)
+    teacher_answers: tuple[str, ...] = ()
     evidence_file_ids: tuple[str, ...] = ()
     evidence_scope: str = Field(min_length=1, max_length=255)
     ai_profile_version: str = Field(min_length=1, max_length=128)

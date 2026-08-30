@@ -467,13 +467,16 @@ def retry_batch_analysis(
         expected_revision=batch.revision,
     ):
         raise AppError(409, "STALE_BATCH", "批次已经更新，请重新读取后再重试。")
-    operation_repository.create_or_get(
-        kind="batch_analysis",
-        target_type="upload_batch",
-        target_id=batch_id,
-        command_id=payload.command_id,
-        business_revision=batch.revision,
-    )
+    try:
+        operation_repository.create_or_get(
+            kind="batch_analysis",
+            target_type="upload_batch",
+            target_id=batch_id,
+            command_id=payload.command_id,
+            business_revision=batch.revision,
+        )
+    except operation_repository.OperationCommandConflict as exc:
+        raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一种后台操作。") from exc
     refreshed = ingestion_repository.get_batch(batch_id)
     files = ingestion_repository.list_files(batch_id)
     jobs = operation_repository.list_for_target("upload_batch", batch_id)

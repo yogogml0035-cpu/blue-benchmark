@@ -46,3 +46,5 @@ Case 状态展示和允许的下一步集中在 `caseState.ts::STATE_META`，进
 ## 错误状态
 
 HTTP 错误先由 `toPageFault` 收敛成 `unauthorized | forbidden | not_found | conflict | failed`。401 跳登录并保留 `returnTo`；403 / 404 不渲染资源内容；409 重新读取最新快照或提供明确刷新动作。不要用旧缓存掩盖授权或冲突错误。
+
+`useStudioData` 与共创轮询必须给每次请求绑定 generation；workspace/batch/session 变化后旧响应只能丢弃。静默读取遇到 401/403/404 必须清空资源快照，网络瞬断才可按产品需要保留同一资源的旧快照。

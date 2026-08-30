@@ -25,12 +25,13 @@ def _model_settings(**overrides: object) -> Settings:
 
 
 def test_openai_compatible_model_is_explicit_and_non_streaming() -> None:
-    model, identity = build_runtime_model(_model_settings())
+    model, identity = build_runtime_model(_model_settings(ai_request_timeout_seconds=42))
 
     assert model.__class__.__name__ == "ChatOpenAI"
     assert model.model == "compatible-model"
     assert model.openai_api_base == "https://models.example/v1"
     assert model.streaming is False
+    assert model.request_timeout == 42.0
     assert model.temperature is None
     assert model.use_responses_api is False
     assert identity.provider == "openai"
@@ -54,6 +55,7 @@ def test_anthropic_model_uses_messages_client_and_official_endpoint() -> None:
     assert model.model == "claude-sonnet-4-6"
     assert model.anthropic_api_url == "https://api.anthropic.com"
     assert model.streaming is False
+    assert model.default_request_timeout == 180.0
     assert model.temperature is None
     assert identity.provider == "anthropic"
 

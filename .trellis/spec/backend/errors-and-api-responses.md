@@ -44,7 +44,7 @@
 
 M0 共创新增的业务码包括 `FILE_ROLES_NOT_CONFIRMED`、`FILE_DISPOSITION_LOCKED`、`INVALID_TASK_GROUPING`、`TASK_NOT_CONFIRMED`、`CONTRACT_NOT_CONFIRMED`、`STALE_COCREATION`、`COMMAND_ID_REUSED`、`RETRY_NOT_AVAILABLE`；它们仍遵守 `409`（状态/revision/幂等冲突）或 `422`（输入/证据结构无效）的语义。
 
-后台 Agent 错误不把 provider 原始消息返回给浏览器：结构化输出无效、工具越权、证据 locator 越界或 Checkpoint 不兼容只进入 OperationJob 的清洗错误和业务 `failed`/`projection_pending`/`continuity_reset` 状态。`CoCreationSessionView` 不包含 `thread_id`、`checkpoint_id`、interrupt、raw message 或凭证。
+后台 Agent 错误不把 provider 原始消息返回给浏览器：结构化输出无效、工具越权、证据 locator 越界或 Checkpoint 不兼容只进入 OperationJob 的清洗错误和业务 `failed`/`projection_pending`/`continuity_reset` 状态。`CoCreationSessionView` 不包含 `thread_id`、`checkpoint_id`、interrupt、raw message 或凭证。answer command 已被其他 session 占用时必须返回清洗后的 `409 COMMAND_ID_REUSED`，不得映射成 `QUESTION_NOT_PENDING`；模型 quote 不匹配时只可在 source/locator 已确定性验证的情况下丢弃 quote，不得把 quote 当作事实。
 
 新增错误码时同步检查后端 Router `responses`、`backend/openapi.json`、前端 `ApiError` / `toPageFault` 以及对应状态测试。
 

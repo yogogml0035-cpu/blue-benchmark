@@ -25,6 +25,10 @@ class OperationJobStatus(StrEnum):
     projection_pending = "projection_pending"
 
 
+class OperationCommandConflict(RuntimeError):
+    """A command id was already used for another operation kind."""
+
+
 OPERATION_KINDS = (
     "batch_analysis",
     "cocreation_start",
@@ -151,6 +155,8 @@ def create_or_get(
             )
             if existing is None:
                 raise
+            if existing.kind != kind:
+                raise OperationCommandConflict("command id already used for another operation kind")
             return _to_record(existing)
 
 

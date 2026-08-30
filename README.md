@@ -12,7 +12,7 @@
 cp .env.example .env
 ```
 
-编辑 `.env` 中的 `AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY`、可选的 `AI_BASE_URL`、`DATABASE_URL`、`CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`。`AI_PROVIDER=openai` 使用 OpenAI 或 OpenAI 兼容厂商（兼容端点通常把 `/v1` 放在 `AI_BASE_URL`），`AI_PROVIDER=anthropic` 使用 Anthropic 或兼容 Messages API 的服务（Anthropic SDK 会在自定义 Base URL 后请求 `/v1/messages`）；不要同时依赖 Key 自动猜测。Checkpointer 数据库必须和业务数据库分开，URL 使用 psycopg 可连接的 PostgreSQL scheme，密钥必须是 16、24 或 32 字节；不要把真实密钥提交到 Git。`STORAGE_ROOT=./storage` 会相对于仓库根目录解析，API 和 Worker 可以从不同工作目录启动而继续使用同一存储。
+编辑 `.env` 中的 `AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY`、可选的 `AI_BASE_URL`、`AI_REQUEST_TIMEOUT_SECONDS`、`AI_MAX_COCREATION_QUESTIONS`、`DATABASE_URL`、`CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`。`AI_PROVIDER=openai` 使用 OpenAI 或 OpenAI 兼容厂商（兼容端点通常把 `/v1` 放在 `AI_BASE_URL`），`AI_PROVIDER=anthropic` 使用 Anthropic 或兼容 Messages API 的服务（Anthropic SDK 会在自定义 Base URL 后请求 `/v1/messages`）；不要同时依赖 Key 自动猜测。`AI_REQUEST_TIMEOUT_SECONDS` 为每次模型请求设置有限 deadline；Worker 会在长处理期间续租，但每次请求仍必须有上限。`AI_MAX_COCREATION_QUESTIONS` 限制单次共创的老师提问轮数，达到上限后使用同一 AI Profile 的完成式结构化候选并把未知项列为阻塞缺口，不能无限追问。Checkpointer 数据库必须和业务数据库分开，URL 使用 psycopg 可连接的 PostgreSQL scheme，密钥必须是 16、24 或 32 字节；不要把真实密钥提交到 Git。`STORAGE_ROOT=./storage` 会相对于仓库根目录解析，API 和 Worker 可以从不同工作目录启动而继续使用同一存储。
 
 安装依赖：
 
@@ -60,7 +60,7 @@ make frontend
 
 成功标记：
 
-- API 健康检查：<http://127.0.0.1:8000/healthz> 返回 `status=ok`，且 `persistence=business database`；
+- API 健康检查：<http://127.0.0.1:8000/healthz> 返回 `status=ok`、`persistence=business database`，且 `ai` 与当前 `AI_RUNTIME_MODE` 一致；
 - OpenAPI：<http://127.0.0.1:8000/api/docs>；
 - 前端：<http://localhost:3000/login>；
 - 前端只请求同源 `/api/*`，Next.js Rewrite 转发到 `BACKEND_URL`；
@@ -87,7 +87,7 @@ make openapi
 
 ## 显式真实样本验收
 
-真实资料只允许本地显式运行，不进入 Git、默认 CI 或日志。准备好用户确认的三份文件后运行：
+真实资料只允许本地显式运行，不进入 Git、默认 CI 或日志。准备好用户确认的三份文件后运行 Fake/SQLite 结构验收：
 
 ```bash
 cd backend && uv run python scripts/accept_real_samples.py --samples-dir ../.local-samples/m0
@@ -110,3 +110,15 @@ cd backend && uv run python scripts/accept_real_samples.py --samples-dir ../.loc
 9. 删除已完成共创的 Checkpoint thread 后回查题、场景标准、形成记录和版本包；活动中的待答会话不能被清理流程误删。另用第二个账号访问第一个账号的场景、题和版本，必须得到 `403` 且不渲染私有内容。
 
 当前 M0 只验收主观型文案/新闻稿场景。通过当前回归集不等于 Skill 已全面可靠；覆盖风险和样本边界必须随冻结版本保留。
+
+### 真实 Provider 与 PostgreSQL E2E
+
+先完成业务迁移、独立 Checkpointer setup 和 `make ai-smoke`，再启动一个 API、一个真实 Worker 和前端。真实验收 runner 必须显式指定已批准的样本目录；例如本机评测集：
+
+```bash
+cd backend && uv run python scripts/accept_real_ai_e2e.py \
+  --samples-dir /Users/hsikey/BenchMark/EvalData \
+  --base-url http://127.0.0.1:8000
+```
+
+runner 只输出阶段标记、计数和错误类型，不输出样本正文、模型回答、凭证或内部 Checkpoint。`AI_REQUEST_TIMEOUT_SECONDS` 默认 180 秒，`AI_MAX_COCREATION_QUESTIONS` 默认 12；真实端点若需要更长时间应显式覆盖配置，并保持单 Worker。完成式 fallback 仍需要老师确认，不能把模型建议直接当作业务标准。

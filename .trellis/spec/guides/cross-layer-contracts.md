@@ -70,3 +70,15 @@ Case 状态变化必须由后端 Service 完成，前端只显示返回快照。
 - 预演状态可渲染：开发 fixture 与类型可用；
 - 浏览器闭环实际完成：真实前后端交互已验收；
 - 文档或 Mock 写明能力：只代表设计或说明，不能升级为运行证据。
+
+## 真实运行与命令身份检查
+
+- Provider smoke、真实文件读取、HITL resume、业务 projection 和版本下载是不同证据等级；任何一个绿灯不能替代其他层。
+- 运行时上下文必须通过 `graph.invoke(..., context=context)` 传入，才能让 middleware 的权限/预算 predicate 看到当前身份、scope 和 business revision；声明 `context_schema` 不等于已经传递。
+- 工具 envelope 与业务 DTO 不能靠字段同名假设：`ask_teacher` 的 `question_id/question` 要映射为 `id/text`，`respond` 决策按当前 LangChain 版本使用 `message`；生成的 `CoCreationQuestion` 必须再做 canonical evidence 校验。
+- 命令 ID 的数据库唯一范围必须按实现核对。若 answer command 为全局唯一，runner 和多 session 测试必须使用 nonce；跨 session 重用应返回 `COMMAND_ID_REUSED`，不能伪装成问题状态冲突。
+- 公共 DTO 可能只暴露 `has_contract` / `has_judgment_package` 等业务布尔值，不能在 E2E 中读取不存在的内部 `contract_revision_id`；内部数据库核对和浏览器 DTO 核对要分别完成。
+- `/healthz` 的 `ai` 只报告 `AI_RUNTIME_MODE`，不代表 Provider、Checkpointer 或 Worker readiness；README 必须把这几项分开描述。
+- 真实 E2E 结束前要清理精确命名的临时容器/存储；删除 completed Checkpoint thread 后再次回查业务 TaskPackage、合同和版本，证明执行连续性与业务资产确实分离。
+- 前端上传必须传入组件生命周期内稳定的 `command_id`，以覆盖成功响应丢失后的同表单重试；disposition Service 的返回类型必须与实际 `UploadBatchResponse` 合同一致。
+- 轮询响应提交前要通过 workspace/batch/session generation guard；401/403/404 不能保留旧私有快照，`projection_pending` 要走明确的服务端 reproject/retry 动作。

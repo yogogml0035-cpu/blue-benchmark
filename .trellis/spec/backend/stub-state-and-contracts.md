@@ -92,10 +92,10 @@ HTTP 只返回服务端生成的业务 ID、哈希和文件摘要，不返回宿
 ### 3. Contracts
 
 - 三个命名 Agent：`batch_analyzer` 只读当前批次，`standard_cocreator` 使用一个 stable thread，`coverage_reviewer` 只接收结构化快照；不启用 subagent、Store/Memory 或写文件工具。
-- 生产 Profile 固定 `ToolStrategy`、非流式、模型/工具调用上限和 `m0-deep-agents-0.7.11-tool-strategy-v1`；`FilesystemMiddleware` 必须携带 `/evidence/<file>` allow、其他 read deny、所有 write deny。
+- 生产 Profile 固定 `ToolStrategy`、非流式、模型/工具调用上限和 `m0-deep-agents-0.7.11-tool-strategy-v2`；`FilesystemMiddleware` 必须允许 `/evidence` 目录列举和当前 `/evidence/<file>`，其他 read deny、所有 write deny。模型产生的虚拟路径只可规范化为当前 scope 中的裸 file ID，未知 ID、文件名和 storage key 仍拒绝。Profile 变化时旧 session 必须做兼容性检查，不能静默切换图。
 - `AgentRunContext` 每次 start/resume 都重新传入身份、workspace、target、business revision、evidence scope 和 Profile/Graph 版本；这些值不能写入 Checkpoint state。
 - HTTP 的 `CoCreationSessionView` 只返回业务问题、答案、delta、合同/判定投影和 `next_action`，不返回 `stable_thread_key`、`accepted_checkpoint_id`、interrupt envelope、raw message 或 private reasoning。
-- `ReadOnlyEvidenceBackend.read` 的 `offset` 为 0-based，`ReadResult.start_line/end_line` 为 1-based；长文件必须分页到 EOF，模型 EvidenceRef 由 Service 回查 canonical view。
+- `ReadOnlyEvidenceBackend.read` 的 `offset` 为 0-based，`ReadResult.start_line/end_line` 为 1-based；Backend/解析器仍必须支持分页到 EOF并校验尾部事实，但真实 Agent 首轮使用确定性、受限的 head/tail evidence capsule，不能把数百 KB 原文一次送入模型；需要精确定位时才窄范围读取。模型 EvidenceRef 由 Adapter/Service 回查 canonical view。
 - EvidenceBackend 和 EvidenceRef 回查都校验 ready marker、文件大小和 SHA-256；line quote 必须出现在 canonical line range，JSON pointer/event locator 必须存在于真实内容。TaskPackage HTTP DTO 只投影 attempt 的安全字段，不投影任意 metadata。
 - Agent 虚拟 scope 提供只含文件 ID、名称、行数和 hash 的 `/evidence/manifest.json`；Checkpoint 缺失/不兼容时业务快照返回 `next_action=continuity_reset`，不能伪装成普通重试。
 - CI 和本地验收默认使用 Fake adapter；常驻 Worker 由 `AI_RUNTIME_MODE=production`（默认）和显式 `AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY`、可选 `AI_BASE_URL` 构造真实 ChatOpenAI/ChatAnthropic。生产 Checkpointer 由显式 `setup_checkpointer`/同步 `open_postgres_checkpointer`（异步调用方仍可用 `open_async_postgres_checkpointer`）使用独立 `CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`（或等价显式键）配置，不能在 HTTP 请求中 setup。Worker 只做 schema readiness 检查，配置、连接或 schema 错误必须在 claim 前 fail-closed；`make checkpoint-setup` 只负责 Checkpointer schema setup，不代表 Provider smoke 已通过。
@@ -104,9 +104,11 @@ HTTP 只返回服务端生成的业务 ID、哈希和文件摘要，不返回宿
 
 - 未确认文件用途/visibility -> `409 FILE_ROLES_NOT_CONFIRMED`；未确认任务分组 -> `409 TASK_NOT_CONFIRMED`；未确认场景标准就启动单题共创 -> `409 CONTRACT_NOT_CONFIRMED`。
 - unknown、重复或跨批次文件 -> `422 INVALID_TASK_GROUPING`；超出当前 canonical line range、JSON pointer 或 evidence scope -> Agent attempt fail-closed。
-- 陈旧 batch/task/session/question/revision -> `409`；相同 command 和相同 payload 返回原投影，不同 payload -> `409 COMMAND_ID_REUSED` 或对应状态冲突。
+- 陈旧 batch/task/session/question/revision -> `409`；相同 command 和相同 payload 返回原投影，不同 payload 或跨 operation kind 复用 -> `409 COMMAND_ID_REUSED` 或对应状态冲突。Operation lease reclaim 后，旧 attempt 不能提交批次分析结果。
+- batch analyzer 的 group 引用必须同时满足“属于本批次”和“属于该 group 的文件”，不能把跨 group 引用自动加入当前 group；终态/已分组批次不接受迟到分析结果。
 - Agent 产生零/多问题、非 `ask_teacher`、非 `respond`、`invalid_tool_calls`、越权工具或缺少结构化结果 -> attempt 失败，不能部分确认业务事实。
 - Checkpoint 缺失/不兼容 -> fail-closed 并记录 continuity reset；produced Checkpoint 已存在但业务提交失败 -> `projection_pending`，只能无模型重投影。
+- 老师回答命令的全局唯一键被其他 session 占用 -> `409 COMMAND_ID_REUSED`，不得误报为 `QUESTION_NOT_PENDING`；测试 runner 每次运行必须生成 nonce。
 
 ### 5. Good/Base/Bad Cases
 
@@ -157,7 +159,9 @@ repository.commit_agent_result(expected_checkpoint_id=checkpoint_id, result=resu
 
 - `openai` 使用 `ChatOpenAI`、显式 Chat Completions（`use_responses_api=False`）和官方/自定义 `base_url`；`anthropic` 使用 `ChatAnthropic` 和官方/自定义 Messages API URL。
 - `AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY` 缺失或不受支持，Base URL 含非 HTTP(S)/userinfo/query/fragment，或 API key 仍是示例占位符 -> production Worker 在 claim 前退出。
-- Checkpointer 使用独立 PostgreSQL 数据库、16/24/32 字节 `LANGGRAPH_AES_KEY`；Worker 只检查表和最新迁移，不自动 `setup()`。
+- `AI_REQUEST_TIMEOUT_SECONDS` 必须为有限正数（当前默认 180 秒）；请求 timeout 只限制单次模型请求，OperationWorker 使用已有 `renew()` 心跳保持长任务 lease，最终 complete/fail 仍做 ownership check。
+- `AI_MAX_COCREATION_QUESTIONS` 必须为正整数（当前默认 12）；预算内每轮最多一个 `ask_teacher` interrupt，预算到达后使用同一 adapter 的完成式结构化 envelope，再执行严格 `CoCreationAgentResult` 校验，老师仍需确认。
+- Checkpointer 使用独立 PostgreSQL 数据库、16/24/32 字节 `LANGGRAPH_AES_KEY`；Worker 只检查表和最新迁移，不自动 `setup()`。加密 `JsonPlusSerializer` 必须显式 allowlist 应用 Pydantic 类型（至少 `CoCreationAgentResult`），并在 `LANGGRAPH_STRICT_MSGPACK=true` 下读回验证。
 - Provider、模型或端点变化必须改变 `AIProfile.version` 指纹；不包含 API key。
 
 ### 4. Validation & Error Matrix
@@ -177,6 +181,7 @@ repository.commit_agent_result(expected_checkpoint_id=checkpoint_id, result=resu
 - 模型工厂：两 Provider、官方/自定义 URL、空/非法/占位 Key、ambient URL 隔离、指纹变化；断言客户端类型、模型、`streaming=False`、无 `temperature`。
 - Worker/Checkpointer：模型 -> DB -> adapters -> claim 顺序；加密 saver、`row_factory=dict_row`、迁移版本 readiness、连接关闭、错库拒绝；断言失败时 `claim_next` 未调用。
 - CLI/smoke：FAIL 输出只含 Provider/模型/错误类型；不含 API key、URL 密码、模型正文或 private reasoning。
+- 真实 E2E：显式样本目录、真实 Provider + PostgreSQL + Checkpointer + 单 Worker；断言 request timeout、lease renewal、HITL mapping、completion fallback、任务/版本/下载包和 runtime 隔离。
 
 ### 7. Wrong vs Correct
 
@@ -193,6 +198,24 @@ worker.run_forever()
 with production_worker() as worker:  # validates model + opens PostgresSaver first
     worker.run_forever()
 ```
+
+#### HITL 与完成式 fallback
+
+```python
+# 工具层字段与业务投影字段不同，必须显式映射。
+question = CoCreationQuestion.model_validate({
+    "id": args["question_id"],
+    "text": args["question"],
+    "reason": args["reason"],
+    "gap_type": args["gap_type"],
+    "evidence_refs": args.get("evidence_refs", []),
+})
+
+# LangChain HumanInTheLoopMiddleware 的 respond 决策使用 message。
+Command(resume={"decisions": [{"type": "respond", "message": answer}]})
+```
+
+达到提问预算后，按当前共创 kind 只请求一个 completion wire schema（合同或判定依据），再由应用归一化并严格校验业务 Schema。fallback 只允许 source-only refs；未知 source、非法 locator 或不完整结构仍失败；不能把 fallback 写成已确认标准。
 
 ## Scenario: M0 业务持久化与安全上传
 

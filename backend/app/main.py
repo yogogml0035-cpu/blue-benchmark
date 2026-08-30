@@ -60,7 +60,7 @@ async def same_origin_guard(request: Request, call_next):
 
 @app.get("/healthz", response_model=HealthResponse, tags=["system"])
 def healthz() -> HealthResponse:
-    return HealthResponse(service=settings.app_name)
+    return HealthResponse(service=settings.app_name, ai=settings.ai_runtime_mode)
 
 
 app.include_router(auth_router, prefix="/api")

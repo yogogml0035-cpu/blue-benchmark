@@ -265,6 +265,48 @@ def test_freeze_v1_v2_is_continuous_and_history_is_immutable(client: TestClient)
     assert client.get(f"/api/workspaces/{workspace_id}/evaluation-sets/versions/{v1['id']}/download").status_code == 500
 
 
+def test_reusing_a_terminal_draft_create_command_returns_the_original_draft(client: TestClient):
+    workspace_id, package_id, package_revision = _formal_task(client)
+    created = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts",
+        json={"command_id": "terminal-draft-command"},
+    )
+    assert created.status_code == 201
+    draft = created.json()["draft"]
+    included = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft['id']}/members",
+        json={
+            "command_id": "terminal-draft-include",
+            "draft_revision": draft["revision"],
+            "task_package_id": package_id,
+            "task_package_revision": package_revision,
+            "action": "include",
+        },
+    )
+    assert included.status_code == 200
+    coverage = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft['id']}/coverage-review",
+        json={"command_id": "terminal-draft-coverage", "draft_revision": included.json()["draft"]["revision"]},
+    )
+    assert coverage.status_code == 202
+    assert default_worker().run_once().status.value == "succeeded"
+    current = client.get(f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft['id']}").json()["draft"]
+    freeze = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft['id']}/freeze",
+        json={"command_id": "terminal-draft-freeze", "draft_revision": current["revision"]},
+    )
+    assert freeze.status_code == 202
+    assert default_worker().run_once().status.value == "succeeded"
+
+    reused = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts",
+        json={"command_id": "terminal-draft-command"},
+    )
+
+    assert reused.status_code == 201
+    assert reused.json()["draft"]["id"] == draft["id"]
+
+
 def test_freeze_rejects_unconfirmed_visibility_and_tampered_package(client: TestClient):
     workspace_id, package_id, package_revision = _formal_task(client)
     discarded_draft = client.post(f"/api/workspaces/{workspace_id}/evaluation-sets/drafts", json={"command_id": "discard-draft"}).json()["draft"]

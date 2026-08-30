@@ -287,6 +287,7 @@ def get_evaluation_task_snapshot(
 
 def _session_context(session: repository.CoCreationSessionRecord, package: repository.TaskPackageRecord) -> AgentRunContext:
     owner_id = workspace_service.owner_id_for_workspace(session.workspace_id)
+    teacher_answers = tuple(item.answer for item in repository.list_turns(session.id) if item.answer)
     return AgentRunContext(
         user_id=owner_id,
         workspace_id=session.workspace_id,
@@ -294,6 +295,8 @@ def _session_context(session: repository.CoCreationSessionRecord, package: repos
         target_id=package.id,
         thread_key=session.stable_thread_key,
         business_revision=session.business_revision,
+        co_creation_question_count=len(teacher_answers),
+        teacher_answers=teacher_answers,
         evidence_file_ids=tuple(package.evidence_file_ids),
         evidence_scope=f"/evidence/task-package/{package.id}",
         ai_profile_version=session.ai_profile_version,
@@ -402,14 +405,17 @@ def start_cocreation(
     existing = repository.get_active_session(task_package_id, payload.kind.value)
     if existing is not None:
         if existing.status == CoCreationStatus.queued.value and _job_for_session(existing.id) is None:
-            operation_repository.create_or_get(
-                kind="cocreation_start",
-                target_type="co_creation_session",
-                target_id=existing.id,
-                command_id=existing.command_id or payload.command_id,
-                business_revision=existing.business_revision,
-                accepted_checkpoint_id=existing.accepted_checkpoint_id,
-            )
+            try:
+                operation_repository.create_or_get(
+                    kind="cocreation_start",
+                    target_type="co_creation_session",
+                    target_id=existing.id,
+                    command_id=existing.command_id or payload.command_id,
+                    business_revision=existing.business_revision,
+                    accepted_checkpoint_id=existing.accepted_checkpoint_id,
+                )
+            except operation_repository.OperationCommandConflict as exc:
+                raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一种共创操作。") from exc
         return _session_response(existing)
     latest = repository.get_latest_session(task_package_id, payload.kind.value)
     if latest is not None and latest.status == CoCreationStatus.confirmed.value and payload.kind == CoCreationKind.task_judgment:
@@ -440,6 +446,9 @@ def start_cocreation(
             command_id=payload.command_id,
             business_revision=session.business_revision,
         )
+    except operation_repository.OperationCommandConflict as exc:
+        repository.delete_session(session.id)
+        raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一种共创操作。") from exc
     except Exception:
         repository.delete_session(session.id)
         raise
@@ -467,7 +476,7 @@ def answer_cocreation(
         ) or (None, False)
     except repository.RepositoryConflict as exc:
         message = str(exc)
-        if "payload conflicts" in message:
+        if "payload conflicts" in message or "belongs to another session" in message:
             raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经提交过不同的回答。") from exc
         code = "QUESTION_ALREADY_ANSWERED" if "stale" in message or "already" in message else "QUESTION_NOT_PENDING"
         raise AppError(409, code, "当前问题已经回答或不再等待回答。") from exc
@@ -475,14 +484,17 @@ def answer_cocreation(
         raise AppError(409, "STALE_COCREATION", "共创状态已经更新，请重新读取后回答。")
     if duplicate:
         if updated.status == CoCreationStatus.processing.value and _job_for_session(updated.id) is None:
-            operation_repository.create_or_get(
-                kind="cocreation_resume",
-                target_type="co_creation_session",
-                target_id=updated.id,
-                command_id=payload.command_id,
-                business_revision=updated.business_revision,
-                accepted_checkpoint_id=updated.accepted_checkpoint_id,
-            )
+            try:
+                operation_repository.create_or_get(
+                    kind="cocreation_resume",
+                    target_type="co_creation_session",
+                    target_id=updated.id,
+                    command_id=payload.command_id,
+                    business_revision=updated.business_revision,
+                    accepted_checkpoint_id=updated.accepted_checkpoint_id,
+                )
+            except operation_repository.OperationCommandConflict as exc:
+                raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一种共创操作。") from exc
         return _session_response(updated)
     try:
         operation_repository.create_or_get(
@@ -493,6 +505,9 @@ def answer_cocreation(
             business_revision=updated.business_revision,
             accepted_checkpoint_id=updated.accepted_checkpoint_id,
         )
+    except operation_repository.OperationCommandConflict as exc:
+        repository.mark_failed(updated.id, {"code": "OPERATION_ENQUEUE_FAILED"})
+        raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一种共创操作。") from exc
     except Exception:
         repository.mark_failed(updated.id, {"code": "OPERATION_ENQUEUE_FAILED"})
         raise
@@ -522,14 +537,17 @@ def retry_cocreation(
         kind = "cocreation_resume" if any(item.status == "answered_pending_resume" for item in turns) else "cocreation_start"
         accepted = session.accepted_checkpoint_id
     if session.status == CoCreationStatus.processing.value and _job_for_session(session.id) is None:
-        operation_repository.create_or_get(
-            kind=kind,
-            target_type="co_creation_session",
-            target_id=session.id,
-            command_id=payload.command_id,
-            business_revision=session.business_revision,
-            accepted_checkpoint_id=accepted,
-        )
+        try:
+            operation_repository.create_or_get(
+                kind=kind,
+                target_type="co_creation_session",
+                target_id=session.id,
+                command_id=payload.command_id,
+                business_revision=session.business_revision,
+                accepted_checkpoint_id=accepted,
+            )
+        except operation_repository.OperationCommandConflict as exc:
+            raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一种共创操作。") from exc
         return _session_response(repository.get_session(session.id) or session)
     try:
         queued = repository.queue_retry(session.id, expected_business_revision=payload.business_revision)
@@ -546,6 +564,9 @@ def retry_cocreation(
             business_revision=queued.business_revision,
             accepted_checkpoint_id=accepted,
         )
+    except operation_repository.OperationCommandConflict as exc:
+        repository.mark_failed(session.id, {"code": "OPERATION_ENQUEUE_FAILED"})
+        raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一种共创操作。") from exc
     except Exception:
         repository.mark_failed(session.id, {"code": "OPERATION_ENQUEUE_FAILED"})
         raise
@@ -578,6 +599,9 @@ def reset_cocreation(
             business_revision=reset.business_revision,
             accepted_checkpoint_id=None,
         )
+    except operation_repository.OperationCommandConflict as exc:
+        repository.mark_failed(reset.id, {"code": "OPERATION_ENQUEUE_FAILED"})
+        raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一种共创操作。") from exc
     except Exception:
         repository.mark_failed(reset.id, {"code": "OPERATION_ENQUEUE_FAILED"})
         raise
@@ -699,7 +723,13 @@ def complete_batch_analysis(job: OperationJob) -> dict[str, Any]:
         proposed.update(result.result.unassigned_file_ids)
         if proposed - known or set(result.result.file_roles) - known:
             raise RuntimeError("evidence analyzer returned an out-of-scope file")
-        repository.replace_proposals(batch.id, result.result, expected_revision=job.business_revision)
+        repository.replace_proposals(
+            batch.id,
+            result.result,
+            expected_revision=job.business_revision,
+            operation_job_id=job.id,
+            operation_attempt=job.attempts,
+        )
     except repository.RepositoryConflict as exc:
         from app.lib.operations.worker import SupersededOperation
 

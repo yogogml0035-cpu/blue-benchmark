@@ -7,7 +7,7 @@ import sys
 from app.features.case_builder.cocreation_schemas import CoverageReview
 from app.lib.ai_runtime.adapters import DeepAgentsCoverageReviewer
 from app.lib.ai_runtime.model import ModelConfigurationError, build_runtime_model
-from app.lib.ai_runtime.profile import get_ai_profile
+from app.lib.ai_runtime.profile import GRAPH_SCHEMA_VERSION, get_ai_profile
 from app.lib.ai_runtime.context import AgentRunContext
 from app.lib.settings import settings
 
@@ -28,7 +28,7 @@ def main() -> int:
             evidence_file_ids=(),
             evidence_scope="/evidence/none",
             ai_profile_version=get_ai_profile().version,
-            graph_schema_version="m0-cocreation-graph-v1",
+            graph_schema_version=GRAPH_SCHEMA_VERSION,
         )
         result = reviewer.review(
             context,

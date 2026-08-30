@@ -86,6 +86,17 @@ def _checkpoint_config(
     return _psycopg_url(raw_url), key
 
 
+def _encrypted_serializer(key: str) -> object:
+    """Create an encrypted serializer with an explicit application type allowlist."""
+
+    from app.features.case_builder.cocreation_schemas import CoCreationAgentResult
+    from langgraph.checkpoint.serde.encrypted import EncryptedSerializer
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+
+    serde = JsonPlusSerializer(allowed_msgpack_modules=[CoCreationAgentResult])
+    return EncryptedSerializer.from_pycryptodome_aes(serde=serde, key=key.encode())
+
+
 def _assert_schema_ready(connection: object, *, required_version: int | None = None) -> None:
     try:
         rows = connection.execute(
@@ -162,7 +173,6 @@ async def open_async_postgres_checkpointer(
 
     url, key = _checkpoint_config(database_url, encryption_key)
     from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-    from langgraph.checkpoint.serde.encrypted import EncryptedSerializer
     from psycopg import AsyncConnection
     from psycopg.rows import dict_row
 
@@ -178,7 +188,7 @@ async def open_async_postgres_checkpointer(
     try:
         saver = AsyncPostgresSaver(
             connection,
-            serde=EncryptedSerializer.from_pycryptodome_aes(key=key.encode()),
+            serde=_encrypted_serializer(key),
         )
         yield saver
     finally:
@@ -196,7 +206,6 @@ def open_postgres_checkpointer(
 
     url, key = _checkpoint_config(database_url, encryption_key)
     from langgraph.checkpoint.postgres import PostgresSaver
-    from langgraph.checkpoint.serde.encrypted import EncryptedSerializer
     from psycopg import Connection
     from psycopg.rows import dict_row
 
@@ -212,7 +221,7 @@ def open_postgres_checkpointer(
     try:
         saver = PostgresSaver(
             connection,
-            serde=EncryptedSerializer.from_pycryptodome_aes(key=key.encode()),
+            serde=_encrypted_serializer(key),
         )
         if require_schema:
             _assert_schema_ready(connection, required_version=len(PostgresSaver.MIGRATIONS) - 1)

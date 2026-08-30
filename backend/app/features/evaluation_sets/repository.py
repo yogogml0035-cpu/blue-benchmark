@@ -258,6 +258,28 @@ def get_active_draft(workspace_id: str) -> WorkingSetDraftRecord | None:
         return _draft(row) if row else None
 
 
+def get_draft_by_create_command(
+    workspace_id: str,
+    command_id: str,
+) -> WorkingSetDraftRecord | None:
+    """Find a draft created by this command, including discarded drafts."""
+
+    with session_scope() as session:
+        rows = session.execute(
+            select(WorkingSetDraftRow, WorkingSetCommandRow)
+            .join(WorkingSetCommandRow, WorkingSetCommandRow.draft_id == WorkingSetDraftRow.id)
+            .where(
+                WorkingSetDraftRow.workspace_id == workspace_id,
+                WorkingSetCommandRow.command_id == command_id,
+            )
+            .order_by(WorkingSetCommandRow.created_at.desc(), WorkingSetCommandRow.id.desc())
+        ).all()
+        for draft, command in rows:
+            if (command.result_json or {}).get("draft_id") == draft.id:
+                return _draft(draft)
+    return None
+
+
 def get_member(draft_id: str, task_package_id: str) -> WorkingSetMemberRecord | None:
     with session_scope() as session:
         row = session.scalar(

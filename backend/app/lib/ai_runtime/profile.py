@@ -7,8 +7,8 @@ from app.lib.ai_runtime.model import ModelConfigurationError, RuntimeModelIdenti
 from app.lib.settings import settings
 
 
-AI_PROFILE_VERSION = "m0-deep-agents-0.7.11-tool-strategy-v1"
-GRAPH_SCHEMA_VERSION = "m0-cocreation-graph-v1"
+AI_PROFILE_VERSION = "m0-deep-agents-0.7.11-tool-strategy-v2"
+GRAPH_SCHEMA_VERSION = "m0-cocreation-graph-v2"
 
 READ_TOOLS = frozenset({"ls", "read_file", "glob", "grep"})
 ASK_TOOL = "ask_teacher"
@@ -46,7 +46,10 @@ def get_ai_profile() -> AIProfile:
             base_url=None,
         )
     return AIProfile(
-        version=f"{AI_PROFILE_VERSION}-{identity.fingerprint}",
+        version=(
+            f"{AI_PROFILE_VERSION}-q{settings.ai_max_cocreation_questions}"
+            f"-t{int(settings.ai_request_timeout_seconds)}-{identity.fingerprint}"
+        ),
         model_spec=identity.model_spec,
         strategy="ToolStrategy",
         streaming=False,

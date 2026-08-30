@@ -17,4 +17,4 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     service: str
     persistence: str = "business database"
-    ai: str = "stub"
+    ai: str

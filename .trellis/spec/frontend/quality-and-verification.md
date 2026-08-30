@@ -26,6 +26,8 @@ make test
 - [ ] 组件通过 Feature Service 请求，未直接 `fetch` 或复制 DTO。
 - [ ] 受保护页在会话完成前不渲染私有数据；401/403/404/409 行为正确。
 - [ ] 命令期间禁止重复提交，成功后采用服务端快照。
+- [ ] 上传在同一表单重试复用稳定 command；静默轮询遇到 401/403/404 清空旧内容，workspace/batch 变化后的迟到响应被丢弃。
+- [ ] `projection_pending` 不被伪装成普通处理中，页面提供服务端重投影/重试动作。
 - [ ] 新状态已同步 `STATE_META`、进度派生、错误视图和预演 fixture。
 - [ ] 表单标签、键盘操作、焦点、busy、alert 与 reduced-motion 没有回退。
 - [ ] 样式复用全局 token；大块 Feature 样式在 colocated CSS Module。

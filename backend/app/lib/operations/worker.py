@@ -5,11 +5,13 @@ import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from threading import Event, Thread
 from typing import Any, Iterator
 from uuid import uuid4
 
 from app.lib.operations import repository
 from app.lib.operations.repository import OPERATION_KINDS
+from app.lib.settings import settings
 
 
 class SupersededOperation(Exception):
@@ -44,6 +46,31 @@ class OperationWorker:
     def register(self, kind: str, handler: Handler) -> None:
         self.handlers[kind] = handler
 
+    def _start_lease_heartbeat(self, job: repository.OperationJob) -> tuple[Event, Thread]:
+        stop = Event()
+        interval = max(0.1, min(30.0, float(settings.operation_lease_seconds) / 3.0))
+
+        def keep_lease_alive() -> None:
+            while not stop.wait(interval):
+                try:
+                    repository.renew(job.id, self.worker_id)
+                except (KeyError, ValueError):
+                    # Ownership was lost or the job was finalized elsewhere;
+                    # the final commit remains the authoritative boundary.
+                    return
+                except Exception:
+                    # A transient database blip must not stop heartbeats for
+                    # the remainder of a long model call.
+                    continue
+
+        thread = Thread(
+            target=keep_lease_alive,
+            name=f"operation-lease-{job.id[:8]}",
+            daemon=True,
+        )
+        thread.start()
+        return stop, thread
+
     def run_once(self) -> repository.OperationJob | None:
         repository.release_expired()
         job = repository.claim_next(self.worker_id)
@@ -57,36 +84,48 @@ class OperationWorker:
                 {"code": "UNSUPPORTED_OPERATION", "message": "没有可用的操作处理器。"},
                 retryable=False,
             )
+        lease_stop, lease_thread = self._start_lease_heartbeat(job)
         try:
-            result = handler(job) or {}
-        except SupersededOperation as exc:
-            return repository.supersede(job.id, self.worker_id, str(exc))
-        except RetryableOperation as exc:
-            return repository.fail(
-                job.id,
-                self.worker_id,
-                {"code": "OPERATION_RETRYABLE", "message": str(exc)},
-                retryable=True,
-            )
-        except ProjectionPendingOperation as exc:
-            return repository.mark_projection_pending(
-                job.id,
-                self.worker_id,
-                produced_checkpoint_id=exc.produced_checkpoint_id,
-                result_hash=exc.result_hash,
-            )
-        except Exception:
-            return repository.fail(
-                job.id,
-                self.worker_id,
-                {"code": "OPERATION_FAILED", "message": "后台操作未能完成。"},
-                retryable=False,
-            )
-        return repository.complete(job.id, self.worker_id, result)
+            try:
+                result = handler(job) or {}
+            except SupersededOperation as exc:
+                return repository.supersede(job.id, self.worker_id, str(exc))
+            except RetryableOperation as exc:
+                return repository.fail(
+                    job.id,
+                    self.worker_id,
+                    {"code": "OPERATION_RETRYABLE", "message": str(exc)},
+                    retryable=True,
+                )
+            except ProjectionPendingOperation as exc:
+                return repository.mark_projection_pending(
+                    job.id,
+                    self.worker_id,
+                    produced_checkpoint_id=exc.produced_checkpoint_id,
+                    result_hash=exc.result_hash,
+                )
+            except Exception:
+                return repository.fail(
+                    job.id,
+                    self.worker_id,
+                    {"code": "OPERATION_FAILED", "message": "后台操作未能完成。"},
+                    retryable=False,
+                )
+            return repository.complete(job.id, self.worker_id, result)
+        finally:
+            lease_stop.set()
+            lease_thread.join(timeout=max(1.0, min(5.0, float(settings.operation_lease_seconds) / 3.0)))
 
     def run_forever(self, poll_seconds: float = 1.0) -> None:
         while True:
-            if self.run_once() is None:
+            try:
+                result = self.run_once()
+            except Exception:
+                # Keep one bad operation from killing the sole consumer. The
+                # operation's own state/error record remains the retry source.
+                time.sleep(poll_seconds)
+                continue
+            if result is None:
                 time.sleep(poll_seconds)
 
 

@@ -1,0 +1,10 @@
+{"file": ".trellis/tasks/archive/2026-08/08-29-m0-evaluation-set-planning/prd.md", "reason": "归档 M0 业务需求与验收基线"}
+{"file": ".trellis/tasks/archive/2026-08/08-29-m0-evaluation-set-planning/design.md", "reason": "归档跨层设计、AI/Checkpoint 与版本包合同"}
+{"file": ".trellis/tasks/archive/2026-08/08-29-m0-evaluation-set-planning/implement.md", "reason": "归档五个子任务的顺序、验证和回滚边界"}
+{"file": ".trellis/tasks/archive/2026-08/08-30-m0-integration-acceptance/acceptance.md", "reason": "既有集成报告与明确未验证边界"}
+{"file": ".trellis/tasks/archive/2026-08/08-30-m0-integration-acceptance/prd.md", "reason": "真实样本与跨层验收需求"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "跨层状态、授权、证据与合同检查"}
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "后端测试与质量门"}
+{"file": ".trellis/spec/backend/evaluation-sets.md", "reason": "版本冻结与三分区包规则"}
+{"file": ".trellis/spec/frontend/quality-and-verification.md", "reason": "前端真实验收与证据边界"}
+{"file": ".trellis/spec/frontend/type-and-api-contracts.md", "reason": "OpenAPI 生成合同与前端类型边界"}

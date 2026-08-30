@@ -135,6 +135,7 @@ def build_runtime_model(
         "streaming": False,
         "max_retries": int(getattr(config, "ai_model_retries", 1)),
     }
+    request_timeout = float(getattr(config, "ai_request_timeout_seconds", 180.0))
     if identity.provider == "openai":
         try:
             from langchain_openai import ChatOpenAI
@@ -147,6 +148,7 @@ def build_runtime_model(
         # cannot silently switch the wire format.
         kwargs["base_url"] = identity.base_url or _OPENAI_OFFICIAL_BASE_URL
         kwargs["use_responses_api"] = False
+        kwargs["request_timeout"] = request_timeout
         return ChatOpenAI(model=identity.model, **kwargs), identity
 
     try:
@@ -155,6 +157,7 @@ def build_runtime_model(
         raise ModelConfigurationError("langchain-anthropic dependency is unavailable") from None
 
     kwargs["base_url"] = identity.base_url or _ANTHROPIC_OFFICIAL_BASE_URL
+    kwargs["default_request_timeout"] = request_timeout
     return ChatAnthropic(model_name=identity.model, **kwargs), identity
 
 

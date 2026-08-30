@@ -370,6 +370,80 @@ def test_operation_command_is_idempotent_and_expired_lease_is_reclaimable():
     assert operation_repository.claim_next("worker-c") is None
 
 
+def test_operation_command_id_cannot_be_reused_for_another_kind():
+    operation_repository.create_or_get(
+        kind="coverage_review",
+        target_type="working_set_draft",
+        target_id="draft-1",
+        command_id="same-command",
+        business_revision=2,
+    )
+
+    with pytest.raises(operation_repository.OperationCommandConflict):
+        operation_repository.create_or_get(
+            kind="freeze_package",
+            target_type="working_set_draft",
+            target_id="draft-1",
+            command_id="same-command",
+            business_revision=2,
+        )
+
+
+def test_late_batch_analysis_attempt_cannot_replace_a_new_attempt(client: TestClient):
+    from app.features.case_builder.cocreation_schemas import BatchAnalysis, TaskGroupProposal
+    from app.features.case_builder import cocreation_repository
+
+    workspace_id = _setup(client)
+    response = client.post(
+        f"/api/workspaces/{workspace_id}/upload-batches",
+        data={"title": "旧分析结果"},
+        files={"files": ("evidence.md", BytesIO(b"evidence"), "text/markdown")},
+    )
+    assert response.status_code == 202
+    batch = response.json()["batch"]
+    file_id = batch["files"][0]["id"]
+    old_attempt = operation_repository.claim_next("old-worker", lease_seconds=0)
+    new_attempt = operation_repository.claim_next("new-worker", lease_seconds=60)
+    assert old_attempt is not None and new_attempt is not None
+    assert old_attempt.id == new_attempt.id
+    analysis = BatchAnalysis(
+        groups=[
+            TaskGroupProposal(
+                proposal_key="proposal-1",
+                title="任务",
+                summary="摘要",
+                evidence_file_ids=[file_id],
+            )
+        ]
+    )
+
+    with pytest.raises(cocreation_repository.RepositoryConflict, match="attempt is stale"):
+        cocreation_repository.replace_proposals(
+            batch["id"],
+            analysis,
+            expected_revision=batch["revision"],
+            operation_job_id=old_attempt.id,
+            operation_attempt=old_attempt.attempts,
+        )
+
+    committed = cocreation_repository.replace_proposals(
+        batch["id"],
+        analysis,
+        expected_revision=batch["revision"],
+        operation_job_id=new_attempt.id,
+        operation_attempt=new_attempt.attempts,
+    )
+    assert len(committed) == 1
+    with pytest.raises(cocreation_repository.RepositoryConflict, match="no longer accepts"):
+        cocreation_repository.replace_proposals(
+            batch["id"],
+            analysis,
+            expected_revision=batch["revision"],
+            operation_job_id=new_attempt.id,
+            operation_attempt=new_attempt.attempts,
+        )
+
+
 def test_fake_worker_supports_all_operation_kinds():
     created = [
         operation_repository.create_or_get(
