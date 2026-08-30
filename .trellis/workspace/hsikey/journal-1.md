@@ -177,3 +177,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 8: 修复 Worker runpy 启动警告
+<!-- trellis-session: v=2 fp=dd1cb1134c904a11 -->
+
+**Date**: 2026-08-31
+**Task**: 修复 Worker runpy 启动警告
+**Branch**: `main`
+
+### Summary
+
+将 app.lib.operations 的 Worker 符号改为惰性重导出，移除 python -m app.lib.operations.worker 的 runpy RuntimeWarning；保留包级兼容导出并新增真实子进程回归测试。main 合并后后端 81 tests、make test、make build 和模块帮助启动均通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f5d5904` | fix(worker): avoid runpy startup warning |
+
+### Status
+
+[OK] **Completed**
