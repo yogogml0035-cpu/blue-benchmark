@@ -195,25 +195,27 @@
 
 ## Acceptance Criteria
 
-- [ ] M0 的最终用户结果与产品价值被一句话明确。
-- [ ] M0 从创建场景到获得最终资产的主流程、异常流程和状态可被逐屏验收。
-- [ ] 题、场景规则、评测集及版本之间的归属关系明确。
-- [ ] 输入、输出、评分标准、来源证据和人工确认的合同明确。
-- [ ] M0 与 M1/M2 的数据和能力边界明确，没有提前实现后续能力。
-- [ ] 前端交互设计覆盖空态、共创、上传、审改、组集、冻结和回查中最终确认属于 M0 的部分。
-- [ ] 后端设计覆盖领域实体、状态机、API 合同、持久化边界、版本与不可变历史中最终确认属于 M0 的部分。
-- [ ] 复杂任务所需的 `prd.md`、`design.md` 与 `implement.md` 完成并通过最终规划复核。
-- [ ] 财报媒体供稿 JSONL 与 MEGA 新闻稿 ZIP 两个独立主观任务都能完成安全导入、角色与任务边界确认、场景合同共创、单题定稿、组集、冻结和三视图版本包校验。
-- [ ] 单独上传的业务 Brief Markdown 能被识别为任务输入候选，并在老师确认后进入 `runtime`，不会被误当成标准答案或独立题。
-- [ ] 前端主流程收敛在场景工作台、聚焦题详情和版本中心三类界面中；业务老师默认看不到 JSON、后端实体名、机器码、hash 或永久辅助面板。
-- [ ] 场景工作台的稳定导航只有“当前 / 题 / 版本”，每屏只有一个主操作；默认视觉没有卡片墙、聊天气泡、AI 装饰、永久第三列或大面积强调色。
-- [ ] 回答共创问题与冻结版本都返回 `202`；在后台处理中刷新或重新进入页面，仍能恢复同一业务状态，且重复命令不创建第二个运行。
-- [ ] Deep Agents capability Spike 证明：默认子代理关闭、替换后的 FilesystemMiddleware 同时带 backend/permissions、只读 EvidenceBackend 与路径权限生效、选定 response_format 策略稳定、无 `invalid_tool_calls`、长文件读取超过 100 行并命中尾部老师反馈。
-- [ ] `standard_cocreator` 使用 PostgreSQL Checkpointer 后，可以在进程重启后用同一稳定 thread 和明确 Checkpoint 恢复；`ask_teacher + respond` 每次只产生一个待答问题，或经 Spike 明确选择同一 thread 的完成式问答降级。
-- [ ] Checkpoint 已推进但业务投影提交失败时，不重复调用模型即可恢复投影；陈旧业务 revision、错误 checkpoint 指针、并发 resume 和 AI Profile/Graph Schema 不兼容都必须 fail closed。
-- [ ] Checkpoint 加密、保留和清理策略可验证；清理已完成 session 的 Checkpoint 后，老师仍能完整查看已确认题、场景标准、形成记录和冻结版本。
-- [ ] 五个顺序子任务都有独立 PRD、design、implement、文件所有权和已校验的实现/检查上下文；父任务只负责跨子任务合同和最终集成。
-- [ ] 锁定依赖和当前 Claude/Bedrock relay 的真实 Spike 固定 `ToolStrategy`，禁止 ProviderStrategy/temperature；无 Checkpointer 的 Agent 不传 `durability="sync"`。
-- [ ] 场景工作台规划态 Preview 在桌面和 390px 窄屏通过三导航、单焦点、单主动作、全屏 sheet、无横向溢出、Escape 和焦点返回检查。
-- [ ] 三份真实样本已复制到 Git-ignored `.local-samples/m0/`，源/目标 SHA-256 一致；默认测试不会自动发现或读取该目录。
-- [ ] PostgreSQL、独立 Checkpointer 连接、单消费者、存储根、迁移顺序和无凭证配置合同明确。
+- [x] M0 的最终用户结果与产品价值被一句话明确。
+- [x] M0 从创建场景到获得最终资产的主流程、异常流程和状态可被逐屏验收。
+- [x] 题、场景规则、评测集及版本之间的归属关系明确。
+- [x] 输入、输出、评分标准、来源证据和人工确认的合同明确。
+- [x] M0 与 M1/M2 的数据和能力边界明确，没有提前实现后续能力。
+- [x] 前端交互设计覆盖空态、共创、上传、审改、组集、冻结和回查中最终确认属于 M0 的部分。
+- [x] 后端设计覆盖领域实体、状态机、API 合同、持久化边界、版本与不可变历史中最终确认属于 M0 的部分。
+- [x] 复杂任务所需的 `prd.md`、`design.md` 与 `implement.md` 完成并通过最终规划复核。
+- [x] 财报媒体供稿 JSONL 与 MEGA 新闻稿 ZIP 两个独立主观任务在本地 Fake/业务数据库路径完成安全导入、角色与任务边界确认、场景合同共创、单题定稿、组集、冻结和三视图版本包校验。
+- [x] 单独上传的业务 Brief Markdown 能被识别为任务输入候选，并在老师确认后进入 `runtime`，不会被误当成标准答案或独立题。
+- [x] 前端主流程收敛在场景工作台、聚焦题详情和版本中心三类界面中；业务老师默认看不到 JSON、后端实体名、机器码、hash 或永久辅助面板。
+- [x] 场景工作台的稳定导航只有“当前 / 题 / 版本”，每屏只有一个主操作；默认视觉没有卡片墙、聊天气泡、AI 装饰、永久第三列或大面积强调色。
+- [x] 回答共创问题与冻结版本都返回 `202`；在后台处理中刷新或重新进入页面，仍能恢复同一业务状态，且重复命令不创建第二个运行。
+- [x] Deep Agents capability Spike 证明：默认子代理关闭、替换后的 FilesystemMiddleware 同时带 backend/permissions、只读 EvidenceBackend 与路径权限生效、选定 response_format 策略稳定、无 `invalid_tool_calls`、长文件读取超过 100 行并命中尾部老师反馈。
+- [x] `standard_cocreator` 的 PostgreSQL Checkpointer 组合、显式 checkpoint 恢复、单问题 HITL 和同 thread 降级由独立 Spike 证明；当前默认应用仍使用 Fake adapter，未宣称生产接入。
+- [x] Checkpoint 已推进但业务投影提交失败时，不重复调用模型即可恢复投影；陈旧业务 revision、错误 checkpoint 指针、并发 resume 和 AI Profile/Graph Schema 不兼容的 fail-closed 行为已有 Spike/测试证据。
+- [ ] Checkpoint 加密、保留和清理策略可验证；已完成 session 删除后的业务回查已通过，但当前没有生产自动清理消费者，活动 session 保护待后续实现。
+- [x] 五个顺序子任务都有独立 PRD、design、implement、文件所有权和已校验的实现/检查上下文；父任务只负责跨子任务合同和最终集成。
+- [x] 锁定依赖和当前 Claude/Bedrock relay 的真实 Spike 固定 `ToolStrategy`，禁止 ProviderStrategy/temperature；无 Checkpointer 的 Agent 不传 `durability="sync"`。
+- [x] 场景工作台规划态 Preview 在桌面和 390px 窄屏通过三导航、单焦点、单主动作、全屏 sheet、无横向溢出、Escape 和焦点返回检查。
+- [x] 三份真实样本已复制到 Git-ignored `.local-samples/m0/`，源/目标 SHA-256 一致；默认测试不会自动发现或读取该目录。
+- [x] PostgreSQL、独立 Checkpointer 连接、单消费者、存储根、迁移顺序和无凭证配置合同明确；生产连接本轮未启动。
+
+最终对抗式审查记录见 `research/final-adversarial-review.md`。未勾选项代表外部生产清理能力尚未实现，不是本地测试遗漏。

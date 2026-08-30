@@ -12,7 +12,7 @@
   "assignee": "hsikey",
   "createdAt": "2026-08-29",
   "completedAt": null,
-  "branch": "codex/m0-evaluation-set",
+  "branch": "codex/m0-parent-adversarial-review",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,

@@ -233,7 +233,7 @@ make build
 
 在运行 `task.py start` 前必须满足：
 
-- [ ] 用户批准本次最终 PRD、design.md、implement.md 与子任务总结；这是当前唯一未满足门禁。
+- [x] 用户已通过本次 `/goal` 明确批准进入实施，并在完成子任务后要求多轮对抗式审查与父任务复核。
 - [x] 已创建并链接 5 个子任务，每个都有顺序依赖、文件所有权、PRD、design 和 implement。
 - [x] 父任务与 5 个子任务的 `implement.jsonl` / `check.jsonl` 都含真实规范/研究上下文并通过 validate。
 - [x] Deep Agents/Checkpointer 锁定版本、默认 subagent 关闭、EvidenceBackend、Filesystem replacement、ToolStrategy、invalid_tool_calls、100 行截断、模型工具面和 middleware onion 顺序均有可重复 Spike 与结果矩阵。
@@ -243,4 +243,9 @@ make build
 - [x] 场景工作台规划态 Preview 已通过桌面/窄屏审查：只有“当前 / 题 / 版本”、一个焦点面和一个主动作；`.interface-design/system.md` 已标注目标合同尚未实现。
 - [x] PostgreSQL、单消费者和本地存储开发配置已确定，不包含真实凭证。
 - [x] 三份样本仍可读取，并已复制到稳定、Git-ignored `.local-samples/m0/`；源/目标 SHA-256 一致。
-- [x] 未修改 `backend/`、`frontend/` 产品代码，未运行 `task.py start`；规划批准与实施批准保持分开。
+- [x] 规划阶段未修改 `backend/`、`frontend/` 产品代码且未运行 `task.py start`；实施阶段在独立子任务分支完成并合并回 `main`，规划批准与实施批准保持分开。
+
+## Final execution status
+
+- 五个子任务均已归档，集成验收报告位于 `.trellis/tasks/archive/2026-08/08-30-m0-integration-acceptance/acceptance.md`。
+- 父任务最终对抗式审查与修正见 `research/final-adversarial-review.md`；本地 M0 闭环已通过，生产 Checkpointer 常驻接入、自动清理消费者、完整提案 UI 和 M2 执行仍按报告标为未验证或后续边界。
