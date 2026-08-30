@@ -155,3 +155,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 7: 真实 Provider smoke 对抗加固
+<!-- trellis-session: v=2 fp=3cce661ccfe681d0 -->
+
+**Date**: 2026-08-31
+**Task**: 真实 Provider smoke 对抗加固
+**Branch**: `main`
+
+### Summary
+
+真实 make ai-smoke 首次暴露 Deep Agents 0.7.11 将 memory=[] 误解释为启用 MemoryMiddleware 的 NotImplementedError；改为 skills/memory=None，补充 model id、启动异常、spec 与回归测试。修正后真实 OpenAI 兼容模型 gpt-5.6-luna smoke PASS；main 复验 make test、make build 通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c11285d` | fix(runtime): harden real provider smoke path |
+
+### Status
+
+[OK] **Completed**

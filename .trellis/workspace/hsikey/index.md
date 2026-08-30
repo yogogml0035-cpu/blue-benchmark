@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 6
-- **Last Active**: 2026-08-30
+- **Total Sessions**: 7
+- **Last Active**: 2026-08-31
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~157 | Active |
+| `journal-1.md` | ~179 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 7 | 2026-08-31 | 真实 Provider smoke 对抗加固 | `c11285d` | `main` |
 | 6 | 2026-08-30 | 生产 AI Worker 真实 Provider 接线 | `8021638` | `main` |
 | 5 | 2026-08-30 | Trellis Bootstrap 归档收尾 | `603fe08` | `main` |
 | 4 | 2026-08-30 | 完成 M0 集成与父任务对抗式审查 | `93a6214`, `b5b2970` | `main` |
