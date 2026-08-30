@@ -54,7 +54,7 @@ make test
 - [ ] 响应没有暴露内部状态或敏感信息。
 - [ ] 新增 Agent 只通过 `ReadOnlyEvidenceBackend` 读取虚拟 scope；工具 allowlist、权限 deny、HITL 单问题和 `invalid_tool_calls` 负例均有测试。
 - [ ] 共创答案先保存业务 Turn，再由 OperationJob resume；重复命令不重复模型调用，Checkpoint latest 不得替代 accepted pointer。
-- [ ] `make openapi` 只生成后端 OpenAPI 与前端类型，生产默认 Fake 不打印业务正文、Checkpoint、凭证或 private reasoning。
+- [ ] `make openapi` 只生成后端 OpenAPI 与前端类型，CI/显式 Fake 与常驻生产 Worker 都不打印业务正文、Checkpoint、凭证或 private reasoning。
 - [ ] `make contract-check` 能在不改写生成文件的情况下发现后端 OpenAPI 或前端生成类型漂移；显式真实样本 runner 使用临时数据库/存储并只输出阶段标记。
 - [ ] 版本 API/download 读取前校验 Manifest 身份、三分区 hash、ready marker 和 ZIP 条目内容；历史派生不能绕过同一完整性检查。
 - [ ] 并发同命令/同草稿写入有 row lock 或唯一约束兜底，错误 payload 返回 409，不以 500 暴露竞态。

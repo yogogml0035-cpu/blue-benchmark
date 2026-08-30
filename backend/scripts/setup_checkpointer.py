@@ -11,4 +11,7 @@ if __name__ == "__main__":
     except CheckpointError as exc:
         print(f"Checkpointer setup failed: {exc}", file=sys.stderr)
         raise SystemExit(2) from None
+    except Exception as exc:
+        print(f"Checkpointer setup failed: {type(exc).__name__}", file=sys.stderr)
+        raise SystemExit(2) from None
     print("Checkpointer schema setup complete")

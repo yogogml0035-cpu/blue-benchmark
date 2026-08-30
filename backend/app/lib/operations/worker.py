@@ -188,3 +188,8 @@ if __name__ == "__main__":
     except (CheckpointError, ModelConfigurationError) as exc:
         print(f"Worker startup failed: {exc}", file=sys.stderr)
         raise SystemExit(2) from None
+    except Exception as exc:
+        # Startup and dependency failures must not render provider SDK details,
+        # DSNs, or exception tracebacks in the worker terminal.
+        print(f"Worker startup failed: {type(exc).__name__}", file=sys.stderr)
+        raise SystemExit(2) from None

@@ -13,9 +13,9 @@ backend/
 │   │   ├── workspaces/{router,service,repository,schemas}.py
 │   │   ├── case_builder/{router,service,repository,schemas,cocreation_*,ingestion_*}.py
 │   │   └── evaluation_sets/{router,service,repository,schemas}.py
-│   └── lib/{errors,schemas,settings,ai_runtime/,operations/,storage/,database/,version_packages/}
-├── scripts/{export_openapi,verify_openapi,setup_checkpointer,accept_real_samples}.py
-├── tests/{test_api,test_persistence_ingestion,test_deep_agent_cocreation,test_evaluation_versioning,test_integration_acceptance,test_runtime_configuration}.py
+│   └── lib/{errors,schemas,settings,ai_runtime/{model,checkpoint,profile,adapters},operations/,storage/,database/,version_packages/}
+├── scripts/{export_openapi,verify_openapi,setup_checkpointer,smoke_ai_provider,accept_real_samples}.py
+├── tests/{test_api,test_persistence_ingestion,test_deep_agent_cocreation,test_evaluation_versioning,test_integration_acceptance,test_runtime_configuration,test_production_worker}.py
 ├── openapi.json
 └── pyproject.toml
 ```

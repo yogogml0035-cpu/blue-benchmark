@@ -112,6 +112,10 @@ def runtime_model_identity(
     model = str(getattr(config, "ai_model", "") or "").strip()
     if not model:
         raise ModelConfigurationError("AI_MODEL is required")
+    if ":" in model:
+        raise ModelConfigurationError("AI_MODEL must not contain ':'")
+    if any(ord(character) < 0x20 or ord(character) == 0x7F for character in model):
+        raise ModelConfigurationError("AI_MODEL must be a single-line identifier")
     base_url = normalize_base_url(getattr(config, "ai_base_url", ""))
     api_key = _secret_value(getattr(config, "ai_api_key", ""))
     if require_credentials and (not api_key or api_key.lower().startswith("replace-with-")):

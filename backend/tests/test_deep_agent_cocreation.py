@@ -274,6 +274,41 @@ def test_production_graphs_construct_with_role_specific_tool_surfaces():
     assert not co_tools & {"task", "execute", "write_file", "edit_file", "delete"}
 
 
+def test_production_graph_explicitly_disables_empty_skill_and_memory_sources(monkeypatch: pytest.MonkeyPatch):
+    captured: dict[str, object] = {}
+
+    def capture_create_deep_agent(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("deepagents.create_deep_agent", capture_create_deep_agent)
+    model = ChatOpenAI(
+        model="test-model",
+        api_key="test-secret",
+        base_url="https://models.example/v1",
+        streaming=False,
+    )
+    adapter = DeepAgentsCoverageReviewer(model=model, model_spec="openai:test-model")
+    context = AgentRunContext(
+        user_id="u",
+        workspace_id="w",
+        target_type="coverage",
+        target_id="t",
+        thread_key="coverage-no-memory",
+        business_revision=0,
+        evidence_file_ids=(),
+        evidence_scope="/evidence/none",
+        ai_profile_version=get_ai_profile().version,
+        graph_schema_version="m0-cocreation-graph-v1",
+    )
+
+    adapter._graph(context, {}, CoverageReview, allowed_tools={"CoverageReview"})
+
+    assert captured["skills"] is None
+    assert captured["memory"] is None
+    assert captured["store"] is None
+
+
 def test_teacher_can_split_groups_and_repeat_confirmation_without_duplicates(client: TestClient):
     workspace_id = _setup(client)
     upload = client.post(

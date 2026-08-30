@@ -74,6 +74,8 @@ def test_anthropic_official_endpoint_does_not_inherit_ambient_base_url(monkeypat
         ("ai_provider", "", "AI_PROVIDER"),
         ("ai_provider", "gemini", "AI_PROVIDER"),
         ("ai_model", "", "AI_MODEL"),
+        ("ai_model", "model:variant", "AI_MODEL"),
+        ("ai_model", "model\nvariant", "AI_MODEL"),
         ("ai_api_key", SecretStr(""), "AI_API_KEY"),
         ("ai_base_url", "file:///tmp/model", "AI_BASE_URL"),
         ("ai_base_url", "https://models.example/v1?api_key=secret", "AI_BASE_URL"),

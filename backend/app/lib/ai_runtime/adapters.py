@@ -381,8 +381,12 @@ class _DeepAgentBase:
             ),
             middleware=middleware,
             subagents=[],
-            skills=[],
-            memory=[],
+            # Deep Agents treats an empty list as "middleware enabled".  The
+            # read-only evidence backend intentionally does not implement the
+            # Store/Memory file API, so use None to disable both middleware
+            # paths explicitly (and keep Store/Memory out of M0).
+            skills=None,
+            memory=None,
             backend=backend,
             permissions=self._permissions(list(documents)),
             interrupt_on=interrupt_on,

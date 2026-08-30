@@ -2,7 +2,7 @@
 
 ## 先确认当前实现边界
 
-当前后端使用 SQLAlchemy 业务数据库和 Alembic 迁移；旧 `/cases` 仍保留兼容 Stub 闭环，M0 完整任务包已经有受限 Deep Agents port、Fake 默认适配器、共创业务投影、评测集版本包和加密 PostgreSQL Checkpointer 工厂。默认 CI 不调用真实 provider，真实 provider smoke 仍由独立 Spike/部署配置验证。规范以源码、测试和迁移为准；规划文档中尚未落地的能力不能当作当前事实。
+当前后端使用 SQLAlchemy 业务数据库和 Alembic 迁移；旧 `/cases` 仍保留兼容 Stub 闭环，M0 完整任务包已经有受限 Deep Agents port、显式 Fake 适配器、共创业务投影、评测集版本包和加密 PostgreSQL Checkpointer 工厂。默认 CI 不调用真实 provider；常驻 Worker 默认使用显式 Provider 配置的真实 adapter，真实 provider smoke 仍由独立 Spike/部署配置验证。规范以源码、测试和迁移为准；规划文档中尚未落地的能力不能当作当前事实。
 
 | 已实现事实 | 尚未实现、需另立任务的计划 |
 |---|---|
