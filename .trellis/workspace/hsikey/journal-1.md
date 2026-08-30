@@ -98,3 +98,38 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 5: Trellis Bootstrap 归档收尾
+<!-- trellis-session: v=2 fp=faa68a3c9c1ab39a -->
+
+**Date**: 2026-08-30
+**Task**: Trellis Bootstrap 归档收尾
+**Branch**: `main`
+
+### Summary
+
+完成 00-bootstrap-guidelines 的当前 main 复验与 Trellis 归档；源代码规范已完成回填，归档任务保留初始基线和验收历史。
+
+### Main Changes
+
+- 将 00-bootstrap-guidelines 归档到 .trellis/tasks/archive/2026-08/，状态更新为 completed
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `603fe08` | docs(trellis): 添加Treillis开发流程指南和多代理协作技能说明 |
+
+### Testing
+
+- [OK] make test：53 passed，OpenAPI 合同检查通过，前端 typecheck 通过
+- [OK] make build：Next.js 生产构建通过
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 后续规范变更由各自功能任务通过 trellis-update-spec 持续维护

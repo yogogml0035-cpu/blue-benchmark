@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 4
+- **Total Sessions**: 5
 - **Last Active**: 2026-08-30
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~100 | Active |
+| `journal-1.md` | ~135 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 5 | 2026-08-30 | Trellis Bootstrap 归档收尾 | `603fe08` | `main` |
 | 4 | 2026-08-30 | 完成 M0 集成与父任务对抗式审查 | `93a6214`, `b5b2970` | `main` |
 | 3 | 2026-08-30 | M0 共创与评测版本 | `440acdb`, `e9819b8`, `ed948bb` | `main` |
 | 2 | 2026-08-30 | M0 Deep Agent 与共创 | `440acdb` | `main` |
