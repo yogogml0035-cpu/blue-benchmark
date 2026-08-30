@@ -1342,6 +1342,1176 @@
           }
         }
       }
+    },
+    "/api/workspaces/{workspace_id}/upload-batches/{batch_id}/task-packages": {
+      "get": {
+        "tags": [
+          "ingestion"
+        ],
+        "summary": "List Task Packages",
+        "operationId": "list_task_packages_api_workspaces__workspace_id__upload_batches__batch_id__task_packages_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPackageListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/upload-batches/{batch_id}/task-groups/confirmation": {
+      "post": {
+        "tags": [
+          "ingestion"
+        ],
+        "summary": "Confirm Task Groups",
+        "operationId": "confirm_task_groups_api_workspaces__workspace_id__upload_batches__batch_id__task_groups_confirmation_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupingConfirmationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPackageListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/task-packages/{task_package_id}": {
+      "get": {
+        "tags": [
+          "cocreation"
+        ],
+        "summary": "Get Task Package",
+        "operationId": "get_task_package_api_workspaces__workspace_id__task_packages__task_package_id__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "task_package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Task Package Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPackageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/task-packages/{task_package_id}/co-creation": {
+      "post": {
+        "tags": [
+          "cocreation"
+        ],
+        "summary": "Start Cocreation",
+        "operationId": "start_cocreation_api_workspaces__workspace_id__task_packages__task_package_id__co_creation_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "task_package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Task Package Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoCreationStartRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoCreationSessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}": {
+      "get": {
+        "tags": [
+          "cocreation"
+        ],
+        "summary": "Get Cocreation",
+        "operationId": "get_cocreation_api_workspaces__workspace_id__co_creation__session_id__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoCreationSessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}/answers": {
+      "post": {
+        "tags": [
+          "cocreation"
+        ],
+        "summary": "Answer Cocreation",
+        "operationId": "answer_cocreation_api_workspaces__workspace_id__co_creation__session_id__answers_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoCreationAnswerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoCreationSessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}/retry": {
+      "post": {
+        "tags": [
+          "cocreation"
+        ],
+        "summary": "Retry Cocreation",
+        "operationId": "retry_cocreation_api_workspaces__workspace_id__co_creation__session_id__retry_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoCreationRetryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoCreationSessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}/continuity-reset": {
+      "post": {
+        "tags": [
+          "cocreation"
+        ],
+        "summary": "Reset Cocreation",
+        "operationId": "reset_cocreation_api_workspaces__workspace_id__co_creation__session_id__continuity_reset_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoCreationResetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoCreationSessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}/contract-confirmation": {
+      "post": {
+        "tags": [
+          "cocreation"
+        ],
+        "summary": "Confirm Contract",
+        "operationId": "confirm_contract_api_workspaces__workspace_id__co_creation__session_id__contract_confirmation_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoCreationConfirmRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoCreationSessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}/judgment-confirmation": {
+      "post": {
+        "tags": [
+          "cocreation"
+        ],
+        "summary": "Confirm Judgment",
+        "operationId": "confirm_judgment_api_workspaces__workspace_id__co_creation__session_id__judgment_confirmation_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoCreationConfirmRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoCreationSessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/task-packages/{task_package_id}/feedback": {
+      "post": {
+        "tags": [
+          "cocreation"
+        ],
+        "summary": "Create Feedback",
+        "operationId": "create_feedback_api_workspaces__workspace_id__task_packages__task_package_id__feedback_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "task_package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Task Package Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromotionCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Feedback Api Workspaces  Workspace Id  Task Packages  Task Package Id  Feedback Post"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/standard-promotions/{proposal_id}/decision": {
+      "post": {
+        "tags": [
+          "cocreation"
+        ],
+        "summary": "Decide Promotion",
+        "operationId": "decide_promotion_api_workspaces__workspace_id__standard_promotions__proposal_id__decision_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromotionDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Decide Promotion Api Workspaces  Workspace Id  Standard Promotions  Proposal Id  Decision Post"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1382,6 +2552,63 @@
           "status"
         ],
         "title": "ActiveOperation"
+      },
+      "AgentEvidenceRef": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "locator": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/LineRangeLocator"
+                  },
+                  {
+                    "$ref": "#/components/schemas/JsonPointerLocator"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EventLocator"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "kind",
+                  "mapping": {
+                    "event_id": "#/components/schemas/EventLocator",
+                    "json_pointer": "#/components/schemas/JsonPointerLocator",
+                    "line_range": "#/components/schemas/LineRangeLocator"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locator"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id"
+        ],
+        "title": "AgentEvidenceRef"
       },
       "AnswerRequest": {
         "properties": {
@@ -1432,6 +2659,41 @@
           "size_bytes"
         ],
         "title": "Attachment"
+      },
+      "BlockingGap": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "blocking": {
+            "type": "boolean",
+            "title": "Blocking",
+            "default": true
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/AgentEvidenceRef"
+            },
+            "type": "array",
+            "title": "Evidence Refs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "BlockingGap"
       },
       "Body_create_case_api_workspaces__workspace_id__cases_post": {
         "properties": {
@@ -1698,6 +2960,455 @@
         ],
         "title": "CaseState"
       },
+      "CoCreationAnswerRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "question_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Question Id"
+          },
+          "answer": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Answer"
+          },
+          "business_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Business Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "question_id",
+          "answer",
+          "business_revision"
+        ],
+        "title": "CoCreationAnswerRequest"
+      },
+      "CoCreationConfirmRequest": {
+        "properties": {
+          "business_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Business Revision"
+          },
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "business_revision",
+          "command_id"
+        ],
+        "title": "CoCreationConfirmRequest"
+      },
+      "CoCreationDelta": {
+        "properties": {
+          "added": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Added"
+          },
+          "modified": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Modified"
+          },
+          "deleted": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Deleted"
+          },
+          "unresolved": {
+            "items": {
+              "$ref": "#/components/schemas/BlockingGap"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Unresolved"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CoCreationDelta"
+      },
+      "CoCreationKind": {
+        "type": "string",
+        "enum": [
+          "scenario_contract",
+          "task_judgment"
+        ],
+        "title": "CoCreationKind"
+      },
+      "CoCreationQuestion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "gap_type": {
+            "type": "string",
+            "enum": [
+              "fact",
+              "judgment",
+              "rule",
+              "scope",
+              "evidence"
+            ],
+            "title": "Gap Type"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/AgentEvidenceRef"
+            },
+            "type": "array",
+            "title": "Evidence Refs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "reason",
+          "gap_type"
+        ],
+        "title": "CoCreationQuestion"
+      },
+      "CoCreationResetRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "reason"
+        ],
+        "title": "CoCreationResetRequest"
+      },
+      "CoCreationRetryRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "business_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Business Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "business_revision"
+        ],
+        "title": "CoCreationRetryRequest"
+      },
+      "CoCreationSessionResponse": {
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/CoCreationSessionView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session"
+        ],
+        "title": "CoCreationSessionResponse"
+      },
+      "CoCreationSessionView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "task_package_id": {
+            "type": "string",
+            "title": "Task Package Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CoCreationKind"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "initialization_only": {
+            "type": "boolean",
+            "title": "Initialization Only",
+            "default": false
+          },
+          "status": {
+            "$ref": "#/components/schemas/CoCreationStatus"
+          },
+          "business_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Business Revision"
+          },
+          "pending_question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoCreationQuestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contract": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScenarioContractContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "judgment_package": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JudgmentPackageContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/CoCreationTurnView"
+            },
+            "type": "array",
+            "title": "Turns"
+          },
+          "next_action": {
+            "type": "string",
+            "enum": [
+              "wait_for_processing",
+              "answer_question",
+              "review_and_confirm",
+              "retry_processing",
+              "none"
+            ],
+            "title": "Next Action"
+          },
+          "active_operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Operation Id"
+          },
+          "blocking_issues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blocking Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "task_package_id",
+          "kind",
+          "status",
+          "business_revision",
+          "next_action"
+        ],
+        "title": "CoCreationSessionView"
+      },
+      "CoCreationStartRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CoCreationKind",
+            "default": "scenario_contract"
+          },
+          "task_package_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Task Package Revision",
+            "default": 0
+          },
+          "initialization_only": {
+            "type": "boolean",
+            "title": "Initialization Only",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id"
+        ],
+        "title": "CoCreationStartRequest"
+      },
+      "CoCreationStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "processing",
+          "waiting_for_teacher",
+          "ready_for_confirmation",
+          "confirmed",
+          "failed",
+          "projection_pending",
+          "continuity_reset"
+        ],
+        "title": "CoCreationStatus"
+      },
+      "CoCreationTurnView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "turn_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Turn Revision"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoCreationQuestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoCreationDelta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "answered_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "turn_revision",
+          "status",
+          "created_at"
+        ],
+        "title": "CoCreationTurnView"
+      },
       "ConfirmationRequest": {
         "properties": {
           "draft_revision": {
@@ -1900,6 +3611,28 @@
           "error"
         ],
         "title": "ErrorResponse"
+      },
+      "EventLocator": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "event_id",
+            "title": "Kind",
+            "default": "event_id"
+          },
+          "event_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Event Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_id"
+        ],
+        "title": "EventLocator"
       },
       "EvidenceFileSummary": {
         "properties": {
@@ -2138,6 +3871,36 @@
         ],
         "title": "FileDispositionRequest"
       },
+      "GroupingConfirmationRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "batch_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Batch Revision"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/TaskGroupInput"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Groups"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "batch_revision"
+        ],
+        "title": "GroupingConfirmationRequest"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2179,6 +3942,131 @@
         ],
         "title": "HealthResponse"
       },
+      "JsonPointerLocator": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "json_pointer",
+            "title": "Kind",
+            "default": "json_pointer"
+          },
+          "pointer": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Pointer"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pointer"
+        ],
+        "title": "JsonPointerLocator"
+      },
+      "JudgmentPackageContent": {
+        "properties": {
+          "reference_results": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Reference Results"
+          },
+          "accepted_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Accepted Reasons"
+          },
+          "rejected_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Rejected Reasons"
+          },
+          "hard_gates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Hard Gates"
+          },
+          "minimum_quality_line": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Minimum Quality Line"
+          },
+          "task_specific_rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Task Specific Rules"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Capabilities"
+          },
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Dimensions"
+          },
+          "blocking_gaps": {
+            "items": {
+              "$ref": "#/components/schemas/BlockingGap"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Blocking Gaps"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/AgentEvidenceRef"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Evidence Refs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reference_results",
+          "accepted_reasons",
+          "rejected_reasons",
+          "hard_gates",
+          "minimum_quality_line",
+          "task_specific_rules",
+          "capabilities",
+          "dimensions",
+          "evidence_refs"
+        ],
+        "title": "JudgmentPackageContent"
+      },
       "LastError": {
         "properties": {
           "stage": {
@@ -2210,6 +4098,33 @@
           "retryable"
         ],
         "title": "LastError"
+      },
+      "LineRangeLocator": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "line_range",
+            "title": "Kind",
+            "default": "line_range"
+          },
+          "start_line": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Start Line"
+          },
+          "end_line": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "End Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start_line",
+          "end_line"
+        ],
+        "title": "LineRangeLocator"
       },
       "LoginRequest": {
         "properties": {
@@ -2364,6 +4279,47 @@
         ],
         "title": "PendingQuestion"
       },
+      "PromotionCreateRequest": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "text"
+        ],
+        "title": "PromotionCreateRequest"
+      },
+      "PromotionDecisionRequest": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "title": "Decision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "PromotionDecisionRequest"
+      },
       "ProposedStandard": {
         "properties": {
           "id": {
@@ -2494,6 +4450,126 @@
         ],
         "title": "Scenario"
       },
+      "ScenarioContractContent": {
+        "properties": {
+          "task_boundary": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Task Boundary"
+          },
+          "input_contract": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Input Contract"
+          },
+          "output_contract": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Output Contract"
+          },
+          "hard_gates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Hard Gates"
+          },
+          "quality_dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Quality Dimensions"
+          },
+          "prohibited_errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Prohibited Errors"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Capabilities"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/AgentEvidenceRef"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Evidence Refs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "task_boundary",
+          "input_contract",
+          "output_contract",
+          "hard_gates",
+          "quality_dimensions",
+          "capabilities",
+          "evidence_refs"
+        ],
+        "title": "ScenarioContractContent"
+      },
+      "SkillAttemptProposal": {
+        "properties": {
+          "attempt_key": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Attempt Key"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "evidence_file_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Evidence File Ids"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "attempt_key",
+          "label",
+          "evidence_file_ids"
+        ],
+        "title": "SkillAttemptProposal"
+      },
       "StudioProjection": {
         "properties": {
           "workspace_id": {
@@ -2577,6 +4653,184 @@
           "next_action"
         ],
         "title": "StudioProjection"
+      },
+      "TaskGroupInput": {
+        "properties": {
+          "proposal_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Key"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Summary",
+            "default": "老师确认的真实任务分组。"
+          },
+          "evidence_file_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Evidence File Ids"
+          },
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/SkillAttemptProposal"
+            },
+            "type": "array",
+            "title": "Attempts"
+          },
+          "initialization_only": {
+            "type": "boolean",
+            "title": "Initialization Only",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "evidence_file_ids"
+        ],
+        "title": "TaskGroupInput"
+      },
+      "TaskPackageListResponse": {
+        "properties": {
+          "batch_id": {
+            "type": "string",
+            "title": "Batch Id"
+          },
+          "batch_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Batch Revision"
+          },
+          "task_packages": {
+            "items": {
+              "$ref": "#/components/schemas/TaskPackageSummary"
+            },
+            "type": "array",
+            "title": "Task Packages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "batch_id",
+          "batch_revision",
+          "task_packages"
+        ],
+        "title": "TaskPackageListResponse"
+      },
+      "TaskPackageResponse": {
+        "properties": {
+          "task_package": {
+            "$ref": "#/components/schemas/TaskPackageSummary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_package"
+        ],
+        "title": "TaskPackageResponse"
+      },
+      "TaskPackageStatus": {
+        "type": "string",
+        "enum": [
+          "proposed",
+          "confirmed",
+          "replaced"
+        ],
+        "title": "TaskPackageStatus"
+      },
+      "TaskPackageSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "upload_batch_id": {
+            "type": "string",
+            "title": "Upload Batch Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskPackageStatus"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "evidence_file_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence File Ids"
+          },
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/SkillAttemptProposal"
+            },
+            "type": "array",
+            "title": "Attempts"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Revision"
+          },
+          "initialization_only": {
+            "type": "boolean",
+            "title": "Initialization Only",
+            "default": false
+          },
+          "has_judgment_package": {
+            "type": "boolean",
+            "title": "Has Judgment Package",
+            "default": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "upload_batch_id",
+          "status",
+          "title",
+          "evidence_file_ids",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TaskPackageSummary"
       },
       "TeacherJudgment": {
         "properties": {

@@ -45,6 +45,14 @@ def assert_owner(workspace_id: str, user: UserRecord) -> repository.WorkspaceRec
     return workspace
 
 
+def owner_id_for_workspace(workspace_id: str) -> str:
+    """Return the owner identity for a worker-side, already-scoped operation."""
+
+    workspace = repository.get(workspace_id)
+    if workspace is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "私有场景不存在。")
+    return workspace.owner_user_id
+
+
 def get_owned(workspace_id: str, user: UserRecord) -> Workspace:
     return to_workspace(assert_owner(workspace_id, user))
-

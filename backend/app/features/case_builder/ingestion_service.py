@@ -520,19 +520,8 @@ def update_file_disposition(
 
 
 def complete_batch_analysis(job: OperationJob) -> dict[str, Any]:
-    batch = ingestion_repository.get_batch(job.target_id)
-    if batch is None:
-        raise AppError(404, "RESOURCE_NOT_FOUND", "上传批次不存在。")
-    if batch.revision != job.business_revision:
-        from app.lib.operations.worker import SupersededOperation
+    """Compatibility entry point; the co-creation feature owns analysis now."""
 
-        raise SupersededOperation("上传批次已产生新修订。")
-    if not ingestion_repository.update_status(
-        batch.id,
-        UploadBatchState.ready_for_confirmation.value,
-        expected_revision=job.business_revision,
-    ):
-        from app.lib.operations.worker import SupersededOperation
+    from app.features.case_builder.cocreation_service import complete_batch_analysis as analyze
 
-        raise SupersededOperation("上传批次状态已更新。")
-    return {"batch_id": batch.id, "status": UploadBatchState.ready_for_confirmation.value}
+    return analyze(job)

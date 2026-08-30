@@ -90,10 +90,22 @@ class OperationWorker:
 
 
 def default_worker() -> OperationWorker:
-    from app.features.case_builder.ingestion_service import complete_batch_analysis
+    from app.features.case_builder.cocreation_service import (
+        complete_batch_analysis,
+        handle_cocreation_reproject,
+        handle_cocreation_resume,
+        handle_cocreation_start,
+        handle_coverage_review,
+    )
+    from app.lib.ai_runtime import initialize_ai_runtime
 
+    initialize_ai_runtime()
     worker = OperationWorker()
     worker.register("batch_analysis", lambda job: complete_batch_analysis(job))
+    worker.register("cocreation_start", lambda job: handle_cocreation_start(job))
+    worker.register("cocreation_resume", lambda job: handle_cocreation_resume(job))
+    worker.register("cocreation_reproject", lambda job: handle_cocreation_reproject(job))
+    worker.register("coverage_review", lambda job: handle_coverage_review(job))
     return worker
 
 

@@ -30,6 +30,7 @@ make test
 4. Workspace 和 Case 的跨账号 `403`；
 5. 数据库新进程读取、Alembic migration/schema readiness、服务端存储键和 ready marker；
 6. 多文件/ZIP 安全边界、批次 `202`、纯读投影、command 幂等、用途 revision 冲突和 OperationJob lease/CAS/Attempt。
+7. M0 TaskPackage 分组、受限 AI runtime、EvidenceRef canonical 回查、共创 stable thread、accepted Checkpoint CAS 和 projection_pending 重投影。
 
 修改这些合同必须扩展相同层级的 API 测试。新增错误分支至少断言 HTTP 状态、机器码或业务状态，并确认失败没有推进不允许的状态。
 
@@ -51,4 +52,7 @@ make test
 - [ ] 重试路径保持幂等，失败不会产生半完成快照。
 - [ ] 文件先 staging，再发布 ready marker；数据库失败清理已发布和 staged 对象。
 - [ ] 响应没有暴露内部状态或敏感信息。
+- [ ] 新增 Agent 只通过 `ReadOnlyEvidenceBackend` 读取虚拟 scope；工具 allowlist、权限 deny、HITL 单问题和 `invalid_tool_calls` 负例均有测试。
+- [ ] 共创答案先保存业务 Turn，再由 OperationJob resume；重复命令不重复模型调用，Checkpoint latest 不得替代 accepted pointer。
+- [ ] `make openapi` 只生成后端 OpenAPI 与前端类型，生产默认 Fake 不打印业务正文、Checkpoint、凭证或 private reasoning。
 - [ ] `cd backend && uv run pytest -q` 通过；跨层变更还通过 `make test`。

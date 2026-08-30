@@ -19,6 +19,7 @@ from app.lib.database.models import (
     OperationJobRow,
     QuestionRevisionRow,
     SessionRow,
+    ScenarioContractRevisionRow,
     SkillRunEvidenceRow,
     StandardPromotionProposalRow,
     TaskPackageRow,
@@ -30,7 +31,7 @@ from app.lib.database.models import (
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0003_upload_command_id"
+BUSINESS_SCHEMA_HEAD = "0004_cocreation_contracts"
 
 
 def as_utc(value: datetime) -> datetime:
@@ -88,6 +89,10 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             "workspaces": {"id", "owner_user_id", "updated_at"},
             "upload_batches": {"id", "workspace_id", "command_id", "revision"},
             "operation_jobs": {"id", "kind", "command_id", "status", "lease_until"},
+            "task_packages": {"id", "upload_batch_id", "analysis_json", "judgment_package_json"},
+            "co_creation_sessions": {"id", "task_package_id", "command_id", "kind", "projection_json"},
+            "co_creation_turns": {"id", "session_id", "question_id", "answer_command_id"},
+            "scenario_contract_revisions": {"id", "workspace_id", "revision", "contract_json"},
         }
         return all(
             columns.issubset({item["name"] for item in inspect(connection).get_columns(table)})
@@ -130,6 +135,7 @@ def clear_business_data() -> None:
         CoCreationSessionRow,
         SkillRunEvidenceRow,
         TaskPackageRow,
+        ScenarioContractRevisionRow,
         FileDispositionRow,
         EvidenceFileRow,
         UploadBatchRow,

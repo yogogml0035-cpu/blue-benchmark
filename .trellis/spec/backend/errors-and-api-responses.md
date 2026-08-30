@@ -42,6 +42,10 @@
 - `422`：字段或组合内容无效；
 - `500`：未预期错误，且响应必须清洗。
 
+M0 共创新增的业务码包括 `FILE_ROLES_NOT_CONFIRMED`、`INVALID_TASK_GROUPING`、`TASK_NOT_CONFIRMED`、`CONTRACT_NOT_CONFIRMED`、`STALE_COCREATION`、`COMMAND_ID_REUSED`、`RETRY_NOT_AVAILABLE`；它们仍遵守 `409`（状态/revision/幂等冲突）或 `422`（输入/证据结构无效）的语义。
+
+后台 Agent 错误不把 provider 原始消息返回给浏览器：结构化输出无效、工具越权、证据 locator 越界或 Checkpoint 不兼容只进入 OperationJob 的清洗错误和业务 `failed`/`projection_pending`/`continuity_reset` 状态。`CoCreationSessionView` 不包含 `thread_id`、`checkpoint_id`、interrupt、raw message 或凭证。
+
 新增错误码时同步检查后端 Router `responses`、`backend/openapi.json`、前端 `ApiError` / `toPageFault` 以及对应状态测试。
 
 ## 当前没有日志规范

@@ -5,7 +5,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.features.auth.router import router as auth_router
-from app.features.case_builder.router import ingestion_router, router as case_builder_router
+from app.features.case_builder.router import (
+    cocreation_router,
+    ingestion_router,
+    router as case_builder_router,
+)
 from app.features.workspaces.router import router as workspaces_router
 from app.lib.errors import AppError, app_error_handler, error_response, validation_error_handler
 from app.lib.database import check_schema_ready
@@ -62,3 +66,4 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(workspaces_router, prefix="/api")
 app.include_router(case_builder_router, prefix="/api")
 app.include_router(ingestion_router, prefix="/api")
+app.include_router(cocreation_router, prefix="/api")

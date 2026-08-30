@@ -118,6 +118,15 @@ class TaskPackageRow(Base):
     title: Mapped[str] = mapped_column(String(200))
     evidence_file_ids_json: Mapped[list] = mapped_column(JSON, default=list)
     revision: Mapped[int] = mapped_column(Integer, default=0)
+    analysis_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    contract_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("scenario_contract_revisions.id"), nullable=True, index=True
+    )
+    draft_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    judgment_package_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    initialization_only: Mapped[bool] = mapped_column(Boolean, default=False)
+    confirmed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -136,15 +145,27 @@ class SkillRunEvidenceRow(Base):
 
 class CoCreationSessionRow(Base):
     __tablename__ = "co_creation_sessions"
+    __table_args__ = (UniqueConstraint("command_id", name="uq_co_creation_session_command"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
     task_package_id: Mapped[str] = mapped_column(ForeignKey("task_packages.id", ondelete="CASCADE"), index=True)
     stable_thread_key: Mapped[str] = mapped_column(String(255), unique=True)
+    command_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    kind: Mapped[str] = mapped_column(String(64), default="scenario_contract")
+    purpose: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    initialization_only: Mapped[bool] = mapped_column(Boolean, default=False)
     status: Mapped[str] = mapped_column(String(64), index=True)
     business_revision: Mapped[int] = mapped_column(Integer, default=0)
+    current_turn_revision: Mapped[int] = mapped_column(Integer, default=0)
     accepted_checkpoint_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pending_interrupt_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    projection_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    contract_revision_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    confirmation_command_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    continuity_reset_from_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    continuity_reset_to_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    continuity_reset_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_profile_version: Mapped[str] = mapped_column(String(128))
     graph_schema_version: Mapped[str] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -153,16 +174,43 @@ class CoCreationSessionRow(Base):
 
 class CoCreationTurnRow(Base):
     __tablename__ = "co_creation_turns"
+    __table_args__ = (
+        UniqueConstraint("session_id", "turn_revision", name="uq_co_creation_turn_revision"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     session_id: Mapped[str] = mapped_column(ForeignKey("co_creation_sessions.id", ondelete="CASCADE"), index=True)
     turn_revision: Mapped[int] = mapped_column(Integer)
+    question_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     question_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     answer_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    answer_command_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
     delta_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    base_checkpoint_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    produced_checkpoint_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    result_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(64), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ScenarioContractRevisionRow(Base):
+    __tablename__ = "scenario_contract_revisions"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "revision", name="uq_contract_revision_number"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    contract_json: Mapped[dict] = mapped_column(JSON)
+    source_session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("co_creation_sessions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    confirmed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class QuestionRevisionRow(Base):

@@ -2,7 +2,7 @@
 
 ## 先确认当前实现边界
 
-当前后端已经使用 SQLAlchemy 业务数据库和 Alembic 迁移；Case Builder 的 AI 仍是 Stub，真实 Deep Agent、Checkpointer 和评测集仍由后续子任务实现。规范以源码、测试和迁移为准；任务研究文档中尚未落地的能力不能当作当前事实。
+当前后端使用 SQLAlchemy 业务数据库和 Alembic 迁移；旧 `/cases` 仍保留 Stub 闭环，M0 完整任务包已经有受限 Deep Agents port、Fake 默认适配器、共创业务投影和加密 PostgreSQL Checkpointer 工厂。默认 CI 不调用真实 provider，真实 provider smoke 仍由独立 Spike/部署配置验证。规范以源码、测试和迁移为准；规划文档中尚未落地的能力不能当作当前事实。
 
 | 已实现事实 | 尚未实现、需另立任务的计划 |
 |---|---|
@@ -10,9 +10,9 @@
 | Session Cookie 只把 SHA-256 token hash 存入数据库 | 更完整的 Session 过期、撤销和轮换策略 |
 | 旧 `/cases` 入口保留 TXT/Markdown Stub 闭环 | 旧入口向完整任务包迁移 |
 | `/upload-batches` 接受多文件和 ZIP，原文件以服务端存储键保存 | 生产对象存储、OCR 和更多媒体解析 |
-| `_run_stub_generation` 和内容标记驱动固定分支 | 真实模型、LangChain、LangGraph Checkpoint |
+| `_run_stub_generation` 和内容标记驱动固定分支仍服务旧 `/cases` | 真实 provider 线上调用、Worker lifespan 注入生产 Checkpointer |
 | 确认后生成数据库中的 `candidate_case` JSON 快照 | 正式评测集、评测执行、版本历史 |
-| `OperationJob` 负责持久化排队、租约、重试和幂等，Fake Worker 可执行基础操作 | 真实 Deep Agent Worker、跨进程 Checkpointer |
+| `OperationJob` 负责持久化排队、租约、重试和幂等，Fake Worker 可执行 M0 batch/co-creation 操作 | M2 评测执行和报告 |
 
 数据库重启或 Python 进程重启不会清空业务记录；只有测试中的 `reset()` 会显式清空测试数据库。不要把业务数据库记录与后续 Checkpointer 执行状态混为同一事实源。
 
@@ -68,6 +68,71 @@ waiting_for_confirmation -> confirmed
 上传成功只创建 `UploadBatch`、`EvidenceFile`、默认未确认的 `FileDisposition` 和 `batch_analysis` `OperationJob`，返回 `202` 及 `UploadBatchResponse`。`GET /upload-batches/{batch_id}` 和 `GET /upload-batches/studio` 只读取业务投影，不创建任务、不续租、不推进状态。重复 `command_id` 在同一 workspace 返回原批次，不读取或覆盖第二份资料。
 
 HTTP 只返回服务端生成的业务 ID、哈希和文件摘要，不返回宿主绝对路径、存储键、解析正文、凭证、token、thread 或 Checkpoint 字段。不要把前端的扩展名检查当作安全边界。
+
+## Scenario: M0 任务分组与 Deep Agent 共创
+
+### 1. Scope / Trigger
+
+- Trigger: 多文件任务包需要经过老师确认的分组、场景标准、单题判定依据和可恢复的多轮共创。
+- 业务事实保存在 `case_builder` 业务表；`app/lib/ai_runtime` 只提供受限 Agent adapter，不能成为确认或权限事实源。
+
+### 2. Signatures
+
+- `GET /api/workspaces/{workspace_id}/upload-batches/{batch_id}/task-packages`：读取候选分组。
+- `POST /api/workspaces/{workspace_id}/upload-batches/{batch_id}/task-groups/confirmation`：JSON `command_id`、`batch_revision`、`groups[]`，确认后创建 `TaskPackage`。
+- `POST /api/workspaces/{workspace_id}/task-packages/{task_package_id}/co-creation`：JSON `command_id`、`kind`、`task_package_revision`，返回 `202`。
+- `POST /api/workspaces/{workspace_id}/co-creation/{session_id}/answers`：JSON `command_id`、`question_id`、`answer`、`business_revision`，返回 `202`。
+- `POST /api/workspaces/{workspace_id}/co-creation/{session_id}/contract-confirmation` / `judgment-confirmation`：老师显式确认。
+- `task_packages` 保存分组、attempt、合同引用、题稿和判定依据；`co_creation_sessions` 保存 `stable_thread_key`、`accepted_checkpoint_id`、业务 revision、Profile/Graph 版本和投影；`scenario_contract_revisions` 保存不可静默覆盖的合同修订。
+
+### 3. Contracts
+
+- 三个命名 Agent：`batch_analyzer` 只读当前批次，`standard_cocreator` 使用一个 stable thread，`coverage_reviewer` 只接收结构化快照；不启用 subagent、Store/Memory 或写文件工具。
+- 生产 Profile 固定 `ToolStrategy`、非流式、模型/工具调用上限和 `m0-deep-agents-0.7.11-tool-strategy-v1`；`FilesystemMiddleware` 必须携带 `/evidence/<file>` allow、其他 read deny、所有 write deny。
+- `AgentRunContext` 每次 start/resume 都重新传入身份、workspace、target、business revision、evidence scope 和 Profile/Graph 版本；这些值不能写入 Checkpoint state。
+- HTTP 的 `CoCreationSessionView` 只返回业务问题、答案、delta、合同/判定投影和 `next_action`，不返回 `stable_thread_key`、`accepted_checkpoint_id`、interrupt envelope、raw message 或 private reasoning。
+- `ReadOnlyEvidenceBackend.read` 的 `offset` 为 0-based，`ReadResult.start_line/end_line` 为 1-based；长文件必须分页到 EOF，模型 EvidenceRef 由 Service 回查 canonical view。
+- CI 默认 `ai_runtime_mode=fake`；生产 Checkpointer 由显式 `setup_checkpointer`/`open_async_postgres_checkpointer` 使用 `CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`（或等价显式键）配置，不能在 HTTP 请求中 setup。
+
+### 4. Validation & Error Matrix
+
+- 未确认文件用途/visibility -> `409 FILE_ROLES_NOT_CONFIRMED`；未确认任务分组 -> `409 TASK_NOT_CONFIRMED`；未确认场景标准就启动单题共创 -> `409 CONTRACT_NOT_CONFIRMED`。
+- unknown、重复或跨批次文件 -> `422 INVALID_TASK_GROUPING`；超出当前 canonical line range、JSON pointer 或 evidence scope -> Agent attempt fail-closed。
+- 陈旧 batch/task/session/question/revision -> `409`；相同 command 和相同 payload 返回原投影，不同 payload -> `409 COMMAND_ID_REUSED` 或对应状态冲突。
+- Agent 产生零/多问题、非 `ask_teacher`、非 `respond`、`invalid_tool_calls`、越权工具或缺少结构化结果 -> attempt 失败，不能部分确认业务事实。
+- Checkpoint 缺失/不兼容 -> fail-closed 并记录 continuity reset；produced Checkpoint 已存在但业务提交失败 -> `projection_pending`，只能无模型重投影。
+
+### 5. Good/Base/Bad Cases
+
+- Good: 310 行 JSONL 的尾部反馈通过显式分页被引用，老师确认分组后同一 stable thread 一问一答，刷新/重启仍从 accepted pointer 继续。
+- Base: 一批包含 Brief、运行记录和多个 Skill 结果；Agent 建议一组任务和多个 attempts，老师确认角色、visibility、合并或拆分后才创建正式 `TaskPackage`。
+- Bad: 模型返回宿主绝对路径、读取其他任务文件、把参考答案放进 runtime、同时提出两个问题、或 Checkpoint latest 覆盖业务 accepted pointer；全部拒绝或隔离为失败。
+
+### 6. Tests Required
+
+- API：分组前用途阻塞、分组确认/合并/拆分、同命令幂等、不同 payload 冲突、跨用户 `403`、合同确认前禁止单题共创。
+- Runtime：read-only scope、写/改/删拒绝、100 行截断后的 EOF、line/JSON/event locator 回查、工具面和 HITL envelope fail-closed。
+- Recovery：稳定 thread 多轮、stale revision、并发 resume 单胜者、Checkpoint ahead/business behind 的 `projection_pending` 重投影、缺失 Checkpoint continuity reset、删除 Checkpoint 后业务投影仍可读。
+- 迁移/合同：Alembic `0003 -> head`、schema readiness、`make openapi` 后 `frontend/src/lib/api/generated.ts` 与后端一致。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+latest = checkpointer.get_latest(thread_key)
+session.accepted_checkpoint_id = latest.id
+```
+
+#### Correct
+
+```python
+checkpoint_id = session.accepted_checkpoint_id
+result = cocreator.resume(context, kind, checkpoint_id, saved_answer)
+repository.commit_agent_result(expected_checkpoint_id=checkpoint_id, result=result)
+```
+
+只有业务事务 CAS 成功后，produced Checkpoint 才成为新的 accepted pointer。
 
 ## Scenario: M0 业务持久化与安全上传
 

@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +13,17 @@ class Settings(BaseSettings):
     upload_max_bytes: int = 1_048_576
     database_url: str = f"sqlite:///{Path(__file__).resolve().parents[2] / 'storage' / 'skill-eval.db'}"
     checkpoint_database_url: str = ""
+    checkpoint_encryption_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("CHECKPOINT_ENCRYPTION_KEY", "LANGGRAPH_AES_KEY"),
+    )
+    ai_runtime_mode: str = "fake"
+    ai_model_spec: str = "anthropic:claude-sonnet-4-6"
+    ai_model_id: str = "claude-sonnet-4-6"
+    ai_base_url: str = ""
+    ai_model_call_limit: int = 12
+    ai_tool_call_limit: int = 40
+    ai_model_retries: int = 1
     storage_root: Path = Path(__file__).resolve().parents[2] / "storage"
     operation_lease_seconds: int = 60
     operation_max_attempts: int = 3

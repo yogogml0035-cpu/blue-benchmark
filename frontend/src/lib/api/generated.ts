@@ -294,6 +294,210 @@ export interface paths {
         patch: operations["update_file_disposition_api_workspaces__workspace_id__upload_batches__batch_id__files__file_id__disposition_patch"];
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/upload-batches/{batch_id}/task-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Task Packages */
+        get: operations["list_task_packages_api_workspaces__workspace_id__upload_batches__batch_id__task_packages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/upload-batches/{batch_id}/task-groups/confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Task Groups */
+        post: operations["confirm_task_groups_api_workspaces__workspace_id__upload_batches__batch_id__task_groups_confirmation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/task-packages/{task_package_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Task Package */
+        get: operations["get_task_package_api_workspaces__workspace_id__task_packages__task_package_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/task-packages/{task_package_id}/co-creation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Cocreation */
+        post: operations["start_cocreation_api_workspaces__workspace_id__task_packages__task_package_id__co_creation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Cocreation */
+        get: operations["get_cocreation_api_workspaces__workspace_id__co_creation__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}/answers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Answer Cocreation */
+        post: operations["answer_cocreation_api_workspaces__workspace_id__co_creation__session_id__answers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Cocreation */
+        post: operations["retry_cocreation_api_workspaces__workspace_id__co_creation__session_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}/continuity-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Cocreation */
+        post: operations["reset_cocreation_api_workspaces__workspace_id__co_creation__session_id__continuity_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}/contract-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Contract */
+        post: operations["confirm_contract_api_workspaces__workspace_id__co_creation__session_id__contract_confirmation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/co-creation/{session_id}/judgment-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Judgment */
+        post: operations["confirm_judgment_api_workspaces__workspace_id__co_creation__session_id__judgment_confirmation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/task-packages/{task_package_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Feedback */
+        post: operations["create_feedback_api_workspaces__workspace_id__task_packages__task_package_id__feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/standard-promotions/{proposal_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decide Promotion */
+        post: operations["decide_promotion_api_workspaces__workspace_id__standard_promotions__proposal_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -313,6 +517,15 @@ export interface components {
              */
             status: "queued" | "running" | "failed" | "projection_pending";
         };
+        /** AgentEvidenceRef */
+        AgentEvidenceRef: {
+            /** Source Id */
+            source_id: string;
+            /** Locator */
+            locator?: (components["schemas"]["LineRangeLocator"] | components["schemas"]["JsonPointerLocator"] | components["schemas"]["EventLocator"]) | null;
+            /** Quote */
+            quote?: string | null;
+        };
         /** AnswerRequest */
         AnswerRequest: {
             /** Question Id */
@@ -330,6 +543,20 @@ export interface components {
             media_type: string;
             /** Size Bytes */
             size_bytes: number;
+        };
+        /** BlockingGap */
+        BlockingGap: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+            /**
+             * Blocking
+             * @default true
+             */
+            blocking: boolean;
+            /** Evidence Refs */
+            evidence_refs?: components["schemas"]["AgentEvidenceRef"][];
         };
         /** Body_create_case_api_workspaces__workspace_id__cases_post */
         Body_create_case_api_workspaces__workspace_id__cases_post: {
@@ -412,6 +639,150 @@ export interface components {
          * @enum {string}
          */
         CaseState: "parsing" | "parse_failed" | "ready_for_ai" | "generating" | "waiting_for_input" | "waiting_for_confirmation" | "ai_failed" | "confirmed";
+        /** CoCreationAnswerRequest */
+        CoCreationAnswerRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Question Id */
+            question_id: string;
+            /** Answer */
+            answer: string;
+            /** Business Revision */
+            business_revision: number;
+        };
+        /** CoCreationConfirmRequest */
+        CoCreationConfirmRequest: {
+            /** Business Revision */
+            business_revision: number;
+            /** Command Id */
+            command_id: string;
+        };
+        /** CoCreationDelta */
+        CoCreationDelta: {
+            /** Added */
+            added?: string[];
+            /** Modified */
+            modified?: string[];
+            /** Deleted */
+            deleted?: string[];
+            /** Unresolved */
+            unresolved?: components["schemas"]["BlockingGap"][];
+        };
+        /**
+         * CoCreationKind
+         * @enum {string}
+         */
+        CoCreationKind: "scenario_contract" | "task_judgment";
+        /** CoCreationQuestion */
+        CoCreationQuestion: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Gap Type
+             * @enum {string}
+             */
+            gap_type: "fact" | "judgment" | "rule" | "scope" | "evidence";
+            /** Evidence Refs */
+            evidence_refs?: components["schemas"]["AgentEvidenceRef"][];
+        };
+        /** CoCreationResetRequest */
+        CoCreationResetRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Reason */
+            reason: string;
+        };
+        /** CoCreationRetryRequest */
+        CoCreationRetryRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Business Revision */
+            business_revision: number;
+        };
+        /** CoCreationSessionResponse */
+        CoCreationSessionResponse: {
+            session: components["schemas"]["CoCreationSessionView"];
+        };
+        /** CoCreationSessionView */
+        CoCreationSessionView: {
+            /** Id */
+            id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Task Package Id */
+            task_package_id: string;
+            kind: components["schemas"]["CoCreationKind"];
+            /** Purpose */
+            purpose?: string | null;
+            /**
+             * Initialization Only
+             * @default false
+             */
+            initialization_only: boolean;
+            status: components["schemas"]["CoCreationStatus"];
+            /** Business Revision */
+            business_revision: number;
+            pending_question?: components["schemas"]["CoCreationQuestion"] | null;
+            contract?: components["schemas"]["ScenarioContractContent"] | null;
+            judgment_package?: components["schemas"]["JudgmentPackageContent"] | null;
+            /** Turns */
+            turns?: components["schemas"]["CoCreationTurnView"][];
+            /**
+             * Next Action
+             * @enum {string}
+             */
+            next_action: "wait_for_processing" | "answer_question" | "review_and_confirm" | "retry_processing" | "none";
+            /** Active Operation Id */
+            active_operation_id?: string | null;
+            /** Blocking Issues */
+            blocking_issues?: string[];
+        };
+        /** CoCreationStartRequest */
+        CoCreationStartRequest: {
+            /** Command Id */
+            command_id: string;
+            /** @default scenario_contract */
+            kind: components["schemas"]["CoCreationKind"];
+            /**
+             * Task Package Revision
+             * @default 0
+             */
+            task_package_revision: number;
+            /**
+             * Initialization Only
+             * @default false
+             */
+            initialization_only: boolean;
+        };
+        /**
+         * CoCreationStatus
+         * @enum {string}
+         */
+        CoCreationStatus: "queued" | "processing" | "waiting_for_teacher" | "ready_for_confirmation" | "confirmed" | "failed" | "projection_pending" | "continuity_reset";
+        /** CoCreationTurnView */
+        CoCreationTurnView: {
+            /** Id */
+            id: string;
+            /** Turn Revision */
+            turn_revision: number;
+            question?: components["schemas"]["CoCreationQuestion"] | null;
+            /** Answer */
+            answer?: string | null;
+            delta?: components["schemas"]["CoCreationDelta"] | null;
+            /** Status */
+            status: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Answered At */
+            answered_at?: string | null;
+        };
         /** ConfirmationRequest */
         ConfirmationRequest: {
             /** Draft Revision */
@@ -475,6 +846,16 @@ export interface components {
         /** ErrorResponse */
         ErrorResponse: {
             error: components["schemas"]["ErrorPayload"];
+        };
+        /** EventLocator */
+        EventLocator: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "event_id";
+            /** Event Id */
+            event_id: string;
         };
         /** EvidenceFileSummary */
         EvidenceFileSummary: {
@@ -572,6 +953,15 @@ export interface components {
             /** Batch Revision */
             batch_revision: number;
         };
+        /** GroupingConfirmationRequest */
+        GroupingConfirmationRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Batch Revision */
+            batch_revision: number;
+            /** Groups */
+            groups?: components["schemas"]["TaskGroupInput"][];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -597,6 +987,39 @@ export interface components {
              */
             ai: string;
         };
+        /** JsonPointerLocator */
+        JsonPointerLocator: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "json_pointer";
+            /** Pointer */
+            pointer: string;
+        };
+        /** JudgmentPackageContent */
+        JudgmentPackageContent: {
+            /** Reference Results */
+            reference_results: string[];
+            /** Accepted Reasons */
+            accepted_reasons: string[];
+            /** Rejected Reasons */
+            rejected_reasons: string[];
+            /** Hard Gates */
+            hard_gates: string[];
+            /** Minimum Quality Line */
+            minimum_quality_line: string;
+            /** Task Specific Rules */
+            task_specific_rules: string[];
+            /** Capabilities */
+            capabilities: string[];
+            /** Dimensions */
+            dimensions: string[];
+            /** Blocking Gaps */
+            blocking_gaps?: components["schemas"]["BlockingGap"][];
+            /** Evidence Refs */
+            evidence_refs: components["schemas"]["AgentEvidenceRef"][];
+        };
         /** LastError */
         LastError: {
             /**
@@ -610,6 +1033,18 @@ export interface components {
             message: string;
             /** Retryable */
             retryable: boolean;
+        };
+        /** LineRangeLocator */
+        LineRangeLocator: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "line_range";
+            /** Start Line */
+            start_line: number;
+            /** End Line */
+            end_line: number;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -693,6 +1128,21 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** PromotionCreateRequest */
+        PromotionCreateRequest: {
+            /** Source Id */
+            source_id: string;
+            /** Text */
+            text: string;
+        };
+        /** PromotionDecisionRequest */
+        PromotionDecisionRequest: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+        };
         /** ProposedStandard */
         ProposedStandard: {
             /** Id */
@@ -734,6 +1184,38 @@ export interface components {
             /** Evidence Refs */
             evidence_refs?: components["schemas"]["EvidenceRef"][];
         };
+        /** ScenarioContractContent */
+        ScenarioContractContent: {
+            /** Task Boundary */
+            task_boundary: string;
+            /** Input Contract */
+            input_contract: string[];
+            /** Output Contract */
+            output_contract: string[];
+            /** Hard Gates */
+            hard_gates: string[];
+            /** Quality Dimensions */
+            quality_dimensions: string[];
+            /** Prohibited Errors */
+            prohibited_errors?: string[];
+            /** Capabilities */
+            capabilities: string[];
+            /** Evidence Refs */
+            evidence_refs: components["schemas"]["AgentEvidenceRef"][];
+        };
+        /** SkillAttemptProposal */
+        SkillAttemptProposal: {
+            /** Attempt Key */
+            attempt_key: string;
+            /** Label */
+            label: string;
+            /** Evidence File Ids */
+            evidence_file_ids: string[];
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
         /** StudioProjection */
         StudioProjection: {
             /** Workspace Id */
@@ -749,6 +1231,83 @@ export interface components {
             latest_receipt?: components["schemas"]["OperationReceipt"] | null;
             /** Blocking Issues */
             blocking_issues?: string[];
+        };
+        /** TaskGroupInput */
+        TaskGroupInput: {
+            /** Proposal Key */
+            proposal_key?: string | null;
+            /** Title */
+            title: string;
+            /**
+             * Summary
+             * @default 老师确认的真实任务分组。
+             */
+            summary: string;
+            /** Evidence File Ids */
+            evidence_file_ids: string[];
+            /** Attempts */
+            attempts?: components["schemas"]["SkillAttemptProposal"][];
+            /**
+             * Initialization Only
+             * @default false
+             */
+            initialization_only: boolean;
+        };
+        /** TaskPackageListResponse */
+        TaskPackageListResponse: {
+            /** Batch Id */
+            batch_id: string;
+            /** Batch Revision */
+            batch_revision: number;
+            /** Task Packages */
+            task_packages: components["schemas"]["TaskPackageSummary"][];
+        };
+        /** TaskPackageResponse */
+        TaskPackageResponse: {
+            task_package: components["schemas"]["TaskPackageSummary"];
+        };
+        /**
+         * TaskPackageStatus
+         * @enum {string}
+         */
+        TaskPackageStatus: "proposed" | "confirmed" | "replaced";
+        /** TaskPackageSummary */
+        TaskPackageSummary: {
+            /** Id */
+            id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Upload Batch Id */
+            upload_batch_id: string;
+            status: components["schemas"]["TaskPackageStatus"];
+            /** Title */
+            title: string;
+            /** Evidence File Ids */
+            evidence_file_ids: string[];
+            /** Attempts */
+            attempts?: components["schemas"]["SkillAttemptProposal"][];
+            /** Revision */
+            revision: number;
+            /**
+             * Initialization Only
+             * @default false
+             */
+            initialization_only: boolean;
+            /**
+             * Has Judgment Package
+             * @default false
+             */
+            has_judgment_package: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** TeacherJudgment */
         TeacherJudgment: {
@@ -1851,6 +2410,826 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadBatchResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_task_packages_api_workspaces__workspace_id__upload_batches__batch_id__task_packages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskPackageListResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_task_groups_api_workspaces__workspace_id__upload_batches__batch_id__task_groups_confirmation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupingConfirmationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskPackageListResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_task_package_api_workspaces__workspace_id__task_packages__task_package_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                task_package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskPackageResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_cocreation_api_workspaces__workspace_id__task_packages__task_package_id__co_creation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                task_package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoCreationStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoCreationSessionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_cocreation_api_workspaces__workspace_id__co_creation__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoCreationSessionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    answer_cocreation_api_workspaces__workspace_id__co_creation__session_id__answers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoCreationAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoCreationSessionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_cocreation_api_workspaces__workspace_id__co_creation__session_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoCreationRetryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoCreationSessionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reset_cocreation_api_workspaces__workspace_id__co_creation__session_id__continuity_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoCreationResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoCreationSessionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    confirm_contract_api_workspaces__workspace_id__co_creation__session_id__contract_confirmation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoCreationConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoCreationSessionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_judgment_api_workspaces__workspace_id__co_creation__session_id__judgment_confirmation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoCreationConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoCreationSessionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_feedback_api_workspaces__workspace_id__task_packages__task_package_id__feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                task_package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromotionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    decide_promotion_api_workspaces__workspace_id__standard_promotions__proposal_id__decision_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromotionDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Unauthorized */

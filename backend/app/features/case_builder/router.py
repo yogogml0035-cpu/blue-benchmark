@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, Path, UploadFile, status
 
@@ -6,6 +6,20 @@ from app.features.auth import service as auth_service
 from app.features.auth.repository import UserRecord
 from app.features.case_builder import service
 from app.features.case_builder import ingestion_service
+from app.features.case_builder import cocreation_service
+from app.features.case_builder.cocreation_schemas import (
+    CoCreationAnswerRequest,
+    CoCreationConfirmRequest,
+    CoCreationRetryRequest,
+    CoCreationResetRequest,
+    CoCreationSessionResponse,
+    CoCreationStartRequest,
+    GroupingConfirmationRequest,
+    PromotionCreateRequest,
+    PromotionDecisionRequest,
+    TaskPackageListResponse,
+    TaskPackageResponse,
+)
 from app.features.case_builder.ingestion_schemas import (
     FileDispositionRequest,
     RetryOperationRequest,
@@ -18,6 +32,7 @@ from app.lib.schemas import ErrorResponse
 
 router = APIRouter(prefix="/workspaces/{workspace_id}/cases", tags=["case-builder"])
 ingestion_router = APIRouter(prefix="/workspaces/{workspace_id}/upload-batches", tags=["ingestion"])
+cocreation_router = APIRouter(prefix="/workspaces/{workspace_id}", tags=["cocreation"])
 common_errors = {
     401: {"model": ErrorResponse},
     403: {"model": ErrorResponse},
@@ -168,3 +183,200 @@ def update_file_disposition(
     return ingestion_service.update_file_disposition(
         workspace_id, batch_id, file_id, payload, user
     )
+
+
+@ingestion_router.get(
+    "/{batch_id}/task-packages",
+    response_model=TaskPackageListResponse,
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+def list_task_packages(
+    workspace_id: str = Path(min_length=1),
+    batch_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> TaskPackageListResponse:
+    return cocreation_service.list_task_packages(workspace_id, batch_id, user)
+
+
+@ingestion_router.post(
+    "/{batch_id}/task-groups/confirmation",
+    response_model=TaskPackageListResponse,
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+    },
+)
+def confirm_task_groups(
+    payload: GroupingConfirmationRequest,
+    workspace_id: str = Path(min_length=1),
+    batch_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> TaskPackageListResponse:
+    return cocreation_service.confirm_task_groups(workspace_id, batch_id, payload, user)
+
+
+@cocreation_router.get(
+    "/task-packages/{task_package_id}",
+    response_model=TaskPackageResponse,
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+def get_task_package(
+    workspace_id: str = Path(min_length=1),
+    task_package_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> TaskPackageResponse:
+    return cocreation_service.get_task_package(workspace_id, task_package_id, user)
+
+
+@cocreation_router.post(
+    "/task-packages/{task_package_id}/co-creation",
+    response_model=CoCreationSessionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+    },
+)
+def start_cocreation(
+    payload: CoCreationStartRequest,
+    workspace_id: str = Path(min_length=1),
+    task_package_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> CoCreationSessionResponse:
+    return cocreation_service.start_cocreation(workspace_id, task_package_id, payload, user)
+
+
+@cocreation_router.get(
+    "/co-creation/{session_id}",
+    response_model=CoCreationSessionResponse,
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+def get_cocreation(
+    workspace_id: str = Path(min_length=1),
+    session_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> CoCreationSessionResponse:
+    return cocreation_service.get_cocreation(workspace_id, session_id, user)
+
+
+@cocreation_router.post(
+    "/co-creation/{session_id}/answers",
+    response_model=CoCreationSessionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+    },
+)
+def answer_cocreation(
+    payload: CoCreationAnswerRequest,
+    workspace_id: str = Path(min_length=1),
+    session_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> CoCreationSessionResponse:
+    return cocreation_service.answer_cocreation(workspace_id, session_id, payload, user)
+
+
+@cocreation_router.post(
+    "/co-creation/{session_id}/retry",
+    response_model=CoCreationSessionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+    },
+)
+def retry_cocreation(
+    payload: CoCreationRetryRequest,
+    workspace_id: str = Path(min_length=1),
+    session_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> CoCreationSessionResponse:
+    return cocreation_service.retry_cocreation(workspace_id, session_id, payload, user)
+
+
+@cocreation_router.post(
+    "/co-creation/{session_id}/continuity-reset",
+    response_model=CoCreationSessionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+    },
+)
+def reset_cocreation(
+    payload: CoCreationResetRequest,
+    workspace_id: str = Path(min_length=1),
+    session_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> CoCreationSessionResponse:
+    return cocreation_service.reset_cocreation(workspace_id, session_id, payload, user)
+
+
+@cocreation_router.post(
+    "/co-creation/{session_id}/contract-confirmation",
+    response_model=CoCreationSessionResponse,
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+)
+def confirm_contract(
+    payload: CoCreationConfirmRequest,
+    workspace_id: str = Path(min_length=1),
+    session_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> CoCreationSessionResponse:
+    return cocreation_service.confirm_contract(workspace_id, session_id, payload, user)
+
+
+@cocreation_router.post(
+    "/co-creation/{session_id}/judgment-confirmation",
+    response_model=CoCreationSessionResponse,
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+)
+def confirm_judgment(
+    payload: CoCreationConfirmRequest,
+    workspace_id: str = Path(min_length=1),
+    session_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> CoCreationSessionResponse:
+    return cocreation_service.confirm_judgment(workspace_id, session_id, payload, user)
+
+
+@cocreation_router.post(
+    "/task-packages/{task_package_id}/feedback",
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+)
+def create_feedback(
+    payload: PromotionCreateRequest,
+    workspace_id: str = Path(min_length=1),
+    task_package_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> dict[str, Any]:
+    return cocreation_service.create_feedback(workspace_id, task_package_id, payload, user)
+
+
+@cocreation_router.post(
+    "/standard-promotions/{proposal_id}/decision",
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+)
+def decide_promotion(
+    payload: PromotionDecisionRequest,
+    workspace_id: str = Path(min_length=1),
+    proposal_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> dict[str, Any]:
+    return cocreation_service.decide_promotion(workspace_id, proposal_id, payload, user)
