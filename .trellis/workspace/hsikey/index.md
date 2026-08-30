@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
+- **Total Sessions**: 9
 - **Last Active**: 2026-08-31
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~201 | Active |
+| `journal-1.md` | ~223 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 9 | 2026-08-31 | M0 真实 AI E2E 验证与跨层加固 | `347df56` | `main` |
 | 8 | 2026-08-31 | 修复 Worker runpy 启动警告 | `f5d5904` | `main` |
 | 7 | 2026-08-31 | 真实 Provider smoke 对抗加固 | `c11285d` | `main` |
 | 6 | 2026-08-30 | 生产 AI Worker 真实 Provider 接线 | `8021638` | `main` |

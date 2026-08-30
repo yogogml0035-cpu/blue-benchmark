@@ -199,3 +199,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 9: M0 真实 AI E2E 验证与跨层加固
+<!-- trellis-session: v=2 fp=7353fcd45159ec17 -->
+
+**Date**: 2026-08-31
+**Task**: M0 真实 AI E2E 验证与跨层加固
+**Branch**: `main`
+
+### Summary
+
+用 /Users/hsikey/BenchMark/EvalData 三份资料在临时 PostgreSQL 17 与独立加密 Checkpointer 上重跑真实 Provider/Worker E2E；修复 evidence scope/group-local 引用、completion fallback、operation kind/attempt CAS、终态 draft command、前端轮询与上传幂等边界。真实包、浏览器桌面/窄屏/旧路由/私有隔离与对抗审查记录已归档；make test 105、make build、ai-smoke、OpenAPI 和 diff check 通过。保留原生 5432 数据库未启动与默认 12 轮真实跑量未验证边界。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `347df56` | test: validate and harden real M0 AI E2E |
+
+### Status
+
+[OK] **Completed**
