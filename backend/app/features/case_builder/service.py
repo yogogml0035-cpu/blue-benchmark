@@ -262,6 +262,7 @@ def generate_draft(workspace_id: str, case_id: str, user: UserRecord) -> CaseDet
     case.state = CaseState.generating
     _touch(case)
     _run_stub_generation(case)
+    repository.save(case)
     return _detail(case)
 
 
@@ -286,6 +287,7 @@ def answer_question(
     case.draft_revision = max(case.draft_revision, 1)
     case.state = CaseState.waiting_for_confirmation
     _touch(case)
+    repository.save(case)
     return _detail(case)
 
 
@@ -341,5 +343,5 @@ def confirm(
     case.state = CaseState.confirmed
     case.last_error = None
     _touch(case)
+    repository.save(case)
     return _detail(case)
-

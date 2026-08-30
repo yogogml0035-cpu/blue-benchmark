@@ -8,5 +8,10 @@ node_modules/
 .next/
 *.tsbuildinfo
 storage/uploads/
+storage/evidence/
+storage/versions/
+storage/staging/
+storage/skill-eval.db
+backend/storage/
 .local-samples/
 .playwright-cli/

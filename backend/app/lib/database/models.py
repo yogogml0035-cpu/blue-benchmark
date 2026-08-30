@@ -1,0 +1,249 @@
+from datetime import datetime
+
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class UserRow(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    password_hash: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class SessionRow(Base):
+    __tablename__ = "sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class WorkspaceRow(Base):
+    __tablename__ = "workspaces"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    owner_user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CaseRow(Base):
+    __tablename__ = "cases"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    task_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attachment_json: Mapped[dict] = mapped_column(JSON)
+    parsed_text: Mapped[str] = mapped_column(Text, default="")
+    state: Mapped[str] = mapped_column(String(64), index=True)
+    thread_id: Mapped[str] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    draft_revision: Mapped[int] = mapped_column(Integer, default=0)
+    pending_question_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    draft_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    last_error_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    candidate_case_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    generation_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    answered_questions_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    mode: Mapped[str] = mapped_column(String(64), default="question")
+
+
+class UploadBatchRow(Base):
+    __tablename__ = "upload_batches"
+    __table_args__ = (UniqueConstraint("workspace_id", "command_id", name="uq_upload_batch_command"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    task_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    command_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class EvidenceFileRow(Base):
+    __tablename__ = "evidence_files"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    upload_batch_id: Mapped[str] = mapped_column(ForeignKey("upload_batches.id", ondelete="CASCADE"), index=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    storage_key: Mapped[str] = mapped_column(String(512), unique=True)
+    original_name: Mapped[str] = mapped_column(String(512))
+    media_type: Mapped[str] = mapped_column(String(255))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    parse_state: Mapped[str] = mapped_column(String(64), index=True)
+    parse_error_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    canonical_view_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    source_member: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class FileDispositionRow(Base):
+    __tablename__ = "file_dispositions"
+    __table_args__ = (UniqueConstraint("evidence_file_id", name="uq_file_disposition_file"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    evidence_file_id: Mapped[str] = mapped_column(ForeignKey("evidence_files.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(64), default="unknown")
+    required: Mapped[bool] = mapped_column(Boolean, default=False)
+    ignored: Mapped[bool] = mapped_column(Boolean, default=False)
+    visibility: Mapped[str] = mapped_column(String(32), default="unconfirmed")
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confirmed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TaskPackageRow(Base):
+    __tablename__ = "task_packages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    upload_batch_id: Mapped[str] = mapped_column(ForeignKey("upload_batches.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    evidence_file_ids_json: Mapped[list] = mapped_column(JSON, default=list)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class SkillRunEvidenceRow(Base):
+    __tablename__ = "skill_run_evidence"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    task_package_id: Mapped[str] = mapped_column(ForeignKey("task_packages.id", ondelete="CASCADE"), index=True)
+    attempt_key: Mapped[str] = mapped_column(String(255))
+    evidence_file_id: Mapped[str | None] = mapped_column(ForeignKey("evidence_files.id"), nullable=True)
+    role: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CoCreationSessionRow(Base):
+    __tablename__ = "co_creation_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    task_package_id: Mapped[str] = mapped_column(ForeignKey("task_packages.id", ondelete="CASCADE"), index=True)
+    stable_thread_key: Mapped[str] = mapped_column(String(255), unique=True)
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    business_revision: Mapped[int] = mapped_column(Integer, default=0)
+    accepted_checkpoint_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pending_interrupt_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    ai_profile_version: Mapped[str] = mapped_column(String(128))
+    graph_schema_version: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CoCreationTurnRow(Base):
+    __tablename__ = "co_creation_turns"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    session_id: Mapped[str] = mapped_column(ForeignKey("co_creation_sessions.id", ondelete="CASCADE"), index=True)
+    turn_revision: Mapped[int] = mapped_column(Integer)
+    question_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    answer_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    delta_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class QuestionRevisionRow(Base):
+    __tablename__ = "question_revisions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    session_id: Mapped[str] = mapped_column(ForeignKey("co_creation_sessions.id", ondelete="CASCADE"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    question_json: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class TeacherFeedbackRow(Base):
+    __tablename__ = "teacher_feedback"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    task_package_id: Mapped[str] = mapped_column(ForeignKey("task_packages.id", ondelete="CASCADE"), index=True)
+    source_id: Mapped[str] = mapped_column(String(255))
+    text: Mapped[str] = mapped_column(Text)
+    scope: Mapped[str] = mapped_column(String(64), default="question_only")
+    confirmed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class StandardPromotionProposalRow(Base):
+    __tablename__ = "standard_promotion_proposals"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    source_feedback_id: Mapped[str] = mapped_column(ForeignKey("teacher_feedback.id", ondelete="CASCADE"), index=True)
+    proposed_text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class OperationJobRow(Base):
+    __tablename__ = "operation_jobs"
+    __table_args__ = (
+        UniqueConstraint(
+            "target_type",
+            "target_id",
+            "business_revision",
+            "command_id",
+            name="uq_operation_target_revision_command",
+        ),
+        Index("ix_operation_claim", "status", "available_at", "lease_until"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(64), index=True)
+    target_type: Mapped[str] = mapped_column(String(64))
+    target_id: Mapped[str] = mapped_column(String(255), index=True)
+    command_id: Mapped[str] = mapped_column(String(255))
+    business_revision: Mapped[int] = mapped_column(Integer, default=0)
+    accepted_checkpoint_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    worker_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_error_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    result_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AgentRunAttemptRow(Base):
+    __tablename__ = "agent_run_attempts"
+    __table_args__ = (UniqueConstraint("operation_job_id", "attempt_number", name="uq_agent_attempt_number"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    operation_job_id: Mapped[str] = mapped_column(ForeignKey("operation_jobs.id", ondelete="CASCADE"), index=True)
+    target_type: Mapped[str] = mapped_column(String(64))
+    target_id: Mapped[str] = mapped_column(String(255), index=True)
+    attempt_number: Mapped[int] = mapped_column(Integer)
+    base_checkpoint_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    produced_checkpoint_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    result_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -16,5 +16,5 @@ class ErrorResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str = "ok"
     service: str
-    persistence: str = "in-memory stub"
+    persistence: str = "business database"
     ai: str = "stub"

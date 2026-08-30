@@ -47,7 +47,7 @@ def upload_case(client: TestClient, workspace_id: str, text: str) -> dict:
 
 
 def test_openapi_and_health(client: TestClient):
-    assert client.get("/healthz").json()["persistence"] == "in-memory stub"
+    assert client.get("/healthz").json()["persistence"] == "business database"
     schema = client.get("/api/openapi.json").json()
     assert "/api/workspaces/{workspace_id}/cases/{case_id}/confirmation" in schema["paths"]
     assert "CaseDetail" in schema["components"]["schemas"]
@@ -124,4 +124,3 @@ def test_forbidden_workspace_and_case(client: TestClient):
     assert response.status_code == 403
     response = other.get(f"/api/workspaces/{workspace_id}/cases/{case['id']}")
     assert response.status_code == 403
-

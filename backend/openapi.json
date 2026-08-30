@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Skill Eval Platform API",
-    "description": "Feature-first in-memory Stub for the Case Builder walking skeleton.",
+    "description": "Feature-first FastAPI service for the Skill Eval Platform.",
     "version": "0.1.0"
   },
   "paths": {
@@ -861,10 +861,528 @@
           }
         }
       }
+    },
+    "/api/workspaces/{workspace_id}/upload-batches": {
+      "post": {
+        "tags": [
+          "ingestion"
+        ],
+        "summary": "Create Upload Batch",
+        "operationId": "create_upload_batch_api_workspaces__workspace_id__upload_batches_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_upload_batch_api_workspaces__workspace_id__upload_batches_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadBatchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/upload-batches/studio": {
+      "get": {
+        "tags": [
+          "ingestion"
+        ],
+        "summary": "Get Studio",
+        "operationId": "get_studio_api_workspaces__workspace_id__upload_batches_studio_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "batch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioProjection"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/upload-batches/{batch_id}": {
+      "get": {
+        "tags": [
+          "ingestion"
+        ],
+        "summary": "Get Upload Batch",
+        "operationId": "get_upload_batch_api_workspaces__workspace_id__upload_batches__batch_id__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadBatchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/upload-batches/{batch_id}/retry": {
+      "post": {
+        "tags": [
+          "ingestion"
+        ],
+        "summary": "Retry Batch Analysis",
+        "operationId": "retry_batch_analysis_api_workspaces__workspace_id__upload_batches__batch_id__retry_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryOperationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadBatchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/upload-batches/{batch_id}/files/{file_id}/disposition": {
+      "patch": {
+        "tags": [
+          "ingestion"
+        ],
+        "summary": "Update File Disposition",
+        "operationId": "update_file_disposition_api_workspaces__workspace_id__upload_batches__batch_id__files__file_id__disposition_patch",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "File Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileDispositionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadBatchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ActiveOperation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "batch_analysis",
+              "cocreation_start",
+              "cocreation_resume",
+              "cocreation_reproject",
+              "coverage_review",
+              "freeze_package"
+            ],
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "failed",
+              "projection_pending"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "status"
+        ],
+        "title": "ActiveOperation"
+      },
       "AnswerRequest": {
         "properties": {
           "question_id": {
@@ -947,6 +1465,55 @@
           "file"
         ],
         "title": "Body_create_case_api_workspaces__workspace_id__cases_post"
+      },
+      "Body_create_upload_batch_api_workspaces__workspace_id__upload_batches_post": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Files"
+          },
+          "task_description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Description"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "files"
+        ],
+        "title": "Body_create_upload_batch_api_workspaces__workspace_id__upload_batches_post"
       },
       "BuilderSnapshot": {
         "properties": {
@@ -1334,6 +1901,111 @@
         ],
         "title": "ErrorResponse"
       },
+      "EvidenceFileSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "original_name": {
+            "type": "string",
+            "title": "Original Name"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Size Bytes"
+          },
+          "sha256": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Sha256"
+          },
+          "parse_state": {
+            "$ref": "#/components/schemas/EvidenceParseState"
+          },
+          "parse_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parse Error"
+          },
+          "source_member": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Member"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "brief",
+              "runtime",
+              "judge",
+              "provenance"
+            ],
+            "title": "Role",
+            "default": "unknown"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "ignored": {
+            "type": "boolean",
+            "title": "Ignored",
+            "default": false
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "unconfirmed",
+              "runtime",
+              "judge",
+              "provenance"
+            ],
+            "title": "Visibility",
+            "default": "unconfirmed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "original_name",
+          "media_type",
+          "size_bytes",
+          "sha256",
+          "parse_state"
+        ],
+        "title": "EvidenceFileSummary"
+      },
+      "EvidenceParseState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "parsed",
+          "parse_failed",
+          "unsupported"
+        ],
+        "title": "EvidenceParseState"
+      },
       "EvidenceRef": {
         "properties": {
           "kind": {
@@ -1407,6 +2079,65 @@
         ],
         "title": "Fact"
       },
+      "FileDispositionRequest": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "brief",
+              "runtime",
+              "judge",
+              "provenance"
+            ],
+            "title": "Role"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "ignored": {
+            "type": "boolean",
+            "title": "Ignored",
+            "default": false
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "unconfirmed",
+              "runtime",
+              "judge",
+              "provenance"
+            ],
+            "title": "Visibility",
+            "default": "unconfirmed"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "batch_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Batch Revision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "batch_revision"
+        ],
+        "title": "FileDispositionRequest"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1434,7 +2165,7 @@
           "persistence": {
             "type": "string",
             "title": "Persistence",
-            "default": "in-memory stub"
+            "default": "business database"
           },
           "ai": {
             "type": "string",
@@ -1501,6 +2232,114 @@
           "password"
         ],
         "title": "LoginRequest"
+      },
+      "NextActionConfirmFiles": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "confirm_file_roles",
+            "title": "Kind",
+            "default": "confirm_file_roles"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": "确认资料用途"
+          }
+        },
+        "type": "object",
+        "title": "NextActionConfirmFiles"
+      },
+      "NextActionNone": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "none",
+            "title": "Kind",
+            "default": "none"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": "暂无下一步"
+          }
+        },
+        "type": "object",
+        "title": "NextActionNone"
+      },
+      "NextActionRetry": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "retry_processing",
+            "title": "Kind",
+            "default": "retry_processing"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": "重试资料整理"
+          }
+        },
+        "type": "object",
+        "title": "NextActionRetry"
+      },
+      "NextActionWait": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "wait_for_processing",
+            "title": "Kind",
+            "default": "wait_for_processing"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": "等待资料整理"
+          }
+        },
+        "type": "object",
+        "title": "NextActionWait"
+      },
+      "OperationReceipt": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed",
+              "superseded"
+            ],
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "message"
+        ],
+        "title": "OperationReceipt"
       },
       "PendingQuestion": {
         "properties": {
@@ -1613,6 +2452,27 @@
         ],
         "title": "RegisterRequest"
       },
+      "RetryOperationRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "batch_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Batch Revision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id",
+          "batch_revision"
+        ],
+        "title": "RetryOperationRequest"
+      },
       "Scenario": {
         "properties": {
           "summary": {
@@ -1633,6 +2493,90 @@
           "summary"
         ],
         "title": "Scenario"
+      },
+      "StudioProjection": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "batch_id": {
+            "type": "string",
+            "title": "Batch Id"
+          },
+          "batch_status": {
+            "$ref": "#/components/schemas/UploadBatchState"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceFileSummary"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "next_action": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NextActionConfirmFiles"
+              },
+              {
+                "$ref": "#/components/schemas/NextActionWait"
+              },
+              {
+                "$ref": "#/components/schemas/NextActionRetry"
+              },
+              {
+                "$ref": "#/components/schemas/NextActionNone"
+              }
+            ],
+            "title": "Next Action",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "confirm_file_roles": "#/components/schemas/NextActionConfirmFiles",
+                "none": "#/components/schemas/NextActionNone",
+                "retry_processing": "#/components/schemas/NextActionRetry",
+                "wait_for_processing": "#/components/schemas/NextActionWait"
+              }
+            }
+          },
+          "active_operation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveOperation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest_receipt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationReceipt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blocking_issues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blocking Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "batch_id",
+          "batch_status",
+          "files",
+          "next_action"
+        ],
+        "title": "StudioProjection"
       },
       "TeacherJudgment": {
         "properties": {
@@ -1685,6 +2629,96 @@
           "text"
         ],
         "title": "Unknown"
+      },
+      "UploadBatch": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "task_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Description"
+          },
+          "status": {
+            "$ref": "#/components/schemas/UploadBatchState"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Revision"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceFileSummary"
+            },
+            "type": "array",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "title",
+          "status",
+          "revision",
+          "created_at",
+          "updated_at",
+          "files"
+        ],
+        "title": "UploadBatch"
+      },
+      "UploadBatchResponse": {
+        "properties": {
+          "batch": {
+            "$ref": "#/components/schemas/UploadBatch"
+          },
+          "studio": {
+            "$ref": "#/components/schemas/StudioProjection"
+          }
+        },
+        "type": "object",
+        "required": [
+          "batch",
+          "studio"
+        ],
+        "title": "UploadBatchResponse"
+      },
+      "UploadBatchState": {
+        "type": "string",
+        "enum": [
+          "received",
+          "analyzing",
+          "ready_for_confirmation",
+          "failed"
+        ],
+        "title": "UploadBatchState"
       },
       "User": {
         "properties": {
