@@ -21,18 +21,17 @@ from app.features.case_builder.cocreation_schemas import (
     SkillAttemptProposal,
     TaskGroupProposal,
 )
-from app.lib.ai_runtime.checkpoint import CheckpointIncompatible, FakeCheckpointStore
+from app.lib.ai_runtime.checkpoint import CheckpointError, CheckpointIncompatible, FakeCheckpointStore
 from app.lib.ai_runtime.context import AgentRunContext
 from app.lib.ai_runtime.evidence import EvidenceDocument, ReadOnlyEvidenceBackend
 from app.lib.ai_runtime.middleware import ModelToolSurfaceMiddleware
+from app.lib.ai_runtime.model import ModelConfigurationError, build_runtime_model
 from app.lib.ai_runtime.profile import (
     ASK_TOOL,
     GRAPH_SCHEMA_VERSION,
     READ_TOOLS,
-    get_ai_profile,
     initialize_ai_runtime,
 )
-from app.lib.settings import settings
 
 
 class AskTeacherToolInput(BaseModel):
@@ -293,19 +292,39 @@ def _assert_single_ask_teacher_message(result: dict[str, Any]) -> None:
         raise RuntimeError("interrupting message must contain only one ask_teacher call")
 
 
+def _resolve_runtime_model(model: Any | None, model_spec: str | None) -> tuple[Any, str]:
+    """Resolve one validated model client and its exact Harness registration key.
+
+    Production callers should pass both values from ``build_runtime_model``.
+    Direct adapter construction is still useful for diagnostics, but it must
+    go through the same explicit configuration factory instead of handing an
+    unvalidated ``provider:model`` string to ``create_deep_agent``.
+    """
+
+    if model is None:
+        resolved_model, identity = build_runtime_model()
+        if model_spec is not None and model_spec != identity.registration_key:
+            raise ModelConfigurationError("model registration key does not match configured model")
+        return resolved_model, identity.registration_key
+    if not isinstance(model_spec, str) or not model_spec.strip():
+        raise ModelConfigurationError("model registration key is required for an injected model")
+    return model, model_spec.strip()
+
+
 class _DeepAgentBase:
-    def __init__(self, checkpointer: Any = None) -> None:
+    def __init__(
+        self,
+        checkpointer: Any = None,
+        *,
+        model: Any = None,
+        model_spec: str | None = None,
+    ) -> None:
         self.checkpointer = checkpointer
-        model_key = f"anthropic:{settings.ai_model_id}" if settings.ai_base_url else None
-        self.profile = initialize_ai_runtime(model_key)
+        self._runtime_model, self._model_spec = _resolve_runtime_model(model, model_spec)
+        self.profile = initialize_ai_runtime(self._model_spec)
 
-    @staticmethod
-    def _model() -> Any:
-        if settings.ai_base_url:
-            from langchain_anthropic import ChatAnthropic
-
-            return ChatAnthropic(model_name=settings.ai_model_id, base_url=settings.ai_base_url, streaming=False)
-        return settings.ai_model_spec
+    def _model(self) -> Any:
+        return self._runtime_model
 
     @staticmethod
     def _permissions(file_ids: tuple[str, ...] | list[str]) -> list[Any]:
@@ -478,11 +497,19 @@ _adapters: RuntimeAdapters = RuntimeAdapters(
 )
 
 
-def production_adapters(checkpointer: Any) -> RuntimeAdapters:
+def production_adapters(
+    checkpointer: Any,
+    *,
+    model: Any | None = None,
+    model_spec: str | None = None,
+) -> RuntimeAdapters:
+    if checkpointer is None:
+        raise CheckpointError("production adapters require a PostgreSQL checkpointer")
+    model, model_spec = _resolve_runtime_model(model, model_spec)
     return RuntimeAdapters(
-        evidence_analyzer=DeepAgentsEvidenceAnalyzer(),
-        standard_cocreator=DeepAgentsStandardCoCreator(checkpointer),
-        coverage_reviewer=DeepAgentsCoverageReviewer(),
+        evidence_analyzer=DeepAgentsEvidenceAnalyzer(model=model, model_spec=model_spec),
+        standard_cocreator=DeepAgentsStandardCoCreator(checkpointer, model=model, model_spec=model_spec),
+        coverage_reviewer=DeepAgentsCoverageReviewer(model=model, model_spec=model_spec),
     )
 
 

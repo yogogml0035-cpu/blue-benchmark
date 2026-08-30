@@ -10,7 +10,7 @@
 | Session Cookie 只把 SHA-256 token hash 存入数据库 | 更完整的 Session 过期、撤销和轮换策略 |
 | 旧 `/cases` 入口保留 TXT/Markdown Stub 闭环 | 旧入口向完整任务包迁移 |
 | `/upload-batches` 接受多文件和 ZIP，原文件以服务端存储键保存 | 生产对象存储、OCR 和更多媒体解析 |
-| `_run_stub_generation` 和内容标记驱动固定分支仍服务旧 `/cases`；M0 Worker 默认使用 Fake adapter | 真实 provider 线上调用、Worker lifespan 注入生产 Checkpointer |
+| `_run_stub_generation` 和内容标记驱动固定分支仍服务旧 `/cases`；M0 自动化测试/显式 Fake Worker 使用 Fake adapter，常驻 Worker 默认走显式 Provider 配置的真实 adapter | 目标模型的真实 tool-calling 能力仍需按部署端点单独 smoke 验收 |
 | 确认后生成数据库中的 `candidate_case` JSON 快照；M0 另有 TaskPackage、WorkingSetDraft 和不可变 EvaluationSetVersion | M2 评测执行和报告 |
 | `OperationJob` 负责持久化排队、租约、重试和幂等，Fake Worker 可执行 M0 batch/co-creation 操作 | M2 评测执行和报告 |
 
@@ -98,7 +98,7 @@ HTTP 只返回服务端生成的业务 ID、哈希和文件摘要，不返回宿
 - `ReadOnlyEvidenceBackend.read` 的 `offset` 为 0-based，`ReadResult.start_line/end_line` 为 1-based；长文件必须分页到 EOF，模型 EvidenceRef 由 Service 回查 canonical view。
 - EvidenceBackend 和 EvidenceRef 回查都校验 ready marker、文件大小和 SHA-256；line quote 必须出现在 canonical line range，JSON pointer/event locator 必须存在于真实内容。TaskPackage HTTP DTO 只投影 attempt 的安全字段，不投影任意 metadata。
 - Agent 虚拟 scope 提供只含文件 ID、名称、行数和 hash 的 `/evidence/manifest.json`；Checkpoint 缺失/不兼容时业务快照返回 `next_action=continuity_reset`，不能伪装成普通重试。
-- CI 和本地验收默认使用 Fake adapter；生产 Checkpointer 由显式 `setup_checkpointer`/`open_async_postgres_checkpointer` 使用独立 `CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`（或等价显式键）配置，不能在 HTTP 请求中 setup。`make checkpoint-setup` 只负责 Checkpointer schema setup，不代表已经启用真实 provider。
+- CI 和本地验收默认使用 Fake adapter；常驻 Worker 由 `AI_RUNTIME_MODE=production`（默认）和显式 `AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY`、可选 `AI_BASE_URL` 构造真实 ChatOpenAI/ChatAnthropic。生产 Checkpointer 由显式 `setup_checkpointer`/同步 `open_postgres_checkpointer`（异步调用方仍可用 `open_async_postgres_checkpointer`）使用独立 `CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`（或等价显式键）配置，不能在 HTTP 请求中 setup。Worker 只做 schema readiness 检查，配置、连接或 schema 错误必须在 claim 前 fail-closed；`make checkpoint-setup` 只负责 Checkpointer schema setup，不代表 Provider smoke 已通过。
 
 ### 4. Validation & Error Matrix
 
@@ -139,6 +139,60 @@ repository.commit_agent_result(expected_checkpoint_id=checkpoint_id, result=resu
 ```
 
 只有业务事务 CAS 成功后，produced Checkpoint 才成为新的 accepted pointer。
+
+## Scenario: 生产 AI Worker 与 Provider 接线
+
+### 1. Scope / Trigger
+
+- Trigger: 常驻 `make worker` 必须执行真实 AI，并能按环境切换 OpenAI 兼容协议或 Anthropic 协议；不能沿用模块级 Fake 或异步 Checkpointer 接到同步 Graph。
+
+### 2. Signatures
+
+- `build_runtime_model(settings) -> (BaseChatModel, RuntimeModelIdentity)`：唯一模型构造入口。
+- `production_worker() -> Iterator[OperationWorker]`：持有同步 Checkpointer 连接直到 Worker 退出。
+- `open_postgres_checkpointer(database_url, encryption_key, require_schema=True)`：返回加密 `PostgresSaver` context。
+- `AI_PROVIDER= openai | anthropic`、`AI_MODEL`、`AI_API_KEY`、可选 `AI_BASE_URL`、`AI_RUNTIME_MODE=production | fake`。
+
+### 3. Contracts
+
+- `openai` 使用 `ChatOpenAI`、显式 Chat Completions（`use_responses_api=False`）和官方/自定义 `base_url`；`anthropic` 使用 `ChatAnthropic` 和官方/自定义 Messages API URL。
+- `AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY` 缺失或不受支持，Base URL 含非 HTTP(S)/userinfo/query/fragment，或 API key 仍是示例占位符 -> production Worker 在 claim 前退出。
+- Checkpointer 使用独立 PostgreSQL 数据库、16/24/32 字节 `LANGGRAPH_AES_KEY`；Worker 只检查表和最新迁移，不自动 `setup()`。
+- Provider、模型或端点变化必须改变 `AIProfile.version` 指纹；不包含 API key。
+
+### 4. Validation & Error Matrix
+
+- `AI_RUNTIME_MODE=fake` 或 `--fake` -> 仅显式本地/测试 Fake；默认/`production` -> 必须真实模型和 Checkpointer。
+- Checkpointer URL 非 PostgreSQL、与业务库同 host/port/database、连接失败、表缺失或 migration version 落后 -> `CheckpointError`，不领取 OperationJob。
+- Provider SDK 缺失 -> `ModelConfigurationError`；模型响应 `invalid_tool_calls`、ToolStrategy 无结构化结果仍由 Adapter fail-closed，不回退自由文本。
+
+### 5. Good/Base/Bad Cases
+
+- Good: 设置 `AI_PROVIDER=openai` + 兼容端点，`make ai-smoke` 返回 `AI_PROVIDER_SMOKE=PASS`，Worker 在同一 PostgresSaver context 中处理任务。
+- Base: 仅运行 API 或缺少 `.env` 真实模型配置，API 可启动但 Worker 明确提示配置错误；业务任务不被 claim。
+- Bad: 通过 `OPENAI_BASE_URL` ambient env、旧 `AI_MODEL_SPEC`、Fake 默认对象或 Checkpointer latest 偷换运行时；必须拒绝或保持旧 accepted pointer。
+
+### 6. Tests Required
+
+- 模型工厂：两 Provider、官方/自定义 URL、空/非法/占位 Key、ambient URL 隔离、指纹变化；断言客户端类型、模型、`streaming=False`、无 `temperature`。
+- Worker/Checkpointer：模型 -> DB -> adapters -> claim 顺序；加密 saver、`row_factory=dict_row`、迁移版本 readiness、连接关闭、错库拒绝；断言失败时 `claim_next` 未调用。
+- CLI/smoke：FAIL 输出只含 Provider/模型/错误类型；不含 API key、URL 密码、模型正文或 private reasoning。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+worker = default_worker()  # module-level Fake adapters
+worker.run_forever()
+```
+
+#### Correct
+
+```python
+with production_worker() as worker:  # validates model + opens PostgresSaver first
+    worker.run_forever()
+```
 
 ## Scenario: M0 业务持久化与安全上传
 

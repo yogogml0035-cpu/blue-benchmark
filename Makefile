@@ -1,4 +1,4 @@
-.PHONY: backend frontend openapi contract-check test typecheck build db-migrate db-check checkpoint-setup worker
+.PHONY: backend frontend openapi contract-check test typecheck build db-migrate db-check checkpoint-setup ai-smoke worker
 
 backend:
 	uv run --project backend uvicorn app.main:app --app-dir backend --reload --port 8000
@@ -33,6 +33,9 @@ db-check:
 
 checkpoint-setup:
 	cd backend && uv run python -m scripts.setup_checkpointer
+
+ai-smoke:
+	cd backend && uv run python -m scripts.smoke_ai_provider
 
 worker:
 	cd backend && uv run python -m app.lib.operations.worker

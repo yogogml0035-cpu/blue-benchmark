@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from threading import Lock
 
+from app.lib.ai_runtime.model import ModelConfigurationError, RuntimeModelIdentity, runtime_model_identity
 from app.lib.settings import settings
 
 
@@ -32,9 +33,21 @@ class AIProfile:
 
 
 def get_ai_profile() -> AIProfile:
+    try:
+        identity = runtime_model_identity(settings, require_credentials=False)
+    except ModelConfigurationError:
+        # API-side tests and deterministic Fake workers intentionally do not
+        # provide production Provider fields.  Keep their registration key
+        # stable without introducing a second, environment-configurable model
+        # contract or weakening the production model factory's validation.
+        identity = RuntimeModelIdentity(
+            provider="anthropic",
+            model="claude-sonnet-4-6",
+            base_url=None,
+        )
     return AIProfile(
-        version=AI_PROFILE_VERSION,
-        model_spec=settings.ai_model_spec,
+        version=f"{AI_PROFILE_VERSION}-{identity.fingerprint}",
+        model_spec=identity.model_spec,
         strategy="ToolStrategy",
         streaming=False,
         store_enabled=False,

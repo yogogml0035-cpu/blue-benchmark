@@ -35,6 +35,7 @@ from app.lib.operations import repository as operation_repository
 from app.lib.operations.worker import default_worker
 from app.lib.storage import LocalStorage
 from app.main import app
+from langchain_openai import ChatOpenAI
 
 
 @pytest.fixture(autouse=True)
@@ -219,7 +220,15 @@ def test_stateless_real_adapter_does_not_require_checkpoint_state():
         ai_profile_version="profile",
         graph_schema_version="graph",
     )
-    result = DeepAgentsCoverageReviewer()._invoke(StatelessGraph(), {}, context, CoverageReview)
+    result = DeepAgentsCoverageReviewer(
+        model=ChatOpenAI(
+            model="stateless-test",
+            api_key="test-secret",
+            base_url="https://models.example/v1",
+            streaming=False,
+        ),
+        model_spec="openai:stateless-test",
+    )._invoke(StatelessGraph(), {}, context, CoverageReview)
     assert isinstance(result.result, CoverageReview)
 
 
@@ -237,13 +246,20 @@ def test_production_graphs_construct_with_role_specific_tool_surfaces():
         ai_profile_version=profile.version,
         graph_schema_version="m0-cocreation-graph-v1",
     )
-    batch_graph = DeepAgentsEvidenceAnalyzer()._graph(
+    model = ChatOpenAI(
+        model="test-model",
+        api_key="test-secret",
+        base_url="https://models.example/v1",
+        streaming=False,
+    )
+    model_spec = "openai:test-model"
+    batch_graph = DeepAgentsEvidenceAnalyzer(model=model, model_spec=model_spec)._graph(
         context,
         {},
         BatchAnalysis,
         allowed_tools={"ls", "read_file", "glob", "grep", "BatchAnalysis"},
     )
-    co_graph = DeepAgentsStandardCoCreator()._graph(
+    co_graph = DeepAgentsStandardCoCreator(model=model, model_spec=model_spec)._graph(
         context,
         {},
         CoCreationAgentResult,

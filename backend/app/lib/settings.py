@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,13 +16,19 @@ class Settings(BaseSettings):
     upload_max_bytes: int = 1_048_576
     database_url: str = f"sqlite:///{Path(__file__).resolve().parents[2] / 'storage' / 'skill-eval.db'}"
     checkpoint_database_url: str = ""
-    checkpoint_encryption_key: str = Field(
-        default="",
+    checkpoint_encryption_key: SecretStr = Field(
+        default=SecretStr(""),
         validation_alias=AliasChoices("CHECKPOINT_ENCRYPTION_KEY", "LANGGRAPH_AES_KEY"),
     )
-    ai_runtime_mode: str = "fake"
-    ai_model_spec: str = "anthropic:claude-sonnet-4-6"
-    ai_model_id: str = "claude-sonnet-4-6"
+    # A real provider is the safe default for the long-running worker.  Tests
+    # and local deterministic runs must opt into ``fake`` explicitly.
+    ai_runtime_mode: str = "production"
+    ai_provider: str = ""
+    ai_model: str = ""
+    ai_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("AI_API_KEY"),
+    )
     ai_base_url: str = ""
     ai_model_call_limit: int = 12
     ai_tool_call_limit: int = 40
@@ -41,8 +47,43 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
         env_file_encoding="utf-8",
+        populate_by_name=True,
         extra="ignore",
     )
+
+    @field_validator("ai_runtime_mode", mode="before")
+    @classmethod
+    def normalize_runtime_mode(cls, value: object) -> str:
+        return str(value or "").strip().lower()
+
+    @field_validator("ai_provider", mode="before")
+    @classmethod
+    def normalize_ai_provider(cls, value: object) -> str:
+        return str(value or "").strip().lower()
+
+    @field_validator("ai_model", mode="before")
+    @classmethod
+    def normalize_model_name(cls, value: object) -> str:
+        return str(value or "").strip()
+
+    @field_validator("ai_api_key", mode="before")
+    @classmethod
+    def normalize_api_key(cls, value: object) -> SecretStr:
+        if isinstance(value, SecretStr):
+            return SecretStr(value.get_secret_value().strip())
+        return SecretStr(str(value or "").strip())
+
+    @field_validator("checkpoint_encryption_key", mode="before")
+    @classmethod
+    def normalize_checkpoint_key(cls, value: object) -> SecretStr:
+        if isinstance(value, SecretStr):
+            return SecretStr(value.get_secret_value().strip())
+        return SecretStr(str(value or "").strip())
+
+    @field_validator("ai_base_url", mode="before")
+    @classmethod
+    def normalize_ai_base_url(cls, value: object) -> str:
+        return str(value or "").strip()
 
     @field_validator("storage_root", mode="after")
     @classmethod

@@ -3,8 +3,9 @@ from __future__ import annotations
 import argparse
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterator
 from uuid import uuid4
 
 from app.lib.operations import repository
@@ -89,7 +90,7 @@ class OperationWorker:
                 time.sleep(poll_seconds)
 
 
-def default_worker() -> OperationWorker:
+def _build_worker() -> OperationWorker:
     from app.features.case_builder.cocreation_service import (
         complete_batch_analysis,
         handle_cocreation_reproject,
@@ -97,9 +98,7 @@ def default_worker() -> OperationWorker:
         handle_cocreation_start,
     )
     from app.features.evaluation_sets.service import handle_coverage_review, handle_freeze
-    from app.lib.ai_runtime import initialize_ai_runtime
 
-    initialize_ai_runtime()
     worker = OperationWorker()
     worker.register("batch_analysis", lambda job: complete_batch_analysis(job))
     worker.register("cocreation_start", lambda job: handle_cocreation_start(job))
@@ -108,6 +107,41 @@ def default_worker() -> OperationWorker:
     worker.register("coverage_review", lambda job: handle_coverage_review(job))
     worker.register("freeze_package", lambda job: handle_freeze(job))
     return worker
+
+
+def default_worker() -> OperationWorker:
+    """Build the deterministic Worker used by tests and explicit fake runs."""
+
+    from app.lib.ai_runtime import initialize_ai_runtime
+
+    initialize_ai_runtime()
+    return _build_worker()
+
+
+@contextmanager
+def production_worker() -> Iterator[OperationWorker]:
+    """Build a real-provider Worker while retaining its DB connection lifetime."""
+
+    from app.lib.ai_runtime import get_adapters, initialize_ai_runtime, set_adapters
+    from app.lib.ai_runtime.adapters import production_adapters
+    from app.lib.ai_runtime.checkpoint import open_postgres_checkpointer
+    from app.lib.ai_runtime.model import build_runtime_model
+
+    model, identity = build_runtime_model()
+    previous_adapters = get_adapters()
+    try:
+        with open_postgres_checkpointer() as checkpointer:
+            initialize_ai_runtime(identity.registration_key)
+            set_adapters(
+                production_adapters(
+                    checkpointer,
+                    model=model,
+                    model_spec=identity.registration_key,
+                )
+            )
+            yield _build_worker()
+    finally:
+        set_adapters(previous_adapters)
 
 
 def fake_worker() -> OperationWorker:
@@ -122,14 +156,35 @@ def fake_worker() -> OperationWorker:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the single M0 operation consumer.")
     parser.add_argument("--once", action="store_true", help="Claim and process at most one operation.")
+    parser.add_argument("--fake", action="store_true", help="Use deterministic adapters for explicit local runs.")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
+    import sys
+
+    from app.lib.ai_runtime.checkpoint import CheckpointError
+    from app.lib.ai_runtime.model import ModelConfigurationError
+    from app.lib.settings import settings
+
     args = _parse_args()
-    worker = default_worker()
-    if args.once:
-        result = worker.run_once()
-        print(result.status.value if result else "idle")
-    else:
-        worker.run_forever()
+    try:
+        if args.fake or settings.ai_runtime_mode == "fake":
+            worker = default_worker()
+            if args.once:
+                result = worker.run_once()
+                print(result.status.value if result else "idle")
+            else:
+                worker.run_forever()
+        elif settings.ai_runtime_mode == "production":
+            with production_worker() as worker:
+                if args.once:
+                    result = worker.run_once()
+                    print(result.status.value if result else "idle")
+                else:
+                    worker.run_forever()
+        else:
+            raise ModelConfigurationError("AI_RUNTIME_MODE must be production or fake")
+    except (CheckpointError, ModelConfigurationError) as exc:
+        print(f"Worker startup failed: {exc}", file=sys.stderr)
+        raise SystemExit(2) from None

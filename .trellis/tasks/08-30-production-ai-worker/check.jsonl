@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "Apply backend quality gate and AI safety review"}
+{"file": ".trellis/tasks/08-30-production-ai-worker/research/runtime-wiring.md", "reason": "Verify implementation against inspected runtime evidence"}

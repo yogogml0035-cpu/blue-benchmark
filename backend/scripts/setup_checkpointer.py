@@ -1,8 +1,14 @@
 """Run the explicit production Checkpointer schema setup."""
 
-from app.lib.ai_runtime.checkpoint import setup_checkpointer
+import sys
+
+from app.lib.ai_runtime.checkpoint import CheckpointError, setup_checkpointer
 
 
 if __name__ == "__main__":
-    setup_checkpointer()
+    try:
+        setup_checkpointer()
+    except CheckpointError as exc:
+        print(f"Checkpointer setup failed: {exc}", file=sys.stderr)
+        raise SystemExit(2) from None
     print("Checkpointer schema setup complete")

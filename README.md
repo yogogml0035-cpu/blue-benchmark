@@ -2,7 +2,7 @@
 
 这是 M0 评测集工作台：业务老师从真实资料开始，确认任务分组，逐轮形成场景标准和单题判定依据，把选中的题加入唯一下一版草稿，最后冻结为可回查的不可变版本包。
 
-当前源码边界：业务事实保存在 SQLAlchemy/Alembic 业务数据库，上传文件保存在服务端文件存储，后台操作由单消费者 Worker 处理；默认 AI adapter 是确定性的 Fake，真实 provider smoke 和生产 Checkpointer 需要单独配置与验证。M2 的 Skill/Agent 执行、评测运行和报告不在当前实现内。
+当前源码边界：业务事实保存在 SQLAlchemy/Alembic 业务数据库，上传文件保存在服务端文件存储，后台操作由单消费者 Worker 处理。常驻 Worker 默认使用真实 AI；自动化测试和显式 `AI_RUNTIME_MODE=fake` 才使用确定性的 Fake。M2 的 Skill/Agent 执行、评测运行和报告不在当前实现内。
 
 ## 本地准备
 
@@ -12,7 +12,7 @@
 cp .env.example .env
 ```
 
-编辑 `.env` 中的 `DATABASE_URL`、`CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`。Checkpointer 数据库必须和业务数据库分开，密钥必须是 16、24 或 32 字节；不要把真实密钥提交到 Git。`STORAGE_ROOT=./storage` 会相对于仓库根目录解析，API 和 Worker 可以从不同工作目录启动而继续使用同一存储。
+编辑 `.env` 中的 `AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY`、可选的 `AI_BASE_URL`、`DATABASE_URL`、`CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`。`AI_PROVIDER=openai` 使用 OpenAI 或 OpenAI 兼容厂商（兼容端点通常把 `/v1` 放在 `AI_BASE_URL`），`AI_PROVIDER=anthropic` 使用 Anthropic 或兼容 Messages API 的服务（Anthropic SDK 会在自定义 Base URL 后请求 `/v1/messages`）；不要同时依赖 Key 自动猜测。Checkpointer 数据库必须和业务数据库分开，URL 使用 psycopg 可连接的 PostgreSQL scheme，密钥必须是 16、24 或 32 字节；不要把真实密钥提交到 Git。`STORAGE_ROOT=./storage` 会相对于仓库根目录解析，API 和 Worker 可以从不同工作目录启动而继续使用同一存储。
 
 安装依赖：
 
@@ -30,11 +30,19 @@ make db-migrate
 make db-check
 ```
 
-如果要启用生产 Checkpointer，先确认 `.env` 已配置独立数据库和密钥，再执行一次显式 schema setup：
+生产 Worker 要求真实模型配置和独立 Checkpointer。先确认 `.env` 已配置，再执行一次显式 schema setup：
 
 ```bash
 make checkpoint-setup
 ```
+
+在第一次启动 Worker 前，建议用合成输入验证目标 Provider 的工具调用和结构化输出：
+
+```bash
+make ai-smoke
+```
+
+成功标记为 `AI_PROVIDER_SMOKE=PASS ...`。该命令会产生一次模型调用；没有真实密钥时应先补齐配置，不能把 Fake 结果当作真实 AI 验收。
 
 分别打开三个终端：
 
@@ -56,9 +64,9 @@ make frontend
 - OpenAPI：<http://127.0.0.1:8000/api/docs>；
 - 前端：<http://localhost:3000/login>；
 - 前端只请求同源 `/api/*`，Next.js Rewrite 转发到 `BACKEND_URL`；
-- Worker 终端在有任务时逐个处理，空闲时持续等待，不要再启动第二个消费者。
+- Worker 终端在有任务时逐个处理，空闲时持续等待，不要再启动第二个消费者；它会在配置、Checkpointer 连接或 schema 未就绪时于领取任务前退出。
 
-若 API 进程因 schema 未就绪退出，先运行 `make db-migrate` 和 `make db-check`。若页面一直显示“等待后台处理”，检查 Worker 是否连接了同一个 `DATABASE_URL` 和 `STORAGE_ROOT`；端口能打开或返回 HTTP 200 不能代替这项检查。
+若 API 进程因 schema 未就绪退出，先运行 `make db-migrate` 和 `make db-check`。若 Worker 报 Checkpointer schema 未就绪，先运行 `make checkpoint-setup`。若页面一直显示“等待后台处理”，检查 Worker 是否连接了同一个 `DATABASE_URL` 和 `STORAGE_ROOT`；端口能打开或返回 HTTP 200 不能代替这项检查。仅用于显式本地演示时，可设置 `AI_RUNTIME_MODE=fake` 或运行 `cd backend && uv run python -m app.lib.operations.worker --fake`，不要用该模式做真实 AI 验收。
 
 ## 合同与自动化验证
 
