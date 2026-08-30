@@ -32,6 +32,7 @@ from app.features.case_builder.cocreation_schemas import (
     TaskGroupInput,
     TaskPackageListResponse,
     TaskPackageResponse,
+    TaskPackageWorkspaceListResponse,
     TaskPackageStatus,
     TaskPackageSummary,
     EvaluationFileSnapshot,
@@ -54,6 +55,11 @@ def _now() -> datetime:
 
 
 def _summary(item: repository.TaskPackageRecord) -> TaskPackageSummary:
+    judgment_matches_contract = (
+        item.judgment_package is not None
+        and isinstance(item.draft, dict)
+        and item.draft.get("contract_revision_id") == item.contract_revision_id
+    )
     return TaskPackageSummary(
         id=item.id,
         workspace_id=item.workspace_id,
@@ -71,7 +77,8 @@ def _summary(item: repository.TaskPackageRecord) -> TaskPackageSummary:
         ],
         revision=item.revision,
         initialization_only=item.initialization_only,
-        has_judgment_package=item.judgment_package is not None,
+        has_contract=item.contract_revision_id is not None,
+        has_judgment_package=judgment_matches_contract,
         created_at=item.created_at,
         updated_at=item.updated_at,
     )
@@ -113,6 +120,20 @@ def list_task_packages(workspace_id: str, batch_id: str, user: UserRecord) -> Ta
         batch_id=batch.id,
         batch_revision=batch.revision,
         task_packages=[_summary(item) for item in repository.list_task_packages(batch.id)],
+    )
+
+
+def list_task_packages_for_workspace(
+    workspace_id: str,
+    user: UserRecord,
+) -> TaskPackageWorkspaceListResponse:
+    workspace_service.assert_owner(workspace_id, user)
+    return TaskPackageWorkspaceListResponse(
+        workspace_id=workspace_id,
+        task_packages=[
+            _summary(item)
+            for item in repository.list_task_packages_for_workspace(workspace_id)
+        ],
     )
 
 
@@ -195,7 +216,12 @@ def get_contract_revision_for_evaluation(
     return revision
 
 
-def get_evaluation_task_snapshot(workspace_id: str, task_package_id: str) -> EvaluationTaskSnapshot:
+def get_evaluation_task_snapshot(
+    workspace_id: str,
+    task_package_id: str,
+    *,
+    require_current_judgment: bool = True,
+) -> EvaluationTaskSnapshot:
     package = repository.get_task_package(task_package_id)
     if package is None or package.workspace_id != workspace_id:
         raise AppError(404, "RESOURCE_NOT_FOUND", "任务不存在。")
@@ -203,6 +229,11 @@ def get_evaluation_task_snapshot(workspace_id: str, task_package_id: str) -> Eva
         raise AppError(409, "TASK_NOT_CONFIRMED", "任务尚未确认。")
     if not package.contract_revision_id or not package.judgment_package:
         raise AppError(409, "TASK_NOT_READY_FOR_VERSION", "任务缺少已确认的场景标准或判定依据。")
+    if require_current_judgment and (
+        not isinstance(package.draft, dict)
+        or package.draft.get("contract_revision_id") != package.contract_revision_id
+    ):
+        raise AppError(409, "TASK_NOT_READY_FOR_VERSION", "判定依据对应的场景标准已经更新，需要重新复核。")
     contract = repository.get_contract_revision(package.contract_revision_id)
     if contract is None or contract.status != ContractRevisionStatus.confirmed.value:
         raise AppError(409, "CONTRACT_NOT_CONFIRMED", "任务引用的场景标准尚未确认。")
@@ -382,7 +413,13 @@ def start_cocreation(
         return _session_response(existing)
     latest = repository.get_latest_session(task_package_id, payload.kind.value)
     if latest is not None and latest.status == CoCreationStatus.confirmed.value and payload.kind == CoCreationKind.task_judgment:
-        return _session_response(latest)
+        judgment_matches_contract = (
+            package.judgment_package is not None
+            and isinstance(package.draft, dict)
+            and package.draft.get("contract_revision_id") == package.contract_revision_id
+        )
+        if judgment_matches_contract:
+            return _session_response(latest)
     profile = get_ai_profile()
     session = repository.create_session(
         workspace_id=workspace_id,

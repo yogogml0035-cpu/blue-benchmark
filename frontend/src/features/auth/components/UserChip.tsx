@@ -21,13 +21,7 @@ export function UserChip({ session, previewName }: { session: Session; previewNa
 
   return (
     <span
-      style={{
-        fontSize: "var(--t-14)",
-        fontWeight: 550,
-        color: "var(--text)",
-        letterSpacing: "-0.005em",
-        whiteSpace: "nowrap",
-      }}
+      className="user-chip"
       title="当前登录账号"
     >
       {username}

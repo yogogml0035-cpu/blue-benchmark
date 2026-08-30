@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
 type Variant = "primary" | "secondary" | "quiet";
 type Size = "sm" | "md" | "lg";
@@ -25,6 +25,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   /** 提交中的替代文案；给出时按钮自动禁用，避免重复提交。 */
   busyLabel?: string;
   busy?: boolean;
+  buttonRef?: Ref<HTMLButtonElement>;
 };
 
 export function Button({
@@ -33,6 +34,7 @@ export function Button({
   block,
   busy,
   busyLabel,
+  buttonRef,
   className,
   children,
   disabled,
@@ -42,6 +44,7 @@ export function Button({
     <button
       className={classes(variant, size, block, className)}
       disabled={disabled || busy}
+      ref={buttonRef}
       {...rest}
     >
       {busy && busyLabel ? busyLabel : children}

@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 export type Crumb = { label: string; href?: string };
 
 /**
- * 顶栏：全站唯一的持久化导航。本闭环只有四条路由且流程是线性的，
- * 侧边栏在这里只会是假的脚手架，所以导航由“场景面包屑 + 状态进程条”承担。
+ * 顶栏：全站持久化导航。场景工作台的“当前 / 题 / 版本”由工作台自身侧栏承载，
+ * 这里只保留场景面包屑和当前身份，避免重复一套流程导航。
  */
 export function DeskRail({ crumbs = [], right }: { crumbs?: Crumb[]; right?: ReactNode }) {
   return (

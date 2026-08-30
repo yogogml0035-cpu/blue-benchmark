@@ -8,14 +8,14 @@
 |---|---|
 | 通用 HTTP、Cookie、204、错误解析 | `frontend/src/lib/api/client.ts` |
 | 页面级 401/403/404/409 分流 | `frontend/src/lib/api/pageFault.ts` |
-| User / Workspace / Case DTO | `frontend/src/lib/api/generated.ts` |
+| User / Workspace / M0 资料、题、草稿、版本 DTO | `frontend/src/lib/api/generated.ts` |
 | 认证会话读取 | `frontend/src/features/auth/hooks/useSession.ts` |
-| Case 状态名称、语义色、下一步、进度 | `frontend/src/features/case-builder/lib/caseState.ts` |
+| 兼容 Case 状态名称、语义色、下一步、进度 | `frontend/src/features/case-builder/lib/caseState.ts` |
 | Button、Field、Note、StatePanel、Skeleton | `frontend/src/components/ui/` |
 | 后端业务错误与错误响应 | `backend/app/lib/errors.py`、`backend/app/lib/schemas.py` |
 | Workspace 归属校验 | `backend/app/features/workspaces/service.py::assert_owner` |
 | Case 业务状态转换 | `backend/app/features/case_builder/service.py` |
-| 当前 Feature 的内存数据 | 对应 `repository.py` |
+| 业务数据库 Record 与读写 | 对应 Feature 的 `repository.py` |
 
 ## 搜索顺序
 
@@ -37,7 +37,7 @@ rg -n "相似函数名|相似用户文案" backend/app frontend/src
 
 ## 什么时候不要抽象
 
-当前 Walking Skeleton 很小。只出现一次、只属于一个 Feature、提取后反而隐藏业务语义的代码不需要通用化。`case_builder/service.py` 中的 Stub 草案和状态转换属于 Case Builder，即使函数较长，也不应搬进无业务所有权的 `utils.py`。
+当前 M0 工作台仍保持小而明确。只出现一次、只属于一个 Feature、提取后反而隐藏业务语义的代码不需要通用化；场景工作台的分组编辑和共创显示留在对应 Feature，不提前建设全局状态库或通用流程引擎。
 
 ## 修改后检查
 

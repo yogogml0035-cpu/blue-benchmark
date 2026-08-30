@@ -1,8 +1,11 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
@@ -35,7 +38,17 @@ class Settings(BaseSettings):
     archive_max_ratio: int = 100
     database_schema_check_on_startup: bool = True
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=PROJECT_ROOT / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    @field_validator("storage_root", mode="after")
+    @classmethod
+    def resolve_storage_root(cls, value: Path) -> Path:
+        expanded = value.expanduser()
+        return expanded if expanded.is_absolute() else PROJECT_ROOT / expanded
 
 
 @lru_cache

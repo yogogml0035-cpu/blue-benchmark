@@ -213,6 +213,7 @@ class TaskPackageSummary(BaseModel):
     attempts: list[SkillAttemptView] = Field(default_factory=list)
     revision: int = Field(ge=0)
     initialization_only: bool = False
+    has_contract: bool = False
     has_judgment_package: bool = False
     created_at: datetime
     updated_at: datetime
@@ -225,6 +226,11 @@ class TaskPackageResponse(BaseModel):
 class TaskPackageListResponse(BaseModel):
     batch_id: str
     batch_revision: int = Field(ge=0)
+    task_packages: list[TaskPackageSummary]
+
+
+class TaskPackageWorkspaceListResponse(BaseModel):
+    workspace_id: str
     task_packages: list[TaskPackageSummary]
 
 

@@ -1529,6 +1529,69 @@
         }
       }
     },
+    "/api/workspaces/{workspace_id}/task-packages": {
+      "get": {
+        "tags": [
+          "cocreation"
+        ],
+        "summary": "List Workspace Task Packages",
+        "operationId": "list_workspace_task_packages_api_workspaces__workspace_id__task_packages_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPackageWorkspaceListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspaces/{workspace_id}/task-packages/{task_package_id}": {
       "get": {
         "tags": [
@@ -6591,6 +6654,11 @@
             "title": "Initialization Only",
             "default": false
           },
+          "has_contract": {
+            "type": "boolean",
+            "title": "Has Contract",
+            "default": false
+          },
           "has_judgment_package": {
             "type": "boolean",
             "title": "Has Judgment Package",
@@ -6620,6 +6688,27 @@
           "updated_at"
         ],
         "title": "TaskPackageSummary"
+      },
+      "TaskPackageWorkspaceListResponse": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "task_packages": {
+            "items": {
+              "$ref": "#/components/schemas/TaskPackageSummary"
+            },
+            "type": "array",
+            "title": "Task Packages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "task_packages"
+        ],
+        "title": "TaskPackageWorkspaceListResponse"
       },
       "TeacherJudgment": {
         "properties": {

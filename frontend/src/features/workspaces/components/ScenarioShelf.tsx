@@ -202,7 +202,7 @@ export function ScenarioShelf() {
           <Note tone="green" title={`已创建「${created.name}」`}>
             <span className="row" style={{ gap: "var(--s-3)" }}>
               {PREVIEW_ENABLED && <span className="mono">{created.id}</span>}
-              <Link href={`/workspaces/${created.id}/cases/new`}>向这个场景上传真实案例 →</Link>
+              <Link href={`/workspaces/${created.id}/upload`}>向这个场景上传真实案例 →</Link>
             </span>
           </Note>
         )}
@@ -313,7 +313,7 @@ export function ScenarioShelf() {
                     </span>
                     <Link
                       className={styles.cardAction}
-                      href={`/workspaces/${workspace.id}/cases/new`}
+                      href={`/workspaces/${workspace.id}/upload`}
                     >
                       上传真实案例
                     </Link>

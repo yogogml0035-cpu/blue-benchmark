@@ -70,6 +70,29 @@ def _active_operation(draft_id: str) -> OperationJob | None:
     return None
 
 
+def _snapshot_for_member(
+    draft: repository.WorkingSetDraftRecord,
+    member: repository.WorkingSetMemberRecord,
+) -> EvaluationTaskSnapshot:
+    try:
+        return case_service.get_evaluation_task_snapshot(draft.workspace_id, member.task_package_id)
+    except AppError as exc:
+        if exc.code != "TASK_NOT_READY_FOR_VERSION" or member.review_status not in {
+            ImpactReviewStatus.reviewed.value,
+            ImpactReviewStatus.no_conflict_confirmed.value,
+        }:
+            raise
+        # A teacher-approved impact review is the explicit evidence that an old
+        # judgment remains valid under the new shared contract. This relaxed
+        # read is only used while assembling this draft; normal task reads stay
+        # strict and continue to mark the stale judgment as needing review.
+        return case_service.get_evaluation_task_snapshot(
+            draft.workspace_id,
+            member.task_package_id,
+            require_current_judgment=False,
+        )
+
+
 def _version_summary(version: repository.EvaluationSetVersionRecord) -> VersionSummary:
     return VersionSummary(
         id=version.id,
@@ -124,7 +147,7 @@ def _draft_view(draft: repository.WorkingSetDraftRecord) -> WorkingSetDraftView:
         blocking.append("有入选题等待老师复核场景标准变化。")
     for item in included:
         try:
-            snapshot = case_service.get_evaluation_task_snapshot(draft.workspace_id, item.task_package_id)
+            snapshot = _snapshot_for_member(draft, item)
             if snapshot.revision != item.task_package_revision:
                 blocking.append(f"{item.task_package_id}: 题已有新修订，请明确更新下一版引用。")
         except AppError as exc:
@@ -260,7 +283,16 @@ def mutate_member(
     active = _active_operation(draft.id)
     if active and active.kind == "freeze_package" and active.status in {OperationJobStatus.queued, OperationJobStatus.running}:
         raise AppError(409, "FREEZE_IN_PROGRESS", "冻结操作进行中，不能修改当前草稿。")
-    task = case_service.get_evaluation_task_snapshot(workspace_id, payload.task_package_id)
+    try:
+        task = case_service.get_evaluation_task_snapshot(workspace_id, payload.task_package_id)
+    except AppError as exc:
+        if payload.action != "remove" or exc.code != "TASK_NOT_READY_FOR_VERSION":
+            raise
+        task = case_service.get_evaluation_task_snapshot(
+            workspace_id,
+            payload.task_package_id,
+            require_current_judgment=False,
+        )
     if task.revision != payload.task_package_revision:
         raise AppError(409, "STALE_TASK_PACKAGE", "题已经更新，请重新读取后再操作。")
     conflicts = [] if task.contract_revision_id == draft.contract_revision_id else ["题引用了不同的场景标准修订。"]
@@ -292,7 +324,11 @@ def decide_impact(
     member = repository.get_member(draft.id, task_package_id)
     if member is None:
         raise AppError(404, "RESOURCE_NOT_FOUND", "题不在当前下一版本草稿中。")
-    task = case_service.get_evaluation_task_snapshot(workspace_id, task_package_id)
+    task = case_service.get_evaluation_task_snapshot(
+        workspace_id,
+        task_package_id,
+        require_current_judgment=False,
+    )
     try:
         changed = repository.decide_impact(
             draft.id,
@@ -341,6 +377,25 @@ def request_coverage_review(
     ):
         raise AppError(409, "CONTRACT_REVIEW_REQUIRED", "存在需要逐题复核的合同冲突。")
     _freeze_inputs(draft, allow_risk_confirmation=True, require_coverage=False)
+    existing_jobs = operation_repository.list_for_target("working_set_draft", draft.id)
+    same_command = next(
+        (
+            job
+            for job in existing_jobs
+            if job.kind == "coverage_review" and job.command_id == payload.command_id
+        ),
+        None,
+    )
+    if same_command is not None:
+        if same_command.status == OperationJobStatus.failed:
+            operation_repository.retry_failed(same_command.id)
+        return _response(repository.get_draft(draft.id) or draft)
+    active = _active_operation(draft.id)
+    if active is not None and active.kind == "coverage_review" and active.status in {
+        OperationJobStatus.queued,
+        OperationJobStatus.running,
+    }:
+        raise AppError(409, "COVERAGE_IN_PROGRESS", "当前草稿已有覆盖审查正在处理。")
     operation_repository.create_or_get(
         kind="coverage_review",
         target_type="working_set_draft",
@@ -399,7 +454,7 @@ def _freeze_inputs(
     issues: list[str] = []
     for member in members:
         try:
-            task = case_service.get_evaluation_task_snapshot(draft.workspace_id, member.task_package_id)
+            task = _snapshot_for_member(draft, member)
             if task.revision != member.task_package_revision:
                 issues.append(f"{member.task_package_id}: 题引用的修订已过期。")
             else:
@@ -534,8 +589,9 @@ def _verified_manifest(version: repository.EvaluationSetVersionRecord) -> tuple[
         if not storage.is_ready(version.package_key):
             raise VersionPackageError("package is not ready")
         with ZipFile(BytesIO(storage.read_bytes(version.package_key))) as archive:
-            names = set(archive.namelist())
-            if names != {"manifest.json", "runtime.json", "judge.json", "provenance.json"}:
+            listed_names = archive.namelist()
+            names = set(listed_names)
+            if len(listed_names) != 4 or names != {"manifest.json", "runtime.json", "judge.json", "provenance.json"}:
                 raise VersionPackageError("package contains an unexpected file")
             expected_files = {
                 "manifest.json": manifest_bytes,

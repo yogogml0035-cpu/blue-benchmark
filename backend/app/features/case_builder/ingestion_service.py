@@ -500,6 +500,13 @@ def update_file_disposition(
         raise AppError(404, "RESOURCE_NOT_FOUND", "资料不存在。")
     if file_record.upload_batch_id != batch_id:
         raise AppError(403, "FORBIDDEN", "你无权访问这份资料。")
+    from app.features.case_builder import cocreation_repository
+
+    if any(
+        item.status == "confirmed" and file_id in item.evidence_file_ids
+        for item in cocreation_repository.list_task_packages(batch_id)
+    ):
+        raise AppError(409, "FILE_DISPOSITION_LOCKED", "资料已经进入已确认任务，不能再修改用途；请重新上传新批次。")
     updated = ingestion_repository.update_disposition(
         batch_id=batch_id,
         file_id=file_id,

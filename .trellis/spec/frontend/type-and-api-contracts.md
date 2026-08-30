@@ -21,7 +21,7 @@ type LoginRequest = components["schemas"]["LoginRequest"];
 export type Case = components["schemas"]["Case"];
 ```
 
-参考 `authService.ts`、`workspaceService.ts`、`caseBuilderService.ts`。不要再手写一份 User、Workspace、Case、DraftContent 或错误 DTO。
+参考 `authService.ts`、`workspaceService.ts`、`caseBuilderService.ts` 和 `studioService.ts`。不要再手写一份 User、Workspace、TaskPackage、WorkingSetDraft、Version 或错误 DTO。
 
 `apiFetch<T>` 只负责通用传输：同源 Cookie、JSON Header、204、错误形状和 `ApiError`。路径与 Feature 返回包装由对应 Service 声明；组件只能调用 Service，不能直接为 HTTP Body 做类型断言。
 

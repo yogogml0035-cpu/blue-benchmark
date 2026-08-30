@@ -301,6 +301,19 @@ def list_task_packages(upload_batch_id: str, *, include_replaced: bool = False) 
         return [_task(row) for row in rows]
 
 
+def list_task_packages_for_workspace(workspace_id: str) -> list[TaskPackageRecord]:
+    with session_scope() as session:
+        rows = session.scalars(
+            select(TaskPackageRow)
+            .where(
+                TaskPackageRow.workspace_id == workspace_id,
+                TaskPackageRow.status == TaskPackageStatus.confirmed.value,
+            )
+            .order_by(TaskPackageRow.created_at, TaskPackageRow.id)
+        ).all()
+        return [_task(row) for row in rows]
+
+
 def replace_proposals(batch_id: str, analysis: BatchAnalysis, *, expected_revision: int) -> list[TaskPackageRecord]:
     now = _now()
     with session_scope() as session:
@@ -657,6 +670,23 @@ def _create_contract_revision(
     return row
 
 
+def _propagate_contract_revision(session, *, workspace_id: str, contract_revision_id: str, now: datetime) -> None:
+    tasks = session.scalars(
+        select(TaskPackageRow)
+        .where(
+            TaskPackageRow.workspace_id == workspace_id,
+            TaskPackageRow.status == TaskPackageStatus.confirmed.value,
+        )
+        .with_for_update()
+    ).all()
+    for task in tasks:
+        if task.contract_revision_id == contract_revision_id:
+            continue
+        task.contract_revision_id = contract_revision_id
+        task.revision += 1
+        task.updated_at = now
+
+
 def commit_agent_result(
     session_id: str,
     *,
@@ -893,11 +923,12 @@ def confirm_contract(
             contract_row.status = ContractRevisionStatus.confirmed.value
             contract_row.confirmed_by = confirmed_by
             contract_row.confirmed_at = now
-        task = session.get(TaskPackageRow, row.task_package_id)
-        if task is not None:
-            task.contract_revision_id = contract_row.id
-            task.revision += 1
-            task.updated_at = now
+        _propagate_contract_revision(
+            session,
+            workspace_id=row.workspace_id,
+            contract_revision_id=contract_row.id,
+            now=now,
+        )
         row.status = CoCreationStatus.confirmed.value
         row.business_revision += 1
         row.updated_at = now
@@ -1001,6 +1032,7 @@ def get_promotion(proposal_id: str) -> PromotionProposalRecord | None:
 
 
 def decide_promotion(proposal_id: str, decision: str, *, confirmed_by: str | None = None) -> PromotionProposalRecord:
+    decided_at = _now()
     with session_scope() as session:
         row = session.get(StandardPromotionProposalRow, proposal_id)
         if row is None:
@@ -1035,12 +1067,18 @@ def decide_promotion(proposal_id: str, decision: str, *, confirmed_by: str | Non
                     status=ContractRevisionStatus.confirmed.value,
                 )
                 new_revision.confirmed_by = confirmed_by
-                new_revision.confirmed_at = _now()
+                new_revision.confirmed_at = decided_at
+                _propagate_contract_revision(
+                    session,
+                    workspace_id=row.workspace_id,
+                    contract_revision_id=new_revision.id,
+                    now=decided_at,
+                )
         row.status = decision
         if confirmed_by:
             feedback = session.get(TeacherFeedbackRow, row.source_feedback_id)
             if feedback is not None:
                 feedback.confirmed_by = confirmed_by
-        row.decided_at = _now()
+        row.decided_at = decided_at
         session.flush()
         return _promotion(row)

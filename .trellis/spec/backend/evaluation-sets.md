@@ -27,6 +27,9 @@
 - 冻结硬门：合同已确认；至少一道 included 且已定稿题；任务快照、判定依据、来源证据、文件 visibility 和 runtime 输入完整；所有合同冲突已逐题复核或确定性无冲突批量确认；当前 coverage 已生成；覆盖 warning 已由老师明确确认。
 - `runtime.json` 只允许 `schema_version/tasks/task_id/title/brief/input_files`，文件只允许 `file_id/name/media_type/sha256/content`；参考结果、hard gate、评分维度、老师判断和形成记录分别保存在 `judge.json`/`provenance.json`。
 - runtime 文件在进入 Agent 或版本包前都要再次验证 ready marker、字节数和 SHA-256；任务 revision 落后于 WorkingSetMember 时即使同一个题 ID 仍然阻塞 freeze。
+- 场景合同确认会传播到当前 workspace 内所有已确认任务；如果题的既有判定依据来自旧合同修订，TaskPackage 会保留历史数据但不再标记为当前可用，必须重新完成单题共创后才可冻结。
+- 下一版草稿中的 `reviewed`/`no_conflict_confirmed` 是老师明确认可旧判定依据仍适用于新合同的放行证据；只有在该草稿影响复核完成后，freeze 才可读取这份旧依据，普通题读取仍保持严格不匹配阻塞。
+- 标准升级提案批准同样创建合同新修订并使旧题判定依据进入复核；拒绝或仅本题保留不能改变场景合同。
 - Manifest 使用固定排序和 JSON 序列化，记录合同快照、题 revision、来源文件 hash、分区 hash、冻结人/时间、风险确认和 `overall_sha256`。ZIP 固定条目顺序/时间戳；API 和下载都校验 Manifest、三个分区和 ZIP 内容一致。
 - Manifest 的 `version.id/workspace_id/number` 必须分别等于 `EvaluationSetVersion` 的数据库字段；freeze command 在同一 workspace 不能复用于另一份草稿。历史派生前也必须先完成整包完整性校验，不能只读 Manifest。
 - freeze 先 staging 和 ready marker，再以 draft revision CAS 创建 `EvaluationSetVersion`；打包或 DB 失败不能留下可见版本。相同 `freeze_command_id` 重试只返回同一版本。

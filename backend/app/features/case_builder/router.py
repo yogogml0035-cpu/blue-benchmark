@@ -19,6 +19,7 @@ from app.features.case_builder.cocreation_schemas import (
     PromotionDecisionRequest,
     TaskPackageListResponse,
     TaskPackageResponse,
+    TaskPackageWorkspaceListResponse,
 )
 from app.features.case_builder.ingestion_schemas import (
     FileDispositionRequest,
@@ -216,6 +217,18 @@ def confirm_task_groups(
     user: UserRecord = Depends(auth_service.require_current_user),
 ) -> TaskPackageListResponse:
     return cocreation_service.confirm_task_groups(workspace_id, batch_id, payload, user)
+
+
+@cocreation_router.get(
+    "/task-packages",
+    response_model=TaskPackageWorkspaceListResponse,
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+)
+def list_workspace_task_packages(
+    workspace_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> TaskPackageWorkspaceListResponse:
+    return cocreation_service.list_task_packages_for_workspace(workspace_id, user)
 
 
 @cocreation_router.get(

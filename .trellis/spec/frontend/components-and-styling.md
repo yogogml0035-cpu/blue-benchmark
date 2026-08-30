@@ -4,7 +4,7 @@
 
 共享控件保持小而明确，Props 使用本地 `type` 或内联对象类型。包装原生元素时继承原生属性，而不是重新声明一套事件和可访问性字段；参考 `components/ui/Button.tsx::ButtonProps` 和 `AutoTextarea.tsx`。
 
-业务页面由小组件组合，而不是一个文件重复所有细节：`CaseDetail` 组合 `ProgressTrack`、`QuestionCard`、`DraftEditor`、`ConfirmedCard`，草稿展示/编辑共用 `DraftView`。
+业务页面由小组件组合，而不是一个文件重复所有细节：`StudioShell` 组合当前、题、版本三个区；`QuestionPage` 组合共创状态、逐轮更新、标准与依据 sheet；旧 Case Builder 组件只服务兼容入口。
 
 对互斥的有限变体使用字面量联合和穷举 `Record`，例如 Button 的 `Variant` / `Size`、Note 的 `Tone`、`caseState.ts::STATE_META`。不要靠自由字符串拼接新增不可检查的样式变体。
 
@@ -37,7 +37,7 @@ Sheet 的样式在 `globals.css` 的 `.sheet-overlay` / `.sheet-panel` / `.sheet
 - 非提交按钮显式 `type="button"`；
 - `globals.css` 保留 `:focus-visible` 和 `prefers-reduced-motion: reduce` 分支。
 
-新增交互时要验证键盘可达、焦点可见、忙碌时不可重复提交、错误仍能与具体字段或动作对应。
+新增交互时要验证键盘可达、焦点可见、忙碌时不可重复提交、错误仍能与具体字段或动作对应。任务分组使用原生 `fieldset`、`label`、`select` 和按钮支持拆分/合并，不依赖拖拽或隐藏的坐标状态。
 
 ## 样式边界
 

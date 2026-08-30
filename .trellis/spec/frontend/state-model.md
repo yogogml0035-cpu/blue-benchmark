@@ -7,16 +7,16 @@
 | 类型 | 当前所有者 | 示例 |
 |---|---|---|
 | 认证会话 | `useSession` | 当前用户、loading、anonymous、failed |
-| 服务端资源快照 | 页面级 Client Component | `ScenarioShelf` 的 Workspace 列表、`CaseDetail` 的 `Case` |
-| 表单/交互瞬时状态 | 所属组件 | 输入值、`busy`、拖拽、当前审读节、展开状态 |
-| URL 状态 | Next Router / Search Params | Workspace/Case ID、`returnTo`、开发 `preview` |
+| 服务端资源快照 | 页面级 Client Component | `ScenarioShelf` 的 Workspace 列表、`StudioPage` 的 `StudioProjection`、`QuestionPage` 的 `CoCreationSession` |
+| 表单/交互瞬时状态 | 所属组件 | 输入值、`busy`、任务分组、抽屉/标准展开状态 |
+| URL 状态 | Next Router / Search Params | Workspace/Task/Version ID、工作台 section、`returnTo`、开发 `preview` |
 | 领域状态展示语义 | `case-builder/lib/caseState.ts` | Case 状态名称、语义色、下一步、进度轨迹 |
 
-不要把这些状态合并成一个通用 store。当前单用户、四页面闭环不需要跨页面客户端缓存。
+不要把这些状态合并成一个通用 store。当前单用户、服务端快照驱动的工作台不需要跨页面客户端缓存。
 
 ## 工作台投影
 
-场景工作台的唯一事实来源是 `GET /api/workspaces/{id}/upload-batches/studio` 返回的 `StudioProjection`，包含 `next_action`、`active_operation`、`latest_receipt` 和 `blocking_issues`。前端不得根据文件列表自行推导"下一步是什么"；所有状态分支以 `next_action.kind` 为准。
+场景工作台的唯一事实来源是 `GET /api/workspaces/{id}/upload-batches/studio` 返回的 `StudioProjection`，包含 `next_action`、`active_operation`、`latest_receipt` 和 `blocking_issues`。前端不得根据文件列表自行推导“下一步是什么”；所有当前工作流状态分支以 `next_action.kind` 为准。
 
 文件角色确认通过 `PATCH /upload-batches/{batchId}/files/{fileId}/disposition` 逐个提交；每次提交推进 `batch_revision`，连续提交时必须用最新 revision（参考 `StudioShell::FileRoleConfirmation::submit`）。
 
@@ -24,7 +24,7 @@
 
 ## 服务端快照优先
 
-FastAPI 返回的 `CaseDetail` 是页面恢复和命令完成后的来源。回答、重试、确认后用响应中的 `case` 覆盖本地资源；刷新后重新 GET。前端不得自行推进 `ready_for_ai -> waiting_for_input` 或 `waiting_for_confirmation -> confirmed`。
+FastAPI 返回的 `StudioProjection`、`CoCreationSessionView` 和 `WorkingSetDraftView` 是页面恢复和命令完成后的来源。回答、重试、确认、覆盖审查和冻结后用服务端快照覆盖本地资源；刷新后重新 GET。前端不得自行宣布资料整理、题定稿或版本冻结完成。
 
 页面加载状态用可辨识联合，而不是几个可能冲突的布尔值：
 
@@ -35,7 +35,7 @@ type Load =
   | { status: "failed"; fault: PageFault };
 ```
 
-参考 `ScenarioShelf::ListState`、`CaseDetail::Load`。提交中的 `busy`、后台刷新等瞬时状态可以独立，但不得与服务端业务状态同名冒充持久化事实。
+参考 `ScenarioShelf::ListState`、`StudioPage::Load` 和 `QuestionPage::Load`。提交中的 `busy`、后台刷新等瞬时状态可以独立，但不得与服务端业务状态同名冒充持久化事实。
 
 ## 集中派生状态
 

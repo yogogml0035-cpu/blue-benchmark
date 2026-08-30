@@ -1,6 +1,6 @@
 # 前端开发规范
 
-适用于 `frontend/` 的 Next.js App Router Walking Skeleton。规范描述当前 React/TypeScript 实现，不预设未来评测页面、状态库或组件库。
+适用于 `frontend/` 的 Next.js App Router M0 工作台。规范描述当前 React/TypeScript 实现和真实可验收的评测集流程；M1 知识库、M2 Skill/Agent 执行页面仍是未来边界。
 
 ## 规范索引
 

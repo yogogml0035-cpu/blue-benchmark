@@ -20,7 +20,7 @@
 
 - Pydantic / FastAPI 负责字段类型、长度、路径和表单边界；`validation_error_handler` 将其统一成 `422 VALIDATION_ERROR`，并在 `details.fields` 返回字段位置和消息。
 - Service 负责业务冲突、授权、状态转换和组合校验，抛出明确状态码与机器码。参考 `workspaces/service.py::assert_owner`、`case_builder/service.py::generate_draft`、`_validate_confirmation`。
-- Repository 当前只做内存读写，不负责把“未找到”映射成 HTTP。
+- Repository 负责业务数据库 Row/Record 读写，不负责把“未找到”映射成 HTTP；测试通过独立 SQLite 文件隔离数据。
 - Router 在装饰器 `responses` 中声明实际可能返回的 `ErrorResponse`，使 OpenAPI 能生成合同；不要在 Router 捕获后重新包装同一种错误。
 
 ## 业务失败与系统失败
@@ -42,7 +42,7 @@
 - `422`：字段或组合内容无效；
 - `500`：未预期错误，且响应必须清洗。
 
-M0 共创新增的业务码包括 `FILE_ROLES_NOT_CONFIRMED`、`INVALID_TASK_GROUPING`、`TASK_NOT_CONFIRMED`、`CONTRACT_NOT_CONFIRMED`、`STALE_COCREATION`、`COMMAND_ID_REUSED`、`RETRY_NOT_AVAILABLE`；它们仍遵守 `409`（状态/revision/幂等冲突）或 `422`（输入/证据结构无效）的语义。
+M0 共创新增的业务码包括 `FILE_ROLES_NOT_CONFIRMED`、`FILE_DISPOSITION_LOCKED`、`INVALID_TASK_GROUPING`、`TASK_NOT_CONFIRMED`、`CONTRACT_NOT_CONFIRMED`、`STALE_COCREATION`、`COMMAND_ID_REUSED`、`RETRY_NOT_AVAILABLE`；它们仍遵守 `409`（状态/revision/幂等冲突）或 `422`（输入/证据结构无效）的语义。
 
 后台 Agent 错误不把 provider 原始消息返回给浏览器：结构化输出无效、工具越权、证据 locator 越界或 Checkpoint 不兼容只进入 OperationJob 的清洗错误和业务 `failed`/`projection_pending`/`continuity_reset` 状态。`CoCreationSessionView` 不包含 `thread_id`、`checkpoint_id`、interrupt、raw message 或凭证。
 

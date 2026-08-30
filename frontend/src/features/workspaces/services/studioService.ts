@@ -7,6 +7,7 @@ export type UploadBatchResponse = components["schemas"]["UploadBatchResponse"];
 export type EvidenceFileSummary = components["schemas"]["EvidenceFileSummary"];
 export type TaskPackageSummary = components["schemas"]["TaskPackageSummary"];
 export type TaskPackageListResponse = components["schemas"]["TaskPackageListResponse"];
+export type TaskPackageWorkspaceListResponse = components["schemas"]["TaskPackageWorkspaceListResponse"];
 export type TaskPackageResponse = components["schemas"]["TaskPackageResponse"];
 export type TaskGroupInput = components["schemas"]["TaskGroupInput"];
 export type CoCreationSessionView = components["schemas"]["CoCreationSessionView"];
@@ -75,6 +76,12 @@ export function updateFileDisposition(
 export function listTaskPackages(workspaceId: string, batchId: string) {
   return apiFetch<TaskPackageListResponse>(
     `${studioBase(workspaceId)}/upload-batches/${batchId}/task-packages`,
+  );
+}
+
+export function listWorkspaceTaskPackages(workspaceId: string) {
+  return apiFetch<TaskPackageWorkspaceListResponse>(
+    `${studioBase(workspaceId)}/task-packages`,
   );
 }
 

@@ -64,7 +64,7 @@ export function QuestionPage({
     let active = true;
     setLoad({ status: "loading" });
 
-    // questionId 是 taskPackageId；start 对已存在的共创会话幂等，直接复用
+    // questionId 是 taskPackageId；合同未确认时先完成场景标准共创，再进入单题判定。
     getTaskPackage(workspaceId, questionId)
       .then((result) => {
         if (!active) return;
@@ -76,7 +76,7 @@ export function QuestionPage({
         }
         return startCoCreation(workspaceId, questionId, {
           commandId: `start-${questionId}-${Date.now()}`,
-          kind: "task_judgment",
+          kind: pkg.has_contract ? "task_judgment" : "scenario_contract",
           taskPackageRevision: pkg.revision,
         }).then((sessionResult) => {
           if (!active) return;
@@ -155,7 +155,17 @@ export function QuestionPage({
         commandId: `confirm-${cocreationSession.id}-${Date.now()}`,
         businessRevision: cocreationSession.business_revision,
       });
-      setLoad({ status: "ready", session: result.session, taskPackage: load.taskPackage });
+      if (cocreationSession.kind === "scenario_contract") {
+        const refreshedPackage = await getTaskPackage(workspaceId, questionId);
+        const judgment = await startCoCreation(workspaceId, questionId, {
+          commandId: `start-judgment-${questionId}-${Date.now()}`,
+          kind: "task_judgment",
+          taskPackageRevision: refreshedPackage.task_package.revision,
+        });
+        setLoad({ status: "ready", session: judgment.session, taskPackage: refreshedPackage.task_package });
+      } else {
+        setLoad({ status: "ready", session: result.session, taskPackage: load.taskPackage });
+      }
     } catch (cause) {
       setCommandFault(toPageFault(cause));
     } finally {

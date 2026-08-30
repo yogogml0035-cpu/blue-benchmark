@@ -17,10 +17,13 @@ import {
   type DraftMemberView,
   type VersionSummary,
   listTaskPackages,
+  listWorkspaceTaskPackages,
   listVersions,
   getTaskPackage,
   createWorkingDraft,
   getWorkingDraft,
+  mutateDraftMember,
+  decideImpactReview,
   requestCoverageReview,
   confirmCoverage,
   freezeDraft,
@@ -72,12 +75,26 @@ export function StudioShell({
   const preview = usePreviewState();
   const session = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const firstMenuItemRef = useRef<HTMLButtonElement>(null);
   const returnTo = `/workspaces/${workspaceId}`;
 
   useEffect(() => {
     if (preview) return;
     if (session.status === "anonymous") router.replace(loginHref(returnTo));
   }, [preview, returnTo, router, session.status]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    firstMenuItemRef.current?.focus();
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setMenuOpen(false);
+      menuButtonRef.current?.focus();
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [menuOpen]);
 
   const rail = (
     <DeskRail
@@ -92,6 +109,7 @@ export function StudioShell({
             aria-expanded={menuOpen}
             className="btn-quiet btn-sm"
             onClick={() => setMenuOpen((open) => !open)}
+            buttonRef={menuButtonRef}
             variant="quiet"
           >
             {SECTION_LABEL[section]}
@@ -120,9 +138,9 @@ export function StudioShell({
         ]}
       />
       {menuOpen && (
-        <div className={styles.mobileNav} role="dialog" aria-label="场景导航">
+        <div aria-modal="true" className={styles.mobileNav} role="dialog" aria-label="场景导航">
           <div className={styles.mobileNavPanel}>
-            {SECTION_ORDER.map((key) => (
+            {SECTION_ORDER.map((key, index) => (
               <button
                 aria-current={section === key ? "page" : undefined}
                 className={styles.mobileNavItem}
@@ -132,6 +150,7 @@ export function StudioShell({
                   setMenuOpen(false);
                   router.push(`/workspaces/${workspaceId}?section=${key}${batchId ? `&batch=${batchId}` : ""}`);
                 }}
+                ref={index === 0 ? firstMenuItemRef : undefined}
                 type="button"
               >
                 {SECTION_LABEL[key]}
@@ -216,6 +235,14 @@ export function useStudioData(workspaceId: string, batchId?: string | null) {
     setLoad({ status: "loading" });
     void read(false);
   }, [preview, session.status, read]);
+
+  useEffect(() => {
+    if (preview || load.status !== "ready") return;
+    const operation = load.projection.active_operation;
+    if (!operation || (operation.status !== "queued" && operation.status !== "running")) return;
+    const timer = setTimeout(() => void read(true), 1500);
+    return () => clearTimeout(timer);
+  }, [load, preview, read]);
 
   return { load, read, refreshing, preview, session };
 }
@@ -313,7 +340,7 @@ function CurrentWorkspace({
                   ? "处理失败，可以重试。"
                   : "正在整理结果，马上更新。"}
           </p>
-          {active_operation.status === "failed" && (
+          {(active_operation.status === "failed" || active_operation.status === "projection_pending") && (
             <RetryOperation workspaceId={workspaceId} projection={projection} onRefresh={onRefresh} />
           )}
         </section>
@@ -695,6 +722,7 @@ export function QuestionsSection({
         <TaskGroupConfirmation
           batchId={projection.batch_id}
           batchRevision={batchRevision}
+          files={projection.files ?? []}
           onConfirmed={() => {
             loadPackages();
             onRefresh();
@@ -717,17 +745,99 @@ function TaskGroupConfirmation({
   workspaceId,
   batchId,
   batchRevision,
+  files,
   packages,
   onConfirmed,
 }: {
   workspaceId: string;
   batchId: string;
   batchRevision: number;
+  files: StudioProjection["files"];
   packages: TaskPackageSummary[];
   onConfirmed: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<PageFault | null>(null);
+  const [groups, setGroups] = useState(() =>
+    packages.map((pkg) => ({
+      id: pkg.id,
+      title: pkg.title,
+      fileIds: [...pkg.evidence_file_ids],
+      initializationOnly: pkg.initialization_only ?? false,
+    })),
+  );
+
+  const visibleFiles = files.filter((file) => !file.ignored);
+  const groupedFileIds = new Set(groups.flatMap((group) => group.fileIds));
+  const hasUnassignedFile = visibleFiles.some((file) => !groupedFileIds.has(file.id));
+  const hasEmptyGroup = groups.some((group) => group.fileIds.length === 0);
+  const proposedAttempts = packages.flatMap((pkg) =>
+    (pkg.attempts ?? []).map((attempt) => ({ ...attempt, sourcePackageId: pkg.id })),
+  );
+
+  function attemptsForGroup(group: (typeof groups)[number], index: number) {
+    const seen = new Set<string>();
+    return proposedAttempts.flatMap((attempt) => {
+      const evidenceFileIds = attempt.evidence_file_ids.filter((fileId) => group.fileIds.includes(fileId));
+      if (evidenceFileIds.length === 0) return [];
+      const completeAttempt = evidenceFileIds.length === attempt.evidence_file_ids.length;
+      const rawKey = completeAttempt
+        ? attempt.attempt_key
+        : `${attempt.attempt_key}-group-${index + 1}`;
+      const duplicateSuffix = `-${attempt.sourcePackageId.slice(0, 8)}`;
+      const keySuffix = seen.has(rawKey) ? duplicateSuffix : "";
+      const maxKeyBaseLength = 255 - keySuffix.length;
+      const attemptKey = `${rawKey.slice(0, maxKeyBaseLength)}${keySuffix}`;
+      if (seen.has(attemptKey)) return [];
+      seen.add(attemptKey);
+      const rawLabel = completeAttempt ? attempt.label : `${attempt.label}（任务 ${index + 1} 资料）`;
+      return [{
+        attempt_key: attemptKey,
+        label: rawLabel.slice(0, 500),
+        evidence_file_ids: evidenceFileIds,
+      }];
+    });
+  }
+
+  function moveFile(fileId: string, targetGroupId: string) {
+    setGroups((current) =>
+      current.map((group) => ({
+        ...group,
+        fileIds:
+          group.id === targetGroupId
+            ? [...group.fileIds.filter((id) => id !== fileId), fileId]
+            : group.fileIds.filter((id) => id !== fileId),
+      })),
+    );
+  }
+
+  function addGroup() {
+    setGroups((current) => [
+      ...current,
+      {
+        id: `new-group-${Date.now()}`,
+        title: `新任务 ${current.length + 1}`,
+        fileIds: [],
+        initializationOnly: false,
+      },
+    ]);
+  }
+
+  function mergeGroup(groupId: string) {
+    setGroups((current) => {
+      if (current.length <= 1) return current;
+      const removed = current.find((group) => group.id === groupId);
+      const target = current.find((group) => group.id !== groupId);
+      if (!removed || !target) return current;
+      return current
+        .filter((group) => group.id !== groupId)
+        .map((group) =>
+          group.id === target.id
+            ? { ...group, fileIds: [...group.fileIds, ...removed.fileIds] }
+            : group,
+        );
+    });
+  }
 
   return (
     <section className="sheet sheet-pad stack">
@@ -735,19 +845,75 @@ function TaskGroupConfirmation({
         <span className="section-label">待确认</span>
         <h2 className="doc-title-sm">确认任务分组</h2>
         <p className="secondary">
-          AI 从资料中提议了 {packages.length} 组任务。确认后开始逐题共创。
+          AI 从资料中提议了 {packages.length} 组任务。你可以拆分或合并，确认后开始逐题共创。
         </p>
       </div>
-      <div className="stack-sm">
-        {packages.map((pkg) => (
-          <div className="inset" key={pkg.id} style={{ padding: "var(--s-3)" }}>
-            <p style={{ fontWeight: 550 }}>{pkg.title}</p>
-            <p className="mono faint" style={{ fontSize: "var(--t-12)" }}>
-              {pkg.evidence_file_ids.length} 个资料文件
+      <div className="stack">
+        {groups.map((group, index) => (
+          <fieldset className="inset stack-sm" key={group.id} style={{ border: 0, margin: 0 }}>
+            <legend className="section-label">任务 {index + 1}</legend>
+            <label className="field">
+              <span className="field-label">任务名称</span>
+              <input
+                aria-label={`任务 ${index + 1} 名称`}
+                className="control"
+                disabled={busy}
+                maxLength={200}
+                onChange={(event) =>
+                  setGroups((current) =>
+                    current.map((item) => item.id === group.id ? { ...item, title: event.target.value } : item),
+                  )
+                }
+                value={group.title}
+              />
+            </label>
+            <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
+              {group.fileIds.length} 个资料文件
             </p>
-          </div>
+            <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
+              {attemptsForGroup(group, index).length} 次尝试
+            </p>
+            {group.fileIds.map((fileId) => {
+              const file = files.find((item) => item.id === fileId);
+              return file ? (
+                <span className="secondary" key={file.id} style={{ fontSize: "var(--t-13)" }}>
+                  {file.original_name}
+                </span>
+              ) : null;
+            })}
+            {groups.length > 1 && (
+              <Button disabled={busy} onClick={() => mergeGroup(group.id)} size="sm" variant="quiet">
+                合并到其他任务
+              </Button>
+            )}
+          </fieldset>
         ))}
       </div>
+      <div className="inset stack-sm">
+        <span className="section-label">资料归属</span>
+        {visibleFiles.map((file) => {
+          const groupId = groups.find((group) => group.fileIds.includes(file.id))?.id ?? "";
+          return (
+            <label className="row-between" key={file.id}>
+              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{file.original_name}</span>
+              <select
+                aria-label={`${file.original_name} 归属任务`}
+                className="control"
+                disabled={busy}
+                onChange={(event) => moveFile(file.id, event.target.value)}
+                value={groupId}
+                style={{ maxWidth: 240 }}
+              >
+                <option value="">请选择任务</option>
+                {groups.map((group, index) => (
+                  <option key={group.id} value={group.id}>任务 {index + 1}</option>
+                ))}
+              </select>
+            </label>
+          );
+        })}
+      </div>
+      <Button disabled={busy} onClick={addGroup} variant="quiet">新增任务</Button>
       {error && (
         <Note tone="fail" title="确认失败">
           {error.message}
@@ -757,6 +923,7 @@ function TaskGroupConfirmation({
         <Button
           busy={busy}
           busyLabel="正在确认…"
+          disabled={hasEmptyGroup || hasUnassignedFile || groups.some((group) => !group.title.trim())}
           onClick={async () => {
             setBusy(true);
             setError(null);
@@ -764,11 +931,12 @@ function TaskGroupConfirmation({
               await confirmTaskGroups(workspaceId, batchId, {
                 commandId: `confirm-groups-${batchId}-${Date.now()}`,
                 batchRevision,
-                groups: packages.map((pkg) => ({
-                  title: pkg.title,
+                groups: groups.map((group, index) => ({
+                  attempts: attemptsForGroup(group, index),
+                  title: group.title.trim(),
                   summary: "老师确认的真实任务分组。",
-                  evidence_file_ids: pkg.evidence_file_ids,
-                  initialization_only: pkg.initialization_only ?? false,
+                  evidence_file_ids: group.fileIds,
+                  initialization_only: group.initializationOnly,
                 })),
               });
               onConfirmed();
@@ -863,6 +1031,13 @@ export function VersionsSection({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const operation = draft?.active_operation;
+    if (!operation || (operation.status !== "queued" && operation.status !== "running")) return;
+    const timer = setTimeout(() => void load(), 1500);
+    return () => clearTimeout(timer);
+  }, [draft?.active_operation, load]);
 
   if (loading) {
     return (
@@ -985,6 +1160,17 @@ function DraftPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<PageFault | null>(null);
   const [note, setNote] = useState("");
+  const [packages, setPackages] = useState<TaskPackageSummary[]>([]);
+
+  useEffect(() => {
+    if (!draft || draft.status !== "active") {
+      setPackages([]);
+      return;
+    }
+    listWorkspaceTaskPackages(workspaceId)
+      .then((result) => setPackages(result.task_packages))
+      .catch(() => setPackages([]));
+  }, [draft, workspaceId]);
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
@@ -1026,7 +1212,17 @@ function DraftPanel({
   }
 
   const included = (draft.members ?? []).filter((m) => m.status === "included");
+  const includedIds = new Set(included.map((member) => member.task_package_id));
+  const available = packages.filter((pkg) => pkg.status === "confirmed" && !includedIds.has(pkg.id));
+  const reviewRequired = included.filter((member) => member.review_status === "review_required");
   const coverage = draft.coverage;
+  const hasCoverageWarnings = (coverage?.warnings ?? []).length > 0;
+  const coverageInProgress =
+    draft.active_operation?.kind === "coverage_review" &&
+    (draft.active_operation.status === "queued" || draft.active_operation.status === "running");
+  const freezeInProgress =
+    draft.active_operation?.kind === "freeze_package" &&
+    (draft.active_operation.status === "queued" || draft.active_operation.status === "running");
   const discarded = draft.status === "discarded";
 
   return (
@@ -1046,13 +1242,122 @@ function DraftPanel({
         ) : (
           <ul className="stack-sm">
             {included.map((member) => (
-              <li key={member.id}>
+              <li className="row-between" key={member.id}>
                 <MemberLabel member={member} workspaceId={workspaceId} />
+                <Button
+                  busy={busy}
+                  busyLabel="移出中…"
+                  onClick={() =>
+                    run(() =>
+                      mutateDraftMember(workspaceId, draft.id, {
+                        commandId: `remove-${draft.id}-${member.task_package_id}-${Date.now()}`,
+                        draftRevision: draft.revision,
+                        taskPackageId: member.task_package_id,
+                        taskPackageRevision: member.task_package_revision,
+                        action: "remove",
+                      }),
+                    )
+                  }
+                  size="sm"
+                  variant="quiet"
+                >
+                  移出
+                </Button>
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {draft.status === "active" && (
+        <div className="stack-sm">
+          <span className="section-label">题池</span>
+          {available.length === 0 ? (
+            <p className="secondary" style={{ fontSize: "var(--t-13)" }}>没有可加入的已定稿题。</p>
+          ) : (
+            available.map((pkg) => (
+              <div className="inset row-between" key={pkg.id} style={{ padding: "var(--s-3)" }}>
+                <div className="stack-sm">
+                  <span style={{ fontSize: "var(--t-13)", fontWeight: 600 }}>{pkg.title}</span>
+                  <span className="secondary" style={{ fontSize: "var(--t-13)" }}>
+                    {pkg.attempts?.length ?? 0} 次尝试
+                  </span>
+                </div>
+                <Button
+                  busy={busy}
+                  busyLabel="加入中…"
+                  onClick={() =>
+                    run(() =>
+                      mutateDraftMember(workspaceId, draft.id, {
+                        commandId: `include-${draft.id}-${pkg.id}-${Date.now()}`,
+                        draftRevision: draft.revision,
+                        taskPackageId: pkg.id,
+                        taskPackageRevision: pkg.revision,
+                        action: "include",
+                      }),
+                    )
+                  }
+                  size="sm"
+                  variant="secondary"
+                >
+                  加入下一版
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {reviewRequired.length > 0 && (
+        <section className="inset stack-sm">
+          <span className="section-label">合同影响复核</span>
+          <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
+            场景标准已有新修订。请逐题确认旧判定依据是否仍适用，确认后才能继续覆盖审查。
+          </p>
+          {reviewRequired.map((member) => (
+            <div className="stack-sm" key={member.id}>
+              <MemberLabel member={member} workspaceId={workspaceId} />
+              {(member.deterministic_conflicts ?? []).length > 0 && (
+                <ul className="stack-sm secondary" style={{ fontSize: "var(--t-13)" }}>
+                  {(member.deterministic_conflicts ?? []).map((conflict) => <li key={conflict}>冲突：{conflict}</li>)}
+                </ul>
+              )}
+              {(member.ai_suggestions ?? []).length > 0 && (
+                <ul className="stack-sm secondary" style={{ fontSize: "var(--t-13)" }}>
+                  {(member.ai_suggestions ?? []).map((suggestion) => <li key={suggestion}>建议：{suggestion}</li>)}
+                </ul>
+              )}
+              <Button
+                busy={busy}
+                busyLabel="复核中…"
+                disabled={!note.trim()}
+                onClick={() =>
+                  run(() =>
+                    decideImpactReview(workspaceId, draft.id, member.task_package_id, {
+                      commandId: `impact-${draft.id}-${member.task_package_id}-${Date.now()}`,
+                      draftRevision: draft.revision,
+                      decision: "reviewed",
+                      note: note.trim(),
+                    }),
+                  )
+                }
+                size="sm"
+                variant="secondary"
+              >
+                确认本题继续适用
+              </Button>
+            </div>
+          ))}
+          <input
+            aria-label="合同影响复核说明"
+            className="control"
+            disabled={busy}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="复核说明（必填）：为什么旧判定依据仍适用"
+            value={note}
+          />
+        </section>
+      )}
 
       {coverage && (
         <div className="stack-sm">
@@ -1075,7 +1380,7 @@ function DraftPanel({
             {(coverage.warnings ?? []).length === 0 && (coverage.blank_areas ?? []).length === 0 && (
               <p className="secondary" style={{ fontSize: "var(--t-13)" }}>覆盖良好，没有发现明显缺口。</p>
             )}
-            {!coverage.confirmed_at && (
+            {hasCoverageWarnings && !coverage.confirmed_at && (
               <div className="stack-sm" style={{ marginTop: "var(--s-2)" }}>
                 <input
                   aria-label="覆盖风险确认说明"
@@ -1103,7 +1408,13 @@ function DraftPanel({
                 </Button>
               </div>
             )}
-            {coverage.confirmed_at && (
+            {!hasCoverageWarnings && (
+              <p className="state state-green" style={{ fontSize: "var(--t-12)" }}>
+                <span className="dot" />
+                没有需要额外确认的覆盖风险
+              </p>
+            )}
+            {hasCoverageWarnings && coverage.confirmed_at && (
               <p className="state state-green" style={{ fontSize: "var(--t-12)" }}>
                 <span className="dot" />
                 覆盖范围已确认
@@ -1121,7 +1432,7 @@ function DraftPanel({
             <Button
               busy={busy}
               busyLabel="正在审查…"
-              disabled={included.length === 0}
+              disabled={included.length === 0 || reviewRequired.length > 0 || coverageInProgress}
               onClick={() =>
                 run(() =>
                   requestCoverageReview(workspaceId, draft.id, {
@@ -1135,10 +1446,11 @@ function DraftPanel({
               开始覆盖审查
             </Button>
           )}
-          {coverage?.confirmed_at && (
+          {coverage && (!hasCoverageWarnings || coverage.confirmed_at) && (
             <Button
               busy={busy}
               busyLabel="正在冻结…"
+              disabled={freezeInProgress}
               onClick={() =>
                 run(() =>
                   freezeDraft(workspaceId, draft.id, {

@@ -2,7 +2,7 @@
 
 ## 当前自动化边界
 
-`frontend/package.json` 当前提供 `typecheck` 和 `build`，没有 lint、单元测试或 Playwright 脚本；仓库也没有前端测试文件。不要把 ESLint、Vitest、Jest、Playwright 或覆盖率写成已存在的质量门。
+`frontend/package.json` 当前提供 `typecheck` 和 `build`，没有 lint、单元测试或 Playwright 脚本；仓库也没有前端测试文件。不要把 ESLint、Vitest、Jest、Playwright 或覆盖率写成已存在的自动质量门。
 
 现行命令：
 
@@ -12,13 +12,13 @@ cd frontend && pnpm build
 make test
 ```
 
-`make test` 运行后端 pytest 和前端 typecheck；涉及 App Router、生产门控或构建边界时再运行 `make build`。
+`make test` 运行后端 pytest、前端 typecheck 和 OpenAPI/生成类型一致性检查；涉及 App Router、生产门控或构建边界时再运行 `make build`。
 
 ## 状态验收
 
-四个页面通过 `?preview=` 提供开发态预演，支持 README 中列出的 loading、empty、success、error、unauthorized，以及资源页的 forbidden、not_found 和 Case 的 question/review。预演 fixture 使用生成 DTO，可以作为类型回归证据，但不是浏览器自动化测试。
+登录、场景列表、场景工作台、上传入口、聚焦题页和版本详情通过 `?preview=` 提供开发态预演，支持各页面声明的 loading、empty、success、error、unauthorized、forbidden、not_found、question、review 状态。预演 fixture 使用生成 DTO，可以作为类型回归证据，但不是浏览器自动化测试。
 
-真实闭环仍按 `README.md` 人工验收：注册、建场景、上传、提问、审改、确认、刷新、跨账号 403、解析失败、AI 失败重试。只有实际执行后才能声称浏览器路径跑通。
+真实闭环仍按 `README.md` 人工验收：注册、建场景、上传、任务分组拆分/合并、场景标准和单题共创、组集、冻结下载、刷新恢复、跨账号 403 和错误恢复。只有实际执行后才能声称浏览器路径跑通。
 
 ## Review 清单
 

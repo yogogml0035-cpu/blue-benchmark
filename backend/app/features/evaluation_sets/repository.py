@@ -669,8 +669,8 @@ def confirm_coverage(draft_id: str, *, payload: CoverageConfirmationRequest, con
             raise RepositoryConflict("coverage review is required before confirmation")
         snapshot.risk_confirmed = payload.confirmed
         snapshot.risk_confirmation_note = payload.note
-        snapshot.confirmed_by = confirmed_by
-        snapshot.confirmed_at = now
+        snapshot.confirmed_by = confirmed_by if payload.confirmed else None
+        snapshot.confirmed_at = now if payload.confirmed else None
         session.add(WorkingSetCommandRow(id=str(uuid4()), draft_id=draft_id, command_id=payload.command_id, payload_hash=digest, result_json={"risk_confirmed": payload.confirmed}, created_at=now))
         try:
             session.flush()

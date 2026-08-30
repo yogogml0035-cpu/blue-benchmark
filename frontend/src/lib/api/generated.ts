@@ -328,6 +328,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/task-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Workspace Task Packages */
+        get: operations["list_workspace_task_packages_api_workspaces__workspace_id__task_packages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/task-packages/{task_package_id}": {
         parameters: {
             query?: never;
@@ -1682,6 +1699,11 @@ export interface components {
              */
             initialization_only: boolean;
             /**
+             * Has Contract
+             * @default false
+             */
+            has_contract: boolean;
+            /**
              * Has Judgment Package
              * @default false
              */
@@ -1696,6 +1718,13 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** TaskPackageWorkspaceListResponse */
+        TaskPackageWorkspaceListResponse: {
+            /** Workspace Id */
+            workspace_id: string;
+            /** Task Packages */
+            task_packages: components["schemas"]["TaskPackageSummary"][];
         };
         /** TeacherJudgment */
         TeacherJudgment: {
@@ -3037,6 +3066,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_workspace_task_packages_api_workspaces__workspace_id__task_packages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskPackageWorkspaceListResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

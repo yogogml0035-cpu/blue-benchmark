@@ -24,12 +24,15 @@ src/
 
 ## App Router 页面
 
-`src/app/**/page.tsx` 保持薄：定义 Metadata、解析异步 `params`、用 `Suspense` 提供版面一致的 `PageFallback`，然后组合 Feature 入口组件。参考：
+`src/app/**/page.tsx` 保持薄：定义 Metadata、解析异步 `params`、用 `Suspense` 提供版面一致的 `PageFallback`，然后组合 Feature 入口组件。当前路由族是：
 
 - `app/(auth)/login/page.tsx` -> `AuthPanel`；
 - `app/(app)/workspaces/page.tsx` -> `ScenarioShelf`；
-- `app/(app)/workspaces/[workspaceId]/cases/new/page.tsx` -> `CaseUpload`；
-- `app/(app)/workspaces/[workspaceId]/cases/[caseId]/page.tsx` -> `CaseDetail`。
+- `app/(app)/workspaces/[workspaceId]/page.tsx` -> `StudioPage`，通过 `section=current|questions|versions` 承载场景工作台；
+- `app/(app)/workspaces/[workspaceId]/upload/page.tsx` -> `UploadPage`，作为上传入口；
+- `app/(app)/workspaces/[workspaceId]/questions/[questionId]/page.tsx` -> `QuestionPage`，承载场景标准和单题判定的聚焦共创；
+- `app/(app)/workspaces/[workspaceId]/versions/[versionId]/page.tsx` -> 只读版本详情和下载；
+- 旧 `/cases/new` 重定向到工作台，旧 `/cases/{caseId}` 重定向到聚焦题页。
 
 页面文件默认是 Server Component。需要事件、Effect、浏览器导航或本地状态的实现放入 Feature Client Component，并在文件首行写 `"use client"`。不要把整个路由树无差别改成 Client Component。
 
@@ -60,4 +63,4 @@ src/
 - 不要创建 `app/api` 代理；同源 `/api/*` 已由 `next.config.mjs` Rewrite 到 FastAPI。
 - 不要在组件里直接 `fetch`、手写 Cookie 逻辑或复制 API 错误解析。
 - 不要在前端实现数据库、LangGraph 或后端授权规则。
-- 不要为尚未实现的评测集、Worker、成员权限创建空路由或空 Feature。
+- 不要为尚未实现的 M1 知识库、M2 Skill/Agent 执行、评测运行或多人协作创建空路由或空 Feature。

@@ -14,17 +14,17 @@ backend/
 │   │   ├── case_builder/{router,service,repository,schemas,cocreation_*,ingestion_*}.py
 │   │   └── evaluation_sets/{router,service,repository,schemas}.py
 │   └── lib/{errors,schemas,settings,ai_runtime/,operations/,storage/,database/,version_packages/}
-├── scripts/export_openapi.py
-├── tests/test_api.py
+├── scripts/{export_openapi,verify_openapi,setup_checkpointer,accept_real_samples}.py
+├── tests/{test_api,test_persistence_ingestion,test_deep_agent_cocreation,test_evaluation_versioning,test_integration_acceptance,test_runtime_configuration}.py
 ├── openapi.json
 └── pyproject.toml
 ```
 
-`app/main.py` 只组装应用级能力：异常处理器、同源保护、健康检查和三个 Feature Router。业务接口放在所属 Feature，不继续堆进 `main.py`。
+`app/main.py` 只组装应用级能力：异常处理器、同源保护、健康检查和 auth、workspace、Case Builder、ingestion、co-creation、evaluation-set Router。业务接口放在所属 Feature，不继续堆进 `main.py`。
 
 ## Feature 内部分工
 
-当前三个 Feature 都使用同一分层：
+当前业务 Feature 都使用同一分层：
 
 ```text
 router -> service -> repository

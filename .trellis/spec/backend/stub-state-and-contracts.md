@@ -2,19 +2,19 @@
 
 ## 先确认当前实现边界
 
-当前后端使用 SQLAlchemy 业务数据库和 Alembic 迁移；旧 `/cases` 仍保留 Stub 闭环，M0 完整任务包已经有受限 Deep Agents port、Fake 默认适配器、共创业务投影和加密 PostgreSQL Checkpointer 工厂。默认 CI 不调用真实 provider，真实 provider smoke 仍由独立 Spike/部署配置验证。规范以源码、测试和迁移为准；规划文档中尚未落地的能力不能当作当前事实。
+当前后端使用 SQLAlchemy 业务数据库和 Alembic 迁移；旧 `/cases` 仍保留兼容 Stub 闭环，M0 完整任务包已经有受限 Deep Agents port、Fake 默认适配器、共创业务投影、评测集版本包和加密 PostgreSQL Checkpointer 工厂。默认 CI 不调用真实 provider，真实 provider smoke 仍由独立 Spike/部署配置验证。规范以源码、测试和迁移为准；规划文档中尚未落地的能力不能当作当前事实。
 
 | 已实现事实 | 尚未实现、需另立任务的计划 |
 |---|---|
-| `auth`、`workspaces`、`case_builder` Repository 使用业务数据库表 | 生产认证体系和多租户权限 |
+| `auth`、`workspaces`、`case_builder`、`evaluation_sets` Repository 使用业务数据库表 | 生产认证体系和多租户权限 |
 | Session Cookie 只把 SHA-256 token hash 存入数据库 | 更完整的 Session 过期、撤销和轮换策略 |
 | 旧 `/cases` 入口保留 TXT/Markdown Stub 闭环 | 旧入口向完整任务包迁移 |
 | `/upload-batches` 接受多文件和 ZIP，原文件以服务端存储键保存 | 生产对象存储、OCR 和更多媒体解析 |
-| `_run_stub_generation` 和内容标记驱动固定分支仍服务旧 `/cases` | 真实 provider 线上调用、Worker lifespan 注入生产 Checkpointer |
+| `_run_stub_generation` 和内容标记驱动固定分支仍服务旧 `/cases`；M0 Worker 默认使用 Fake adapter | 真实 provider 线上调用、Worker lifespan 注入生产 Checkpointer |
 | 确认后生成数据库中的 `candidate_case` JSON 快照；M0 另有 TaskPackage、WorkingSetDraft 和不可变 EvaluationSetVersion | M2 评测执行和报告 |
 | `OperationJob` 负责持久化排队、租约、重试和幂等，Fake Worker 可执行 M0 batch/co-creation 操作 | M2 评测执行和报告 |
 
-数据库重启或 Python 进程重启不会清空业务记录；只有测试中的 `reset()` 会显式清空测试数据库。不要把业务数据库记录与后续 Checkpointer 执行状态混为同一事实源。
+数据库重启或 Python 进程重启不会清空业务记录；只有测试中的清理 fixture 会显式清空测试数据库。默认真实样本 runner 使用临时 SQLite/存储，避免污染开发数据。不要把业务数据库记录与 Checkpointer 执行状态混为同一事实源。
 
 ## 业务数据所有权
 
@@ -61,11 +61,13 @@ waiting_for_confirmation -> confirmed
 
 ## 上传边界
 
-旧 `case_builder/service.py::create_case` 继续只接受 TXT/Markdown 并保存 Stub 案例；M0 完整资料入口是 `case_builder/ingestion_service.py::create_upload_batch`，由 `/api/workspaces/{workspace_id}/upload-batches` 提供。入口支持 `.md/.txt/.json/.jsonl/.zip`、多文件、ZIP 展开、服务端生成存储键、SHA-256、media type、解析状态和 canonical view 元数据。
+旧 `case_builder/service.py::create_case` 继续只接受 TXT/Markdown 并保存兼容 Stub 案例；M0 完整资料入口是 `case_builder/ingestion_service.py::create_upload_batch`，由 `/api/workspaces/{workspace_id}/upload-batches` 提供。入口支持 `.md/.txt/.json/.jsonl/.zip`、多文件、ZIP 展开、服务端生成存储键、SHA-256、media type、解析状态和 canonical view 元数据。
 
 安全解包必须先校验每个 ZIP 条目的 POSIX/Windows 路径，再跳过安全目录；拒绝绝对路径、`..`、空路径段、重复名称、符号链接、特殊文件、损坏压缩包、嵌套层级、文件数、单文件大小、展开总量和异常压缩比。原文件先写入 `staging/<batch>/<file>`，发布到 `evidence/<batch>/<file>` 时同时写 ready marker；数据库写入失败必须清理已发布和 staged 对象。
 
 上传成功只创建 `UploadBatch`、`EvidenceFile`、默认未确认的 `FileDisposition` 和 `batch_analysis` `OperationJob`，返回 `202` 及 `UploadBatchResponse`。`GET /upload-batches/{batch_id}` 和 `GET /upload-batches/studio` 只读取业务投影，不创建任务、不续租、不推进状态。重复 `command_id` 在同一 workspace 返回原批次，不读取或覆盖第二份资料。
+
+文件一旦被已确认 `TaskPackage` 引用，role/visibility 不能再原地修改，返回 `409 FILE_DISPOSITION_LOCKED`；需要更换资料边界时重新上传批次，避免 TaskPackage revision 与版本可见性静默分离。
 
 HTTP 只返回服务端生成的业务 ID、哈希和文件摘要，不返回宿主绝对路径、存储键、解析正文、凭证、token、thread 或 Checkpoint 字段。不要把前端的扩展名检查当作安全边界。
 
@@ -79,10 +81,12 @@ HTTP 只返回服务端生成的业务 ID、哈希和文件摘要，不返回宿
 ### 2. Signatures
 
 - `GET /api/workspaces/{workspace_id}/upload-batches/{batch_id}/task-packages`：读取候选分组。
+- `GET /api/workspaces/{workspace_id}/task-packages`：读取当前 workspace（场景）内全部已确认题，供下一版本题池跨上传批次组集。
 - `POST /api/workspaces/{workspace_id}/upload-batches/{batch_id}/task-groups/confirmation`：JSON `command_id`、`batch_revision`、`groups[]`，确认后创建 `TaskPackage`。
 - `POST /api/workspaces/{workspace_id}/task-packages/{task_package_id}/co-creation`：JSON `command_id`、`kind`、`task_package_revision`，返回 `202`。
 - `POST /api/workspaces/{workspace_id}/co-creation/{session_id}/answers`：JSON `command_id`、`question_id`、`answer`、`business_revision`，返回 `202`。
 - `POST /api/workspaces/{workspace_id}/co-creation/{session_id}/contract-confirmation` / `judgment-confirmation`：老师显式确认。
+- `POST /api/workspaces/{workspace_id}/task-packages/{task_package_id}/feedback` 与 `/standard-promotions/{proposal_id}/decision`：批注默认仅作为本题形成记录；只有老师明确批准提案，才创建新的已确认场景合同，并传播到已确认任务触发复核。
 - `task_packages` 保存分组、attempt、合同引用、题稿和判定依据；`co_creation_sessions` 保存 `stable_thread_key`、`accepted_checkpoint_id`、业务 revision、Profile/Graph 版本和投影；`scenario_contract_revisions` 保存不可静默覆盖的合同修订。
 
 ### 3. Contracts
@@ -94,7 +98,7 @@ HTTP 只返回服务端生成的业务 ID、哈希和文件摘要，不返回宿
 - `ReadOnlyEvidenceBackend.read` 的 `offset` 为 0-based，`ReadResult.start_line/end_line` 为 1-based；长文件必须分页到 EOF，模型 EvidenceRef 由 Service 回查 canonical view。
 - EvidenceBackend 和 EvidenceRef 回查都校验 ready marker、文件大小和 SHA-256；line quote 必须出现在 canonical line range，JSON pointer/event locator 必须存在于真实内容。TaskPackage HTTP DTO 只投影 attempt 的安全字段，不投影任意 metadata。
 - Agent 虚拟 scope 提供只含文件 ID、名称、行数和 hash 的 `/evidence/manifest.json`；Checkpoint 缺失/不兼容时业务快照返回 `next_action=continuity_reset`，不能伪装成普通重试。
-- CI 默认 `ai_runtime_mode=fake`；生产 Checkpointer 由显式 `setup_checkpointer`/`open_async_postgres_checkpointer` 使用 `CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`（或等价显式键）配置，不能在 HTTP 请求中 setup。
+- CI 和本地验收默认使用 Fake adapter；生产 Checkpointer 由显式 `setup_checkpointer`/`open_async_postgres_checkpointer` 使用独立 `CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`（或等价显式键）配置，不能在 HTTP 请求中 setup。`make checkpoint-setup` 只负责 Checkpointer schema setup，不代表已经启用真实 provider。
 
 ### 4. Validation & Error Matrix
 
@@ -112,7 +116,7 @@ HTTP 只返回服务端生成的业务 ID、哈希和文件摘要，不返回宿
 
 ### 6. Tests Required
 
-- API：分组前用途阻塞、分组确认/合并/拆分、同命令幂等、不同 payload 冲突、跨用户 `403`、合同确认前禁止单题共创。
+- API：分组前用途阻塞、分组确认/合并/拆分、同命令幂等、不同 payload 冲突、跨用户 `403`、合同确认前禁止单题共创、合同升级后旧判定依据失效。
 - Runtime：read-only scope、写/改/删拒绝、100 行截断后的 EOF、line/JSON/event locator 回查、工具面和 HITL envelope fail-closed。
 - Recovery：稳定 thread 多轮、stale revision、并发 resume 单胜者、Checkpoint ahead/business behind 的 `projection_pending` 重投影、缺失 Checkpoint continuity reset、删除 Checkpoint 后业务投影仍可读。
 - 迁移/合同：Alembic `0003 -> head`、schema readiness、`make openapi` 后 `frontend/src/lib/api/generated.ts` 与后端一致。
@@ -152,7 +156,7 @@ repository.commit_agent_result(expected_checkpoint_id=checkpoint_id, result=resu
 
 ### 3. Contracts
 
-- 环境键：`DATABASE_URL`、`CHECKPOINT_DATABASE_URL`、`STORAGE_ROOT`、`UPLOAD_MAX_BYTES`、`UPLOAD_MAX_FILES`、`UPLOAD_MAX_TOTAL_BYTES`、`ARCHIVE_MAX_MEMBERS`、`ARCHIVE_MAX_UNCOMPRESSED_BYTES`、`ARCHIVE_MAX_DEPTH`、`ARCHIVE_MAX_RATIO`。
+- 环境键：`DATABASE_URL`、`CHECKPOINT_DATABASE_URL`、`LANGGRAPH_AES_KEY`（或 `CHECKPOINT_ENCRYPTION_KEY`）、`STORAGE_ROOT`、`UPLOAD_MAX_BYTES`、`UPLOAD_MAX_FILES`、`UPLOAD_MAX_TOTAL_BYTES`、`ARCHIVE_MAX_MEMBERS`、`ARCHIVE_MAX_UNCOMPRESSED_BYTES`、`ARCHIVE_MAX_DEPTH`、`ARCHIVE_MAX_RATIO`；Settings 从仓库根 `.env` 读取，`STORAGE_ROOT` 相对值也以仓库根为基准。
 - `StudioProjection.next_action` 是带 `kind` 的联合模型；前端只消费业务阶段，不推导 Worker/Agent 状态。
 - `OperationJob` 由 `target_type + target_id + business_revision + command_id` 唯一幂等；claim 创建对应 `AgentRunAttempt`，结果投影需通过 revision/accepted pointer CAS。
 

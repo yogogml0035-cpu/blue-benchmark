@@ -14,7 +14,7 @@ loading | authenticated(user) | anonymous(fault) | failed(fault)
 
 ## Effect 读取约定
 
-参考 `useSession`、`ScenarioShelf`、`CaseUpload` 和 `CaseDetail`：
+参考 `useSession`、`ScenarioShelf`、`StudioPage`、`QuestionPage` 和 `VersionPage`：
 
 - 依赖不满足（预演模式、未认证、缺少资源 ID）时直接返回，不发请求；
 - 请求前进入显式 loading 状态；

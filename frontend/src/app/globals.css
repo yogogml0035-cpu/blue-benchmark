@@ -217,6 +217,18 @@ a:hover {
   min-width: 0;
 }
 
+.user-chip {
+  display: block;
+  max-width: 12ch;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--t-14);
+  font-weight: 550;
+  letter-spacing: -0.005em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .page {
   margin: 0 auto;
   padding: var(--s-8) var(--s-6) var(--s-14);
