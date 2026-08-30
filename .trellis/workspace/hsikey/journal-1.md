@@ -133,3 +133,25 @@
 ### Next Steps
 
 - 后续规范变更由各自功能任务通过 trellis-update-spec 持续维护
+
+
+## Session 6: 生产 AI Worker 真实 Provider 接线
+<!-- trellis-session: v=2 fp=30bf5efb34bd6f10 -->
+
+**Date**: 2026-08-30
+**Task**: 生产 AI Worker 真实 Provider 接线
+**Branch**: `main`
+
+### Summary
+
+按 AI_PROVIDER 选择 OpenAI 兼容或 Anthropic，接入真实模型客户端、同步加密 PostgreSQL Checkpointer 与 production Worker；补齐 .env.example、ai-smoke、测试和后端规范。完成四轮对抗审查，并在 PostgreSQL 17 临时实例中验证 setup、跨进程恢复和 claim 前 schema fail-fast。真实 Provider smoke 因没有用户凭证保留待执行。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8021638` | feat(runtime): wire production AI worker adapters |
+
+### Status
+
+[OK] **Completed**
