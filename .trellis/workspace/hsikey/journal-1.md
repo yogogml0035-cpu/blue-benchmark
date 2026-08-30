@@ -51,3 +51,27 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 3: M0 共创与评测版本
+<!-- trellis-session: v=2 fp=16f1a93a8a618989 -->
+
+**Date**: 2026-08-30
+**Task**: M0 共创与评测版本
+**Branch**: `main`
+
+### Summary
+
+顺序完成 M0 Deep Agent 共创和评测版本两个子任务：受限只读 EvidenceBackend、ToolStrategy/HITL、稳定共创恢复、任务分组、合同/判定依据、WorkingSetDraft、合同影响复核、coverage、连续冻结 v1/v2、canonical 三视图包及 Manifest/下载。随后完成一轮对抗式审查，修正版本身份不一致、命令跨草稿复用、分页边界、EvidenceRef 回查、敏感 metadata、并发锁、批次投影原子性、orphan intent、Checkpoint reset 和历史包完整性校验。最终 46 个后端测试、make test、make build、make openapi、Alembic/schema readiness 通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `440acdb` | feat(cocreation): implement M0 restricted agents and co-creation |
+| `e9819b8` | feat(evaluation): add immutable M0 version packages |
+| `ed948bb` | fix(m0): harden co-creation and version package boundaries |
+
+### Status
+
+[OK] **Completed**
