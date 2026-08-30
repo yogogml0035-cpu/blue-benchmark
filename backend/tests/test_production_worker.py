@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -191,3 +194,18 @@ def test_production_worker_checkpointer_failure_happens_before_any_operation_cla
             pytest.fail("production worker should not yield after Checkpointer failure")
 
     assert claimed is False
+
+
+def test_worker_module_help_does_not_emit_runpy_warning() -> None:
+    backend_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-m", "app.lib.operations.worker", "--help"],
+        cwd=backend_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "RuntimeWarning" not in result.stderr
+    assert "runpy" not in result.stderr

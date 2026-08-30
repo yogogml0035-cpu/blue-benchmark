@@ -40,6 +40,7 @@ schemas -> HTTP 输入、输出和领域枚举
 - `schemas.py` 用 Pydantic 模型定义外部合同；内部可变状态使用 `@dataclass(slots=True)` Record。参考 `case_builder/schemas.py` 与 `case_builder/repository.py`。
 - `case_builder/cocreation_service.py` 负责任务分组、授权、业务状态和 Agent 结果投影；`cocreation_repository.py` 负责 TaskPackage、Session、Turn、合同修订和形成记录的数据库映射。
 - `lib/ai_runtime` 只拥有 `AgentRunContext`、受限 `EvidenceBackend`、AI Profile、Checkpointer 工厂和三个 Protocol/adapter；它不直接写业务表、不产生 HTTP DTO。
+- `lib/operations/__init__.py` 只重导出 Repository/Attempt 能力；`OperationWorker`、`ProjectionPendingOperation` 和 `fake_worker` 必须惰性导出，避免 `python -m app.lib.operations.worker` 在模块执行前被包级导入触发 runpy warning 或循环加载。
 - `evaluation_sets/service.py` 只通过 `case_builder` Service 读取已确认题和合同快照；版本包 builder 只接收确定性快照，不读取 Checkpointer 或业务 Repository。
 
 ## 跨 Feature 依赖
