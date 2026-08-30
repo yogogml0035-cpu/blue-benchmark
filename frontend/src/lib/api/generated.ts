@@ -209,10 +209,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/upload-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Upload Batch */
+        post: operations["create_upload_batch_api_workspaces__workspace_id__upload_batches_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/upload-batches/studio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Studio */
+        get: operations["get_studio_api_workspaces__workspace_id__upload_batches_studio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/upload-batches/{batch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Upload Batch */
+        get: operations["get_upload_batch_api_workspaces__workspace_id__upload_batches__batch_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/upload-batches/{batch_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Batch Analysis */
+        post: operations["retry_batch_analysis_api_workspaces__workspace_id__upload_batches__batch_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/upload-batches/{batch_id}/files/{file_id}/disposition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update File Disposition */
+        patch: operations["update_file_disposition_api_workspaces__workspace_id__upload_batches__batch_id__files__file_id__disposition_patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActiveOperation */
+        ActiveOperation: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "batch_analysis" | "cocreation_start" | "cocreation_resume" | "cocreation_reproject" | "coverage_review" | "freeze_package";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "failed" | "projection_pending";
+        };
         /** AnswerRequest */
         AnswerRequest: {
             /** Question Id */
@@ -239,6 +339,17 @@ export interface components {
             file: string;
             /** Task Description */
             task_description?: string | null;
+        };
+        /** Body_create_upload_batch_api_workspaces__workspace_id__upload_batches_post */
+        Body_create_upload_batch_api_workspaces__workspace_id__upload_batches_post: {
+            /** Title */
+            title: string;
+            /** Files */
+            files: string[];
+            /** Task Description */
+            task_description?: string | null;
+            /** Command Id */
+            command_id?: string | null;
         };
         /** BuilderSnapshot */
         BuilderSnapshot: {
@@ -365,6 +476,51 @@ export interface components {
         ErrorResponse: {
             error: components["schemas"]["ErrorPayload"];
         };
+        /** EvidenceFileSummary */
+        EvidenceFileSummary: {
+            /** Id */
+            id: string;
+            /** Original Name */
+            original_name: string;
+            /** Media Type */
+            media_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Sha256 */
+            sha256: string;
+            parse_state: components["schemas"]["EvidenceParseState"];
+            /** Parse Error */
+            parse_error?: string | null;
+            /** Source Member */
+            source_member?: string | null;
+            /**
+             * Role
+             * @default unknown
+             * @enum {string}
+             */
+            role: "unknown" | "brief" | "runtime" | "judge" | "provenance";
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * Ignored
+             * @default false
+             */
+            ignored: boolean;
+            /**
+             * Visibility
+             * @default unconfirmed
+             * @enum {string}
+             */
+            visibility: "unconfirmed" | "runtime" | "judge" | "provenance";
+        };
+        /**
+         * EvidenceParseState
+         * @enum {string}
+         */
+        EvidenceParseState: "pending" | "parsed" | "parse_failed" | "unsupported";
         /** EvidenceRef */
         EvidenceRef: {
             /**
@@ -388,6 +544,34 @@ export interface components {
             /** Evidence Refs */
             evidence_refs?: components["schemas"]["EvidenceRef"][];
         };
+        /** FileDispositionRequest */
+        FileDispositionRequest: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "unknown" | "brief" | "runtime" | "judge" | "provenance";
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * Ignored
+             * @default false
+             */
+            ignored: boolean;
+            /**
+             * Visibility
+             * @default unconfirmed
+             * @enum {string}
+             */
+            visibility: "unconfirmed" | "runtime" | "judge" | "provenance";
+            /** Rationale */
+            rationale?: string | null;
+            /** Batch Revision */
+            batch_revision: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -404,7 +588,7 @@ export interface components {
             service: string;
             /**
              * Persistence
-             * @default in-memory stub
+             * @default business database
              */
             persistence: string;
             /**
@@ -433,6 +617,72 @@ export interface components {
             identifier: string;
             /** Password */
             password: string;
+        };
+        /** NextActionConfirmFiles */
+        NextActionConfirmFiles: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "confirm_file_roles";
+            /**
+             * Label
+             * @default 确认资料用途
+             */
+            label: string;
+        };
+        /** NextActionNone */
+        NextActionNone: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "none";
+            /**
+             * Label
+             * @default 暂无下一步
+             */
+            label: string;
+        };
+        /** NextActionRetry */
+        NextActionRetry: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "retry_processing";
+            /**
+             * Label
+             * @default 重试资料整理
+             */
+            label: string;
+        };
+        /** NextActionWait */
+        NextActionWait: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "wait_for_processing";
+            /**
+             * Label
+             * @default 等待资料整理
+             */
+            label: string;
+        };
+        /** OperationReceipt */
+        OperationReceipt: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "succeeded" | "failed" | "superseded";
+            /** Message */
+            message: string;
+            /** Completed At */
+            completed_at?: string | null;
         };
         /** PendingQuestion */
         PendingQuestion: {
@@ -470,12 +720,35 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** RetryOperationRequest */
+        RetryOperationRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Batch Revision */
+            batch_revision: number;
+        };
         /** Scenario */
         Scenario: {
             /** Summary */
             summary: string;
             /** Evidence Refs */
             evidence_refs?: components["schemas"]["EvidenceRef"][];
+        };
+        /** StudioProjection */
+        StudioProjection: {
+            /** Workspace Id */
+            workspace_id: string;
+            /** Batch Id */
+            batch_id: string;
+            batch_status: components["schemas"]["UploadBatchState"];
+            /** Files */
+            files: components["schemas"]["EvidenceFileSummary"][];
+            /** Next Action */
+            next_action: components["schemas"]["NextActionConfirmFiles"] | components["schemas"]["NextActionWait"] | components["schemas"]["NextActionRetry"] | components["schemas"]["NextActionNone"];
+            active_operation?: components["schemas"]["ActiveOperation"] | null;
+            latest_receipt?: components["schemas"]["OperationReceipt"] | null;
+            /** Blocking Issues */
+            blocking_issues?: string[];
         };
         /** TeacherJudgment */
         TeacherJudgment: {
@@ -498,6 +771,42 @@ export interface components {
              */
             blocking: boolean;
         };
+        /** UploadBatch */
+        UploadBatch: {
+            /** Id */
+            id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Title */
+            title: string;
+            /** Task Description */
+            task_description?: string | null;
+            status: components["schemas"]["UploadBatchState"];
+            /** Revision */
+            revision: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Files */
+            files: components["schemas"]["EvidenceFileSummary"][];
+        };
+        /** UploadBatchResponse */
+        UploadBatchResponse: {
+            batch: components["schemas"]["UploadBatch"];
+            studio: components["schemas"]["StudioProjection"];
+        };
+        /**
+         * UploadBatchState
+         * @enum {string}
+         */
+        UploadBatchState: "received" | "analyzing" | "ready_for_confirmation" | "failed";
         /** User */
         User: {
             /** Id */
@@ -1207,6 +1516,341 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaseDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_upload_batch_api_workspaces__workspace_id__upload_batches_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_create_upload_batch_api_workspaces__workspace_id__upload_batches_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadBatchResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_studio_api_workspaces__workspace_id__upload_batches_studio_get: {
+        parameters: {
+            query?: {
+                batch_id?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioProjection"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_upload_batch_api_workspaces__workspace_id__upload_batches__batch_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadBatchResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_batch_analysis_api_workspaces__workspace_id__upload_batches__batch_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetryOperationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadBatchResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_file_disposition_api_workspaces__workspace_id__upload_batches__batch_id__files__file_id__disposition_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                batch_id: string;
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDispositionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadBatchResponse"];
                 };
             };
             /** @description Unauthorized */
