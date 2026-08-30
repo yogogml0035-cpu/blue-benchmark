@@ -8,6 +8,16 @@
 
 对互斥的有限变体使用字面量联合和穷举 `Record`，例如 Button 的 `Variant` / `Size`、Note 的 `Tone`、`caseState.ts::STATE_META`。不要靠自由字符串拼接新增不可检查的样式变体。
 
+## 浮层（Sheet）
+
+`components/ui/Sheet.tsx` 提供三个原语：
+
+- `Sheet`：按需浮层，桌面右侧滑入、窄屏全屏；打开时锁定背景滚动并把焦点移入，关闭后返回触发器；Escape 关闭，Tab 在面板内循环。
+- `ConfirmSheet`：不可逆动作或高后果选择前的二次确认。
+- `TechnicalDisclosure`：hash、Manifest、错误码等机器可读信息默认隐藏。
+
+Sheet 的样式在 `globals.css` 的 `.sheet-overlay` / `.sheet-panel` / `.sheet-panel-head` / `.sheet-panel-body`；宽屏变体加 `.sheet-panel-wide`。不要在 Feature 中重复实现浮层。
+
 ## 异步交互
 
 - 提交函数先清空本次错误并设置 `busy`，用 `try/catch/finally` 收口；参考 `ScenarioShelf::submit` 和 `CaseUpload::submit`。
@@ -36,7 +46,10 @@
 较大的 Feature 布局和专用视觉用 colocated CSS Module：
 
 - `workspaces/components/ScenarioShelf.module.css`；
+- `workspaces/components/studio.module.css`（场景工作台三导航、侧栏、移动端抽屉）；
 - `case-builder/components/caseDetail.module.css`。
+
+标准与依据 sheet 中的键值分区使用 `globals.css` 的 `.kv-block` / `.kv-label` / `.kv-items`，只用留白和发丝线，不引入卡片阴影。
 
 内联 style 仅用于小范围布局或动态值，并继续引用全局 token；可复用或响应式规则应进入 CSS / CSS Module。不要引入 Tailwind、CSS-in-JS 或组件库作为第二套样式系统，除非有独立任务和迁移计划。
 

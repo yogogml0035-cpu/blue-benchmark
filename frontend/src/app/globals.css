@@ -727,3 +727,153 @@ textarea.control-auto {
     font-size: var(--t-22);
   }
 }
+
+/* ========================= Sheet / 浮层 ========================= */
+
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  background: rgb(0 0 0 / 22%);
+  animation: fadeIn 160ms var(--ease-out) both;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sheet-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: min(480px, 92vw);
+  height: 100dvh;
+  background: var(--surface);
+  border-left: 1px solid var(--hair);
+  box-shadow: var(--lift-pop);
+  animation: slideInRight 220ms var(--ease-out) both;
+}
+
+.sheet-panel-wide {
+  width: min(680px, 94vw);
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.sheet-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--hair-soft);
+}
+
+.sheet-panel-body {
+  overflow-y: auto;
+  padding: var(--s-5);
+  display: grid;
+  gap: var(--s-4);
+  align-content: start;
+}
+
+@media (max-width: 720px) {
+  .sheet-overlay {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+  .sheet-panel,
+  .sheet-panel-wide {
+    width: 100vw;
+    height: 100dvh;
+    border-left: 0;
+    border-radius: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-overlay,
+  .sheet-panel {
+    animation-duration: 0.001ms !important;
+  }
+}
+
+/* ========================= 技术详情折叠 ========================= */
+
+.tech-disclosure summary {
+  cursor: pointer;
+  font-size: var(--t-12);
+  color: var(--text-3);
+  list-style: none;
+  user-select: none;
+}
+
+.tech-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.tech-disclosure summary:hover {
+  color: var(--text-2);
+}
+
+.tech-disclosure[open] summary {
+  margin-bottom: var(--s-2);
+}
+
+.tech-disclosure-body {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  background: var(--surface-2);
+  border: 1px solid var(--hair-soft);
+  border-radius: var(--r-control);
+  font-family: var(--font-mono);
+  font-size: var(--t-12);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+/* 标准与依据 sheet 中的键值分区：只用留白和发丝线，不引入卡片阴影 */
+.kv-block {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--hair-soft);
+}
+
+.kv-block:last-child {
+  border-bottom: none;
+}
+
+.kv-label {
+  font-size: var(--t-12);
+  font-weight: 550;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+
+.kv-items {
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--t-13);
+  line-height: 1.6;
+  color: var(--text-1);
+}
+
+.kv-items li {
+  padding-left: var(--s-3);
+  position: relative;
+}
+
+.kv-items li::before {
+  content: "·";
+  position: absolute;
+  left: 0;
+  color: var(--text-3);
+}

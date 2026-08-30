@@ -14,6 +14,14 @@
 
 不要把这些状态合并成一个通用 store。当前单用户、四页面闭环不需要跨页面客户端缓存。
 
+## 工作台投影
+
+场景工作台的唯一事实来源是 `GET /api/workspaces/{id}/upload-batches/studio` 返回的 `StudioProjection`，包含 `next_action`、`active_operation`、`latest_receipt` 和 `blocking_issues`。前端不得根据文件列表自行推导"下一步是什么"；所有状态分支以 `next_action.kind` 为准。
+
+文件角色确认通过 `PATCH /upload-batches/{batchId}/files/{fileId}/disposition` 逐个提交；每次提交推进 `batch_revision`，连续提交时必须用最新 revision（参考 `StudioShell::FileRoleConfirmation::submit`）。
+
+共创会话的 `status` 字段穷尽 `queued | processing | waiting_for_teacher | ready_for_confirmation | confirmed | failed | projection_pending | continuity_reset`，前端 UI 分支必须覆盖全部八个状态（参考 `case-builder/components/QuestionPage.tsx`）。
+
 ## 服务端快照优先
 
 FastAPI 返回的 `CaseDetail` 是页面恢复和命令完成后的来源。回答、重试、确认后用响应中的 `case` 覆盖本地资源；刷新后重新 GET。前端不得自行推进 `ready_for_ai -> waiting_for_input` 或 `waiting_for_confirmation -> confirmed`。
