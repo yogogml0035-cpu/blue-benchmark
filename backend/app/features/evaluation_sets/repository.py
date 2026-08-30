@@ -18,6 +18,7 @@ from app.lib.database.models import (
     WorkingSetCommandRow,
     WorkingSetDraftRow,
     WorkingSetMemberRow,
+    WorkspaceRow,
 )
 
 from app.features.evaluation_sets.schemas import (
@@ -130,6 +131,22 @@ def _now() -> datetime:
 
 def payload_hash(payload: Any) -> str:
     return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _recover_duplicate_command(session, draft_id: str, command_id: str, digest: str) -> WorkingSetDraftRecord | None:
+    session.rollback()
+    command = session.scalar(
+        select(WorkingSetCommandRow).where(
+            WorkingSetCommandRow.draft_id == draft_id,
+            WorkingSetCommandRow.command_id == command_id,
+        )
+    )
+    if command is None:
+        return None
+    if command.payload_hash != digest:
+        raise RepositoryConflict("working-set command payload changed")
+    draft = session.get(WorkingSetDraftRow, draft_id)
+    return _draft(draft) if draft else None
 
 
 def _draft(row: WorkingSetDraftRow) -> WorkingSetDraftRecord:
@@ -401,7 +418,7 @@ def mutate_member(
     now = _now()
     digest = payload_hash(payload.model_dump(mode="json"))
     with session_scope() as session:
-        draft = session.get(WorkingSetDraftRow, draft_id)
+        draft = session.scalar(select(WorkingSetDraftRow).where(WorkingSetDraftRow.id == draft_id).with_for_update())
         if draft is None:
             raise KeyError(draft_id)
         prior_command = session.scalar(
@@ -494,7 +511,13 @@ def mutate_member(
                 created_at=now,
             )
         )
-        session.flush()
+        try:
+            session.flush()
+        except IntegrityError:
+            recovered = _recover_duplicate_command(session, draft_id, payload.command_id, digest)
+            if recovered is not None:
+                return recovered
+            raise RepositoryConflict("working-set was updated concurrently")
         return _draft(draft)
 
 
@@ -504,11 +527,12 @@ def decide_impact(
     *,
     payload: ImpactReviewDecisionRequest,
     confirmed_by: str,
+    current_task_revision: int | None = None,
 ) -> WorkingSetDraftRecord:
     now = _now()
     digest = payload_hash(payload.model_dump(mode="json"))
     with session_scope() as session:
-        draft = session.get(WorkingSetDraftRow, draft_id)
+        draft = session.scalar(select(WorkingSetDraftRow).where(WorkingSetDraftRow.id == draft_id).with_for_update())
         if draft is None:
             raise KeyError(draft_id)
         command = session.scalar(select(WorkingSetCommandRow).where(WorkingSetCommandRow.draft_id == draft_id, WorkingSetCommandRow.command_id == payload.command_id))
@@ -546,12 +570,20 @@ def decide_impact(
         review.confirmed_at = now
         review.updated_at = now
         member.review_status = review.status
+        if current_task_revision is not None:
+            member.task_package_revision = current_task_revision
         member.teacher_note = payload.note
         member.updated_at = now
         draft.revision += 1
         draft.updated_at = now
         session.add(WorkingSetCommandRow(id=str(uuid4()), draft_id=draft_id, command_id=payload.command_id, payload_hash=digest, result_json={"task_package_id": task_package_id, "status": review.status}, created_at=now))
-        session.flush()
+        try:
+            session.flush()
+        except IntegrityError:
+            recovered = _recover_duplicate_command(session, draft_id, payload.command_id, digest)
+            if recovered is not None:
+                return recovered
+            raise RepositoryConflict("impact review was updated concurrently")
         return _draft(draft)
 
 
@@ -559,7 +591,7 @@ def confirm_no_conflict_batch(draft_id: str, *, payload: BatchImpactReviewReques
     now = _now()
     digest = payload_hash(payload.model_dump(mode="json"))
     with session_scope() as session:
-        draft = session.get(WorkingSetDraftRow, draft_id)
+        draft = session.scalar(select(WorkingSetDraftRow).where(WorkingSetDraftRow.id == draft_id).with_for_update())
         if draft is None:
             raise KeyError(draft_id)
         command = session.scalar(select(WorkingSetCommandRow).where(WorkingSetCommandRow.draft_id == draft_id, WorkingSetCommandRow.command_id == payload.command_id))
@@ -586,14 +618,20 @@ def confirm_no_conflict_batch(draft_id: str, *, payload: BatchImpactReviewReques
         draft.revision += 1
         draft.updated_at = now
         session.add(WorkingSetCommandRow(id=str(uuid4()), draft_id=draft_id, command_id=payload.command_id, payload_hash=digest, result_json={"status": "no_conflict_confirmed"}, created_at=now))
-        session.flush()
+        try:
+            session.flush()
+        except IntegrityError:
+            recovered = _recover_duplicate_command(session, draft_id, payload.command_id, digest)
+            if recovered is not None:
+                return recovered
+            raise RepositoryConflict("impact review was updated concurrently")
         return _draft(draft)
 
 
 def save_coverage(draft_id: str, *, draft_revision: int, snapshot: dict[str, Any]) -> CoverageSnapshotRecord:
     now = _now()
     with session_scope() as session:
-        draft = session.get(WorkingSetDraftRow, draft_id)
+        draft = session.scalar(select(WorkingSetDraftRow).where(WorkingSetDraftRow.id == draft_id).with_for_update())
         if draft is None:
             raise KeyError(draft_id)
         if draft.status != "active" or draft.revision != draft_revision:
@@ -616,7 +654,7 @@ def confirm_coverage(draft_id: str, *, payload: CoverageConfirmationRequest, con
     now = _now()
     digest = payload_hash(payload.model_dump(mode="json"))
     with session_scope() as session:
-        draft = session.get(WorkingSetDraftRow, draft_id)
+        draft = session.scalar(select(WorkingSetDraftRow).where(WorkingSetDraftRow.id == draft_id).with_for_update())
         if draft is None:
             raise KeyError(draft_id)
         command = session.scalar(select(WorkingSetCommandRow).where(WorkingSetCommandRow.draft_id == draft_id, WorkingSetCommandRow.command_id == payload.command_id))
@@ -634,13 +672,19 @@ def confirm_coverage(draft_id: str, *, payload: CoverageConfirmationRequest, con
         snapshot.confirmed_by = confirmed_by
         snapshot.confirmed_at = now
         session.add(WorkingSetCommandRow(id=str(uuid4()), draft_id=draft_id, command_id=payload.command_id, payload_hash=digest, result_json={"risk_confirmed": payload.confirmed}, created_at=now))
-        session.flush()
+        try:
+            session.flush()
+        except IntegrityError:
+            recovered = _recover_duplicate_command(session, draft_id, payload.command_id, digest)
+            if recovered is not None:
+                return recovered
+            raise RepositoryConflict("coverage confirmation was updated concurrently")
         return _draft(draft)
 
 
 def set_freeze_intent(draft_id: str, *, expected_revision: int, intent: dict[str, Any]) -> WorkingSetDraftRecord:
     with session_scope() as session:
-        draft = session.get(WorkingSetDraftRow, draft_id)
+        draft = session.scalar(select(WorkingSetDraftRow).where(WorkingSetDraftRow.id == draft_id).with_for_update())
         if draft is None:
             raise KeyError(draft_id)
         if draft.status != "active" or draft.revision != expected_revision:
@@ -658,7 +702,7 @@ def set_freeze_intent(draft_id: str, *, expected_revision: int, intent: dict[str
 
 def clear_freeze_intent(draft_id: str, command_id: str | None) -> WorkingSetDraftRecord:
     with session_scope() as session:
-        draft = session.get(WorkingSetDraftRow, draft_id)
+        draft = session.scalar(select(WorkingSetDraftRow).where(WorkingSetDraftRow.id == draft_id).with_for_update())
         if draft is None:
             raise KeyError(draft_id)
         if draft.freeze_intent_json and draft.freeze_intent_json.get("freeze_command_id") != command_id:
@@ -672,7 +716,7 @@ def clear_freeze_intent(draft_id: str, command_id: str | None) -> WorkingSetDraf
 def discard_draft(draft_id: str, *, expected_revision: int, command_id: str) -> WorkingSetDraftRecord:
     digest = payload_hash({"draft_revision": expected_revision, "action": "discard"})
     with session_scope() as session:
-        row = session.get(WorkingSetDraftRow, draft_id)
+        row = session.scalar(select(WorkingSetDraftRow).where(WorkingSetDraftRow.id == draft_id).with_for_update())
         if row is None:
             raise KeyError(draft_id)
         command = session.scalar(
@@ -726,14 +770,27 @@ def create_version_if_current(
     workspace_id = draft_before.workspace_id if draft_before else ""
     try:
         with session_scope() as session:
-            existing = session.scalar(select(EvaluationSetVersionRow).where(EvaluationSetVersionRow.freeze_command_id == freeze_command_id))
-            if existing is not None:
-                return _version(existing)
-            draft = session.get(WorkingSetDraftRow, draft_id)
+            draft = session.scalar(select(WorkingSetDraftRow).where(WorkingSetDraftRow.id == draft_id).with_for_update())
             if draft is None:
                 raise KeyError(draft_id)
+            session.scalar(select(WorkspaceRow).where(WorkspaceRow.id == draft.workspace_id).with_for_update())
+            latest_number = session.scalar(
+                select(func.max(EvaluationSetVersionRow.version_number)).where(
+                    EvaluationSetVersionRow.workspace_id == draft.workspace_id
+                )
+            ) or 0
+            existing = session.scalar(
+                select(EvaluationSetVersionRow).where(
+                    EvaluationSetVersionRow.workspace_id == draft.workspace_id,
+                    EvaluationSetVersionRow.freeze_command_id == freeze_command_id,
+                )
+            )
+            if existing is not None:
+                return _version(existing)
             if draft.status != "active" or draft.revision != expected_revision:
                 raise StaleDraft("working-set draft changed during freeze")
+            if version_number != latest_number + 1:
+                raise RepositoryConflict("evaluation-set version line advanced")
             row = EvaluationSetVersionRow(
                 id=version_id,
                 workspace_id=draft.workspace_id,

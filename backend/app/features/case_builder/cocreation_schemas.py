@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+import json
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class TaskPackageStatus(StrEnum):
@@ -85,6 +86,26 @@ class SkillAttemptProposal(BaseModel):
     evidence_file_ids: list[str] = Field(min_length=1)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("metadata")
+    @classmethod
+    def metadata_must_be_safe(cls, value: dict[str, Any]) -> dict[str, Any]:
+        forbidden = ("secret", "token", "password", "credential", "private_reasoning", "authorization", "api_key")
+        def contains_forbidden_key(item: Any) -> bool:
+            if isinstance(item, dict):
+                return any(
+                    any(term in str(key).casefold() for term in forbidden) or contains_forbidden_key(child)
+                    for key, child in item.items()
+                )
+            if isinstance(item, list):
+                return any(contains_forbidden_key(child) for child in item)
+            return False
+
+        if contains_forbidden_key(value):
+            raise ValueError("attempt metadata cannot contain credentials or private reasoning")
+        if len(json.dumps(value, ensure_ascii=False, default=str)) > 4_000:
+            raise ValueError("attempt metadata is too large")
+        return value
+
     @model_validator(mode="after")
     def unique_files(self) -> "SkillAttemptProposal":
         if len(self.evidence_file_ids) != len(set(self.evidence_file_ids)):
@@ -107,6 +128,8 @@ class TaskGroupProposal(BaseModel):
     def validate_group(self) -> "TaskGroupProposal":
         if len(self.evidence_file_ids) != len(set(self.evidence_file_ids)):
             raise ValueError("group evidence_file_ids must be unique")
+        if len(self.attempts) != len({attempt.attempt_key for attempt in self.attempts}):
+            raise ValueError("group attempts must be unique")
         referenced = set(self.evidence_file_ids)
         if any(set(attempt.evidence_file_ids) - referenced for attempt in self.attempts):
             raise ValueError("attempt files must belong to the group")
@@ -123,6 +146,8 @@ class BatchAnalysis(BaseModel):
 
     @model_validator(mode="after")
     def validate_file_ownership(self) -> "BatchAnalysis":
+        if len(self.groups) != len({group.proposal_key for group in self.groups}):
+            raise ValueError("group proposal keys must be unique")
         all_ids: list[str] = []
         for group in self.groups:
             all_ids.extend(group.evidence_file_ids)
@@ -132,6 +157,14 @@ class BatchAnalysis(BaseModel):
         return self
 
 
+class SkillAttemptInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attempt_key: str = Field(min_length=1, max_length=255)
+    label: str = Field(min_length=1, max_length=500)
+    evidence_file_ids: list[str] = Field(min_length=1)
+
+
 class TaskGroupInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -139,17 +172,27 @@ class TaskGroupInput(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     summary: str = Field(default="老师确认的真实任务分组。", max_length=2_000)
     evidence_file_ids: list[str] = Field(min_length=1)
-    attempts: list[SkillAttemptProposal] = Field(default_factory=list)
+    attempts: list[SkillAttemptInput] = Field(default_factory=list)
     initialization_only: bool = False
 
     @model_validator(mode="after")
     def validate_group(self) -> "TaskGroupInput":
         if len(self.evidence_file_ids) != len(set(self.evidence_file_ids)):
             raise ValueError("group evidence_file_ids must be unique")
+        if len(self.attempts) != len({attempt.attempt_key for attempt in self.attempts}):
+            raise ValueError("group attempts must be unique")
         referenced = set(self.evidence_file_ids)
         if any(set(attempt.evidence_file_ids) - referenced for attempt in self.attempts):
             raise ValueError("attempt files must belong to the group")
         return self
+
+
+class SkillAttemptView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    attempt_key: str
+    label: str
+    evidence_file_ids: list[str]
 
 
 class GroupingConfirmationRequest(BaseModel):
@@ -167,7 +210,7 @@ class TaskPackageSummary(BaseModel):
     status: TaskPackageStatus
     title: str
     evidence_file_ids: list[str]
-    attempts: list[SkillAttemptProposal] = Field(default_factory=list)
+    attempts: list[SkillAttemptView] = Field(default_factory=list)
     revision: int = Field(ge=0)
     initialization_only: bool = False
     has_judgment_package: bool = False
@@ -383,6 +426,7 @@ class CoCreationSessionView(BaseModel):
         "answer_question",
         "review_and_confirm",
         "retry_processing",
+        "continuity_reset",
         "none",
     ]
     active_operation_id: str | None = None

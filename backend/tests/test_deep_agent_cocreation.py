@@ -17,8 +17,15 @@ from app.lib.ai_runtime.adapters import (
     FakeEvidenceAnalyzer,
     FakeStandardCoCreator,
     RuntimeAdapters,
+    DeepAgentsCoverageReviewer,
+    DeepAgentsEvidenceAnalyzer,
+    DeepAgentsStandardCoCreator,
 )
+from app.lib.ai_runtime.context import AgentRunContext
+from app.lib.ai_runtime.profile import get_ai_profile
 from app.lib.ai_runtime.evidence import EvidenceDocument, ReadOnlyEvidenceBackend
+from app.lib.ai_runtime.evidence import EvidenceValidationError, validate_evidence_refs
+from app.features.case_builder.cocreation_schemas import AgentEvidenceRef, BatchAnalysis, CoCreationAgentResult, CoverageReview, JsonPointerLocator
 from app.lib.ai_runtime.middleware import ModelToolSurfaceMiddleware
 from app.lib.ai_runtime.adapters import _question_from_interrupt
 from langchain.agents.middleware.types import ToolCallRequest
@@ -124,11 +131,15 @@ def test_read_only_backend_is_scoped_and_reads_to_eof(tmp_path: Path):
 
     first = backend.read("/evidence/file", offset=0, limit=100)
     tail = backend.read("/evidence/file", offset=100, limit=100)
+    manifest = backend.read("/evidence/manifest.json")
+    assert "file" in (manifest.file_data or {})["content"]
+    assert "storage_key" not in (manifest.file_data or {})["content"]
     assert first.total_lines == 130
     assert first.next_offset == 100
     assert "line-100" in (first.file_data or {})["content"]
     assert tail.next_offset is None
     assert "line-130" in (tail.file_data or {})["content"]
+    assert backend.read("/evidence/file", limit=0).no_lines_requested
     assert backend.read("/etc/passwd").error
     assert backend.write("/evidence/file", "overwrite").error
     assert backend.edit("/evidence/file", "line-1", "changed").error
@@ -161,6 +172,90 @@ def test_model_tool_surface_and_hitl_envelope_fail_closed():
                 ],
             }
         )
+
+
+def test_json_and_event_locators_are_checked_against_content(tmp_path: Path):
+    storage = LocalStorage(tmp_path)
+    json_bytes = b'{"facts":{"id":"fact-1"}}'
+    stored = storage.stage_bytes("batch", "json", json_bytes)
+    storage.publish(stored.key, "evidence/batch/json")
+    document = EvidenceDocument(
+        file_id="json",
+        name="events.jsonl",
+        storage_key="evidence/batch/json",
+        size_bytes=len(json_bytes),
+        sha256=stored.sha256,
+        parse_state="parsed",
+        canonical_view={"kind": "json", "line_count": 1},
+        role="runtime",
+        ignored=False,
+        visibility="runtime",
+    )
+    valid = AgentEvidenceRef(source_id="json", locator=JsonPointerLocator(pointer="/facts/id"))
+    validate_evidence_refs([valid], {"json": document}, storage)
+    invalid = AgentEvidenceRef(source_id="json", locator=JsonPointerLocator(pointer="/facts/missing"))
+    with pytest.raises(EvidenceValidationError):
+        validate_evidence_refs([invalid], {"json": document}, storage)
+
+
+def test_stateless_real_adapter_does_not_require_checkpoint_state():
+    class StatelessGraph:
+        def invoke(self, payload, **kwargs):
+            assert "durability" not in kwargs
+            return {"messages": [], "structured_response": CoverageReview().model_dump(mode="json")}
+
+        def get_state(self, _config):
+            pytest.fail("stateless adapters must not read checkpoint state")
+
+    context = AgentRunContext(
+        user_id="u",
+        workspace_id="w",
+        target_type="coverage",
+        target_id="d",
+        thread_key="coverage-thread",
+        business_revision=0,
+        evidence_file_ids=(),
+        evidence_scope="/evidence/none",
+        ai_profile_version="profile",
+        graph_schema_version="graph",
+    )
+    result = DeepAgentsCoverageReviewer()._invoke(StatelessGraph(), {}, context, CoverageReview)
+    assert isinstance(result.result, CoverageReview)
+
+
+def test_production_graphs_construct_with_role_specific_tool_surfaces():
+    profile = get_ai_profile()
+    context = AgentRunContext(
+        user_id="u",
+        workspace_id="w",
+        target_type="task",
+        target_id="t",
+        thread_key="thread-role-surface",
+        business_revision=0,
+        evidence_file_ids=(),
+        evidence_scope="/evidence/task",
+        ai_profile_version=profile.version,
+        graph_schema_version="m0-cocreation-graph-v1",
+    )
+    batch_graph = DeepAgentsEvidenceAnalyzer()._graph(
+        context,
+        {},
+        BatchAnalysis,
+        allowed_tools={"ls", "read_file", "glob", "grep", "BatchAnalysis"},
+    )
+    co_graph = DeepAgentsStandardCoCreator()._graph(
+        context,
+        {},
+        CoCreationAgentResult,
+        allowed_tools={"ls", "read_file", "glob", "grep", "ask_teacher", "CoCreationAgentResult"},
+        ask_teacher=True,
+    )
+    batch_tools = set(getattr(batch_graph.nodes["tools"].bound, "_tools_by_name", {}))
+    co_tools = set(getattr(co_graph.nodes["tools"].bound, "_tools_by_name", {}))
+    assert "task" not in batch_tools
+    assert not batch_tools & {"execute", "write_file", "edit_file", "delete"}
+    assert "ask_teacher" in co_tools
+    assert not co_tools & {"task", "execute", "write_file", "edit_file", "delete"}
 
 
 def test_teacher_can_split_groups_and_repeat_confirmation_without_duplicates(client: TestClient):
@@ -206,6 +301,7 @@ def test_teacher_can_split_groups_and_repeat_confirmation_without_duplicates(cli
     )
     assert repeated.status_code == 200
     assert [item["id"] for item in repeated.json()["task_packages"]] == first_ids
+    assert "metadata" not in repeated.text
     assert len(cocreation_repository.list_task_packages(batch_id)) == 2
 
 
@@ -263,6 +359,17 @@ def test_cocreation_is_one_question_at_a_time_and_uses_stable_server_thread(clie
     )
     assert duplicate.status_code == 202
     assert duplicate.json()["session"]["business_revision"] == answered.json()["session"]["business_revision"]
+    conflicting_answer = client.post(
+        f"/api/workspaces/{workspace_id}/co-creation/{session_id}/answers",
+        json={
+            "command_id": "answer-1",
+            "question_id": waiting["pending_question"]["id"],
+            "answer": "不同回答",
+            "business_revision": waiting["business_revision"],
+        },
+    )
+    assert conflicting_answer.status_code == 409
+    assert conflicting_answer.json()["error"]["code"] == "COMMAND_ID_REUSED"
     assert default_worker().run_once().status.value == "succeeded"
     second = client.get(f"/api/workspaces/{workspace_id}/co-creation/{session_id}").json()["session"]
     assert second["next_action"] == "answer_question"
@@ -301,6 +408,18 @@ def test_cocreation_completion_requires_teacher_confirmation_and_survives_checkp
     )
     assert confirmed.status_code == 200
     assert confirmed.json()["session"]["status"] == "confirmed"
+    package = client.get(f"/api/workspaces/{workspace_id}/task-packages/{package_id}").json()["task_package"]
+    feedback = client.post(
+        f"/api/workspaces/{workspace_id}/task-packages/{package_id}/feedback",
+        json={"source_id": package["evidence_file_ids"][0], "text": "关键事实必须逐项回查。"},
+    )
+    assert feedback.status_code == 200
+    promotion = client.post(
+        f"/api/workspaces/{workspace_id}/standard-promotions/{feedback.json()['promotion_id']}/decision",
+        json={"decision": "approve"},
+    )
+    assert promotion.status_code == 200
+    assert len(cocreation_repository.list_contract_revisions(workspace_id)) == 2
     record = cocreation_repository.get_session(session_id)
     assert record is not None
     adapter = get_adapters().standard_cocreator
@@ -346,6 +465,7 @@ def test_missing_accepted_checkpoint_requires_explicit_continuity_reset(client: 
     assert failed is not None and failed.status.value == "failed"
     old = cocreation_repository.get_session(old_id)
     assert old is not None and old.status == "continuity_reset"
+    assert client.get(f"/api/workspaces/{workspace_id}/co-creation/{old_id}").json()["session"]["next_action"] == "continuity_reset"
     reset = client.post(
         f"/api/workspaces/{workspace_id}/co-creation/{old_id}/continuity-reset",
         json={"command_id": "reset-command", "reason": "旧 Checkpoint 已删除"},

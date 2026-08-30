@@ -26,6 +26,9 @@ class AIProfile:
     max_model_calls: int
     max_tool_calls: int
     model_retries: int
+    middleware_order: tuple[str, ...]
+    read_tools: frozenset[str]
+    forbidden_tools: frozenset[str]
 
 
 def get_ai_profile() -> AIProfile:
@@ -40,6 +43,16 @@ def get_ai_profile() -> AIProfile:
         max_model_calls=settings.ai_model_call_limit,
         max_tool_calls=settings.ai_tool_call_limit,
         model_retries=settings.ai_model_retries,
+        middleware_order=(
+            "FilesystemMiddleware",
+            "ModelToolSurfaceMiddleware",
+            "ModelCallLimitMiddleware",
+            "ToolCallLimitMiddleware",
+            "ModelRetryMiddleware",
+            "HumanInTheLoopMiddleware",
+        ),
+        read_tools=READ_TOOLS,
+        forbidden_tools=FORBIDDEN_TOOLS,
     )
 
 

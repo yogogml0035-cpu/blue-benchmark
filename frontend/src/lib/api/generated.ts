@@ -963,7 +963,7 @@ export interface components {
              * Next Action
              * @enum {string}
              */
-            next_action: "wait_for_processing" | "answer_question" | "review_and_confirm" | "retry_processing" | "none";
+            next_action: "wait_for_processing" | "answer_question" | "review_and_confirm" | "retry_processing" | "continuity_reset" | "none";
             /** Active Operation Id */
             active_operation_id?: string | null;
             /** Blocking Issues */
@@ -1586,18 +1586,23 @@ export interface components {
             /** Evidence Refs */
             evidence_refs: components["schemas"]["AgentEvidenceRef"][];
         };
-        /** SkillAttemptProposal */
-        SkillAttemptProposal: {
+        /** SkillAttemptInput */
+        SkillAttemptInput: {
             /** Attempt Key */
             attempt_key: string;
             /** Label */
             label: string;
             /** Evidence File Ids */
             evidence_file_ids: string[];
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
+        };
+        /** SkillAttemptView */
+        SkillAttemptView: {
+            /** Attempt Key */
+            attempt_key: string;
+            /** Label */
+            label: string;
+            /** Evidence File Ids */
+            evidence_file_ids: string[];
         };
         /** StudioProjection */
         StudioProjection: {
@@ -1629,7 +1634,7 @@ export interface components {
             /** Evidence File Ids */
             evidence_file_ids: string[];
             /** Attempts */
-            attempts?: components["schemas"]["SkillAttemptProposal"][];
+            attempts?: components["schemas"]["SkillAttemptInput"][];
             /**
              * Initialization Only
              * @default false
@@ -1668,7 +1673,7 @@ export interface components {
             /** Evidence File Ids */
             evidence_file_ids: string[];
             /** Attempts */
-            attempts?: components["schemas"]["SkillAttemptProposal"][];
+            attempts?: components["schemas"]["SkillAttemptView"][];
             /** Revision */
             revision: number;
             /**
@@ -3794,6 +3799,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     get_draft_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__get: {
@@ -3855,6 +3869,15 @@ export interface operations {
             };
             /** @description Unprocessable Content */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3934,6 +3957,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     mutate_member_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__members_post: {
@@ -3999,6 +4031,15 @@ export interface operations {
             };
             /** @description Unprocessable Content */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4079,6 +4120,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     confirm_impact_batch_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__impact_reviews_confirm_no_conflict_post: {
@@ -4144,6 +4194,15 @@ export interface operations {
             };
             /** @description Unprocessable Content */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4223,6 +4282,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     confirm_coverage_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__coverage_confirmation_post: {
@@ -4295,6 +4363,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     freeze_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__freeze_post: {
@@ -4360,6 +4437,15 @@ export interface operations {
             };
             /** @description Unprocessable Content */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

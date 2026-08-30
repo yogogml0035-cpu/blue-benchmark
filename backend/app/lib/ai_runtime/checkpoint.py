@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from threading import Lock
 from typing import AsyncIterator
 from uuid import uuid4
 
@@ -14,6 +15,10 @@ class CheckpointError(RuntimeError):
 
 
 class CheckpointNotFound(CheckpointError):
+    pass
+
+
+class CheckpointIncompatible(CheckpointError):
     pass
 
 
@@ -29,23 +34,26 @@ class FakeCheckpointStore:
 
     def __init__(self) -> None:
         self._items: dict[str, FakeCheckpoint] = {}
-        self._lock = asyncio.Lock()
+        self._lock = Lock()
 
     def put(self, thread_key: str, result_json: dict) -> str:
         checkpoint_id = f"fake-cp-{uuid4()}"
-        self._items[checkpoint_id] = FakeCheckpoint(checkpoint_id, thread_key, result_json)
+        with self._lock:
+            self._items[checkpoint_id] = FakeCheckpoint(checkpoint_id, thread_key, result_json)
         return checkpoint_id
 
     def get(self, checkpoint_id: str, thread_key: str) -> dict:
-        item = self._items.get(checkpoint_id)
+        with self._lock:
+            item = self._items.get(checkpoint_id)
         if item is None or item.thread_key != thread_key:
             raise CheckpointNotFound("accepted checkpoint is missing or belongs to another thread")
         return dict(item.result_json)
 
     def delete_thread(self, thread_key: str) -> None:
-        for checkpoint_id, item in list(self._items.items()):
-            if item.thread_key == thread_key:
-                del self._items[checkpoint_id]
+        with self._lock:
+            for checkpoint_id, item in list(self._items.items()):
+                if item.thread_key == thread_key:
+                    del self._items[checkpoint_id]
 
 
 def explicit_checkpoint_config(thread_key: str, checkpoint_id: str | None = None) -> dict:
@@ -67,6 +75,8 @@ async def open_async_postgres_checkpointer(
     url = database_url or settings.checkpoint_database_url
     if not url:
         raise CheckpointError("CHECKPOINT_DATABASE_URL is required for production co-creation")
+    if url == settings.database_url:
+        raise CheckpointError("CHECKPOINT_DATABASE_URL must be separate from DATABASE_URL")
     key = encryption_key or settings.checkpoint_encryption_key
     if not key:
         raise CheckpointError("LANGGRAPH_AES_KEY is required for production co-creation")
@@ -77,11 +87,11 @@ async def open_async_postgres_checkpointer(
     from psycopg import AsyncConnection
 
     connection = await AsyncConnection.connect(url, autocommit=True)
-    saver = AsyncPostgresSaver(
-        connection,
-        serde=EncryptedSerializer.from_pycryptodome_aes(key=key.encode()),
-    )
     try:
+        saver = AsyncPostgresSaver(
+            connection,
+            serde=EncryptedSerializer.from_pycryptodome_aes(key=key.encode()),
+        )
         yield saver
     finally:
         await connection.close()

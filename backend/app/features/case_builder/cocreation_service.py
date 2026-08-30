@@ -28,6 +28,7 @@ from app.features.case_builder.cocreation_schemas import (
     ScenarioContractContent,
     JudgmentPackageContent,
     SkillAttemptProposal,
+    SkillAttemptView,
     TaskGroupInput,
     TaskPackageListResponse,
     TaskPackageResponse,
@@ -38,8 +39,9 @@ from app.features.case_builder.cocreation_schemas import (
 )
 from app.features.workspaces import service as workspace_service
 from app.lib.ai_runtime import AgentRunContext, get_adapters, get_ai_profile
+from app.lib.ai_runtime.profile import GRAPH_SCHEMA_VERSION
 from app.lib.ai_runtime.adapters import AgentRunResult
-from app.lib.ai_runtime.checkpoint import CheckpointNotFound
+from app.lib.ai_runtime.checkpoint import CheckpointIncompatible, CheckpointNotFound
 from app.lib.ai_runtime.evidence import documents_for_files, validate_evidence_refs
 from app.lib.errors import AppError
 from app.lib.operations import attempts as attempt_repository
@@ -59,7 +61,14 @@ def _summary(item: repository.TaskPackageRecord) -> TaskPackageSummary:
         status=TaskPackageStatus(item.status),
         title=item.title,
         evidence_file_ids=list(item.evidence_file_ids),
-        attempts=[SkillAttemptProposal.model_validate(attempt) for attempt in (item.analysis or {}).get("attempts", [])],
+        attempts=[
+            SkillAttemptView(
+                attempt_key=str(attempt["attempt_key"]),
+                label=str(attempt["label"]),
+                evidence_file_ids=list(attempt["evidence_file_ids"]),
+            )
+            for attempt in (item.analysis or {}).get("attempts", [])
+        ],
         revision=item.revision,
         initialization_only=item.initialization_only,
         has_judgment_package=item.judgment_package is not None,
@@ -136,7 +145,6 @@ def confirm_task_groups(
                             "attempt_key": f"{group.proposal_key or group.title}-attempt-1",
                             "label": "老师确认的任务证据",
                             "evidence_file_ids": list(group.evidence_file_ids),
-                            "metadata": {"source": "teacher-confirmed"},
                         }
                     ],
                 }
@@ -153,7 +161,8 @@ def confirm_task_groups(
     except ValueError as exc:
         raise AppError(422, "INVALID_TASK_GROUPING", "任务分组中的资料必须来自当前批次且不能重复。") from exc
     except repository.RepositoryConflict as exc:
-        raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经提交过不同的分组内容。") from exc
+        code = "GROUPING_ALREADY_CONFIRMED" if "already been confirmed" in str(exc) else "COMMAND_ID_REUSED"
+        raise AppError(409, code, "任务分组已经确认，不能再创建第二套正式分组。" if code == "GROUPING_ALREADY_CONFIRMED" else "相同命令已经提交过不同的分组内容。") from exc
     if packages is None:
         raise AppError(409, "STALE_BATCH", "批次已经更新，请重新读取后确认分组。")
     refreshed = ingestion_repository.get_batch(batch.id)
@@ -297,10 +306,14 @@ def _session_view(session: repository.CoCreationSessionRecord) -> CoCreationSess
     if pending and pending.get("id"):
         pending_question = CoCreationQuestion.model_validate(pending)
     job = _job_for_session(session.id)
-    if job and job.status in {OperationJobStatus.queued, OperationJobStatus.running}:
+    if session.status == CoCreationStatus.continuity_reset.value:
+        next_action = "continuity_reset"
+    elif job and job.status in {OperationJobStatus.queued, OperationJobStatus.running}:
         next_action = "wait_for_processing"
     elif job and job.status in {OperationJobStatus.failed, OperationJobStatus.projection_pending}:
         next_action = "retry_processing"
+    elif session.status in {CoCreationStatus.queued.value, CoCreationStatus.processing.value}:
+        next_action = "wait_for_processing"
     elif session.status == CoCreationStatus.waiting_for_teacher.value:
         next_action = "answer_question"
     elif session.status == CoCreationStatus.ready_for_confirmation.value:
@@ -356,11 +369,20 @@ def start_cocreation(
     if existing_by_command is not None:
         return _session_response(existing_by_command)
     existing = repository.get_active_session(task_package_id, payload.kind.value)
-    if existing is not None and not (
-        payload.kind == CoCreationKind.scenario_contract
-        and existing.status == CoCreationStatus.confirmed.value
-    ):
+    if existing is not None:
+        if existing.status == CoCreationStatus.queued.value and _job_for_session(existing.id) is None:
+            operation_repository.create_or_get(
+                kind="cocreation_start",
+                target_type="co_creation_session",
+                target_id=existing.id,
+                command_id=existing.command_id or payload.command_id,
+                business_revision=existing.business_revision,
+                accepted_checkpoint_id=existing.accepted_checkpoint_id,
+            )
         return _session_response(existing)
+    latest = repository.get_latest_session(task_package_id, payload.kind.value)
+    if latest is not None and latest.status == CoCreationStatus.confirmed.value and payload.kind == CoCreationKind.task_judgment:
+        return _session_response(latest)
     profile = get_ai_profile()
     session = repository.create_session(
         workspace_id=workspace_id,
@@ -369,8 +391,10 @@ def start_cocreation(
         command_id=payload.command_id,
         initialization_only=payload.initialization_only,
         ai_profile_version=profile.version,
-        graph_schema_version="m0-cocreation-graph-v1",
+        graph_schema_version=GRAPH_SCHEMA_VERSION,
     )
+    if session.command_id != payload.command_id:
+        return _session_response(session)
     try:
         operation_repository.create_or_get(
             kind="cocreation_start",
@@ -404,13 +428,24 @@ def answer_cocreation(
             answer=payload.answer,
             command_id=payload.command_id,
         ) or (None, False)
-    except RepositoryConflict as exc:
+    except repository.RepositoryConflict as exc:
         message = str(exc)
+        if "payload conflicts" in message:
+            raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经提交过不同的回答。") from exc
         code = "QUESTION_ALREADY_ANSWERED" if "stale" in message or "already" in message else "QUESTION_NOT_PENDING"
         raise AppError(409, code, "当前问题已经回答或不再等待回答。") from exc
     if updated is None:
         raise AppError(409, "STALE_COCREATION", "共创状态已经更新，请重新读取后回答。")
     if duplicate:
+        if updated.status == CoCreationStatus.processing.value and _job_for_session(updated.id) is None:
+            operation_repository.create_or_get(
+                kind="cocreation_resume",
+                target_type="co_creation_session",
+                target_id=updated.id,
+                command_id=payload.command_id,
+                business_revision=updated.business_revision,
+                accepted_checkpoint_id=updated.accepted_checkpoint_id,
+            )
         return _session_response(updated)
     try:
         operation_repository.create_or_get(
@@ -449,9 +484,19 @@ def retry_cocreation(
         turns = repository.list_turns(session.id)
         kind = "cocreation_resume" if any(item.status == "answered_pending_resume" for item in turns) else "cocreation_start"
         accepted = session.accepted_checkpoint_id
+    if session.status == CoCreationStatus.processing.value and _job_for_session(session.id) is None:
+        operation_repository.create_or_get(
+            kind=kind,
+            target_type="co_creation_session",
+            target_id=session.id,
+            command_id=payload.command_id,
+            business_revision=session.business_revision,
+            accepted_checkpoint_id=accepted,
+        )
+        return _session_response(repository.get_session(session.id) or session)
     try:
         queued = repository.queue_retry(session.id, expected_business_revision=payload.business_revision)
-    except RepositoryConflict as exc:
+    except repository.RepositoryConflict as exc:
         raise AppError(409, "RETRY_NOT_AVAILABLE", "当前没有可重试的共创操作。") from exc
     if queued is None:
         raise AppError(409, "STALE_COCREATION", "共创状态已经更新，请重新读取后重试。")
@@ -482,6 +527,8 @@ def reset_cocreation(
             session.id,
             command_id=payload.command_id,
             reason=payload.reason,
+            ai_profile_version=get_ai_profile().version,
+            graph_schema_version=GRAPH_SCHEMA_VERSION,
         )
     except repository.RepositoryConflict as exc:
         raise AppError(409, "CONTINUITY_RESET_NOT_REQUIRED", "当前共创会话不需要重新建立连续性。") from exc
@@ -549,6 +596,8 @@ def create_feedback(
     user: UserRecord,
 ) -> dict[str, Any]:
     package = _authorized_package(workspace_id, task_package_id, user)
+    if payload.source_id not in {*package.evidence_file_ids, package.id}:
+        raise AppError(422, "INVALID_FEEDBACK_SOURCE", "反馈来源不属于当前任务。")
     feedback = repository.create_feedback(package.id, payload.source_id, payload.text, user.id)
     proposal = repository.create_promotion(package.id, workspace_id, feedback.id, payload.text)
     return {"feedback_id": feedback.id, "promotion_id": proposal.id, "status": proposal.status}
@@ -565,7 +614,7 @@ def decide_promotion(
     if proposal is None or proposal.workspace_id != workspace_id:
         raise AppError(404, "RESOURCE_NOT_FOUND", "标准升级提案不存在。")
     try:
-        decided = repository.decide_promotion(proposal.id, payload.decision)
+        decided = repository.decide_promotion(proposal.id, payload.decision, confirmed_by=user.id)
     except repository.RepositoryConflict as exc:
         raise AppError(409, "PROMOTION_ALREADY_DECIDED", "标准升级提案已经处理。") from exc
     return {"promotion_id": decided.id, "status": decided.status, "decided_at": decided.decided_at}
@@ -597,6 +646,8 @@ def complete_batch_analysis(job: OperationJob) -> dict[str, Any]:
         from app.lib.operations.worker import SupersededOperation
 
         raise SupersededOperation("上传批次已产生新修订。")
+    if batch.status == "ready_for_confirmation":
+        return {"batch_id": batch.id, "status": "ready_for_confirmation", "group_count": len(repository.list_task_packages(batch.id))}
     files = ingestion_repository.list_files(batch.id)
     context = _batch_context(batch.id, batch.workspace_id, batch.id, batch.revision)
     try:
@@ -611,18 +662,14 @@ def complete_batch_analysis(job: OperationJob) -> dict[str, Any]:
         proposed.update(result.result.unassigned_file_ids)
         if proposed - known or set(result.result.file_roles) - known:
             raise RuntimeError("evidence analyzer returned an out-of-scope file")
-        repository.replace_proposals(batch.id, result.result)
+        repository.replace_proposals(batch.id, result.result, expected_revision=job.business_revision)
+    except repository.RepositoryConflict as exc:
+        from app.lib.operations.worker import SupersededOperation
+
+        raise SupersededOperation(str(exc)) from exc
     except Exception:
         ingestion_repository.update_status(batch.id, "failed", expected_revision=batch.revision)
         raise
-    if not ingestion_repository.update_status(
-        batch.id,
-        "ready_for_confirmation",
-        expected_revision=job.business_revision,
-    ):
-        from app.lib.operations.worker import SupersededOperation
-
-        raise SupersededOperation("上传批次状态已更新。")
     return {"batch_id": batch.id, "status": "ready_for_confirmation", "group_count": len(result.result.groups)}
 
 
@@ -635,6 +682,15 @@ def _run_cocreation_agent(job: OperationJob, mode: str) -> dict[str, Any]:
         raise AppError(404, "RESOURCE_NOT_FOUND", "任务不存在。")
     if session.business_revision != job.business_revision:
         from app.lib.operations.worker import SupersededOperation
+
+        runs = attempt_repository.list_for_job(job.id)
+        if (
+            session.business_revision > job.business_revision
+            and runs
+            and runs[-1].produced_checkpoint_id
+            and runs[-1].produced_checkpoint_id == session.accepted_checkpoint_id
+        ):
+            return {"session_id": session.id, "status": session.status, "business_revision": session.business_revision}
 
         raise SupersededOperation("共创业务版本已经更新。")
     context = _session_context(session, package)
@@ -714,9 +770,10 @@ def _run_cocreation_agent(job: OperationJob, mode: str) -> dict[str, Any]:
                 produced_checkpoint_id=result.produced_checkpoint_id,
                 result_hash=repository.result_hash(result.result),
             ) from exc
-    except CheckpointNotFound as exc:
-        repository.mark_continuity_reset(session.id, "accepted checkpoint is missing")
-        raise RuntimeError("accepted checkpoint is missing; continuity reset required") from exc
+    except (CheckpointNotFound, CheckpointIncompatible) as exc:
+        reason = "accepted checkpoint is missing" if isinstance(exc, CheckpointNotFound) else "accepted checkpoint is incompatible"
+        repository.mark_continuity_reset(session.id, reason)
+        raise RuntimeError(f"{reason}; continuity reset required") from exc
     except Exception as exc:
         from app.lib.operations.worker import SupersededOperation
 

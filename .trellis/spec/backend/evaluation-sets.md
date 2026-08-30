@@ -26,7 +26,9 @@
 - Draft 以 `revision` 做 CAS；成员变更、影响复核会推进 revision，CoverageSnapshot 必须精确匹配当前 revision。discard 后只能从最新版本重新派生。
 - 冻结硬门：合同已确认；至少一道 included 且已定稿题；任务快照、判定依据、来源证据、文件 visibility 和 runtime 输入完整；所有合同冲突已逐题复核或确定性无冲突批量确认；当前 coverage 已生成；覆盖 warning 已由老师明确确认。
 - `runtime.json` 只允许 `schema_version/tasks/task_id/title/brief/input_files`，文件只允许 `file_id/name/media_type/sha256/content`；参考结果、hard gate、评分维度、老师判断和形成记录分别保存在 `judge.json`/`provenance.json`。
+- runtime 文件在进入 Agent 或版本包前都要再次验证 ready marker、字节数和 SHA-256；任务 revision 落后于 WorkingSetMember 时即使同一个题 ID 仍然阻塞 freeze。
 - Manifest 使用固定排序和 JSON 序列化，记录合同快照、题 revision、来源文件 hash、分区 hash、冻结人/时间、风险确认和 `overall_sha256`。ZIP 固定条目顺序/时间戳；API 和下载都校验 Manifest、三个分区和 ZIP 内容一致。
+- Manifest 的 `version.id/workspace_id/number` 必须分别等于 `EvaluationSetVersion` 的数据库字段；freeze command 在同一 workspace 不能复用于另一份草稿。历史派生前也必须先完成整包完整性校验，不能只读 Manifest。
 - freeze 先 staging 和 ready marker，再以 draft revision CAS 创建 `EvaluationSetVersion`；打包或 DB 失败不能留下可见版本。相同 `freeze_command_id` 重试只返回同一版本。
 - API 不返回 storage key、绝对路径、Checkpoint、原始消息或 private reasoning；教师完整下载包时，调用方必须把 runtime 分区与 judge/provenance 分开使用。
 
@@ -38,6 +40,7 @@
 - 同一个 command 相同 payload 返回已有投影/版本；相同 command 不同 payload -> `409 COMMAND_ID_REUSED` 或 `FREEZE_IN_PROGRESS`。
 - Manifest、任一分区或 ZIP ready marker/hash 不一致 -> 不提供内容，返回清洗后的 `500 VERSION_PACKAGE_UNREADABLE`/`VERSION_HASH_MISMATCH`。
 - 版本号只可由最新版本号加一生成；并发冲突不得重写旧版本，失败保留可重试 OperationJob/intent。
+- draft/member/review/coverage/version 的写事务锁定当前 draft（分配合同/版本号时锁定 workspace），并在提交前再次 CAS；题 revision 过期必须阻塞而不能静默采用最新题稿。
 
 ### 5. Good/Base/Bad Cases
 

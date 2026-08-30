@@ -33,6 +33,7 @@ common_errors = {
     404: {"model": ErrorResponse},
     409: {"model": ErrorResponse},
     422: {"model": ErrorResponse},
+    500: {"model": ErrorResponse},
 }
 
 

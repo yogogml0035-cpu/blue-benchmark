@@ -116,6 +116,30 @@ def _freeze_one(client: TestClient, workspace_id: str, package_id: str, command:
     )
     assert included.status_code == 200
     current = included.json()["draft"]
+    repeated_member = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/members",
+        json={
+            "command_id": "v1-include",
+            "draft_revision": 0,
+            "task_package_id": package_id,
+            "task_package_revision": package["revision"],
+            "action": "include",
+        },
+    )
+    assert repeated_member.status_code == 200
+    assert repeated_member.json()["draft"]["revision"] == current["revision"]
+    conflicting_member = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/members",
+        json={
+            "command_id": "v1-include",
+            "draft_revision": 0,
+            "task_package_id": package_id,
+            "task_package_revision": package["revision"],
+            "action": "remove",
+        },
+    )
+    assert conflicting_member.status_code == 409
+    assert conflicting_member.json()["error"]["code"] == "DRAFT_NOT_EDITABLE"
     coverage = client.post(
         f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{current['id']}/coverage-review",
         json={"command_id": f"{command}-coverage", "draft_revision": current["revision"]},
@@ -210,6 +234,12 @@ def test_freeze_v1_v2_is_continuous_and_history_is_immutable(client: TestClient)
     assert derived["base_version_id"] == v1["id"]
     assert len(derived["members"]) == 1
     assert derived["members"][0]["status"] == "included"
+    reused_command = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{derived['id']}/freeze",
+        json={"command_id": "v1-freeze", "draft_revision": derived["revision"]},
+    )
+    assert reused_command.status_code == 409
+    assert reused_command.json()["error"]["code"] == "COMMAND_ID_REUSED"
     coverage = client.post(
         f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{derived['id']}/coverage-review",
         json={"command_id": "v2-coverage", "draft_revision": derived["revision"]},
@@ -237,11 +267,20 @@ def test_freeze_v1_v2_is_continuous_and_history_is_immutable(client: TestClient)
 
 def test_freeze_rejects_unconfirmed_visibility_and_tampered_package(client: TestClient):
     workspace_id, package_id, package_revision = _formal_task(client)
-    draft = client.post(f"/api/workspaces/{workspace_id}/evaluation-sets/drafts", json={"command_id": "visibility-draft"}).json()["draft"]
+    discarded_draft = client.post(f"/api/workspaces/{workspace_id}/evaluation-sets/drafts", json={"command_id": "discard-draft"}).json()["draft"]
+    discarded = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{discarded_draft['id']}/discard",
+        json={"command_id": "discard", "draft_revision": discarded_draft["revision"]},
+    )
+    assert discarded.status_code == 200
+    rebuilt = client.post(f"/api/workspaces/{workspace_id}/evaluation-sets/drafts", json={"command_id": "rebuilt-draft"})
+    assert rebuilt.status_code == 201
+    assert rebuilt.json()["draft"]["id"] != discarded_draft["id"]
+    draft = rebuilt.json()["draft"]
     # The task itself is complete, but making a stale task revision cannot pass the member gate.
     stale = client.post(
         f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft['id']}/members",
-        json={"command_id": "stale-member", "draft_revision": 0, "task_package_id": package_id, "task_package_revision": package_revision - 1, "action": "include"},
+        json={"command_id": "stale-member", "draft_revision": draft["revision"], "task_package_id": package_id, "task_package_revision": package_revision - 1, "action": "include"},
     )
     assert stale.status_code == 409
 
@@ -298,6 +337,20 @@ def test_contract_revision_requires_teacher_impact_review_before_freeze(client: 
     )
     assert reviewed.status_code == 200
     assert reviewed.json()["draft"]["members"][0]["review_status"] == "reviewed"
+    current = reviewed.json()["draft"]
+    coverage = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{derived['id']}/coverage-review",
+        json={"command_id": "impact-v2-coverage-after-review", "draft_revision": current["revision"]},
+    )
+    assert coverage.status_code == 202
+    assert default_worker().run_once().status.value == "succeeded"
+    current = client.get(f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{derived['id']}").json()["draft"]
+    freeze = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{derived['id']}/freeze",
+        json={"command_id": "impact-v2-freeze", "draft_revision": current["revision"]},
+    )
+    assert freeze.status_code == 202
+    assert default_worker().run_once().status.value == "succeeded"
 
 
 def test_coverage_warning_requires_explicit_risk_confirmation(client: TestClient):

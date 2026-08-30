@@ -145,7 +145,9 @@ class SkillRunEvidenceRow(Base):
 
 class CoCreationSessionRow(Base):
     __tablename__ = "co_creation_sessions"
-    __table_args__ = (UniqueConstraint("command_id", name="uq_co_creation_session_command"),)
+    __table_args__ = (
+        UniqueConstraint("task_package_id", "kind", "command_id", name="uq_co_creation_session_command"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
@@ -392,7 +394,7 @@ class EvaluationSetVersionRow(Base):
     __tablename__ = "evaluation_set_versions"
     __table_args__ = (
         UniqueConstraint("workspace_id", "version_number", name="uq_evaluation_set_version_number"),
-        UniqueConstraint("freeze_command_id", name="uq_evaluation_set_freeze_command"),
+        UniqueConstraint("workspace_id", "freeze_command_id", name="uq_evaluation_set_freeze_command"),
         Index("ix_evaluation_set_version_workspace", "workspace_id", "version_number"),
     )
 

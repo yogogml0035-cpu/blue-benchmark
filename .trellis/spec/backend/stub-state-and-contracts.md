@@ -92,6 +92,8 @@ HTTP 只返回服务端生成的业务 ID、哈希和文件摘要，不返回宿
 - `AgentRunContext` 每次 start/resume 都重新传入身份、workspace、target、business revision、evidence scope 和 Profile/Graph 版本；这些值不能写入 Checkpoint state。
 - HTTP 的 `CoCreationSessionView` 只返回业务问题、答案、delta、合同/判定投影和 `next_action`，不返回 `stable_thread_key`、`accepted_checkpoint_id`、interrupt envelope、raw message 或 private reasoning。
 - `ReadOnlyEvidenceBackend.read` 的 `offset` 为 0-based，`ReadResult.start_line/end_line` 为 1-based；长文件必须分页到 EOF，模型 EvidenceRef 由 Service 回查 canonical view。
+- EvidenceBackend 和 EvidenceRef 回查都校验 ready marker、文件大小和 SHA-256；line quote 必须出现在 canonical line range，JSON pointer/event locator 必须存在于真实内容。TaskPackage HTTP DTO 只投影 attempt 的安全字段，不投影任意 metadata。
+- Agent 虚拟 scope 提供只含文件 ID、名称、行数和 hash 的 `/evidence/manifest.json`；Checkpoint 缺失/不兼容时业务快照返回 `next_action=continuity_reset`，不能伪装成普通重试。
 - CI 默认 `ai_runtime_mode=fake`；生产 Checkpointer 由显式 `setup_checkpointer`/`open_async_postgres_checkpointer` 使用 `CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`（或等价显式键）配置，不能在 HTTP 请求中 setup。
 
 ### 4. Validation & Error Matrix

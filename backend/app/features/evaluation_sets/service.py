@@ -124,10 +124,15 @@ def _draft_view(draft: repository.WorkingSetDraftRecord) -> WorkingSetDraftView:
         blocking.append("有入选题等待老师复核场景标准变化。")
     for item in included:
         try:
-            case_service.get_evaluation_task_snapshot(draft.workspace_id, item.task_package_id)
+            snapshot = case_service.get_evaluation_task_snapshot(draft.workspace_id, item.task_package_id)
+            if snapshot.revision != item.task_package_revision:
+                blocking.append(f"{item.task_package_id}: 题已有新修订，请明确更新下一版引用。")
         except AppError as exc:
             blocking.append(exc.message)
     coverage = repository.get_latest_coverage(draft.id)
+    latest_contract = case_service.get_latest_confirmed_contract(draft.workspace_id)
+    if latest_contract is not None and latest_contract.id != draft.contract_revision_id:
+        blocking.append("场景标准已有更新，请丢弃并从最新版本重新建立草稿。")
     if coverage is None or coverage.draft_revision != draft.revision:
         blocking.append("当前草稿还没有最新覆盖检查。")
     elif coverage.snapshot.get("warnings") and not coverage.risk_confirmed:
@@ -141,6 +146,8 @@ def _draft_view(draft: repository.WorkingSetDraftRecord) -> WorkingSetDraftView:
         next_action = "none"
     elif not included:
         next_action = "add_or_remove_tasks"
+    elif latest_contract is not None and latest_contract.id != draft.contract_revision_id:
+        next_action = "review_contract_impact"
     elif any(item.review_status == ImpactReviewStatus.review_required.value for item in included):
         next_action = "review_contract_impact"
     elif coverage is None or coverage.draft_revision != draft.revision:
@@ -181,7 +188,7 @@ def _response(draft: repository.WorkingSetDraftRecord) -> WorkingSetDraftRespons
 
 def _base_members_from_manifest(version: repository.EvaluationSetVersionRecord) -> list[tuple[str, int, str]]:
     try:
-        manifest = read_manifest(LocalStorage(), version.manifest_key)
+        manifest, _ = _verified_manifest(version)
     except VersionPackageError:
         raise AppError(500, "VERSION_PACKAGE_UNREADABLE", "最新历史版本包无法读取。")
     members: list[tuple[str, int, str]] = []
@@ -227,6 +234,9 @@ def discard_draft(
     user: UserRecord,
 ) -> WorkingSetDraftResponse:
     draft = _authorized_draft(workspace_id, draft_id, user)
+    active = _active_operation(draft.id)
+    if active and active.kind == "freeze_package" and active.status in {OperationJobStatus.queued, OperationJobStatus.running}:
+        raise AppError(409, "FREEZE_IN_PROGRESS", "冻结操作进行中，不能丢弃当前草稿。")
     try:
         discarded = repository.discard_draft(
             draft.id,
@@ -247,6 +257,9 @@ def mutate_member(
     user: UserRecord,
 ) -> WorkingSetDraftResponse:
     draft = _authorized_draft(workspace_id, draft_id, user)
+    active = _active_operation(draft.id)
+    if active and active.kind == "freeze_package" and active.status in {OperationJobStatus.queued, OperationJobStatus.running}:
+        raise AppError(409, "FREEZE_IN_PROGRESS", "冻结操作进行中，不能修改当前草稿。")
     task = case_service.get_evaluation_task_snapshot(workspace_id, payload.task_package_id)
     if task.revision != payload.task_package_revision:
         raise AppError(409, "STALE_TASK_PACKAGE", "题已经更新，请重新读取后再操作。")
@@ -279,12 +292,14 @@ def decide_impact(
     member = repository.get_member(draft.id, task_package_id)
     if member is None:
         raise AppError(404, "RESOURCE_NOT_FOUND", "题不在当前下一版本草稿中。")
+    task = case_service.get_evaluation_task_snapshot(workspace_id, task_package_id)
     try:
         changed = repository.decide_impact(
             draft.id,
             task_package_id,
             payload=payload,
             confirmed_by=user.id,
+            current_task_revision=task.revision,
         )
     except repository.StaleDraft as exc:
         raise AppError(409, "STALE_DRAFT", "下一版本草稿已经更新，请重新读取。") from exc
@@ -363,17 +378,32 @@ def _freeze_inputs(
     contract = case_service.get_contract_revision_for_evaluation(draft.workspace_id, draft.contract_revision_id)
     if contract.status != "confirmed":
         raise AppError(409, "CONTRACT_NOT_CONFIRMED", "场景标准尚未确认。")
+    latest_contract = case_service.get_latest_confirmed_contract(draft.workspace_id)
+    if latest_contract is not None and latest_contract.id != draft.contract_revision_id:
+        raise AppError(409, "CONTRACT_REVIEW_REQUIRED", "场景标准已有更新，请重新建立下一版本草稿。")
     members = repository.list_members(draft.id, included_only=True)
     if not members:
         raise AppError(409, "FREEZE_BLOCKED", "至少选择一道已定稿题后才能冻结。", {"issues": ["没有入选题。"]})
-    review_issues = [item.task_package_id for item in members if item.review_status == ImpactReviewStatus.review_required.value]
+    review_issues = [
+        item.task_package_id
+        for item in members
+        if item.review_status not in {
+            ImpactReviewStatus.not_required.value,
+            ImpactReviewStatus.reviewed.value,
+            ImpactReviewStatus.no_conflict_confirmed.value,
+        }
+    ]
     if review_issues:
         raise AppError(409, "FREEZE_BLOCKED", "还有题没有完成合同影响复核。", {"task_package_ids": review_issues})
     tasks: list[EvaluationTaskSnapshot] = []
     issues: list[str] = []
     for member in members:
         try:
-            tasks.append(case_service.get_evaluation_task_snapshot(draft.workspace_id, member.task_package_id))
+            task = case_service.get_evaluation_task_snapshot(draft.workspace_id, member.task_package_id)
+            if task.revision != member.task_package_revision:
+                issues.append(f"{member.task_package_id}: 题引用的修订已过期。")
+            else:
+                tasks.append(task)
         except AppError as exc:
             issues.append(f"{member.task_package_id}: {exc.message}")
     if issues:
@@ -382,6 +412,8 @@ def _freeze_inputs(
     if require_coverage and (coverage is None or coverage.draft_revision != draft.revision):
         raise AppError(409, "FREEZE_BLOCKED", "请先生成当前草稿的覆盖检查。", {"issues": ["coverage is stale or missing"]})
     warnings = list(coverage.snapshot.get("warnings", [])) if coverage else []
+    if require_coverage and warnings and coverage.risk_confirmed and not (coverage.risk_confirmation_note or "").strip():
+        raise AppError(409, "COVERAGE_RISK_CONFIRMATION_REQUIRED", "覆盖风险确认缺少老师说明。", {"warnings": warnings})
     if require_coverage and warnings and not coverage.risk_confirmed and not allow_risk_confirmation:
         raise AppError(409, "COVERAGE_RISK_CONFIRMATION_REQUIRED", "覆盖检查存在风险，需要老师明确确认。", {"warnings": warnings})
     return tasks, contract, coverage
@@ -397,7 +429,12 @@ def freeze(
     existing_jobs = operation_repository.list_for_target("working_set_draft", draft.id)
     for job in existing_jobs:
         if job.kind == "freeze_package" and job.command_id == payload.command_id:
+            if job.status == OperationJobStatus.failed:
+                job = operation_repository.retry_failed(job.id)
             return FreezeAcceptedResponse(draft=_draft_view(draft), operation_id=job.id)
+    existing_version = repository.get_version_by_freeze_command(workspace_id, payload.command_id)
+    if existing_version is not None and existing_version.draft_id != draft.id:
+        raise AppError(409, "COMMAND_ID_REUSED", "相同冻结命令已经用于另一份草稿。")
     if draft.revision != payload.draft_revision:
         raise AppError(409, "STALE_DRAFT", "下一版本草稿已经更新，请重新读取。")
     _freeze_inputs(draft, allow_risk_confirmation=payload.coverage_risk_confirmed)
@@ -406,7 +443,7 @@ def freeze(
         raise AppError(409, "FREEZE_BLOCKED", "请先生成当前草稿的覆盖检查。")
     if coverage.snapshot.get("warnings") and not coverage.risk_confirmed:
         confirmation = CoverageConfirmationRequest(
-            command_id=f"{payload.command_id}:coverage",
+            command_id=f"freeze-coverage-{hashlib.sha256(payload.command_id.encode()).hexdigest()[:32]}",
             draft_revision=draft.revision,
             confirmed=payload.coverage_risk_confirmed,
             note=payload.risk_confirmation_note,
@@ -426,7 +463,7 @@ def freeze(
     if draft.freeze_intent and draft.freeze_intent != intent:
         old_command = draft.freeze_intent.get("freeze_command_id")
         old_job = next((job for job in existing_jobs if job.kind == "freeze_package" and job.command_id == old_command), None)
-        if old_job is None or old_job.status not in {OperationJobStatus.failed, OperationJobStatus.superseded}:
+        if old_job is not None and old_job.status not in {OperationJobStatus.failed, OperationJobStatus.superseded}:
             raise AppError(409, "FREEZE_IN_PROGRESS", "当前草稿已有一个冻结操作。")
         repository.clear_freeze_intent(draft.id, old_command)
     try:
@@ -463,18 +500,35 @@ def _verified_manifest(version: repository.EvaluationSetVersionRecord) -> tuple[
             raise VersionPackageError("manifest hash does not match the version record")
         if manifest.get("overall_sha256") != version.overall_sha256:
             raise VersionPackageError("overall hash does not match the version record")
+        version_meta = manifest.get("version") or {}
+        if not isinstance(version_meta, dict):
+            raise VersionPackageError("manifest version metadata is invalid")
+        if (
+            version_meta.get("id") != version.id
+            or version_meta.get("workspace_id") != version.workspace_id
+            or version_meta.get("number") != version.version_number
+            or manifest.get("schema_version") != version.schema_version
+        ):
+            raise VersionPackageError("manifest identity does not match the version record")
+        if not isinstance(manifest.get("tasks"), list) or not manifest["tasks"]:
+            raise VersionPackageError("manifest task list is invalid")
         partition_keys = {
             "runtime": (version.runtime_key, version.runtime_sha256),
             "judge": (version.judge_key, version.judge_sha256),
             "provenance": (version.provenance_key, version.provenance_sha256),
         }
+        partitions = manifest.get("partitions")
+        if not isinstance(partitions, dict):
+            raise VersionPackageError("manifest partition metadata is invalid")
         for name, (key, expected_hash) in partition_keys.items():
             if not storage.is_ready(key):
                 raise VersionPackageError(f"{name} partition is not ready")
             content = storage.read_bytes(key)
             if hashlib.sha256(content).hexdigest() != expected_hash:
                 raise VersionPackageError(f"{name} partition hash does not match the version record")
-            entry = (manifest.get("partitions") or {}).get(name) or {}
+            entry = partitions.get(name) or {}
+            if not isinstance(entry, dict):
+                raise VersionPackageError(f"{name} partition metadata is invalid")
             if entry.get("sha256") != expected_hash or int(entry.get("bytes", -1)) != len(content):
                 raise VersionPackageError(f"{name} partition is inconsistent with the manifest")
         if not storage.is_ready(version.package_key):
@@ -506,7 +560,8 @@ def get_manifest(workspace_id: str, version_id: str, user: UserRecord) -> Manife
     try:
         manifest, _ = _verified_manifest(version)
     except VersionPackageError as exc:
-        raise AppError(500, "VERSION_PACKAGE_UNREADABLE", "历史版本包无法读取。") from exc
+        code = "VERSION_HASH_MISMATCH" if "hash" in str(exc).casefold() or "inconsistent" in str(exc).casefold() else "VERSION_PACKAGE_UNREADABLE"
+        raise AppError(500, code, "历史版本包校验失败。" if code == "VERSION_HASH_MISMATCH" else "历史版本包无法读取。") from exc
     return ManifestResponse(version=_version_summary(version), manifest=manifest)
 
 
@@ -521,7 +576,8 @@ def download_package(workspace_id: str, version_id: str, user: UserRecord) -> tu
         _, storage = _verified_manifest(version)
         content = storage.read_bytes(version.package_key)
     except (StorageError, VersionPackageError) as exc:
-        raise AppError(500, "VERSION_PACKAGE_UNREADABLE", "历史版本包无法下载。") from exc
+        code = "VERSION_HASH_MISMATCH" if "hash" in str(exc).casefold() or "inconsistent" in str(exc).casefold() else "VERSION_PACKAGE_UNREADABLE"
+        raise AppError(500, code, "历史版本包校验失败。" if code == "VERSION_HASH_MISMATCH" else "历史版本包无法下载。") from exc
     return _version_summary(version), content
 
 
@@ -605,6 +661,8 @@ def handle_freeze(job: OperationJob) -> dict[str, Any]:
     command_id = str(intent.get("freeze_command_id") or job.command_id)
     existing = repository.get_version_by_freeze_command(draft.workspace_id, command_id)
     if existing is not None:
+        if existing.draft_id != draft.id:
+            raise RuntimeError("freeze command belongs to another draft")
         return {"version_id": existing.id, "version_number": existing.version_number, "overall_sha256": existing.overall_sha256}
     if draft.revision != job.business_revision or int(intent.get("draft_revision", -1)) != job.business_revision:
         from app.lib.operations.worker import SupersededOperation
@@ -673,6 +731,12 @@ def handle_freeze(job: OperationJob) -> dict[str, Any]:
             frozen_by=str(intent.get("frozen_by")),
             frozen_at=frozen_at,
         )
+    except repository.StaleDraft as exc:
+        for key in keys:
+            storage.delete(key)
+        from app.lib.operations.worker import SupersededOperation
+
+        raise SupersededOperation(str(exc)) from exc
     except Exception:
         if repository.get_version_by_freeze_command(draft.workspace_id, command_id) is None:
             for key in keys:

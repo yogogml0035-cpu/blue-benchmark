@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from langchain_core.tools import tool as _langchain_tool
 from pydantic import BaseModel, Field
 
 from app.features.case_builder.cocreation_schemas import (
@@ -20,12 +21,13 @@ from app.features.case_builder.cocreation_schemas import (
     SkillAttemptProposal,
     TaskGroupProposal,
 )
-from app.lib.ai_runtime.checkpoint import FakeCheckpointStore
+from app.lib.ai_runtime.checkpoint import CheckpointIncompatible, FakeCheckpointStore
 from app.lib.ai_runtime.context import AgentRunContext
 from app.lib.ai_runtime.evidence import EvidenceDocument, ReadOnlyEvidenceBackend
 from app.lib.ai_runtime.middleware import ModelToolSurfaceMiddleware
 from app.lib.ai_runtime.profile import (
     ASK_TOOL,
+    GRAPH_SCHEMA_VERSION,
     READ_TOOLS,
     get_ai_profile,
     initialize_ai_runtime,
@@ -53,9 +55,7 @@ def _ask_teacher(
     return "Teacher response is supplied through the respond decision."
 
 
-from langchain_core.tools import tool as _langchain_tool
-
-ask_teacher = _langchain_tool("ask_teacher")(_ask_teacher)
+ask_teacher = _langchain_tool("ask_teacher", args_schema=AskTeacherToolInput)(_ask_teacher)
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,12 +150,12 @@ class FakeStandardCoCreator:
         )
 
     @staticmethod
-    def _complete(context: AgentRunContext, kind: CoCreationKind, ref: AgentEvidenceRef) -> CoCreationAgentResult:
+    def _complete(context: AgentRunContext, kind: CoCreationKind, ref: AgentEvidenceRef, answer: str) -> CoCreationAgentResult:
         if kind == CoCreationKind.scenario_contract:
             return CoCreationAgentResult(
                 phase="complete",
                 contract=ScenarioContractContent(
-                    task_boundary="围绕已确认的真实业务任务形成可复用交付结果。",
+                    task_boundary=f"围绕已确认的真实业务任务形成可复用交付结果；老师补充边界：{answer}",
                     input_contract=["只能使用老师确认可见的任务资料。"],
                     output_contract=["输出完整结果并可按来源回查关键判断。"],
                     hard_gates=["不得编造事实", "必须满足任务目标"],
@@ -204,7 +204,7 @@ class FakeStandardCoCreator:
             )
             next_step = 1
         else:
-            result = self._complete(context, kind, ref)
+            result = self._complete(context, kind, ref, answer)
             next_step = 2
         next_checkpoint = self.checkpoints.put(
             context.thread_key,
@@ -250,7 +250,12 @@ def _interrupt_value(result: dict[str, Any]) -> Any | None:
     interrupts = result.get("__interrupt__") or result.get("interrupts")
     if not interrupts:
         return None
-    item = interrupts[0] if isinstance(interrupts, (list, tuple)) else interrupts
+    if isinstance(interrupts, (list, tuple)):
+        if len(interrupts) != 1:
+            raise RuntimeError("co-creator produced multiple interrupt envelopes")
+        item = interrupts[0]
+    else:
+        item = interrupts
     return getattr(item, "value", item)
 
 
@@ -266,6 +271,8 @@ def _question_from_interrupt(value: Any) -> CoCreationQuestion:
         raise RuntimeError("unexpected co-creator action")
     if not isinstance(review_configs, list) or len(review_configs) != 1:
         raise RuntimeError("co-creator must produce exactly one review config")
+    if not isinstance(review_configs[0], dict) or review_configs[0].get("action_name") != ASK_TOOL:
+        raise RuntimeError("ask_teacher review config is invalid")
     allowed = review_configs[0].get("allowed_decisions") if isinstance(review_configs[0], dict) else None
     if allowed != ["respond"]:
         raise RuntimeError("only respond is allowed for ask_teacher")
@@ -276,10 +283,21 @@ def _question_from_interrupt(value: Any) -> CoCreationQuestion:
     return CoCreationQuestion.model_validate(args)
 
 
+def _assert_single_ask_teacher_message(result: dict[str, Any]) -> None:
+    messages = result.get("messages")
+    if not isinstance(messages, list):
+        raise RuntimeError("co-creator interrupt has no message history")
+    last = next((message for message in reversed(messages) if getattr(message, "tool_calls", None)), None)
+    calls = getattr(last, "tool_calls", None) if last is not None else None
+    if not isinstance(calls, list) or len(calls) != 1 or not isinstance(calls[0], dict) or calls[0].get("name") != ASK_TOOL:
+        raise RuntimeError("interrupting message must contain only one ask_teacher call")
+
+
 class _DeepAgentBase:
     def __init__(self, checkpointer: Any = None) -> None:
         self.checkpointer = checkpointer
-        self.profile = initialize_ai_runtime()
+        model_key = f"anthropic:{settings.ai_model_id}" if settings.ai_base_url else None
+        self.profile = initialize_ai_runtime(model_key)
 
     @staticmethod
     def _model() -> Any:
@@ -293,7 +311,10 @@ class _DeepAgentBase:
     def _permissions(file_ids: tuple[str, ...] | list[str]) -> list[Any]:
         from deepagents.middleware.filesystem import FilesystemPermission
 
-        paths = [path for file_id in file_ids for path in (f"/evidence/{file_id}", f"/evidence/{file_id}/**")]
+        paths = [
+            "/evidence/manifest.json",
+            *[path for file_id in file_ids for path in (f"/evidence/{file_id}", f"/evidence/{file_id}/**")],
+        ]
         return [
             FilesystemPermission(operations=["read"], paths=paths, mode="allow"),
             FilesystemPermission(operations=["read"], paths=["/**"], mode="deny"),
@@ -354,21 +375,37 @@ class _DeepAgentBase:
         )
         return graph
 
-    def _invoke(self, graph: Any, payload: dict[str, Any], context: AgentRunContext, checkpoint_id: str | None = None) -> AgentRunResult:
+    def _invoke(
+        self,
+        graph: Any,
+        payload: Any,
+        context: AgentRunContext,
+        result_model: type[Any],
+        checkpoint_id: str | None = None,
+    ) -> AgentRunResult:
         config = {"configurable": {"thread_id": context.thread_key}}
         if checkpoint_id:
             config["configurable"]["checkpoint_id"] = checkpoint_id
-        result = graph.invoke(payload, config=config)
+        invoke_kwargs = {"config": config}
+        if self.checkpointer is not None:
+            invoke_kwargs["durability"] = "sync"
+        result = graph.invoke(payload, **invoke_kwargs)
         _check_messages(result)
-        state = graph.get_state(config)
+        state = graph.get_state(config) if self.checkpointer is not None else None
         interrupt = _interrupt_value(result)
         if interrupt is not None:
+            _assert_single_ask_teacher_message(result)
             question = _question_from_interrupt(interrupt)
+            if self.checkpointer is None:
+                raise RuntimeError("a question interrupt requires a checkpointer")
             return AgentRunResult(CoCreationAgentResult(phase="question", question=question), _checkpoint_id_from_state(state))
         structured = result.get("structured_response")
         if structured is None:
             raise RuntimeError("Deep Agent did not return structured_response")
-        return AgentRunResult(CoCreationAgentResult.model_validate(structured), _checkpoint_id_from_state(state))
+        validated = result_model.model_validate(structured)
+        if isinstance(validated, CoCreationAgentResult) and validated.phase == "question":
+            raise RuntimeError("co-creator questions must arrive through the ask_teacher interrupt")
+        return AgentRunResult(validated, _checkpoint_id_from_state(state) if state is not None else None)
 
 
 class DeepAgentsEvidenceAnalyzer(_DeepAgentBase):
@@ -376,36 +413,45 @@ class DeepAgentsEvidenceAnalyzer(_DeepAgentBase):
         from app.features.case_builder.cocreation_schemas import BatchAnalysis
 
         graph = self._graph(context, documents, BatchAnalysis, allowed_tools=set(READ_TOOLS) | {"BatchAnalysis"})
-        return self._invoke(graph, {"messages": [{"role": "user", "content": "Analyze this task package and propose task groups."}]}, context)
+        return self._invoke(graph, {"messages": [{"role": "user", "content": "Analyze this task package and propose task groups."}]}, context, BatchAnalysis)
 
 
 class DeepAgentsStandardCoCreator(_DeepAgentBase):
+    def _assert_compatibility(self, context: AgentRunContext) -> None:
+        if context.ai_profile_version != self.profile.version or context.graph_schema_version != GRAPH_SCHEMA_VERSION:
+            raise CheckpointIncompatible("co-creation checkpoint is incompatible with the active AI profile")
+
     def start(self, context: AgentRunContext, kind: CoCreationKind) -> AgentRunResult:
         if self.checkpointer is None:
             raise RuntimeError("standard_cocreator requires a checkpointer")
+        self._assert_compatibility(context)
         schema = CoCreationAgentResult
         documents = documents_for_files(list(context.evidence_file_ids))
         graph = self._graph(context, documents, schema, allowed_tools=set(READ_TOOLS) | {ASK_TOOL, "CoCreationAgentResult"}, ask_teacher=True)
-        return self._invoke(graph, {"messages": [{"role": "user", "content": f"Start {kind.value} co-creation."}]}, context)
+        return self._invoke(graph, {"messages": [{"role": "user", "content": f"Start {kind.value} co-creation."}]}, context, CoCreationAgentResult)
 
     def resume(self, context: AgentRunContext, kind: CoCreationKind, checkpoint_id: str, answer: str) -> AgentRunResult:
         from langgraph.types import Command
 
         if self.checkpointer is None:
             raise RuntimeError("standard_cocreator requires a checkpointer")
+        self._assert_compatibility(context)
         graph = self._graph(context, documents_for_files(list(context.evidence_file_ids)), CoCreationAgentResult, allowed_tools=set(READ_TOOLS) | {ASK_TOOL, "CoCreationAgentResult"}, ask_teacher=True)
-        return self._invoke(graph, Command(resume={"decisions": [{"type": "respond", "response": answer}]}), context, checkpoint_id)
+        return self._invoke(graph, Command(resume={"decisions": [{"type": "respond", "response": answer}]}), context, CoCreationAgentResult, checkpoint_id)
 
     def reproject(self, context: AgentRunContext, kind: CoCreationKind, checkpoint_id: str) -> AgentRunResult:
         if self.checkpointer is None:
             raise RuntimeError("standard_cocreator requires a checkpointer")
+        self._assert_compatibility(context)
         graph = self._graph(context, documents_for_files(list(context.evidence_file_ids)), CoCreationAgentResult, allowed_tools=set(READ_TOOLS) | {ASK_TOOL, "CoCreationAgentResult"}, ask_teacher=True)
         config = {"configurable": {"thread_id": context.thread_key, "checkpoint_id": checkpoint_id}}
         state = graph.get_state(config)
-        interrupt = _interrupt_value(state.values if hasattr(state, "values") else state)
+        state_values = state.values if hasattr(state, "values") else state
+        state_values_dict = state_values if isinstance(state_values, dict) else {}
+        interrupt = _interrupt_value({"__interrupt__": getattr(state, "interrupts", None), **state_values_dict})
         if interrupt is not None:
             return AgentRunResult(CoCreationAgentResult(phase="question", question=_question_from_interrupt(interrupt)), checkpoint_id)
-        structured = (state.values if hasattr(state, "values") else state).get("structured_response")
+        structured = state_values_dict.get("structured_response")
         if structured is None:
             raise RuntimeError("accepted checkpoint has no projectable structured response")
         return AgentRunResult(CoCreationAgentResult.model_validate(structured), checkpoint_id)
@@ -414,7 +460,7 @@ class DeepAgentsStandardCoCreator(_DeepAgentBase):
 class DeepAgentsCoverageReviewer(_DeepAgentBase):
     def review(self, context: AgentRunContext, snapshot: dict[str, Any]) -> AgentRunResult:
         graph = self._graph(context, {}, CoverageReview, allowed_tools={"CoverageReview"})
-        return self._invoke(graph, {"messages": [{"role": "user", "content": json.dumps(snapshot, ensure_ascii=False)}]}, context)
+        return self._invoke(graph, {"messages": [{"role": "user", "content": json.dumps(snapshot, ensure_ascii=False)}]}, context, CoverageReview)
 
 
 @dataclass(frozen=True, slots=True)

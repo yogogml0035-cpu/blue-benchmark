@@ -190,7 +190,7 @@ def _parse_view(name: str, content: bytes) -> tuple[str, dict[str, Any] | None, 
             value = json.loads(content.decode("utf-8-sig"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             return EvidenceParseState.parse_failed.value, None, {"code": "JSON_PARSE_FAILED", "message": "JSON 文件无法读取。"}
-        return EvidenceParseState.parsed.value, {"kind": "json", "root_type": type(value).__name__}, None
+        return EvidenceParseState.parsed.value, {"kind": "json", "root_type": type(value).__name__, "line_count": len(content.decode("utf-8-sig").splitlines())}, None
     if extension == "jsonl":
         try:
             lines = content.decode("utf-8-sig").splitlines()

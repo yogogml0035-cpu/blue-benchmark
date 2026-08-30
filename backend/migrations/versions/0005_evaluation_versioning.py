@@ -152,7 +152,7 @@ def upgrade() -> None:
             sa.ForeignKeyConstraint(["draft_id"], ["working_set_drafts.id"]),
             sa.ForeignKeyConstraint(["frozen_by"], ["users.id"]),
             sa.UniqueConstraint("workspace_id", "version_number", name="uq_evaluation_set_version_number"),
-            sa.UniqueConstraint("freeze_command_id", name="uq_evaluation_set_freeze_command"),
+            sa.UniqueConstraint("workspace_id", "freeze_command_id", name="uq_evaluation_set_freeze_command"),
             sa.UniqueConstraint("manifest_key"),
             sa.UniqueConstraint("runtime_key"),
             sa.UniqueConstraint("judge_key"),

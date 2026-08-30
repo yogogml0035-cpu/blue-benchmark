@@ -105,7 +105,7 @@ def upgrade() -> None:
                 for column in missing:
                     batch_op.add_column(column)
                 if "command_id" not in session_columns:
-                    batch_op.create_unique_constraint("uq_co_creation_session_command", ["command_id"])
+                    batch_op.create_unique_constraint("uq_co_creation_session_command", ["task_package_id", "kind", "command_id"])
     else:
         for name, column_type, nullable, server_default in session_additions:
             if name not in session_columns:
@@ -139,7 +139,7 @@ def upgrade() -> None:
     if "ix_co_creation_turns_question_id" not in {item["name"] for item in sa.inspect(bind).get_indexes("co_creation_turns")}:
         op.create_index("ix_co_creation_turns_question_id", "co_creation_turns", ["question_id"])
     if bind.dialect.name != "sqlite" and "command_id" not in session_columns:
-        op.create_unique_constraint("uq_co_creation_session_command", "co_creation_sessions", ["command_id"])
+        op.create_unique_constraint("uq_co_creation_session_command", "co_creation_sessions", ["task_package_id", "kind", "command_id"])
 
 
 def downgrade() -> None:

@@ -35,6 +35,7 @@ from app.lib.database.models import (
     TaskPackageRow,
     TeacherFeedbackRow,
     UploadBatchRow,
+    WorkspaceRow,
 )
 
 
@@ -300,18 +301,26 @@ def list_task_packages(upload_batch_id: str, *, include_replaced: bool = False) 
         return [_task(row) for row in rows]
 
 
-def replace_proposals(batch_id: str, analysis: BatchAnalysis) -> list[TaskPackageRecord]:
+def replace_proposals(batch_id: str, analysis: BatchAnalysis, *, expected_revision: int) -> list[TaskPackageRecord]:
     now = _now()
     with session_scope() as session:
-        batch = session.get(UploadBatchRow, batch_id)
+        batch = session.scalar(select(UploadBatchRow).where(UploadBatchRow.id == batch_id).with_for_update())
         if batch is None:
             raise KeyError(batch_id)
+        if batch.revision != expected_revision:
+            raise RepositoryConflict("upload batch revision changed")
         existing = session.scalars(
             select(TaskPackageRow).where(
                 TaskPackageRow.upload_batch_id == batch_id,
                 TaskPackageRow.status == TaskPackageStatus.proposed.value,
             )
         ).all()
+        analysis_digest = result_hash(analysis)
+        if existing and all((row.analysis_json or {}).get("analysis_hash") == analysis_digest for row in existing):
+            batch.status = "ready_for_confirmation"
+            batch.updated_at = now
+            session.flush()
+            return [_task(row) for row in existing]
         for row in existing:
             row.status = TaskPackageStatus.replaced.value
             row.updated_at = now
@@ -326,6 +335,7 @@ def replace_proposals(batch_id: str, analysis: BatchAnalysis) -> list[TaskPackag
                 evidence_file_ids_json=list(group.evidence_file_ids),
                 revision=0,
                 analysis_json={
+                    "analysis_hash": analysis_digest,
                     "proposal_key": group.proposal_key,
                     "summary": group.summary,
                     "attempts": [attempt.model_dump(mode="json") for attempt in group.attempts],
@@ -340,6 +350,8 @@ def replace_proposals(batch_id: str, analysis: BatchAnalysis) -> list[TaskPackag
             )
             session.add(row)
             created.append(row)
+        batch.status = "ready_for_confirmation"
+        batch.updated_at = now
         session.flush()
         return [_task(row) for row in created]
 
@@ -355,7 +367,7 @@ def confirm_grouping(
     now = _now()
     payload_digest = result_hash({"groups": [group.model_dump(mode="json") for group in groups]})
     with session_scope() as session:
-        batch = session.get(UploadBatchRow, batch_id)
+        batch = session.scalar(select(UploadBatchRow).where(UploadBatchRow.id == batch_id).with_for_update())
         if batch is None:
             raise KeyError(batch_id)
         existing_confirmed = session.scalars(
@@ -369,6 +381,8 @@ def confirm_grouping(
                 if (row.analysis_json or {}).get("grouping_payload_hash") != payload_digest:
                     raise RepositoryConflict("grouping command payload conflicts with the saved grouping")
                 return [_task(item) for item in existing_confirmed]
+        if existing_confirmed:
+            raise RepositoryConflict("task grouping has already been confirmed")
         if batch.revision != expected_revision:
             return None
         file_rows = session.scalars(select(EvidenceFileRow).where(EvidenceFileRow.upload_batch_id == batch_id)).all()
@@ -423,7 +437,7 @@ def confirm_grouping(
                             attempt_key=attempt.attempt_key,
                             evidence_file_id=file_id,
                             role=None,
-                            metadata_json=attempt.metadata,
+                            metadata_json={"source": "teacher-confirmed"},
                             created_at=now,
                         )
                     )
@@ -435,11 +449,27 @@ def confirm_grouping(
 
 def get_session(session_id: str) -> CoCreationSessionRecord | None:
     with session_scope() as session:
-        row = session.get(CoCreationSessionRow, session_id)
+        row = session.scalar(select(CoCreationSessionRow).where(CoCreationSessionRow.id == session_id).with_for_update())
         return _session(row) if row else None
 
 
 def get_active_session(task_package_id: str, kind: str) -> CoCreationSessionRecord | None:
+    with session_scope() as session:
+        row = session.scalar(
+            select(CoCreationSessionRow)
+            .where(
+                CoCreationSessionRow.task_package_id == task_package_id,
+                CoCreationSessionRow.kind == kind,
+                CoCreationSessionRow.status != CoCreationStatus.confirmed.value,
+                CoCreationSessionRow.status != CoCreationStatus.continuity_reset.value,
+            )
+            .order_by(CoCreationSessionRow.created_at.desc())
+            .limit(1)
+        )
+        return _session(row) if row else None
+
+
+def get_latest_session(task_package_id: str, kind: str) -> CoCreationSessionRecord | None:
     with session_scope() as session:
         row = session.scalar(
             select(CoCreationSessionRow)
@@ -504,6 +534,24 @@ def create_session(
     )
     try:
         with session_scope() as session:
+            task = session.scalar(
+                select(TaskPackageRow).where(TaskPackageRow.id == task_package_id).with_for_update()
+            )
+            if task is None:
+                raise KeyError(task_package_id)
+            active = session.scalar(
+                select(CoCreationSessionRow)
+                .where(
+                    CoCreationSessionRow.task_package_id == task_package_id,
+                    CoCreationSessionRow.kind == kind.value,
+                    CoCreationSessionRow.status != CoCreationStatus.confirmed.value,
+                    CoCreationSessionRow.status != CoCreationStatus.continuity_reset.value,
+                )
+                .order_by(CoCreationSessionRow.created_at.desc())
+                .limit(1)
+            )
+            if active is not None:
+                return _session(active)
             session.add(row)
             session.flush()
             return _session(row)
@@ -539,7 +587,7 @@ def save_answer(
 ) -> tuple[CoCreationSessionRecord, bool] | None:
     now = _now()
     with session_scope() as session:
-        session_row = session.get(CoCreationSessionRow, session_id)
+        session_row = session.scalar(select(CoCreationSessionRow).where(CoCreationSessionRow.id == session_id).with_for_update())
         if session_row is None:
             raise KeyError(session_id)
         same_command = session.scalar(select(CoCreationTurnRow).where(CoCreationTurnRow.answer_command_id == command_id))
@@ -557,7 +605,7 @@ def save_answer(
             select(CoCreationTurnRow).where(
                 CoCreationTurnRow.session_id == session_id,
                 CoCreationTurnRow.turn_revision == session_row.current_turn_revision,
-            )
+            ).with_for_update()
         )
         if current is None or current.question_id != question_id or current.status != "pending":
             raise RepositoryConflict("question is stale or already answered")
@@ -580,6 +628,10 @@ def _create_contract_revision(
     contract: ScenarioContractContent,
     status: str = ContractRevisionStatus.draft.value,
 ) -> ScenarioContractRevisionRow:
+    # Contract revision numbers are scenario-wide, not session-wide. Lock the
+    # owning workspace so two task sessions cannot both allocate the same next
+    # revision number.
+    session.scalar(select(WorkspaceRow).where(WorkspaceRow.id == workspace_id).with_for_update())
     latest = session.scalar(
         select(ScenarioContractRevisionRow)
         .where(ScenarioContractRevisionRow.workspace_id == workspace_id)
@@ -587,7 +639,7 @@ def _create_contract_revision(
         .limit(1)
     )
     contract_json = contract.model_dump(mode="json")
-    if latest is not None and latest.contract_json == contract_json and latest.status == status:
+    if latest is not None and latest.contract_json == contract_json:
         return latest
     if latest is not None and latest.status == ContractRevisionStatus.draft.value:
         latest.status = ContractRevisionStatus.superseded.value
@@ -617,7 +669,7 @@ def commit_agent_result(
         raise RepositoryConflict("successful co-creation result must have a produced checkpoint")
     now = _now()
     with session_scope() as session:
-        session_row = session.get(CoCreationSessionRow, session_id)
+        session_row = session.scalar(select(CoCreationSessionRow).where(CoCreationSessionRow.id == session_id).with_for_update())
         if session_row is None:
             raise KeyError(session_id)
         if (
@@ -690,7 +742,7 @@ def commit_agent_result(
 
 def mark_continuity_reset(session_id: str, reason: str) -> CoCreationSessionRecord:
     with session_scope() as session:
-        row = session.get(CoCreationSessionRow, session_id)
+        row = session.scalar(select(CoCreationSessionRow).where(CoCreationSessionRow.id == session_id).with_for_update())
         if row is None:
             raise KeyError(session_id)
         row.status = CoCreationStatus.continuity_reset.value
@@ -701,10 +753,17 @@ def mark_continuity_reset(session_id: str, reason: str) -> CoCreationSessionReco
         return _session(row)
 
 
-def create_continuity_reset(session_id: str, *, command_id: str, reason: str) -> CoCreationSessionRecord:
+def create_continuity_reset(
+    session_id: str,
+    *,
+    command_id: str,
+    reason: str,
+    ai_profile_version: str | None = None,
+    graph_schema_version: str | None = None,
+) -> CoCreationSessionRecord:
     now = _now()
     with session_scope() as session:
-        old = session.get(CoCreationSessionRow, session_id)
+        old = session.scalar(select(CoCreationSessionRow).where(CoCreationSessionRow.id == session_id).with_for_update())
         if old is None:
             raise KeyError(session_id)
         pending = old.pending_interrupt_json or {}
@@ -737,8 +796,8 @@ def create_continuity_reset(session_id: str, *, command_id: str, reason: str) ->
             continuity_reset_from_id=old.id,
             continuity_reset_to_id=None,
             continuity_reset_reason=reason,
-            ai_profile_version=old.ai_profile_version,
-            graph_schema_version=old.graph_schema_version,
+            ai_profile_version=ai_profile_version or old.ai_profile_version,
+            graph_schema_version=graph_schema_version or old.graph_schema_version,
             created_at=now,
             updated_at=now,
         )
@@ -757,7 +816,7 @@ def create_continuity_reset(session_id: str, *, command_id: str, reason: str) ->
 
 def mark_failed(session_id: str, error: dict[str, Any]) -> CoCreationSessionRecord:
     with session_scope() as session:
-        row = session.get(CoCreationSessionRow, session_id)
+        row = session.scalar(select(CoCreationSessionRow).where(CoCreationSessionRow.id == session_id).with_for_update())
         if row is None:
             raise KeyError(session_id)
         row.status = CoCreationStatus.failed.value
@@ -769,7 +828,7 @@ def mark_failed(session_id: str, error: dict[str, Any]) -> CoCreationSessionReco
 
 def mark_projection_pending(session_id: str, produced_checkpoint_id: str | None) -> CoCreationSessionRecord:
     with session_scope() as session:
-        row = session.get(CoCreationSessionRow, session_id)
+        row = session.scalar(select(CoCreationSessionRow).where(CoCreationSessionRow.id == session_id).with_for_update())
         if row is None:
             raise KeyError(session_id)
         row.status = CoCreationStatus.projection_pending.value
@@ -782,7 +841,7 @@ def mark_projection_pending(session_id: str, produced_checkpoint_id: str | None)
 
 def queue_retry(session_id: str, *, expected_business_revision: int) -> CoCreationSessionRecord | None:
     with session_scope() as session:
-        row = session.get(CoCreationSessionRow, session_id)
+        row = session.scalar(select(CoCreationSessionRow).where(CoCreationSessionRow.id == session_id).with_for_update())
         if row is None:
             raise KeyError(session_id)
         if row.business_revision != expected_business_revision:
@@ -804,16 +863,18 @@ def confirm_contract(
 ) -> CoCreationSessionRecord:
     now = _now()
     with session_scope() as session:
-        row = session.get(CoCreationSessionRow, session_id)
+        row = session.scalar(select(CoCreationSessionRow).where(CoCreationSessionRow.id == session_id).with_for_update())
         if row is None:
             raise KeyError(session_id)
+        if row.kind != CoCreationKind.scenario_contract.value:
+            raise RepositoryConflict("session is not a scenario contract session")
         if row.status == CoCreationStatus.confirmed.value:
             if row.confirmation_command_id == command_id:
                 return _session(row)
             raise RepositoryConflict("contract confirmation already decided")
         if row.business_revision != expected_business_revision:
             raise StaleProjection("contract session has changed")
-        if row.kind != CoCreationKind.scenario_contract.value or row.status != CoCreationStatus.ready_for_confirmation.value:
+        if row.status != CoCreationStatus.ready_for_confirmation.value:
             raise RepositoryConflict("contract is not ready for confirmation")
         projection = row.projection_json or {}
         contract = projection.get("contract")
@@ -855,16 +916,18 @@ def confirm_judgment(
 ) -> CoCreationSessionRecord:
     now = _now()
     with session_scope() as session:
-        row = session.get(CoCreationSessionRow, session_id)
+        row = session.scalar(select(CoCreationSessionRow).where(CoCreationSessionRow.id == session_id).with_for_update())
         if row is None:
             raise KeyError(session_id)
+        if row.kind != CoCreationKind.task_judgment.value:
+            raise RepositoryConflict("session is not a task judgment session")
         if row.status == CoCreationStatus.confirmed.value:
             if row.confirmation_command_id == command_id:
                 return _session(row)
             raise RepositoryConflict("judgment confirmation already decided")
         if row.business_revision != expected_business_revision:
             raise StaleProjection("judgment session has changed")
-        if row.kind != CoCreationKind.task_judgment.value or row.status != CoCreationStatus.ready_for_confirmation.value:
+        if row.status != CoCreationStatus.ready_for_confirmation.value:
             raise RepositoryConflict("judgment package is not ready for confirmation")
         package = (row.projection_json or {}).get("judgment_package")
         if not package:
@@ -937,7 +1000,7 @@ def get_promotion(proposal_id: str) -> PromotionProposalRecord | None:
         return _promotion(row) if row else None
 
 
-def decide_promotion(proposal_id: str, decision: str) -> PromotionProposalRecord:
+def decide_promotion(proposal_id: str, decision: str, *, confirmed_by: str | None = None) -> PromotionProposalRecord:
     with session_scope() as session:
         row = session.get(StandardPromotionProposalRow, proposal_id)
         if row is None:
@@ -946,7 +1009,38 @@ def decide_promotion(proposal_id: str, decision: str) -> PromotionProposalRecord
             if row.status == decision:
                 return _promotion(row)
             raise RepositoryConflict("promotion proposal already decided")
+        if decision == "approve":
+            feedback = session.get(TeacherFeedbackRow, row.source_feedback_id)
+            if feedback is None:
+                raise RepositoryConflict("promotion feedback is missing")
+            latest = session.scalar(
+                select(ScenarioContractRevisionRow)
+                .where(
+                    ScenarioContractRevisionRow.workspace_id == row.workspace_id,
+                    ScenarioContractRevisionRow.status == ContractRevisionStatus.confirmed.value,
+                )
+                .order_by(ScenarioContractRevisionRow.revision.desc())
+                .limit(1)
+            )
+            if latest is None:
+                raise RepositoryConflict("there is no confirmed contract to promote into")
+            contract = ScenarioContractContent.model_validate(latest.contract_json)
+            if row.proposed_text not in contract.hard_gates:
+                updated_contract = contract.model_copy(update={"hard_gates": [*contract.hard_gates, row.proposed_text]})
+                new_revision = _create_contract_revision(
+                    session,
+                    workspace_id=row.workspace_id,
+                    source_session_id=None,
+                    contract=updated_contract,
+                    status=ContractRevisionStatus.confirmed.value,
+                )
+                new_revision.confirmed_by = confirmed_by
+                new_revision.confirmed_at = _now()
         row.status = decision
+        if confirmed_by:
+            feedback = session.get(TeacherFeedbackRow, row.source_feedback_id)
+            if feedback is not None:
+                feedback.confirmed_by = confirmed_by
         row.decided_at = _now()
         session.flush()
         return _promotion(row)

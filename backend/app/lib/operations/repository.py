@@ -393,6 +393,25 @@ def fail(
         return _to_record(row)
 
 
+def retry_failed(job_id: str) -> OperationJob:
+    """Requeue a failed operation without creating a second command record."""
+
+    now = _utc_now()
+    with session_scope() as session:
+        row = session.get(OperationJobRow, job_id)
+        if row is None:
+            raise KeyError(job_id)
+        if row.status != OperationJobStatus.failed.value or row.attempts >= row.max_attempts:
+            return _to_record(row)
+        row.status = OperationJobStatus.queued.value
+        row.available_at = now
+        row.last_error_json = None
+        row.finished_at = None
+        row.updated_at = now
+        session.flush()
+        return _to_record(row)
+
+
 def supersede(job_id: str, worker_id: str, reason: str) -> OperationJob:
     now = _utc_now()
     with session_scope() as session:

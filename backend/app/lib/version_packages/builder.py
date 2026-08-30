@@ -165,6 +165,37 @@ def _assert_runtime_allowlist(runtime: dict[str, Any]) -> None:
                 raise VersionPackageError("runtime file contains a non-runtime field")
 
 
+def _partition_strings(value: Any) -> list[str]:
+    if isinstance(value, dict):
+        return [item for child in value.values() for item in _partition_strings(child)]
+    if isinstance(value, list):
+        return [item for child in value for item in _partition_strings(child)]
+    return [value] if isinstance(value, str) else []
+
+
+def _assert_no_runtime_leakage(runtime_bytes: bytes, judge: dict[str, Any], provenance: dict[str, Any]) -> None:
+    runtime_text = runtime_bytes.decode("utf-8")
+    marker_terms = (
+        "judge-only",
+        "judge_only",
+        "judge_secret",
+        "provenance-only",
+        "provenance_only",
+        "provenance_secret",
+        "synthetic-secret",
+        "synthetic_secret",
+        "private-reasoning",
+        "private_reasoning",
+        "api-key",
+        "api_key",
+        "do-not-send",
+        "do_not_send",
+    )
+    for value in [*_partition_strings(judge), *_partition_strings(provenance)]:
+        if len(value) >= 4 and any(term in value.casefold() for term in marker_terms) and value in runtime_text:
+            raise VersionPackageError("runtime partition contains a judge/provenance marker")
+
+
 def build_package(
     *,
     version_id: str,
@@ -190,6 +221,7 @@ def build_package(
     runtime_bytes = canonical_json(runtime)
     judge_bytes = canonical_json(judge)
     provenance_bytes = canonical_json(provenance)
+    _assert_no_runtime_leakage(runtime_bytes, judge, provenance)
     runtime_hash = _sha256(runtime_bytes)
     judge_hash = _sha256(judge_bytes)
     provenance_hash = _sha256(provenance_bytes)
@@ -252,7 +284,7 @@ def read_manifest(storage: LocalStorage, key: str) -> dict[str, Any]:
         if not storage.is_ready(key):
             raise VersionPackageError("version manifest is not ready")
         value = json.loads(storage.read_bytes(key))
-    except (StorageError, json.JSONDecodeError) as exc:
+    except (StorageError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise VersionPackageError("version manifest cannot be read") from exc
     if not isinstance(value, dict) or value.get("schema_version") != PACKAGE_SCHEMA_VERSION:
         raise VersionPackageError("version manifest schema is invalid")
