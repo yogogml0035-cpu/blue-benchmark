@@ -10,12 +10,12 @@
   -> same-origin /api/* Rewrite
   -> FastAPI Router
   -> Feature Service
-  -> 内存 Repository
+  -> SQLAlchemy Repository / 业务数据库
   -> Pydantic Response / AppError
   -> 页面以服务端快照或 PageFault 渲染
 ```
 
-当前链路到内存 Repository 和 Stub 生成结束。PostgreSQL、文件存储、LangGraph、真实模型、Worker 和评测执行是未来计划，未落地前不能加入“当前数据流”或验收结论。
+当前链路已到业务数据库、服务端文件存储、统一 OperationJob 和 Stub/Fake 处理器；真实 Checkpointer、模型、Deep Agent 和评测执行仍是后续计划，未落地前不能加入“当前数据流”或验收结论。
 
 ## 合同事实源
 
@@ -25,7 +25,7 @@
 - 前端 DTO：生成的 `frontend/src/lib/api/generated.ts`；
 - 前端传输和错误：`api/client.ts`、`api/pageFault.ts`；
 - 前端 Case 展示语义：`case-builder/lib/caseState.ts`；
-- 当前可运行边界和人工验收：`README.md`。
+- 当前可运行边界和人工验收：`README.md`、`Makefile`、Alembic migrations 和 `backend/app/lib/database/session.py`。
 
 `docs/` 下的设计合同可以约束未来方向，但其中尚未出现在依赖清单、源码和测试里的能力必须标注为计划，不能覆盖当前源码事实。
 
@@ -47,8 +47,9 @@
 
 - 请求先有有效 Session，再检查 Workspace 所有者，再检查 Case 与 Workspace 关系；
 - 403 页面不继续渲染旧缓存中的资源；
+- 后台投影只读取已授权的业务记录；
 - 响应不包含密码哈希、Session Token、内部 `thread_id`、`parsed_text` 或其他账号标识；
-- 前端扩展名、禁用按钮和路由 ID 都只是体验层，不替代后端校验。
+- 前端扩展名、禁用按钮和路由 ID 都只是体验层，不替代后端校验；文件存储键和 ZIP 安全校验只在后端完成。
 
 ## 状态机检查
 

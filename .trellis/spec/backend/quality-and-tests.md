@@ -15,19 +15,21 @@ make test
 
 ## 测试模式
 
-`backend/tests/test_api.py` 使用 FastAPI `TestClient` 做 HTTP 合同级测试，而不是绕过 Router 直接调用 Service：
+`backend/tests/test_api.py` 和 `backend/tests/test_persistence_ingestion.py` 使用 FastAPI `TestClient` 做 HTTP 合同级测试，而不是绕过 Router 直接调用 Service：
 
-- `reset_repositories` 是 `autouse` fixture，每个测试前清空三个内存 Repository；
+- `reset_repositories` / `reset_database` 是 `autouse` fixture，每个测试前清空业务测试数据库；
 - `client` fixture 创建同一 FastAPI 应用的客户端；
 - `register`、`create_workspace`、`upload_case` 是闭环准备助手；
 - 第二个 `TestClient` 表示另一个独立 Cookie 会话，用于越权验证。
 
 当前覆盖基线：
 
-1. 健康检查明确报告 `in-memory stub`，OpenAPI 含关键 Case 合同；
+1. 健康检查报告 `business database`，OpenAPI 含关键 Case 与 UploadBatch 合同；
 2. 默认上传 -> 提问 -> 草稿 -> 确认闭环，以及确认幂等；
 3. `parse_failed`、一次性 `ai_failed` 与重试；
-4. Workspace 和 Case 的跨账号 `403`。
+4. Workspace 和 Case 的跨账号 `403`；
+5. 数据库新进程读取、Alembic migration/schema readiness、服务端存储键和 ready marker；
+6. 多文件/ZIP 安全边界、批次 `202`、纯读投影、command 幂等、用途 revision 冲突和 OperationJob lease/CAS/Attempt。
 
 修改这些合同必须扩展相同层级的 API 测试。新增错误分支至少断言 HTTP 状态、机器码或业务状态，并确认失败没有推进不允许的状态。
 
@@ -43,9 +45,10 @@ make test
 ## Review 清单
 
 - [ ] 代码仍遵守 Router -> Service -> Repository 和跨 Feature Service 边界。
-- [ ] 当前内存 Stub 与未来持久化计划没有混写。
+- [ ] 业务数据库与未来 Checkpointer 执行状态没有混写。
 - [ ] 新字段/状态/错误已同步 Schema、OpenAPI、前端生成类型和相关测试。
 - [ ] 授权顺序和跨账号隔离没有回退。
 - [ ] 重试路径保持幂等，失败不会产生半完成快照。
+- [ ] 文件先 staging，再发布 ready marker；数据库失败清理已发布和 staged 对象。
 - [ ] 响应没有暴露内部状态或敏感信息。
 - [ ] `cd backend && uv run pytest -q` 通过；跨层变更还通过 `make test`。

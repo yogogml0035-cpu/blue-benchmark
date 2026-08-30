@@ -2,7 +2,7 @@
 
 ## 当前结构
 
-后端是 Python 3.12+ / FastAPI 的单体 Walking Skeleton，按业务 Feature 纵向组织：
+后端是 Python 3.12+ / FastAPI 的单体服务，按业务 Feature 纵向组织，业务数据由 SQLAlchemy Repository 持久化：
 
 ```text
 backend/
@@ -28,14 +28,14 @@ backend/
 ```text
 router -> service -> repository
           |             |
-          |             -> 内存 Record 与读写函数
+          |             -> 数据库 Row 与 Record 映射、读写函数
           -> 业务状态转换、授权编排、DTO 投影
 schemas -> HTTP 输入、输出和领域枚举
 ```
 
 - `router.py` 定义路径、HTTP 状态、认证依赖、请求模型和 `response_model`，然后委托给 Service。参考 `features/workspaces/router.py` 与 `features/case_builder/router.py`。
 - `service.py` 负责业务规则、状态转换、授权顺序和 Record 到响应模型的投影。参考 `workspaces/service.py::assert_owner` 与 `case_builder/service.py::confirm`。
-- `repository.py` 只拥有本 Feature 的内存 Record、集合和基本读写；不处理 HTTP，也不返回 FastAPI Response。
+- `repository.py` 只拥有本 Feature 的 Record 到数据库 Row 的映射和基本读写；不处理 HTTP，也不返回 FastAPI Response。
 - `schemas.py` 用 Pydantic 模型定义外部合同；内部可变状态使用 `@dataclass(slots=True)` Record。参考 `case_builder/schemas.py` 与 `case_builder/repository.py`。
 
 ## 跨 Feature 依赖
@@ -60,7 +60,7 @@ schemas -> HTTP 输入、输出和领域枚举
 
 ## 不要这样做
 
-- 不要创建空的 `models.py`、`workflow.py`、数据库目录、Worker 或评测 Feature 来对应未来文档。
+- 不要创建空的 `models.py`、`workflow.py`、Worker 或评测 Feature 来对应未来文档；已有数据库/存储/operations 模块必须由真实迁移、测试和业务入口支撑。
 - 不要把业务状态转换写在 Router、Repository 或前端。
 - 不要让一个 Feature 直接修改另一个 Feature 的全局字典。
 - 不要把内部 `password_hash`、`parsed_text`、`thread_id` 等 Record 字段自动暴露进响应模型。
