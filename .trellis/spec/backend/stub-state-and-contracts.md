@@ -11,7 +11,7 @@
 | 旧 `/cases` 入口保留 TXT/Markdown Stub 闭环 | 旧入口向完整任务包迁移 |
 | `/upload-batches` 接受多文件和 ZIP，原文件以服务端存储键保存 | 生产对象存储、OCR 和更多媒体解析 |
 | `_run_stub_generation` 和内容标记驱动固定分支仍服务旧 `/cases` | 真实 provider 线上调用、Worker lifespan 注入生产 Checkpointer |
-| 确认后生成数据库中的 `candidate_case` JSON 快照 | 正式评测集、评测执行、版本历史 |
+| 确认后生成数据库中的 `candidate_case` JSON 快照；M0 另有 TaskPackage、WorkingSetDraft 和不可变 EvaluationSetVersion | M2 评测执行和报告 |
 | `OperationJob` 负责持久化排队、租约、重试和幂等，Fake Worker 可执行 M0 batch/co-creation 操作 | M2 评测执行和报告 |
 
 数据库重启或 Python 进程重启不会清空业务记录；只有测试中的 `reset()` 会显式清空测试数据库。不要把业务数据库记录与后续 Checkpointer 执行状态混为同一事实源。

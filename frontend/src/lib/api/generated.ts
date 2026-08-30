@@ -498,6 +498,210 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Draft */
+        post: operations["create_draft_api_workspaces__workspace_id__evaluation_sets_drafts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Draft */
+        get: operations["get_draft_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard Draft */
+        post: operations["discard_draft_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__discard_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mutate Member */
+        post: operations["mutate_member_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__members_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/impact-reviews/{task_package_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decide Impact */
+        post: operations["decide_impact_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__impact_reviews__task_package_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/impact-reviews/confirm-no-conflict": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Impact Batch */
+        post: operations["confirm_impact_batch_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__impact_reviews_confirm_no_conflict_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/coverage-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request Coverage Review */
+        post: operations["request_coverage_review_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__coverage_review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/coverage-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Coverage */
+        post: operations["confirm_coverage_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__coverage_confirmation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/freeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Freeze */
+        post: operations["freeze_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__freeze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Versions */
+        get: operations["list_versions_api_workspaces__workspace_id__evaluation_sets_versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/versions/{version_id}/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Manifest */
+        get: operations["get_manifest_api_workspaces__workspace_id__evaluation_sets_versions__version_id__manifest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/versions/{version_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Package */
+        get: operations["download_package_api_workspaces__workspace_id__evaluation_sets_versions__version_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -511,6 +715,21 @@ export interface components {
              * @enum {string}
              */
             kind: "batch_analysis" | "cocreation_start" | "cocreation_resume" | "cocreation_reproject" | "coverage_review" | "freeze_package";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "failed" | "projection_pending";
+        };
+        /** ActiveOperationView */
+        ActiveOperationView: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "coverage_review" | "freeze_package";
             /**
              * Status
              * @enum {string}
@@ -543,6 +762,15 @@ export interface components {
             media_type: string;
             /** Size Bytes */
             size_bytes: number;
+        };
+        /** BatchImpactReviewRequest */
+        BatchImpactReviewRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Draft Revision */
+            draft_revision: number;
+            /** Note */
+            note?: string | null;
         };
         /** BlockingGap */
         BlockingGap: {
@@ -789,6 +1017,52 @@ export interface components {
             draft_revision: number;
             content: components["schemas"]["DraftContent"];
         };
+        /** CoverageConfirmationRequest */
+        CoverageConfirmationRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Draft Revision */
+            draft_revision: number;
+            /** Confirmed */
+            confirmed: boolean;
+            /** Note */
+            note?: string | null;
+        };
+        /** CoverageReviewRequest */
+        CoverageReviewRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Draft Revision */
+            draft_revision: number;
+        };
+        /** CoverageSnapshotView */
+        CoverageSnapshotView: {
+            /** Id */
+            id: string;
+            /** Draft Revision */
+            draft_revision: number;
+            /** Capabilities */
+            capabilities?: string[];
+            /** Dimensions */
+            dimensions?: string[];
+            /** Failure Modes */
+            failure_modes?: string[];
+            /** Duplicate Groups */
+            duplicate_groups?: string[];
+            /** Blank Areas */
+            blank_areas?: string[];
+            /** Warnings */
+            warnings?: string[];
+            /**
+             * Risk Confirmed
+             * @default false
+             */
+            risk_confirmed: boolean;
+            /** Risk Confirmation Note */
+            risk_confirmation_note?: string | null;
+            /** Confirmed At */
+            confirmed_at?: string | null;
+        };
         /** Dimension */
         Dimension: {
             /** Id */
@@ -832,6 +1106,42 @@ export interface components {
             /** Tags */
             tags?: string[];
         };
+        /** DraftCreateRequest */
+        DraftCreateRequest: {
+            /** Command Id */
+            command_id: string;
+        };
+        /** DraftDiscardRequest */
+        DraftDiscardRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Draft Revision */
+            draft_revision: number;
+        };
+        /** DraftMemberView */
+        DraftMemberView: {
+            /** Id */
+            id: string;
+            /** Task Package Id */
+            task_package_id: string;
+            /** Task Package Revision */
+            task_package_revision: number;
+            status: components["schemas"]["MemberStatus"];
+            review_status: components["schemas"]["ImpactReviewStatus"];
+            /** Deterministic Conflicts */
+            deterministic_conflicts?: string[];
+            /** Ai Suggestions */
+            ai_suggestions?: string[];
+            /** Teacher Note */
+            teacher_note?: string | null;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /**
+         * DraftStatus
+         * @enum {string}
+         */
+        DraftStatus: "active" | "discarded";
         /** ErrorPayload */
         ErrorPayload: {
             /** Code */
@@ -847,6 +1157,11 @@ export interface components {
         ErrorResponse: {
             error: components["schemas"]["ErrorPayload"];
         };
+        /**
+         * EvaluationVersionStatus
+         * @enum {string}
+         */
+        EvaluationVersionStatus: "frozen";
         /** EventLocator */
         EventLocator: {
             /**
@@ -953,6 +1268,26 @@ export interface components {
             /** Batch Revision */
             batch_revision: number;
         };
+        /** FreezeAcceptedResponse */
+        FreezeAcceptedResponse: {
+            draft: components["schemas"]["WorkingSetDraftView"];
+            /** Operation Id */
+            operation_id: string;
+        };
+        /** FreezeRequest */
+        FreezeRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Draft Revision */
+            draft_revision: number;
+            /**
+             * Coverage Risk Confirmed
+             * @default false
+             */
+            coverage_risk_confirmed: boolean;
+            /** Risk Confirmation Note */
+            risk_confirmation_note?: string | null;
+        };
         /** GroupingConfirmationRequest */
         GroupingConfirmationRequest: {
             /** Command Id */
@@ -987,6 +1322,25 @@ export interface components {
              */
             ai: string;
         };
+        /** ImpactReviewDecisionRequest */
+        ImpactReviewDecisionRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Draft Revision */
+            draft_revision: number;
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "reviewed" | "confirm_no_conflict";
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * ImpactReviewStatus
+         * @enum {string}
+         */
+        ImpactReviewStatus: "not_required" | "review_required" | "reviewed" | "no_conflict_confirmed";
         /** JsonPointerLocator */
         JsonPointerLocator: {
             /**
@@ -1053,6 +1407,35 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** ManifestResponse */
+        ManifestResponse: {
+            version: components["schemas"]["VersionSummary"];
+            /** Manifest */
+            manifest: {
+                [key: string]: unknown;
+            };
+        };
+        /** MemberMutationRequest */
+        MemberMutationRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Draft Revision */
+            draft_revision: number;
+            /** Task Package Id */
+            task_package_id: string;
+            /** Task Package Revision */
+            task_package_revision: number;
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "include" | "remove";
+        };
+        /**
+         * MemberStatus
+         * @enum {string}
+         */
+        MemberStatus: "included" | "removed";
         /** NextActionConfirmFiles */
         NextActionConfirmFiles: {
             /**
@@ -1396,6 +1779,69 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VersionListResponse */
+        VersionListResponse: {
+            /** Workspace Id */
+            workspace_id: string;
+            /** Versions */
+            versions: components["schemas"]["VersionSummary"][];
+        };
+        /** VersionSummary */
+        VersionSummary: {
+            /** Id */
+            id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Version Number */
+            version_number: number;
+            status: components["schemas"]["EvaluationVersionStatus"];
+            /** Overall Sha256 */
+            overall_sha256: string;
+            /**
+             * Frozen At
+             * Format: date-time
+             */
+            frozen_at: string;
+        };
+        /** WorkingSetDraftResponse */
+        WorkingSetDraftResponse: {
+            draft: components["schemas"]["WorkingSetDraftView"];
+        };
+        /** WorkingSetDraftView */
+        WorkingSetDraftView: {
+            /** Id */
+            id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Revision */
+            revision: number;
+            status: components["schemas"]["DraftStatus"];
+            /** Base Version Id */
+            base_version_id?: string | null;
+            /** Contract Revision */
+            contract_revision: number;
+            /** Members */
+            members?: components["schemas"]["DraftMemberView"][];
+            coverage?: components["schemas"]["CoverageSnapshotView"] | null;
+            /** Blocking Issues */
+            blocking_issues?: string[];
+            /**
+             * Next Action
+             * @enum {string}
+             */
+            next_action: "add_or_remove_tasks" | "review_contract_impact" | "run_coverage_review" | "confirm_coverage_risk" | "freeze" | "wait_for_processing" | "retry_processing" | "none";
+            active_operation?: components["schemas"]["ActiveOperationView"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** Workspace */
         Workspace: {
@@ -3270,6 +3716,835 @@ export interface operations {
             };
             /** @description Unprocessable Content */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_draft_api_workspaces__workspace_id__evaluation_sets_drafts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingSetDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_draft_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingSetDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discard_draft_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__discard_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftDiscardRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingSetDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    mutate_member_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__members_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberMutationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingSetDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    decide_impact_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__impact_reviews__task_package_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                draft_id: string;
+                task_package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImpactReviewDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingSetDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    confirm_impact_batch_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__impact_reviews_confirm_no_conflict_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchImpactReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingSetDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    request_coverage_review_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__coverage_review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoverageReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingSetDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    confirm_coverage_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__coverage_confirmation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoverageConfirmationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingSetDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    freeze_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__freeze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FreezeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FreezeAcceptedResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_versions_api_workspaces__workspace_id__evaluation_sets_versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionListResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_manifest_api_workspaces__workspace_id__evaluation_sets_versions__version_id__manifest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManifestResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    download_package_api_workspaces__workspace_id__evaluation_sets_versions__version_id__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

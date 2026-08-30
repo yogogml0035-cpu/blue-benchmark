@@ -278,6 +278,19 @@ def get_contract_revision(contract_revision_id: str) -> ContractRevisionRecord |
         return _contract(row) if row else None
 
 
+def list_contract_revisions(workspace_id: str, *, status: str | None = None) -> list[ContractRevisionRecord]:
+    with session_scope() as session:
+        statement = select(ScenarioContractRevisionRow).where(
+            ScenarioContractRevisionRow.workspace_id == workspace_id
+        )
+        if status is not None:
+            statement = statement.where(ScenarioContractRevisionRow.status == status)
+        rows = session.scalars(
+            statement.order_by(ScenarioContractRevisionRow.revision.desc())
+        ).all()
+        return [_contract(row) for row in rows]
+
+
 def list_task_packages(upload_batch_id: str, *, include_replaced: bool = False) -> list[TaskPackageRecord]:
     with session_scope() as session:
         statement = select(TaskPackageRow).where(TaskPackageRow.upload_batch_id == upload_batch_id)

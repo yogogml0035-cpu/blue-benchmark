@@ -10,6 +10,7 @@
 | [持久化状态、数据与合同](./stub-state-and-contracts.md) | 修改业务数据、认证归属、上传、Case 状态机或确认流程 |
 | [错误与 API 响应](./errors-and-api-responses.md) | 新增错误分支、状态码、异常处理或前后端错误合同 |
 | [后端质量与测试](./quality-and-tests.md) | 编写或审查后端代码、补充 API 测试、执行质量门 |
+| [评测集版本与版本包](./evaluation-sets.md) | 修改 WorkingSetDraft、合同影响、覆盖检查、freeze 或三分区包 |
 
 ## 开发前检查
 
@@ -17,6 +18,7 @@
 - [ ] 已确定修改所属 Feature，跨 Feature 依赖通过对方 Service。
 - [ ] 涉及 API 字段、状态或错误时，已列出 OpenAPI、前端生成类型和测试的同步点。
 - [ ] 涉及资源读取或写入时，已检查登录、Workspace 归属和 Case 归属顺序。
+- [ ] 涉及版本包时，已确认历史只读、Manifest/分区/ZIP hash 和 runtime/judge/provenance 可见性边界。
 
 ## 质量检查
 

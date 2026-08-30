@@ -2512,6 +2512,1170 @@
           }
         }
       }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts": {
+      "post": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "Create Draft",
+        "operationId": "create_draft_api_workspaces__workspace_id__evaluation_sets_drafts_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingSetDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}": {
+      "get": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "Get Draft",
+        "operationId": "get_draft_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingSetDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/discard": {
+      "post": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "Discard Draft",
+        "operationId": "discard_draft_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__discard_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftDiscardRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingSetDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/members": {
+      "post": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "Mutate Member",
+        "operationId": "mutate_member_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__members_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberMutationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingSetDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/impact-reviews/{task_package_id}": {
+      "post": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "Decide Impact",
+        "operationId": "decide_impact_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__impact_reviews__task_package_id__post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Draft Id"
+            }
+          },
+          {
+            "name": "task_package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Task Package Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImpactReviewDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingSetDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/impact-reviews/confirm-no-conflict": {
+      "post": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "Confirm Impact Batch",
+        "operationId": "confirm_impact_batch_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__impact_reviews_confirm_no_conflict_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchImpactReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingSetDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/coverage-review": {
+      "post": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "Request Coverage Review",
+        "operationId": "request_coverage_review_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__coverage_review_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverageReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingSetDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/coverage-confirmation": {
+      "post": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "Confirm Coverage",
+        "operationId": "confirm_coverage_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__coverage_confirmation_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverageConfirmationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkingSetDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/freeze": {
+      "post": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "Freeze",
+        "operationId": "freeze_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__freeze_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreezeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreezeAcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/versions": {
+      "get": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "List Versions",
+        "operationId": "list_versions_api_workspaces__workspace_id__evaluation_sets_versions_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/versions/{version_id}/manifest": {
+      "get": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "Get Manifest",
+        "operationId": "get_manifest_api_workspaces__workspace_id__evaluation_sets_versions__version_id__manifest_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManifestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/evaluation-sets/versions/{version_id}/download": {
+      "get": {
+        "tags": [
+          "evaluation-sets"
+        ],
+        "summary": "Download Package",
+        "operationId": "download_package_api_workspaces__workspace_id__evaluation_sets_versions__version_id__download_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2552,6 +3716,39 @@
           "status"
         ],
         "title": "ActiveOperation"
+      },
+      "ActiveOperationView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "coverage_review",
+              "freeze_package"
+            ],
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "failed",
+              "projection_pending"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "status"
+        ],
+        "title": "ActiveOperationView"
       },
       "AgentEvidenceRef": {
         "properties": {
@@ -2659,6 +3856,40 @@
           "size_bytes"
         ],
         "title": "Attachment"
+      },
+      "BatchImpactReviewRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "draft_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Draft Revision"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "draft_revision"
+        ],
+        "title": "BatchImpactReviewRequest"
       },
       "BlockingGap": {
         "properties": {
@@ -3427,6 +4658,156 @@
         ],
         "title": "ConfirmationRequest"
       },
+      "CoverageConfirmationRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "draft_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Draft Revision"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "title": "Confirmed"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "draft_revision",
+          "confirmed"
+        ],
+        "title": "CoverageConfirmationRequest"
+      },
+      "CoverageReviewRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "draft_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Draft Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "draft_revision"
+        ],
+        "title": "CoverageReviewRequest"
+      },
+      "CoverageSnapshotView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "draft_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Draft Revision"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          },
+          "dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dimensions"
+          },
+          "failure_modes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failure Modes"
+          },
+          "duplicate_groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Duplicate Groups"
+          },
+          "blank_areas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blank Areas"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "risk_confirmed": {
+            "type": "boolean",
+            "title": "Risk Confirmed",
+            "default": false
+          },
+          "risk_confirmation_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Confirmation Note"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "draft_revision"
+        ],
+        "title": "CoverageSnapshotView"
+      },
       "Dimension": {
         "properties": {
           "id": {
@@ -3570,6 +4951,115 @@
         ],
         "title": "DraftContent"
       },
+      "DraftCreateRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id"
+        ],
+        "title": "DraftCreateRequest"
+      },
+      "DraftDiscardRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "draft_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Draft Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "draft_revision"
+        ],
+        "title": "DraftDiscardRequest"
+      },
+      "DraftMemberView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "task_package_id": {
+            "type": "string",
+            "title": "Task Package Id"
+          },
+          "task_package_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Task Package Revision"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MemberStatus"
+          },
+          "review_status": {
+            "$ref": "#/components/schemas/ImpactReviewStatus"
+          },
+          "deterministic_conflicts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deterministic Conflicts"
+          },
+          "ai_suggestions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ai Suggestions"
+          },
+          "teacher_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teacher Note"
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Sort Order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "task_package_id",
+          "task_package_revision",
+          "status",
+          "review_status",
+          "sort_order"
+        ],
+        "title": "DraftMemberView"
+      },
+      "DraftStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "discarded"
+        ],
+        "title": "DraftStatus"
+      },
       "ErrorPayload": {
         "properties": {
           "code": {
@@ -3611,6 +5101,13 @@
           "error"
         ],
         "title": "ErrorResponse"
+      },
+      "EvaluationVersionStatus": {
+        "type": "string",
+        "enum": [
+          "frozen"
+        ],
+        "title": "EvaluationVersionStatus"
       },
       "EventLocator": {
         "properties": {
@@ -3871,6 +5368,62 @@
         ],
         "title": "FileDispositionRequest"
       },
+      "FreezeAcceptedResponse": {
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/WorkingSetDraftView"
+          },
+          "operation_id": {
+            "type": "string",
+            "title": "Operation Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "draft",
+          "operation_id"
+        ],
+        "title": "FreezeAcceptedResponse"
+      },
+      "FreezeRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "draft_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Draft Revision"
+          },
+          "coverage_risk_confirmed": {
+            "type": "boolean",
+            "title": "Coverage Risk Confirmed",
+            "default": false
+          },
+          "risk_confirmation_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Confirmation Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "draft_revision"
+        ],
+        "title": "FreezeRequest"
+      },
       "GroupingConfirmationRequest": {
         "properties": {
           "command_id": {
@@ -3941,6 +5494,59 @@
           "service"
         ],
         "title": "HealthResponse"
+      },
+      "ImpactReviewDecisionRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "draft_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Draft Revision"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "reviewed",
+              "confirm_no_conflict"
+            ],
+            "title": "Decision"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "draft_revision",
+          "decision"
+        ],
+        "title": "ImpactReviewDecisionRequest"
+      },
+      "ImpactReviewStatus": {
+        "type": "string",
+        "enum": [
+          "not_required",
+          "review_required",
+          "reviewed",
+          "no_conflict_confirmed"
+        ],
+        "title": "ImpactReviewStatus"
       },
       "JsonPointerLocator": {
         "properties": {
@@ -4147,6 +5753,76 @@
           "password"
         ],
         "title": "LoginRequest"
+      },
+      "ManifestResponse": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionSummary"
+          },
+          "manifest": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Manifest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "manifest"
+        ],
+        "title": "ManifestResponse"
+      },
+      "MemberMutationRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "draft_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Draft Revision"
+          },
+          "task_package_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Task Package Id"
+          },
+          "task_package_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Task Package Revision"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "include",
+              "remove"
+            ],
+            "title": "Action"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "draft_revision",
+          "task_package_id",
+          "task_package_revision",
+          "action"
+        ],
+        "title": "MemberMutationRequest"
+      },
+      "MemberStatus": {
+        "type": "string",
+        "enum": [
+          "included",
+          "removed"
+        ],
+        "title": "MemberStatus"
       },
       "NextActionConfirmFiles": {
         "properties": {
@@ -5061,6 +6737,186 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VersionListResponse": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/VersionSummary"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "versions"
+        ],
+        "title": "VersionListResponse"
+      },
+      "VersionSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "version_number": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version Number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EvaluationVersionStatus"
+          },
+          "overall_sha256": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Overall Sha256"
+          },
+          "frozen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Frozen At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "version_number",
+          "status",
+          "overall_sha256",
+          "frozen_at"
+        ],
+        "title": "VersionSummary"
+      },
+      "WorkingSetDraftResponse": {
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/WorkingSetDraftView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "draft"
+        ],
+        "title": "WorkingSetDraftResponse"
+      },
+      "WorkingSetDraftView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Revision"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DraftStatus"
+          },
+          "base_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Version Id"
+          },
+          "contract_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Contract Revision"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/DraftMemberView"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoverageSnapshotView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blocking_issues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blocking Issues"
+          },
+          "next_action": {
+            "type": "string",
+            "enum": [
+              "add_or_remove_tasks",
+              "review_contract_impact",
+              "run_coverage_review",
+              "confirm_coverage_risk",
+              "freeze",
+              "wait_for_processing",
+              "retry_processing",
+              "none"
+            ],
+            "title": "Next Action"
+          },
+          "active_operation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveOperationView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "revision",
+          "status",
+          "contract_revision",
+          "next_action",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkingSetDraftView"
       },
       "Workspace": {
         "properties": {

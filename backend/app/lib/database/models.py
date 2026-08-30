@@ -295,3 +295,125 @@ class AgentRunAttemptRow(Base):
     result_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(64), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+
+
+class WorkingSetDraftRow(Base):
+    __tablename__ = "working_set_drafts"
+    __table_args__ = (
+        UniqueConstraint("active_key", name="uq_working_set_draft_active_key"),
+        Index("ix_working_set_draft_workspace_status", "workspace_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    base_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    active_key: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    contract_revision_id: Mapped[str] = mapped_column(String(36))
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    freeze_intent_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    discarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class WorkingSetMemberRow(Base):
+    __tablename__ = "working_set_members"
+    __table_args__ = (
+        UniqueConstraint("draft_id", "task_package_id", name="uq_working_set_member_task"),
+        Index("ix_working_set_member_draft_status", "draft_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    draft_id: Mapped[str] = mapped_column(ForeignKey("working_set_drafts.id", ondelete="CASCADE"), index=True)
+    task_package_id: Mapped[str] = mapped_column(ForeignKey("task_packages.id"), index=True)
+    task_package_revision: Mapped[int] = mapped_column(Integer)
+    contract_revision_id: Mapped[str] = mapped_column(String(36))
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    review_status: Mapped[str] = mapped_column(String(32), index=True)
+    deterministic_conflicts_json: Mapped[list] = mapped_column(JSON, default=list)
+    ai_suggestions_json: Mapped[list] = mapped_column(JSON, default=list)
+    teacher_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class WorkingSetCommandRow(Base):
+    __tablename__ = "working_set_commands"
+    __table_args__ = (UniqueConstraint("draft_id", "command_id", name="uq_working_set_command"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    draft_id: Mapped[str] = mapped_column(ForeignKey("working_set_drafts.id", ondelete="CASCADE"), index=True)
+    command_id: Mapped[str] = mapped_column(String(255))
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    result_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ContractImpactReviewRow(Base):
+    __tablename__ = "contract_impact_reviews"
+    __table_args__ = (
+        UniqueConstraint("draft_id", "task_package_id", name="uq_contract_impact_review_task"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    draft_id: Mapped[str] = mapped_column(ForeignKey("working_set_drafts.id", ondelete="CASCADE"), index=True)
+    task_package_id: Mapped[str] = mapped_column(ForeignKey("task_packages.id"), index=True)
+    from_contract_revision_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    to_contract_revision_id: Mapped[str] = mapped_column(String(36))
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    deterministic_conflicts_json: Mapped[list] = mapped_column(JSON, default=list)
+    ai_suggestions_json: Mapped[list] = mapped_column(JSON, default=list)
+    teacher_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confirmed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CoverageSnapshotRow(Base):
+    __tablename__ = "coverage_snapshots"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    draft_id: Mapped[str] = mapped_column(ForeignKey("working_set_drafts.id", ondelete="CASCADE"), index=True)
+    draft_revision: Mapped[int] = mapped_column(Integer)
+    snapshot_json: Mapped[dict] = mapped_column(JSON)
+    risk_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    risk_confirmation_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confirmed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class EvaluationSetVersionRow(Base):
+    __tablename__ = "evaluation_set_versions"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "version_number", name="uq_evaluation_set_version_number"),
+        UniqueConstraint("freeze_command_id", name="uq_evaluation_set_freeze_command"),
+        Index("ix_evaluation_set_version_workspace", "workspace_id", "version_number"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    version_number: Mapped[int] = mapped_column(Integer)
+    draft_id: Mapped[str] = mapped_column(ForeignKey("working_set_drafts.id"), index=True)
+    contract_revision_id: Mapped[str] = mapped_column(String(36))
+    schema_version: Mapped[str] = mapped_column(String(128))
+    freeze_command_id: Mapped[str] = mapped_column(String(255))
+    manifest_key: Mapped[str] = mapped_column(String(512), unique=True)
+    runtime_key: Mapped[str] = mapped_column(String(512), unique=True)
+    judge_key: Mapped[str] = mapped_column(String(512), unique=True)
+    provenance_key: Mapped[str] = mapped_column(String(512), unique=True)
+    package_key: Mapped[str] = mapped_column(String(512), unique=True)
+    manifest_sha256: Mapped[str] = mapped_column(String(64))
+    runtime_sha256: Mapped[str] = mapped_column(String(64))
+    judge_sha256: Mapped[str] = mapped_column(String(64))
+    provenance_sha256: Mapped[str] = mapped_column(String(64))
+    overall_sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    risk_confirmation_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    frozen_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    frozen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

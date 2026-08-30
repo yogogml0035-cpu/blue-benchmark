@@ -14,6 +14,9 @@ from app.lib.database.models import (
     CaseRow,
     CoCreationSessionRow,
     CoCreationTurnRow,
+    ContractImpactReviewRow,
+    CoverageSnapshotRow,
+    EvaluationSetVersionRow,
     EvidenceFileRow,
     FileDispositionRow,
     OperationJobRow,
@@ -26,12 +29,15 @@ from app.lib.database.models import (
     TeacherFeedbackRow,
     UploadBatchRow,
     UserRow,
+    WorkingSetCommandRow,
+    WorkingSetDraftRow,
+    WorkingSetMemberRow,
     WorkspaceRow,
 )
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0004_cocreation_contracts"
+BUSINESS_SCHEMA_HEAD = "0005_evaluation_versioning"
 
 
 def as_utc(value: datetime) -> datetime:
@@ -93,6 +99,11 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             "co_creation_sessions": {"id", "task_package_id", "command_id", "kind", "projection_json"},
             "co_creation_turns": {"id", "session_id", "question_id", "answer_command_id"},
             "scenario_contract_revisions": {"id", "workspace_id", "revision", "contract_json"},
+            "working_set_drafts": {"id", "workspace_id", "active_key", "revision", "freeze_intent_json"},
+            "working_set_members": {"id", "draft_id", "task_package_id", "review_status"},
+            "contract_impact_reviews": {"id", "draft_id", "task_package_id", "status"},
+            "coverage_snapshots": {"id", "draft_id", "snapshot_json", "risk_confirmed"},
+            "evaluation_set_versions": {"id", "workspace_id", "version_number", "overall_sha256"},
         }
         return all(
             columns.issubset({item["name"] for item in inspect(connection).get_columns(table)})
@@ -133,6 +144,12 @@ def clear_business_data() -> None:
         QuestionRevisionRow,
         CoCreationTurnRow,
         CoCreationSessionRow,
+        EvaluationSetVersionRow,
+        CoverageSnapshotRow,
+        ContractImpactReviewRow,
+        WorkingSetCommandRow,
+        WorkingSetMemberRow,
+        WorkingSetDraftRow,
         SkillRunEvidenceRow,
         TaskPackageRow,
         ScenarioContractRevisionRow,

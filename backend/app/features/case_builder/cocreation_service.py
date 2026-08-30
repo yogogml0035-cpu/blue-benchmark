@@ -33,6 +33,8 @@ from app.features.case_builder.cocreation_schemas import (
     TaskPackageResponse,
     TaskPackageStatus,
     TaskPackageSummary,
+    EvaluationFileSnapshot,
+    EvaluationTaskSnapshot,
 )
 from app.features.workspaces import service as workspace_service
 from app.lib.ai_runtime import AgentRunContext, get_adapters, get_ai_profile
@@ -166,6 +168,83 @@ def get_task_package(workspace_id: str, task_package_id: str, user: UserRecord) 
     return TaskPackageResponse(task_package=_summary(_authorized_package(workspace_id, task_package_id, user)))
 
 
+def get_latest_confirmed_contract(workspace_id: str) -> repository.ContractRevisionRecord | None:
+    revisions = repository.list_contract_revisions(
+        workspace_id,
+        status=ContractRevisionStatus.confirmed.value,
+    )
+    return revisions[0] if revisions else None
+
+
+def get_contract_revision_for_evaluation(
+    workspace_id: str,
+    contract_revision_id: str,
+) -> repository.ContractRevisionRecord:
+    revision = repository.get_contract_revision(contract_revision_id)
+    if revision is None or revision.workspace_id != workspace_id:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "场景标准不存在。")
+    return revision
+
+
+def get_evaluation_task_snapshot(workspace_id: str, task_package_id: str) -> EvaluationTaskSnapshot:
+    package = repository.get_task_package(task_package_id)
+    if package is None or package.workspace_id != workspace_id:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "任务不存在。")
+    if package.status != TaskPackageStatus.confirmed.value:
+        raise AppError(409, "TASK_NOT_CONFIRMED", "任务尚未确认。")
+    if not package.contract_revision_id or not package.judgment_package:
+        raise AppError(409, "TASK_NOT_READY_FOR_VERSION", "任务缺少已确认的场景标准或判定依据。")
+    contract = repository.get_contract_revision(package.contract_revision_id)
+    if contract is None or contract.status != ContractRevisionStatus.confirmed.value:
+        raise AppError(409, "CONTRACT_NOT_CONFIRMED", "任务引用的场景标准尚未确认。")
+    judgment = JudgmentPackageContent.model_validate(package.judgment_package)
+    files_by_id = {item.id: item for item in ingestion_repository.list_files(package.upload_batch_id)}
+    batch = ingestion_repository.get_batch(package.upload_batch_id)
+    files: list[EvaluationFileSnapshot] = []
+    for file_id in package.evidence_file_ids:
+        item = files_by_id.get(file_id)
+        if item is None:
+            raise AppError(409, "TASK_NOT_READY_FOR_VERSION", "任务引用的资料已经缺失。")
+        if item.ignored or item.visibility == "unconfirmed" or item.role == "unknown":
+            raise AppError(409, "TASK_NOT_READY_FOR_VERSION", "任务仍有资料用途或可见范围未确认。")
+        if item.parse_state != "parsed":
+            raise AppError(409, "TASK_NOT_READY_FOR_VERSION", "任务仍有不可读取的必需资料。")
+        files.append(
+            EvaluationFileSnapshot(
+                file_id=item.id,
+                name=item.original_name,
+                media_type=item.media_type,
+                size_bytes=item.size_bytes,
+                sha256=item.sha256,
+                parse_state=item.parse_state,
+                role=item.role,
+                required=item.required,
+                ignored=item.ignored,
+                visibility=item.visibility,
+                storage_key=item.storage_key,
+            )
+        )
+    return EvaluationTaskSnapshot(
+        task_package_id=package.id,
+        workspace_id=package.workspace_id,
+        title=package.title,
+        task_description=batch.task_description if batch else None,
+        revision=package.revision,
+        contract_revision_id=contract.id,
+        contract=ScenarioContractContent.model_validate(contract.contract),
+        draft=package.draft or {},
+        judgment_package=judgment,
+        files=files,
+        attempts=[SkillAttemptProposal.model_validate(item) for item in (package.analysis or {}).get("attempts", [])],
+        provenance={
+            "task_package_revision": package.revision,
+            "confirmed_by": package.confirmed_by,
+            "confirmed_at": package.confirmed_at.isoformat() if package.confirmed_at else None,
+            "analysis": package.analysis or {},
+        },
+    )
+
+
 def _session_context(session: repository.CoCreationSessionRecord, package: repository.TaskPackageRecord) -> AgentRunContext:
     owner_id = workspace_service.owner_id_for_workspace(session.workspace_id)
     return AgentRunContext(
@@ -277,7 +356,10 @@ def start_cocreation(
     if existing_by_command is not None:
         return _session_response(existing_by_command)
     existing = repository.get_active_session(task_package_id, payload.kind.value)
-    if existing is not None:
+    if existing is not None and not (
+        payload.kind == CoCreationKind.scenario_contract
+        and existing.status == CoCreationStatus.confirmed.value
+    ):
         return _session_response(existing)
     profile = get_ai_profile()
     session = repository.create_session(

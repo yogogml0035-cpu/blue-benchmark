@@ -11,8 +11,9 @@ backend/
 │   ├── features/
 │   │   ├── auth/{router,service,repository,schemas}.py
 │   │   ├── workspaces/{router,service,repository,schemas}.py
-│   │   └── case_builder/{router,service,repository,schemas,cocreation_*,ingestion_*}.py
-│   └── lib/{errors,schemas,settings,ai_runtime/,operations/,storage/,database/}
+│   │   ├── case_builder/{router,service,repository,schemas,cocreation_*,ingestion_*}.py
+│   │   └── evaluation_sets/{router,service,repository,schemas}.py
+│   └── lib/{errors,schemas,settings,ai_runtime/,operations/,storage/,database/,version_packages/}
 ├── scripts/export_openapi.py
 ├── tests/test_api.py
 ├── openapi.json
@@ -39,6 +40,7 @@ schemas -> HTTP 输入、输出和领域枚举
 - `schemas.py` 用 Pydantic 模型定义外部合同；内部可变状态使用 `@dataclass(slots=True)` Record。参考 `case_builder/schemas.py` 与 `case_builder/repository.py`。
 - `case_builder/cocreation_service.py` 负责任务分组、授权、业务状态和 Agent 结果投影；`cocreation_repository.py` 负责 TaskPackage、Session、Turn、合同修订和形成记录的数据库映射。
 - `lib/ai_runtime` 只拥有 `AgentRunContext`、受限 `EvidenceBackend`、AI Profile、Checkpointer 工厂和三个 Protocol/adapter；它不直接写业务表、不产生 HTTP DTO。
+- `evaluation_sets/service.py` 只通过 `case_builder` Service 读取已确认题和合同快照；版本包 builder 只接收确定性快照，不读取 Checkpointer 或业务 Repository。
 
 ## 跨 Feature 依赖
 
@@ -68,3 +70,5 @@ schemas -> HTTP 输入、输出和领域枚举
 - 不要把内部 `password_hash`、`parsed_text`、`thread_id` 等 Record 字段自动暴露进响应模型。
 - 不要让 Deep Agent adapter 直接确认合同、题、标准或版本；模型输出必须先经过 Pydantic、scope/locator 校验，再由 Feature Service 做 revision/accepted-pointer CAS。
 - 不要把 `stable_thread_key`、`accepted_checkpoint_id` 或 interrupt envelope 放进浏览器 DTO；Checkpointer latest 不是恢复权威。
+- 不要从可变 `TaskPackage`/合同表重拼历史版本；历史 Manifest、三分区和下载必须读取 `EvaluationSetVersion` 指向的 ready keys。
+- 不要让 freeze 先写可见版本再补包；必须先 staging、校验分区/整体 hash 和 ready marker，再用 draft revision CAS 创建版本。

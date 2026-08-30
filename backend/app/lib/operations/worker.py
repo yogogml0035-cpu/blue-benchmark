@@ -95,8 +95,8 @@ def default_worker() -> OperationWorker:
         handle_cocreation_reproject,
         handle_cocreation_resume,
         handle_cocreation_start,
-        handle_coverage_review,
     )
+    from app.features.evaluation_sets.service import handle_coverage_review, handle_freeze
     from app.lib.ai_runtime import initialize_ai_runtime
 
     initialize_ai_runtime()
@@ -106,6 +106,7 @@ def default_worker() -> OperationWorker:
     worker.register("cocreation_resume", lambda job: handle_cocreation_resume(job))
     worker.register("cocreation_reproject", lambda job: handle_cocreation_reproject(job))
     worker.register("coverage_review", lambda job: handle_coverage_review(job))
+    worker.register("freeze_package", lambda job: handle_freeze(job))
     return worker
 
 

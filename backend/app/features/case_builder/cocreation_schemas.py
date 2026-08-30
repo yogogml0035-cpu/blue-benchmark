@@ -273,6 +273,41 @@ class CoverageReview(BaseModel):
     evidence_refs: list[AgentEvidenceRef] = Field(default_factory=list)
 
 
+class EvaluationFileSnapshot(BaseModel):
+    """Internal cross-feature snapshot; storage_key never enters an HTTP DTO."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    file_id: str
+    name: str
+    media_type: str
+    size_bytes: int = Field(ge=0)
+    sha256: str = Field(min_length=64, max_length=64)
+    parse_state: str
+    role: str
+    required: bool
+    ignored: bool
+    visibility: str
+    storage_key: str
+
+
+class EvaluationTaskSnapshot(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task_package_id: str
+    workspace_id: str
+    title: str
+    task_description: str | None = None
+    revision: int = Field(ge=0)
+    contract_revision_id: str
+    contract: ScenarioContractContent
+    draft: dict[str, Any]
+    judgment_package: JudgmentPackageContent
+    files: list[EvaluationFileSnapshot] = Field(min_length=1)
+    attempts: list[SkillAttemptProposal] = Field(default_factory=list)
+    provenance: dict[str, Any] = Field(default_factory=dict)
+
+
 class CoCreationStartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
