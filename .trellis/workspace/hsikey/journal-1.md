@@ -75,3 +75,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: 完成 M0 集成与父任务对抗式审查
+<!-- trellis-session: v=2 fp=3cb6b8f310c0287b -->
+
+**Date**: 2026-08-30
+**Task**: 完成 M0 集成与父任务对抗式审查
+**Branch**: `main`
+
+### Summary
+
+完成 M0 合成与真实样本闭环、跨批次题池、合同传播与版本隔离修正；通过 53 个后端测试、前端类型检查、OpenAPI 漂移检查、生产构建、真实样本 runner 和真实浏览器验收。完成父任务最终对抗式审查并记录生产 Checkpointer 常驻接入、自动清理消费者、完整提案 UI 与 M2 执行等未验证边界。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `93a6214` | feat(integration): complete M0 acceptance workflow |
+| `b5b2970` | chore(m0): record final adversarial review |
+
+### Status
+
+[OK] **Completed**
