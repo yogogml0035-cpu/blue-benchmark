@@ -305,15 +305,14 @@ def _session_context(session: repository.CoCreationSessionRecord, package: repos
     )
 
 
-def _job_for_session(session_id: str) -> OperationJob | None:
-    jobs = operation_repository.list_for_target("co_creation_session", session_id)
+def _job_for_session(session: repository.CoCreationSessionRecord) -> OperationJob | None:
+    jobs = operation_repository.list_for_target("co_creation_session", session.id)
     for job in jobs:
-        if job.status in {
-            OperationJobStatus.queued,
-            OperationJobStatus.running,
-            OperationJobStatus.failed,
-            OperationJobStatus.projection_pending,
-        }:
+        if job.status in {OperationJobStatus.queued, OperationJobStatus.running}:
+            return job
+        if job.status == OperationJobStatus.failed and session.status == CoCreationStatus.failed.value:
+            return job
+        if job.status == OperationJobStatus.projection_pending and session.status == CoCreationStatus.projection_pending.value:
             return job
     return None
 
@@ -339,7 +338,7 @@ def _session_view(session: repository.CoCreationSessionRecord) -> CoCreationSess
     pending_question = None
     if pending and pending.get("id"):
         pending_question = CoCreationQuestion.model_validate(pending)
-    job = _job_for_session(session.id)
+    job = _job_for_session(session)
     if session.status == CoCreationStatus.continuity_reset.value:
         next_action = "continuity_reset"
     elif job and job.status in {OperationJobStatus.queued, OperationJobStatus.running}:
@@ -404,7 +403,7 @@ def start_cocreation(
         return _session_response(existing_by_command)
     existing = repository.get_active_session(task_package_id, payload.kind.value)
     if existing is not None:
-        if existing.status == CoCreationStatus.queued.value and _job_for_session(existing.id) is None:
+        if existing.status == CoCreationStatus.queued.value and _job_for_session(existing) is None:
             try:
                 operation_repository.create_or_get(
                     kind="cocreation_start",
@@ -435,6 +434,7 @@ def start_cocreation(
         initialization_only=payload.initialization_only,
         ai_profile_version=profile.version,
         graph_schema_version=GRAPH_SCHEMA_VERSION,
+        contract_revision_id=(package.contract_revision_id if payload.kind == CoCreationKind.task_judgment else None),
     )
     if session.command_id != payload.command_id:
         return _session_response(session)
@@ -483,7 +483,7 @@ def answer_cocreation(
     if updated is None:
         raise AppError(409, "STALE_COCREATION", "共创状态已经更新，请重新读取后回答。")
     if duplicate:
-        if updated.status == CoCreationStatus.processing.value and _job_for_session(updated.id) is None:
+        if updated.status == CoCreationStatus.processing.value and _job_for_session(updated) is None:
             try:
                 operation_repository.create_or_get(
                     kind="cocreation_resume",
@@ -536,7 +536,7 @@ def retry_cocreation(
         turns = repository.list_turns(session.id)
         kind = "cocreation_resume" if any(item.status == "answered_pending_resume" for item in turns) else "cocreation_start"
         accepted = session.accepted_checkpoint_id
-    if session.status == CoCreationStatus.processing.value and _job_for_session(session.id) is None:
+    if session.status == CoCreationStatus.processing.value and _job_for_session(session) is None:
         try:
             operation_repository.create_or_get(
                 kind=kind,
@@ -751,11 +751,12 @@ def _run_cocreation_agent(job: OperationJob, mode: str) -> dict[str, Any]:
         from app.lib.operations.worker import SupersededOperation
 
         runs = attempt_repository.list_for_job(job.id)
+        current_attempt = next((item for item in runs if item.attempt_number == job.attempts), None)
         if (
             session.business_revision > job.business_revision
-            and runs
-            and runs[-1].produced_checkpoint_id
-            and runs[-1].produced_checkpoint_id == session.accepted_checkpoint_id
+            and current_attempt is not None
+            and current_attempt.produced_checkpoint_id
+            and current_attempt.produced_checkpoint_id == session.accepted_checkpoint_id
         ):
             return {"session_id": session.id, "status": session.status, "business_revision": session.business_revision}
 
@@ -805,15 +806,6 @@ def _run_cocreation_agent(job: OperationJob, mode: str) -> dict[str, Any]:
             result_refs.extend(gap.evidence_refs)
         result_refs.extend(ref for ref in result.result.delta.unresolved for ref in ref.evidence_refs)
         validate_evidence_refs(result_refs, documents_for_files(list(package.evidence_file_ids)))
-        runs = attempt_repository.list_for_job(job.id)
-        if not runs:
-            raise RuntimeError("agent attempt was not created")
-        if result.produced_checkpoint_id:
-            attempt_repository.mark_produced(
-                runs[-1].id,
-                produced_checkpoint_id=result.produced_checkpoint_id,
-                result_hash=repository.result_hash(result.result),
-            )
         try:
             updated = repository.commit_agent_result(
                 session.id,
@@ -821,6 +813,9 @@ def _run_cocreation_agent(job: OperationJob, mode: str) -> dict[str, Any]:
                 expected_checkpoint_id=session.accepted_checkpoint_id,
                 produced_checkpoint_id=result.produced_checkpoint_id,
                 result=result.result,
+                operation_job_id=job.id,
+                operation_attempt=job.attempts,
+                worker_id=job.worker_id,
             )
         except repository.StaleProjection as exc:
             from app.lib.operations.worker import SupersededOperation

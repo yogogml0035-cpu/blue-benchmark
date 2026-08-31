@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.lib.database import as_utc, session_scope
 from app.lib.database.models import (
+    AgentRunAttemptRow,
     ContractImpactReviewRow,
     CoverageSnapshotRow,
     EvaluationSetVersionRow,
@@ -19,6 +20,7 @@ from app.lib.database.models import (
     WorkingSetDraftRow,
     WorkingSetMemberRow,
     WorkspaceRow,
+    OperationJobRow,
 )
 
 from app.features.evaluation_sets.schemas import (
@@ -650,9 +652,41 @@ def confirm_no_conflict_batch(draft_id: str, *, payload: BatchImpactReviewReques
         return _draft(draft)
 
 
-def save_coverage(draft_id: str, *, draft_revision: int, snapshot: dict[str, Any]) -> CoverageSnapshotRecord:
+def save_coverage(
+    draft_id: str,
+    *,
+    draft_revision: int,
+    snapshot: dict[str, Any],
+    operation_job_id: str | None = None,
+    operation_attempt: int | None = None,
+    worker_id: str | None = None,
+) -> CoverageSnapshotRecord:
     now = _now()
     with session_scope() as session:
+        attempt = None
+        if operation_job_id is not None:
+            if operation_attempt is None or not worker_id:
+                raise StaleDraft("coverage operation identity is incomplete")
+            operation = session.scalar(
+                select(OperationJobRow).where(OperationJobRow.id == operation_job_id).with_for_update()
+            )
+            if (
+                operation is None
+                or operation.status != "running"
+                or operation.worker_id != worker_id
+                or operation.attempts != operation_attempt
+            ):
+                raise StaleDraft("coverage operation attempt is stale")
+            attempt = session.scalar(
+                select(AgentRunAttemptRow)
+                .where(
+                    AgentRunAttemptRow.operation_job_id == operation_job_id,
+                    AgentRunAttemptRow.attempt_number == operation_attempt,
+                )
+                .with_for_update()
+            )
+            if attempt is None:
+                raise StaleDraft("coverage operation attempt is missing")
         draft = session.scalar(select(WorkingSetDraftRow).where(WorkingSetDraftRow.id == draft_id).with_for_update())
         if draft is None:
             raise KeyError(draft_id)
@@ -668,6 +702,9 @@ def save_coverage(draft_id: str, *, draft_revision: int, snapshot: dict[str, Any
             return _coverage(existing)
         row = CoverageSnapshotRow(id=str(uuid4()), draft_id=draft_id, draft_revision=draft_revision, snapshot_json=snapshot, risk_confirmed=False, created_at=now)
         session.add(row)
+        if attempt is not None:
+            attempt.result_hash = payload_hash(snapshot)
+            attempt.status = "produced"
         session.flush()
         return _coverage(row)
 

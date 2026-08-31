@@ -26,6 +26,7 @@ from app.features.case_builder.cocreation_schemas import (
 )
 from app.lib.database import as_utc, session_scope
 from app.lib.database.models import (
+    AgentRunAttemptRow,
     CoCreationSessionRow,
     CoCreationTurnRow,
     EvidenceFileRow,
@@ -183,6 +184,13 @@ def _task(row: TaskPackageRow) -> TaskPackageRecord:
     )
 
 
+def _grouping_sort_key(row: TaskPackageRow) -> tuple[int, int, datetime, str]:
+    grouping_order = (row.analysis_json or {}).get("grouping_order")
+    if isinstance(grouping_order, int) and grouping_order >= 0:
+        return (0, grouping_order, row.created_at, row.id)
+    return (1, 0, row.created_at, row.id)
+
+
 def _contract(row: ScenarioContractRevisionRow) -> ContractRevisionRecord:
     return ContractRevisionRecord(
         id=row.id,
@@ -299,7 +307,7 @@ def list_task_packages(upload_batch_id: str, *, include_replaced: bool = False) 
         if not include_replaced:
             statement = statement.where(TaskPackageRow.status != TaskPackageStatus.replaced.value)
         rows = session.scalars(statement.order_by(TaskPackageRow.created_at, TaskPackageRow.id)).all()
-        return [_task(row) for row in rows]
+        return [_task(row) for row in sorted(rows, key=_grouping_sort_key)]
 
 
 def list_task_packages_for_workspace(workspace_id: str) -> list[TaskPackageRecord]:
@@ -406,12 +414,13 @@ def confirm_grouping(
                 TaskPackageRow.upload_batch_id == batch_id,
                 TaskPackageRow.status == TaskPackageStatus.confirmed.value,
             )
+            .order_by(TaskPackageRow.created_at, TaskPackageRow.id)
         ).all()
         for row in existing_confirmed:
             if (row.analysis_json or {}).get("grouping_command_id") == command_id:
                 if (row.analysis_json or {}).get("grouping_payload_hash") != payload_digest:
                     raise RepositoryConflict("grouping command payload conflicts with the saved grouping")
-                return [_task(item) for item in existing_confirmed]
+                return [_task(item) for item in sorted(existing_confirmed, key=_grouping_sort_key)]
         if existing_confirmed:
             raise RepositoryConflict("task grouping has already been confirmed")
         if batch.revision != expected_revision:
@@ -433,7 +442,7 @@ def confirm_grouping(
             row.status = TaskPackageStatus.replaced.value
             row.updated_at = now
         created: list[TaskPackageRow] = []
-        for group in groups:
+        for grouping_order, group in enumerate(groups):
             row = TaskPackageRow(
                 id=str(uuid4()),
                 workspace_id=batch.workspace_id,
@@ -447,6 +456,7 @@ def confirm_grouping(
                     "grouping_payload_hash": payload_digest,
                     "proposal_key": group.proposal_key,
                     "summary": group.summary,
+                    "grouping_order": grouping_order,
                     "attempts": [attempt.model_dump(mode="json") for attempt in group.attempts],
                     "teacher_confirmed": True,
                 },
@@ -486,17 +496,18 @@ def get_session(session_id: str) -> CoCreationSessionRecord | None:
 
 def get_active_session(task_package_id: str, kind: str) -> CoCreationSessionRecord | None:
     with session_scope() as session:
-        row = session.scalar(
-            select(CoCreationSessionRow)
-            .where(
-                CoCreationSessionRow.task_package_id == task_package_id,
-                CoCreationSessionRow.kind == kind,
-                CoCreationSessionRow.status != CoCreationStatus.confirmed.value,
-                CoCreationSessionRow.status != CoCreationStatus.continuity_reset.value,
-            )
-            .order_by(CoCreationSessionRow.created_at.desc())
-            .limit(1)
+        statement = select(CoCreationSessionRow).where(
+            CoCreationSessionRow.task_package_id == task_package_id,
+            CoCreationSessionRow.kind == kind,
+            CoCreationSessionRow.status != CoCreationStatus.confirmed.value,
+            CoCreationSessionRow.status != CoCreationStatus.continuity_reset.value,
         )
+        if kind == CoCreationKind.task_judgment.value:
+            task = session.get(TaskPackageRow, task_package_id)
+            statement = statement.where(
+                CoCreationSessionRow.contract_revision_id == (task.contract_revision_id if task else None)
+            )
+        row = session.scalar(statement.order_by(CoCreationSessionRow.created_at.desc()).limit(1))
         return _session(row) if row else None
 
 
@@ -536,6 +547,7 @@ def create_session(
     initialization_only: bool,
     ai_profile_version: str,
     graph_schema_version: str,
+    contract_revision_id: str | None = None,
 ) -> CoCreationSessionRecord:
     now = _now()
     row = CoCreationSessionRow(
@@ -553,7 +565,7 @@ def create_session(
         accepted_checkpoint_id=None,
         pending_interrupt_json=None,
         projection_json=None,
-        contract_revision_id=None,
+        contract_revision_id=contract_revision_id,
         confirmation_command_id=None,
         continuity_reset_from_id=None,
         continuity_reset_to_id=None,
@@ -570,17 +582,17 @@ def create_session(
             )
             if task is None:
                 raise KeyError(task_package_id)
-            active = session.scalar(
-                select(CoCreationSessionRow)
-                .where(
-                    CoCreationSessionRow.task_package_id == task_package_id,
-                    CoCreationSessionRow.kind == kind.value,
-                    CoCreationSessionRow.status != CoCreationStatus.confirmed.value,
-                    CoCreationSessionRow.status != CoCreationStatus.continuity_reset.value,
-                )
-                .order_by(CoCreationSessionRow.created_at.desc())
-                .limit(1)
+            if kind == CoCreationKind.task_judgment:
+                row.contract_revision_id = task.contract_revision_id
+            statement = select(CoCreationSessionRow).where(
+                CoCreationSessionRow.task_package_id == task_package_id,
+                CoCreationSessionRow.kind == kind.value,
+                CoCreationSessionRow.status != CoCreationStatus.confirmed.value,
+                CoCreationSessionRow.status != CoCreationStatus.continuity_reset.value,
             )
+            if kind == CoCreationKind.task_judgment:
+                statement = statement.where(CoCreationSessionRow.contract_revision_id == task.contract_revision_id)
+            active = session.scalar(statement.order_by(CoCreationSessionRow.created_at.desc()).limit(1))
             if active is not None:
                 return _session(active)
             session.add(row)
@@ -712,11 +724,36 @@ def commit_agent_result(
     expected_checkpoint_id: str | None,
     produced_checkpoint_id: str | None,
     result: CoCreationAgentResult,
+    operation_job_id: str | None = None,
+    operation_attempt: int | None = None,
+    worker_id: str | None = None,
 ) -> CoCreationSessionRecord:
     if not produced_checkpoint_id:
         raise RepositoryConflict("successful co-creation result must have a produced checkpoint")
     now = _now()
     with session_scope() as session:
+        attempt = None
+        if operation_job_id is not None:
+            if operation_attempt is None or not worker_id:
+                raise StaleProjection("co-creation operation identity is incomplete")
+            operation = session.scalar(select(OperationJobRow).where(OperationJobRow.id == operation_job_id).with_for_update())
+            if (
+                operation is None
+                or operation.status != "running"
+                or operation.worker_id != worker_id
+                or operation.attempts != operation_attempt
+            ):
+                raise StaleProjection("co-creation operation attempt is stale")
+            attempt = session.scalar(
+                select(AgentRunAttemptRow)
+                .where(
+                    AgentRunAttemptRow.operation_job_id == operation_job_id,
+                    AgentRunAttemptRow.attempt_number == operation_attempt,
+                )
+                .with_for_update()
+            )
+            if attempt is None:
+                raise StaleProjection("co-creation operation attempt is missing")
         session_row = session.scalar(select(CoCreationSessionRow).where(CoCreationSessionRow.id == session_id).with_for_update())
         if session_row is None:
             raise KeyError(session_id)
@@ -784,6 +821,10 @@ def commit_agent_result(
             session_row.status = CoCreationStatus.waiting_for_teacher.value
         else:
             session_row.status = CoCreationStatus.ready_for_confirmation.value
+        if attempt is not None:
+            attempt.produced_checkpoint_id = produced_checkpoint_id
+            attempt.result_hash = result_hash(result)
+            attempt.status = "produced"
         session.flush()
         return _session(session_row)
 
@@ -824,6 +865,9 @@ def create_continuity_reset(
             raise RepositoryConflict("continuity reset already created a replacement session")
         if old.status != CoCreationStatus.continuity_reset.value:
             raise RepositoryConflict("continuity reset is not required for this session")
+        task = session.get(TaskPackageRow, old.task_package_id)
+        if task is None:
+            raise KeyError(old.task_package_id)
         new_row = CoCreationSessionRow(
             id=str(uuid4()),
             workspace_id=old.workspace_id,
@@ -839,7 +883,7 @@ def create_continuity_reset(
             accepted_checkpoint_id=None,
             pending_interrupt_json=None,
             projection_json=dict(old.projection_json) if old.projection_json else None,
-            contract_revision_id=old.contract_revision_id,
+            contract_revision_id=(task.contract_revision_id if old.kind == CoCreationKind.task_judgment.value else old.contract_revision_id),
             confirmation_command_id=None,
             continuity_reset_from_id=old.id,
             continuity_reset_to_id=None,
@@ -987,6 +1031,8 @@ def confirm_judgment(
         task = session.get(TaskPackageRow, row.task_package_id)
         if task is None:
             raise KeyError(row.task_package_id)
+        if row.contract_revision_id != task.contract_revision_id:
+            raise RepositoryConflict("judgment session uses an outdated contract")
         task.judgment_package_json = judgment.model_dump(mode="json")
         task.draft_json = {
             "title": task.title,

@@ -328,6 +328,7 @@ def mark_projection_pending(
     *,
     produced_checkpoint_id: str | None = None,
     result_hash: str | None = None,
+    runtime_mode: str | None = None,
 ) -> OperationJob:
     now = _utc_now()
     with session_scope() as session:
@@ -337,6 +338,8 @@ def mark_projection_pending(
         if row.status != OperationJobStatus.running.value or row.worker_id != worker_id:
             raise ValueError("operation is not owned by this worker")
         row.status = OperationJobStatus.projection_pending.value
+        if runtime_mode is not None:
+            row.result_json = {"__worker_runtime_mode": runtime_mode}
         row.lease_until = None
         row.worker_id = None
         row.updated_at = now

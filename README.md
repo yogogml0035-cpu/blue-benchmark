@@ -122,3 +122,4 @@ cd backend && uv run python scripts/accept_real_ai_e2e.py \
 ```
 
 runner 只输出阶段标记、计数和错误类型，不输出样本正文、模型回答、凭证或内部 Checkpoint。`AI_REQUEST_TIMEOUT_SECONDS` 默认 180 秒，`AI_MAX_COCREATION_QUESTIONS` 默认 12；真实端点若需要更长时间应显式覆盖配置，并保持单 Worker。完成式 fallback 仍需要老师确认，不能把模型建议直接当作业务标准。
+该 runner 还会在同一隔离业务库中核验本轮 batch、共创、覆盖审查和冻结操作的内部 Worker 运行标记均为 `production`；如果误用 `--fake` Worker，不能得到真实验收通过。该标记不通过业务 API 返回。

@@ -288,15 +288,14 @@ def validate_evidence_refs(
             event_ids = (document.canonical_view or {}).get("event_ids")
             if event_ids is not None and locator.event_id not in event_ids:
                 raise EvidenceValidationError("event locator is outside the canonical view")
-            if event_ids is None:
-                try:
-                    for line in content.decode("utf-8-sig").splitlines():
-                        item = json.loads(line)
-                        if isinstance(item, dict) and str(item.get("id", item.get("event_id", ""))) == locator.event_id:
-                            if ref.quote is not None and ref.quote not in line:
-                                raise EvidenceValidationError("event quote is not present in the canonical view")
-                            break
-                    else:
-                        raise EvidenceValidationError("event locator is not present in the canonical view")
-                except (StorageError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-                    raise EvidenceValidationError("event locator cannot be verified") from exc
+            try:
+                for line in content.decode("utf-8-sig").splitlines():
+                    item = json.loads(line)
+                    if isinstance(item, dict) and str(item.get("id", item.get("event_id", ""))) == locator.event_id:
+                        if ref.quote is not None and ref.quote not in line:
+                            raise EvidenceValidationError("event quote is not present in the canonical view")
+                        break
+                else:
+                    raise EvidenceValidationError("event locator is not present in the canonical view")
+            except (StorageError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise EvidenceValidationError("event locator cannot be verified") from exc

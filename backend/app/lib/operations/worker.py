@@ -41,6 +41,7 @@ Handler = Callable[[repository.OperationJob], dict[str, Any] | None]
 @dataclass
 class OperationWorker:
     worker_id: str = field(default_factory=lambda: f"worker-{uuid4()}")
+    runtime_mode: str = "fake"
     handlers: dict[str, Handler] = field(default_factory=dict)
 
     def register(self, kind: str, handler: Handler) -> None:
@@ -103,6 +104,7 @@ class OperationWorker:
                     self.worker_id,
                     produced_checkpoint_id=exc.produced_checkpoint_id,
                     result_hash=exc.result_hash,
+                    runtime_mode=self.runtime_mode,
                 )
             except Exception:
                 return repository.fail(
@@ -111,7 +113,9 @@ class OperationWorker:
                     {"code": "OPERATION_FAILED", "message": "后台操作未能完成。"},
                     retryable=False,
                 )
-            return repository.complete(job.id, self.worker_id, result)
+            result_payload = dict(result or {})
+            result_payload["__worker_runtime_mode"] = self.runtime_mode
+            return repository.complete(job.id, self.worker_id, result_payload)
         finally:
             lease_stop.set()
             lease_thread.join(timeout=max(1.0, min(5.0, float(settings.operation_lease_seconds) / 3.0)))
@@ -129,7 +133,7 @@ class OperationWorker:
                 time.sleep(poll_seconds)
 
 
-def _build_worker() -> OperationWorker:
+def _build_worker(runtime_mode: str = "fake") -> OperationWorker:
     from app.features.case_builder.cocreation_service import (
         complete_batch_analysis,
         handle_cocreation_reproject,
@@ -138,7 +142,7 @@ def _build_worker() -> OperationWorker:
     )
     from app.features.evaluation_sets.service import handle_coverage_review, handle_freeze
 
-    worker = OperationWorker()
+    worker = OperationWorker(runtime_mode=runtime_mode)
     worker.register("batch_analysis", lambda job: complete_batch_analysis(job))
     worker.register("cocreation_start", lambda job: handle_cocreation_start(job))
     worker.register("cocreation_resume", lambda job: handle_cocreation_resume(job))
@@ -154,7 +158,7 @@ def default_worker() -> OperationWorker:
     from app.lib.ai_runtime import initialize_ai_runtime
 
     initialize_ai_runtime()
-    return _build_worker()
+    return _build_worker("fake")
 
 
 @contextmanager
@@ -178,7 +182,7 @@ def production_worker() -> Iterator[OperationWorker]:
                     model_spec=identity.registration_key,
                 )
             )
-            yield _build_worker()
+            yield _build_worker("production")
     finally:
         set_adapters(previous_adapters)
 
@@ -186,7 +190,7 @@ def production_worker() -> Iterator[OperationWorker]:
 def fake_worker() -> OperationWorker:
     """Build a deterministic worker for contract and recovery tests."""
 
-    worker = OperationWorker(worker_id="fake-worker")
+    worker = OperationWorker(worker_id="fake-worker", runtime_mode="fake")
     for kind in OPERATION_KINDS:
         worker.register(kind, lambda job, operation_kind=kind: {"kind": operation_kind, "target_id": job.target_id})
     return worker

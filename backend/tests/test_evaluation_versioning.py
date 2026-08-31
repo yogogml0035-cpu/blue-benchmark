@@ -11,6 +11,8 @@ from app.features.evaluation_sets import repository as evaluation_repository
 from app.features.evaluation_sets import service as evaluation_service
 from app.lib.database import clear_business_data
 from app.lib.operations.worker import default_worker
+from app.lib.operations import repository as operation_repository
+from app.lib.operations.worker import SupersededOperation
 from app.lib.ai_runtime import reset_adapters
 from app.lib.ai_runtime import get_adapters, set_adapters
 from app.lib.ai_runtime.adapters import AgentRunResult, FakeCoverageReviewer, FakeEvidenceAnalyzer, RuntimeAdapters
@@ -417,6 +419,39 @@ def test_coverage_warning_requires_explicit_risk_confirmation(client: TestClient
     accepted = client.post(f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft['id']}/freeze", json={"command_id": "risk-freeze", "draft_revision": current["revision"], "coverage_risk_confirmed": True, "risk_confirmation_note": "老师明确接受当前覆盖风险。"})
     assert accepted.status_code == 202
     assert default_worker().run_once().status.value == "succeeded"
+
+
+def test_reclaimed_coverage_attempt_cannot_save_a_snapshot(client: TestClient):
+    workspace_id, package_id, package_revision = _formal_task(client)
+    draft = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts",
+        json={"command_id": "reclaimed-coverage-draft"},
+    ).json()["draft"]
+    included = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft['id']}/members",
+        json={
+            "command_id": "reclaimed-coverage-include",
+            "draft_revision": draft["revision"],
+            "task_package_id": package_id,
+            "task_package_revision": package_revision,
+            "action": "include",
+        },
+    )
+    assert included.status_code == 200
+    draft = included.json()["draft"]
+    review = client.post(
+        f"/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft['id']}/coverage-review",
+        json={"command_id": "reclaimed-coverage-review", "draft_revision": draft["revision"]},
+    )
+    assert review.status_code == 202
+    job = operation_repository.list_for_target("working_set_draft", draft["id"])[0]
+    old_worker = operation_repository.claim_next("old-coverage-worker", lease_seconds=0)
+    new_worker = operation_repository.claim_next("new-coverage-worker", lease_seconds=60)
+    assert old_worker is not None and new_worker is not None
+    assert old_worker.id == new_worker.id == job.id
+    with pytest.raises(SupersededOperation):
+        evaluation_service.handle_coverage_review(old_worker)
+    assert evaluation_repository.get_latest_coverage(draft["id"]) is None
 
 
 def test_failed_freeze_leaves_no_version_and_can_retry_with_new_command(client: TestClient, monkeypatch: pytest.MonkeyPatch):

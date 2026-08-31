@@ -70,5 +70,6 @@ make test
 - [ ] `standard_cocreator` 的 `question_id/question -> id/text`、`respond.message`、`context=context` 和 accepted Checkpoint 指针有生产 adapter 回归；completion fallback 按当前 kind 使用单一 wire schema，再进入严格业务 Schema。
 - [ ] Checkpoint serializer 显式 allowlist 应用类型，并在 `LANGGRAPH_STRICT_MSGPACK=true` 下执行 read/delete；删除 completed thread 后业务资产仍可读。
 - [ ] 真实 runner 必须显式传 `--samples-dir`，每轮命令使用全局唯一 nonce，只输出阶段/计数/错误类型；禁止把 `EvalData`、凭证、正文或 raw model output 写入 Git。
+- [ ] 真实 runner 在共享隔离业务库中核验本轮 operation 的私有 Worker 运行标记为 `production`；API health 或 `AI_RUNTIME_MODE` 不能替代实际 Worker 证明，标记不得进入业务 API。
 - [ ] pnpm v11 的 `allowBuilds` 必须在 `frontend/pnpm-workspace.yaml` 明确列出需要执行的依赖脚本；`make test` 与 `make build` 都要在该配置下通过。
 - [ ] 前端上传 command 在同一表单重试时稳定；静默轮询遇到失权/资源消失要清空旧快照，旧路由的迟到响应不能覆盖新资源；`projection_pending` 必须有重投影入口。

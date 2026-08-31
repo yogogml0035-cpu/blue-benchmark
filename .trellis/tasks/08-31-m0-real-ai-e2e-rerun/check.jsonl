@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "检查真实 API/Worker/前端合同和泄漏边界"}
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "检查测试、并发、错误、真实运行和日志边界"}
+{"file": ".trellis/spec/backend/evaluation-sets.md", "reason": "检查版本包、Manifest hash 和三分区隔离"}
+{"file": ".trellis/spec/frontend/quality-and-verification.md", "reason": "检查真实浏览器/构建证据不被预演替代"}

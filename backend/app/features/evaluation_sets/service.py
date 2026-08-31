@@ -681,7 +681,19 @@ def handle_coverage_review(job: OperationJob) -> dict[str, Any]:
     if not isinstance(result, AgentRunResult) or not isinstance(result.result, CoverageReview):
         raise RuntimeError("coverage reviewer returned an invalid result")
     coverage = result.result.model_dump(mode="json")
-    snapshot = repository.save_coverage(draft.id, draft_revision=draft.revision, snapshot=coverage)
+    try:
+        snapshot = repository.save_coverage(
+            draft.id,
+            draft_revision=draft.revision,
+            snapshot=coverage,
+            operation_job_id=job.id,
+            operation_attempt=job.attempts,
+            worker_id=job.worker_id,
+        )
+    except repository.StaleDraft as exc:
+        from app.lib.operations.worker import SupersededOperation
+
+        raise SupersededOperation(str(exc)) from exc
     return {"draft_id": draft.id, "coverage_snapshot_id": snapshot.id, "draft_revision": draft.revision}
 
 

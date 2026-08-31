@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "真实 E2E 的跨层状态、授权、命令身份和证据等级"}
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "后端回归、真实 Provider、Checkpointer 和 secret-safe 质量门"}
+{"file": ".trellis/spec/backend/evaluation-sets.md", "reason": "任务分组、冻结版本和 runtime/judge/provenance 隔离合同"}
+{"file": ".trellis/spec/backend/stub-state-and-contracts.md", "reason": "上传、任务状态、幂等和持久化边界"}

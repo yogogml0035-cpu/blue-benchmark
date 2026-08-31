@@ -663,20 +663,31 @@ export function QuestionsSection({
   const [batchRevision, setBatchRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<PageFault | null>(null);
+  const requestGeneration = useRef(0);
 
   const loadPackages = useCallback(() => {
+    const generation = ++requestGeneration.current;
+    setLoading(true);
     if (!projection.batch_id) {
+      setPackages([]);
+      setBatchRevision(0);
+      setLoadError(null);
       setLoading(false);
       return;
     }
     setLoadError(null);
     listTaskPackages(workspaceId, projection.batch_id)
       .then((result) => {
+        if (generation !== requestGeneration.current) return;
         setPackages(result.task_packages);
         setBatchRevision(result.batch_revision);
       })
-      .catch((cause) => setLoadError(toPageFault(cause)))
-      .finally(() => setLoading(false));
+      .catch((cause) => {
+        if (generation === requestGeneration.current) setLoadError(toPageFault(cause));
+      })
+      .finally(() => {
+        if (generation === requestGeneration.current) setLoading(false);
+      });
   }, [workspaceId, projection.batch_id]);
 
   useEffect(() => {
@@ -745,6 +756,7 @@ export function QuestionsSection({
           }}
           packages={proposed}
           workspaceId={workspaceId}
+          key={`${workspaceId}:${projection.batch_id}`}
         />
       )}
       <div className="stack">
@@ -1025,22 +1037,29 @@ export function VersionsSection({
   const [draft, setDraft] = useState<WorkingSetDraftView | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<PageFault | null>(null);
+  const requestGeneration = useRef(0);
 
   const load = useCallback(async () => {
+    const generation = ++requestGeneration.current;
+    setLoading(true);
     setLoadError(null);
+    setVersions([]);
+    setDraft(null);
     try {
       const versionList = await listVersions(workspaceId);
+      if (generation !== requestGeneration.current) return;
       setVersions(versionList.versions);
       // 后端不支持按 workspace 查当前草稿；先尝试创建（幂等），失败则说明已有草稿但无法直接定位，
       // 此时历史版本列表已足以让用户继续工作。
       const draftResult = await createWorkingDraft(workspaceId, {
         commandId: `draft-get-or-create-${Date.now()}`,
       }).catch(() => null);
+      if (generation !== requestGeneration.current) return;
       setDraft(draftResult?.draft ?? null);
     } catch (cause) {
-      setLoadError(toPageFault(cause));
+      if (generation === requestGeneration.current) setLoadError(toPageFault(cause));
     } finally {
-      setLoading(false);
+      if (generation === requestGeneration.current) setLoading(false);
     }
   }, [workspaceId]);
 
@@ -1146,9 +1165,17 @@ export function VersionsSection({
 function MemberLabel({ member, workspaceId }: { member: DraftMemberView; workspaceId: string }) {
   const [title, setTitle] = useState<string | null>(null);
   useEffect(() => {
+    let active = true;
     getTaskPackage(workspaceId, member.task_package_id)
-      .then((result) => setTitle(result.task_package.title))
-      .catch(() => setTitle(null));
+      .then((result) => {
+        if (active) setTitle(result.task_package.title);
+      })
+      .catch(() => {
+        if (active) setTitle(null);
+      });
+    return () => {
+      active = false;
+    };
   }, [workspaceId, member.task_package_id]);
   return (
     <span style={{ fontSize: "var(--t-13)" }}>
@@ -1177,16 +1204,23 @@ function DraftPanel({
   const [error, setError] = useState<PageFault | null>(null);
   const [note, setNote] = useState("");
   const [packages, setPackages] = useState<TaskPackageSummary[]>([]);
+  const requestGeneration = useRef(0);
 
   useEffect(() => {
+    const generation = ++requestGeneration.current;
     if (!draft || draft.status !== "active") {
       setPackages([]);
       return;
     }
+    setPackages([]);
     listWorkspaceTaskPackages(workspaceId)
-      .then((result) => setPackages(result.task_packages))
-      .catch(() => setPackages([]));
-  }, [draft, workspaceId]);
+      .then((result) => {
+        if (generation === requestGeneration.current) setPackages(result.task_packages);
+      })
+      .catch(() => {
+        if (generation === requestGeneration.current) setPackages([]);
+      });
+  }, [draft?.id, draft?.revision, draft?.status, workspaceId]);
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true);

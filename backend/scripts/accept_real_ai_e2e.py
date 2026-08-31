@@ -18,6 +18,11 @@ from zipfile import ZipFile
 
 import httpx
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.lib.operations import repository as operation_repository
+
 
 PASSWORD = "m0-real-ai-e2e-pass-123"
 EXPECTED_PACKAGE_FILES = {"manifest.json", "runtime.json", "judge.json", "provenance.json"}
@@ -299,6 +304,23 @@ def _verify_package(client: httpx.Client, workspace_id: str, version: dict) -> N
                 raise RunnerFailure("runtime_leakage", term)
 
 
+def _verify_production_worker(
+    batch_id: str,
+    session_ids: list[str],
+    draft_id: str,
+) -> None:
+    targets = [("upload_batch", batch_id), *[("co_creation_session", item) for item in session_ids]]
+    targets.append(("working_set_draft", draft_id))
+    jobs = [job for target_type, target_id in targets for job in operation_repository.list_for_target(target_type, target_id)]
+    if not jobs:
+        raise RunnerFailure("worker_attestation", "no_operations")
+    if any(job.status.value != "succeeded" for job in jobs):
+        raise RunnerFailure("worker_attestation", "unfinished_operation")
+    modes = {(job.result or {}).get("__worker_runtime_mode") for job in jobs}
+    if modes != {"production"}:
+        raise RunnerFailure("worker_attestation", "non_production_worker")
+
+
 def run(args: argparse.Namespace) -> None:
     jsonl_path, archive_path, markdown_path = _discover_samples(args.samples_dir)
     with ZipFile(archive_path) as archive:
@@ -420,7 +442,8 @@ def run(args: argparse.Namespace) -> None:
             raise RunnerFailure("task_grouping_idempotency")
         marker("tasks_confirmed", task_count=2, attempt_count=sum(len(item["attempts"]) for item in packages))
         by_title = {item["title"]: item for item in packages}
-        _finish_cocreation(
+        session_ids: list[str] = []
+        contract_session = _finish_cocreation(
             client,
             workspace_id,
             by_title["理想汽车供稿任务"],
@@ -430,12 +453,13 @@ def run(args: argparse.Namespace) -> None:
             args.max_questions,
             run_nonce,
         )
+        session_ids.append(contract_session["id"])
         packages = _request(client, "GET", f"/api/workspaces/{workspace_id}/task-packages", 200, "contract_propagation")["task_packages"]
         packages = [item for item in packages if item.get("status") == "confirmed"]
         if len(packages) != 2 or any(not item.get("has_contract") for item in packages):
             raise RunnerFailure("contract_propagation")
         by_title = {item["title"]: item for item in packages}
-        _finish_cocreation(
+        supply_session = _finish_cocreation(
             client,
             workspace_id,
             by_title["理想汽车供稿任务"],
@@ -445,7 +469,8 @@ def run(args: argparse.Namespace) -> None:
             args.max_questions,
             run_nonce,
         )
-        _finish_cocreation(
+        session_ids.append(supply_session["id"])
+        mega_session = _finish_cocreation(
             client,
             workspace_id,
             by_title["MEGA 新闻稿任务"],
@@ -455,6 +480,7 @@ def run(args: argparse.Namespace) -> None:
             args.max_questions,
             run_nonce,
         )
+        session_ids.append(mega_session["id"])
         marker("cocreation_confirmed", task_count=2)
         packages = _request(client, "GET", f"/api/workspaces/{workspace_id}/task-packages", 200, "packages_refresh")["task_packages"]
         draft = _request(client, "POST", f"/api/workspaces/{workspace_id}/evaluation-sets/drafts", 201, "draft_create", json={"command_id": f"real-ai-draft-{run_nonce}"})["draft"]
@@ -494,6 +520,7 @@ def run(args: argparse.Namespace) -> None:
         if len(versions["versions"]) != 1 or versions["versions"][0]["version_number"] != 1:
             raise RunnerFailure("version_count")
         _verify_package(client, workspace_id, versions["versions"][0])
+        _verify_production_worker(batch_id, session_ids, draft["id"])
         marker("package_verified", task_count=2, archive_entries=4, manifest_download_equal=True, runtime_isolated=True)
         marker("complete")
 

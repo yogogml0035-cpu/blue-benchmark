@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 import app.lib.ai_runtime.adapters as adapters
 
 from app.features.auth import repository as auth_repository
-from app.features.case_builder import cocreation_repository
+from app.features.case_builder import cocreation_repository, cocreation_service
 from app.features.case_builder import ingestion_repository
 from app.features.workspaces import repository as workspace_repository
 from app.lib.ai_runtime import get_adapters, reset_adapters, set_adapters
@@ -36,14 +36,14 @@ from app.lib.ai_runtime.context import AgentRunContext
 from app.lib.ai_runtime.profile import get_ai_profile
 from app.lib.ai_runtime.evidence import EvidenceDocument, ReadOnlyEvidenceBackend
 from app.lib.ai_runtime.evidence import EvidenceValidationError, validate_evidence_refs
-from app.features.case_builder.cocreation_schemas import AgentEvidenceRef, BatchAnalysis, CoCreationAgentResult, CoCreationKind, CoverageReview, JsonPointerLocator
+from app.features.case_builder.cocreation_schemas import AgentEvidenceRef, BatchAnalysis, CoCreationAgentResult, CoCreationKind, CoverageReview, EventLocator, JsonPointerLocator
 from app.lib.ai_runtime.middleware import ModelToolSurfaceMiddleware
 from app.lib.ai_runtime.adapters import _question_from_interrupt
 from langchain.agents.middleware.types import ToolCallRequest
 from app.lib.database import clear_business_data
 from app.lib.operations import attempts as attempt_repository
 from app.lib.operations import repository as operation_repository
-from app.lib.operations.worker import default_worker
+from app.lib.operations.worker import SupersededOperation, default_worker
 from app.lib.storage import LocalStorage
 from app.main import app
 from langchain_openai import ChatOpenAI
@@ -720,6 +720,32 @@ def test_json_and_event_locators_are_checked_against_content(tmp_path: Path):
         validate_evidence_refs([invalid], {"json": document}, storage)
 
 
+def test_event_locator_checks_quote_when_event_index_exists(tmp_path: Path):
+    storage = LocalStorage(tmp_path)
+    content = b'{"id":"event-1","text":"actual event"}\n'
+    stored = storage.stage_bytes("batch", "events", content)
+    storage.publish(stored.key, "evidence/batch/events")
+    document = EvidenceDocument(
+        file_id="events",
+        name="events.jsonl",
+        storage_key="evidence/batch/events",
+        size_bytes=len(content),
+        sha256=stored.sha256,
+        parse_state="parsed",
+        canonical_view={"kind": "jsonl", "line_count": 1, "event_ids": ["event-1"]},
+        role="provenance",
+        ignored=False,
+        visibility="provenance",
+    )
+    invalid = AgentEvidenceRef(
+        source_id="events",
+        locator=EventLocator(event_id="event-1"),
+        quote="not present",
+    )
+    with pytest.raises(EvidenceValidationError, match="event quote"):
+        validate_evidence_refs([invalid], {"events": document}, storage)
+
+
 def test_stateless_real_adapter_does_not_require_checkpoint_state():
     class StatelessGraph:
         def invoke(self, payload, **kwargs):
@@ -1064,6 +1090,141 @@ def test_operation_attempt_keeps_checkpoint_pointers_for_cocreation(client: Test
     assert attempts[0].result_hash and len(attempts[0].result_hash) == 64
 
 
+def test_reclaimed_cocreation_attempt_cannot_project_old_worker_result(client: TestClient):
+    workspace_id, package_id, package_revision = _confirmed_package(client)
+    start = client.post(
+        f"/api/workspaces/{workspace_id}/task-packages/{package_id}/co-creation",
+        json={"command_id": "reclaim-start", "kind": "scenario_contract", "task_package_revision": package_revision},
+    )
+    assert start.status_code == 202
+    session_id = start.json()["session"]["id"]
+    job = operation_repository.list_for_target("co_creation_session", session_id)[0]
+    old_worker = operation_repository.claim_next("old-worker", lease_seconds=0)
+    new_worker = operation_repository.claim_next("new-worker", lease_seconds=60)
+    assert old_worker is not None and new_worker is not None
+    assert old_worker.id == new_worker.id
+    assert old_worker.attempts == 1
+    assert new_worker.attempts == 2
+
+    with pytest.raises(SupersededOperation):
+        cocreation_service._run_cocreation_agent(old_worker, "start")
+
+    session = cocreation_repository.get_session(session_id)
+    assert session is not None
+    assert session.status == "queued"
+    assert session.projection is None
+    attempts = attempt_repository.list_for_job(job.id)
+    assert [item.produced_checkpoint_id for item in attempts] == [None, None]
+
+
+def test_judgment_session_from_old_contract_cannot_be_confirmed(client: TestClient):
+    workspace_id, package_id, package_revision = _confirmed_package(client)
+    contract = client.post(
+        f"/api/workspaces/{workspace_id}/task-packages/{package_id}/co-creation",
+        json={"command_id": "contract-for-stale-judgment", "kind": "scenario_contract", "task_package_revision": package_revision},
+    )
+    assert contract.status_code == 202
+    contract_id = contract.json()["session"]["id"]
+    assert default_worker().run_once().status.value == "succeeded"
+    contract_session = client.get(f"/api/workspaces/{workspace_id}/co-creation/{contract_id}").json()["session"]
+    assert contract_session["next_action"] == "answer_question"
+    answer = client.post(
+        f"/api/workspaces/{workspace_id}/co-creation/{contract_id}/answers",
+        json={
+            "command_id": "contract-for-stale-judgment-answer",
+            "question_id": contract_session["pending_question"]["id"],
+            "answer": "先确定共同任务边界。",
+            "business_revision": contract_session["business_revision"],
+        },
+    )
+    assert answer.status_code == 202
+    assert default_worker().run_once().status.value == "succeeded"
+    contract_session = client.get(f"/api/workspaces/{workspace_id}/co-creation/{contract_id}").json()["session"]
+    assert contract_session["next_action"] == "answer_question"
+    answer = client.post(
+        f"/api/workspaces/{workspace_id}/co-creation/{contract_id}/answers",
+        json={
+            "command_id": "contract-for-stale-judgment-answer-2",
+            "question_id": contract_session["pending_question"]["id"],
+            "answer": "硬门禁必须可回查。",
+            "business_revision": contract_session["business_revision"],
+        },
+    )
+    assert answer.status_code == 202
+    assert default_worker().run_once().status.value == "succeeded"
+    contract_session = client.get(f"/api/workspaces/{workspace_id}/co-creation/{contract_id}").json()["session"]
+    confirmed_contract = client.post(
+        f"/api/workspaces/{workspace_id}/co-creation/{contract_id}/contract-confirmation",
+        json={"command_id": "contract-for-stale-judgment-confirm", "business_revision": contract_session["business_revision"]},
+    )
+    assert confirmed_contract.status_code == 200
+
+    current_package = client.get(f"/api/workspaces/{workspace_id}/task-packages/{package_id}").json()["task_package"]
+    judgment = client.post(
+        f"/api/workspaces/{workspace_id}/task-packages/{package_id}/co-creation",
+        json={"command_id": "stale-judgment", "kind": "task_judgment", "task_package_revision": current_package["revision"]},
+    )
+    assert judgment.status_code == 202
+    judgment_id = judgment.json()["session"]["id"]
+    assert default_worker().run_once().status.value == "succeeded"
+    for index in range(2):
+        pending = client.get(f"/api/workspaces/{workspace_id}/co-creation/{judgment_id}").json()["session"]
+        response = client.post(
+            f"/api/workspaces/{workspace_id}/co-creation/{judgment_id}/answers",
+            json={
+                "command_id": f"stale-judgment-answer-{index}",
+                "question_id": pending["pending_question"]["id"],
+                "answer": f"判定依据第 {index + 1} 轮。",
+                "business_revision": pending["business_revision"],
+            },
+        )
+        assert response.status_code == 202
+        assert default_worker().run_once().status.value == "succeeded"
+    ready = client.get(f"/api/workspaces/{workspace_id}/co-creation/{judgment_id}").json()["session"]
+    assert ready["status"] == "ready_for_confirmation"
+
+    new_contract = client.post(
+        f"/api/workspaces/{workspace_id}/task-packages/{package_id}/co-creation",
+        json={"command_id": "contract-for-stale-judgment-2", "kind": "scenario_contract", "task_package_revision": current_package["revision"]},
+    )
+    assert new_contract.status_code == 202
+    new_contract_id = new_contract.json()["session"]["id"]
+    assert default_worker().run_once().status.value == "succeeded"
+    for index in range(2):
+        pending = client.get(f"/api/workspaces/{workspace_id}/co-creation/{new_contract_id}").json()["session"]
+        response = client.post(
+            f"/api/workspaces/{workspace_id}/co-creation/{new_contract_id}/answers",
+            json={
+                "command_id": f"contract-for-stale-judgment-2-answer-{index}",
+                "question_id": pending["pending_question"]["id"],
+                "answer": f"新合同第 {index + 1} 轮。",
+                "business_revision": pending["business_revision"],
+            },
+        )
+        assert response.status_code == 202
+        assert default_worker().run_once().status.value == "succeeded"
+    new_contract_session = client.get(f"/api/workspaces/{workspace_id}/co-creation/{new_contract_id}").json()["session"]
+    confirmed_new = client.post(
+        f"/api/workspaces/{workspace_id}/co-creation/{new_contract_id}/contract-confirmation",
+        json={"command_id": "contract-for-stale-judgment-2-confirm", "business_revision": new_contract_session["business_revision"]},
+    )
+    assert confirmed_new.status_code == 200
+    updated_package = client.get(f"/api/workspaces/{workspace_id}/task-packages/{package_id}").json()["task_package"]
+
+    rejected = client.post(
+        f"/api/workspaces/{workspace_id}/co-creation/{judgment_id}/judgment-confirmation",
+        json={"command_id": "stale-judgment-confirm", "business_revision": ready["business_revision"]},
+    )
+    assert rejected.status_code == 409
+    assert client.get(f"/api/workspaces/{workspace_id}/task-packages/{package_id}").json()["task_package"]["has_judgment_package"] is False
+    restarted = client.post(
+        f"/api/workspaces/{workspace_id}/task-packages/{package_id}/co-creation",
+        json={"command_id": "fresh-judgment", "kind": "task_judgment", "task_package_revision": updated_package["revision"]},
+    )
+    assert restarted.status_code == 202
+    assert restarted.json()["session"]["id"] != judgment_id
+
+
 def test_projection_pending_reprojects_checkpoint_without_new_agent_call(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     workspace_id, package_id, package_revision = _confirmed_package(client)
     counting = FakeStandardCoCreator()
@@ -1116,3 +1277,4 @@ def test_projection_pending_reprojects_checkpoint_without_new_agent_call(client:
     recovered = client.get(f"/api/workspaces/{workspace_id}/co-creation/{session_id}")
     assert recovered.status_code == 200
     assert recovered.json()["session"]["status"] == "waiting_for_teacher"
+    assert recovered.json()["session"]["next_action"] == "answer_question"

@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.features.auth import repository as auth_repository
+from app.features.case_builder import cocreation_repository
 from app.features.case_builder import ingestion_repository
 from app.features.case_builder import repository as case_repository
 from app.features.workspaces import repository as workspace_repository
@@ -119,6 +120,67 @@ def test_upload_batch_returns_202_and_read_only_polling(client: TestClient):
     )
     assert stale.status_code == 409
     assert stale.json()["error"]["code"] == "STALE_BATCH"
+
+
+def test_grouping_confirmation_replay_keeps_task_order_without_duplicates(client: TestClient):
+    workspace_id = _setup(client)
+    upload = client.post(
+        f"/api/workspaces/{workspace_id}/upload-batches",
+        data={"title": "分组幂等任务包"},
+        files=[
+            ("files", ("first.md", BytesIO(b"first"), "text/markdown")),
+            ("files", ("second.md", BytesIO(b"second"), "text/markdown")),
+        ],
+    )
+    assert upload.status_code == 202
+    batch_id = upload.json()["batch"]["id"]
+
+    completed = default_worker().run_once()
+    assert completed is not None
+    assert completed.status.value == "succeeded"
+    ready = client.get(f"/api/workspaces/{workspace_id}/upload-batches/{batch_id}")
+    assert ready.status_code == 200
+    assert ready.json()["batch"]["status"] == "ready_for_confirmation"
+    files = ready.json()["batch"]["files"]
+    batch_revision = ready.json()["batch"]["revision"]
+    assert len(files) == 2
+
+    for file in files:
+        disposition = client.patch(
+            f"/api/workspaces/{workspace_id}/upload-batches/{batch_id}/files/{file['id']}/disposition",
+            json={
+                "role": "runtime",
+                "required": True,
+                "ignored": False,
+                "visibility": "runtime",
+                "batch_revision": batch_revision,
+            },
+        )
+        assert disposition.status_code == 200
+        batch_revision = disposition.json()["batch"]["revision"]
+
+    payload = {
+        "command_id": "grouping-order-replay-1",
+        "batch_revision": batch_revision,
+        "groups": [
+            {"title": "任务 A", "evidence_file_ids": [files[0]["id"]]},
+            {"title": "任务 B", "evidence_file_ids": [files[1]["id"]]},
+        ],
+    }
+    grouping_path = f"/api/workspaces/{workspace_id}/upload-batches/{batch_id}/task-groups/confirmation"
+    first = client.post(grouping_path, json=payload)
+    assert first.status_code == 200, first.text
+    first_ids = [item["id"] for item in first.json()["task_packages"]]
+    assert [item["title"] for item in first.json()["task_packages"]] == ["任务 A", "任务 B"]
+    assert len(first_ids) == 2
+
+    repeated = client.post(grouping_path, json=payload)
+    assert repeated.status_code == 200, repeated.text
+    assert [item["id"] for item in repeated.json()["task_packages"]] == first_ids
+
+    confirmed = cocreation_repository.list_task_packages(batch_id)
+    assert len(confirmed) == 2
+    assert {item.status for item in confirmed} == {"confirmed"}
 
 
 def test_upload_command_id_is_idempotent(client: TestClient):
@@ -387,6 +449,22 @@ def test_operation_command_id_cannot_be_reused_for_another_kind():
             command_id="same-command",
             business_revision=2,
         )
+
+
+def test_operation_result_records_worker_runtime_mode_for_private_attestation():
+    operation_repository.create_or_get(
+        kind="batch_analysis",
+        target_type="batch",
+        target_id="runtime-attestation",
+        command_id="runtime-attestation-command",
+    )
+    worker = OperationWorker(worker_id="production-worker", runtime_mode="production")
+    worker.register("batch_analysis", lambda _job: {"ok": True})
+
+    completed = worker.run_once()
+
+    assert completed is not None and completed.status.value == "succeeded"
+    assert completed.result == {"ok": True, "__worker_runtime_mode": "production"}
 
 
 def test_late_batch_analysis_attempt_cannot_replace_a_new_attempt(client: TestClient):
