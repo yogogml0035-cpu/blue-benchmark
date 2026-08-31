@@ -288,3 +288,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 13: 完成对话式建题与题级恢复
+<!-- trellis-session: v=2 fp=f7ac7ccde26daf2e -->
+
+**Date**: 2026-09-01
+**Task**: 完成对话式建题与题级恢复
+**Branch**: `main`
+
+### Summary
+
+完成第一阶段对话式建题会话：接入题级独立 question_cocreator 与安全 HITL、服务端快照/SSE、投影无模型恢复、幂等并发与证据边界；重构 transcript/composer/题目审阅 UI，使用 EvalData 真实 AI E2E 在 strict msgpack PostgreSQL 生产栈通过，并完成多轮对抗修正后合并 main、归档和删支。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `01b9121` | feat: 实现对话式建题会话与题级恢复 |
+| `c9c2ce9` | docs: 记录建题会话验收合同 |
+
+### Status
+
+[OK] **Completed**
