@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { DeskRail } from "@/src/components/shell/DeskRail";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
@@ -39,9 +39,24 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
   const [submitFault, setSubmitFault] = useState<PageFault | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [commandId, setCommandId] = useState(() => crypto.randomUUID());
+  const routeGeneration = useRef(0);
 
   const authenticated = session.status === "authenticated";
   const returnTo = `/workspaces/${workspaceId}`;
+
+  useEffect(() => {
+    routeGeneration.current += 1;
+    // App Router may reuse this client component while the workspace changes;
+    // never carry a private file selection or command into the new owner
+    // scope.
+    setTitle("");
+    setTaskDescription("");
+    setFiles([]);
+    setFileError("");
+    setSubmitFault(null);
+    setBusy(false);
+    setCommandId(crypto.randomUUID());
+  }, [workspaceId]);
 
   useEffect(() => {
     if (preview) return;
@@ -64,12 +79,23 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
     setFiles((current) => current.filter((_, i) => i !== index));
   }
 
+  function changeTitle(value: string) {
+    if (submitFault) setCommandId(crypto.randomUUID());
+    setTitle(value);
+  }
+
+  function changeTaskDescription(value: string) {
+    if (submitFault) setCommandId(crypto.randomUUID());
+    setTaskDescription(value);
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (files.length === 0) {
       setFileError("请至少选择一个文件。");
       return;
     }
+    const requestRouteGeneration = routeGeneration.current;
     setBusy(true);
     setSubmitFault(null);
     try {
@@ -79,10 +105,14 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
         files,
         commandId,
       });
-      router.push(`/workspaces/${workspaceId}?batch=${result.batch.id}`);
+      if (requestRouteGeneration !== routeGeneration.current) return;
+      router.push(`/workspaces/${workspaceId}/authoring/new?batch=${encodeURIComponent(result.batch.id)}`);
     } catch (cause) {
-      setSubmitFault(toPageFault(cause));
-      setBusy(false);
+      if (requestRouteGeneration !== routeGeneration.current) return;
+      const pageFault = toPageFault(cause);
+      setSubmitFault(pageFault);
+      if (pageFault.kind === "unauthorized") session.reload();
+      if (requestRouteGeneration === routeGeneration.current) setBusy(false);
     }
   }
 
@@ -185,7 +215,7 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
                     disabled={busy}
                     id="batch-title"
                     maxLength={200}
-                    onChange={(event) => setTitle(event.target.value)}
+                    onChange={(event) => changeTitle(event.target.value)}
                     placeholder="客户 A 春季新品资料"
                     required
                     value={title}
@@ -206,7 +236,7 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
                     disabled={busy}
                     id="batch-task"
                     maxLength={10000}
-                    onChange={(event) => setTaskDescription(event.target.value)}
+                    onChange={(event) => changeTaskDescription(event.target.value)}
                     placeholder="这项真实任务的约束：Brief 要求、字数、禁用项。"
                     value={taskDescription}
                   />

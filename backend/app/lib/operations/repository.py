@@ -34,6 +34,8 @@ OPERATION_KINDS = (
     "cocreation_start",
     "cocreation_resume",
     "cocreation_reproject",
+    "authoring_process",
+    "authoring_reproject",
     "coverage_review",
     "freeze_package",
 )
@@ -339,7 +341,9 @@ def mark_projection_pending(
             raise ValueError("operation is not owned by this worker")
         row.status = OperationJobStatus.projection_pending.value
         if runtime_mode is not None:
-            row.result_json = {"__worker_runtime_mode": runtime_mode}
+            result_payload = dict(row.result_json or {})
+            result_payload["__worker_runtime_mode"] = runtime_mode
+            row.result_json = result_payload
         row.lease_until = None
         row.worker_id = None
         row.updated_at = now
@@ -350,6 +354,27 @@ def mark_projection_pending(
                 attempt.produced_checkpoint_id = produced_checkpoint_id
             if result_hash:
                 attempt.result_hash = result_hash
+        session.flush()
+        return _to_record(row)
+
+
+def save_result(job_id: str, worker_id: str, result: dict[str, Any]) -> OperationJob:
+    """Persist an internal result while the current Worker still owns a job.
+
+    Authoring uses this only for a projection-pending handoff.  The payload is
+    never returned by an API; it lets a later reproject operation commit an
+    already-produced business result without calling the model again.
+    """
+
+    now = _utc_now()
+    with session_scope() as session:
+        row = session.get(OperationJobRow, job_id, with_for_update=True)
+        if row is None:
+            raise KeyError(job_id)
+        if row.status != OperationJobStatus.running.value or row.worker_id != worker_id:
+            raise ValueError("operation is not owned by this worker")
+        row.result_json = dict(result)
+        row.updated_at = now
         session.flush()
         return _to_record(row)
 

@@ -22,9 +22,20 @@ export const PREVIEW_STATES = [
 
 export type PreviewState = (typeof PREVIEW_STATES)[number];
 
+/** States owned by the authoring route; keep them out of other page fixtures. */
+export const AUTHORING_PREVIEW_STATES = [
+  "processing",
+  "failed",
+  "projection_pending",
+  "continuity_reset",
+] as const;
+
+export type AuthoringPreviewState = (typeof AUTHORING_PREVIEW_STATES)[number];
+export type PreviewBarState = PreviewState | AuthoringPreviewState;
+
 export const PREVIEW_ENABLED = process.env.NODE_ENV !== "production";
 
-const LABELS: Record<PreviewState, string> = {
+const LABELS: Record<PreviewBarState, string> = {
   loading: "loading",
   empty: "empty",
   success: "success",
@@ -34,6 +45,10 @@ const LABELS: Record<PreviewState, string> = {
   not_found: "not-found",
   question: "提问",
   review: "审改",
+  processing: "处理中",
+  failed: "后台失败",
+  projection_pending: "等待恢复",
+  continuity_reset: "重建连续性",
 };
 
 export function usePreviewState(): PreviewState | null {
@@ -43,14 +58,24 @@ export function usePreviewState(): PreviewState | null {
   return PREVIEW_STATES.find((state) => state === value) ?? null;
 }
 
-export function PreviewBar({ states }: { states: readonly PreviewState[] }) {
+export function useAuthoringPreviewState(): PreviewBarState | null {
+  const standard = usePreviewState();
+  const params = useSearchParams();
+  if (standard) return standard;
+  if (!PREVIEW_ENABLED) return null;
+  const value = params.get("preview");
+  return AUTHORING_PREVIEW_STATES.find((state) => state === value) ?? null;
+}
+
+export function PreviewBar({ states }: { states: readonly PreviewBarState[] }) {
   const pathname = usePathname();
-  const active = usePreviewState();
+  const params = useSearchParams();
+  const active = params.get("preview");
   if (!PREVIEW_ENABLED) return null;
   return (
     <div className="preview-bar">
       <span>状态预演</span>
-      <Link data-active={active === null} href={pathname}>
+      <Link data-active={!active || !states.includes(active as PreviewBarState)} href={pathname}>
         实况
       </Link>
       {states.map((state) => (

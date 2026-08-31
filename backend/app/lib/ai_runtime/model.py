@@ -12,6 +12,7 @@ from hashlib import sha256
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+import httpx
 from pydantic import SecretStr
 
 from app.lib.settings import Settings, settings
@@ -149,7 +150,41 @@ def build_runtime_model(
         kwargs["base_url"] = identity.base_url or _OPENAI_OFFICIAL_BASE_URL
         kwargs["use_responses_api"] = False
         kwargs["request_timeout"] = request_timeout
-        return ChatOpenAI(model=identity.model, **kwargs), identity
+
+        def strip_provider_blocked_headers(request: httpx.Request) -> None:
+            # The configured OpenAI-compatible gateway rejects the OpenAI SDK
+            # telemetry headers.  They are transport metadata, not part of
+            # the model contract, and removing them keeps the request
+            # equivalent to the documented Chat Completions wire format.
+            for header in list(request.headers):
+                if header.lower().startswith("x-stainless-"):
+                    request.headers.pop(header, None)
+            request.headers.pop("user-agent", None)
+
+        kwargs["http_client"] = httpx.Client(
+            event_hooks={"request": [strip_provider_blocked_headers]},
+        )
+
+        # langchain-openai 1.6.0 routes synchronous calls through
+        # ``with_raw_response``.  A number of OpenAI-compatible gateways
+        # return the normal Chat Completions body but reject that helper's
+        # extra raw-response contract.  Keep LangChain's message conversion
+        # and structured-output parser while using the ordinary parsed client
+        # response at this one transport boundary.
+        class OpenAICompatibleChatOpenAI(ChatOpenAI):
+            def _generate(
+                self,
+                messages: list[Any],
+                stop: list[str] | None = None,
+                run_manager: Any = None,
+                **call_kwargs: Any,
+            ) -> Any:
+                self._ensure_sync_client_available()
+                payload = self._get_request_payload(messages, stop=stop, **call_kwargs)
+                response = self.client.create(**payload)
+                return self._create_chat_result(response, {})
+
+        return OpenAICompatibleChatOpenAI(model=identity.model, **kwargs), identity
 
     try:
         from langchain_anthropic import ChatAnthropic

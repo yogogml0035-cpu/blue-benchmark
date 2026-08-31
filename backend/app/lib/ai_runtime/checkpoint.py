@@ -89,11 +89,26 @@ def _checkpoint_config(
 def _encrypted_serializer(key: str) -> object:
     """Create an encrypted serializer with an explicit application type allowlist."""
 
+    from app.features.case_builder.authoring_schemas import QuestionMaterialInput, QuestionMaterialRole
     from app.features.case_builder.cocreation_schemas import CoCreationAgentResult
+    from app.features.case_builder.cocreation_schemas import AgentEvidenceRef, EventLocator, JsonPointerLocator, LineRangeLocator
+    from app.lib.ai_runtime.adapters import AuthoringAgentQuestion, AuthoringQuestionAgentResult
     from langgraph.checkpoint.serde.encrypted import EncryptedSerializer
     from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
-    serde = JsonPlusSerializer(allowed_msgpack_modules=[CoCreationAgentResult])
+    serde = JsonPlusSerializer(
+        allowed_msgpack_modules=[
+            CoCreationAgentResult,
+            AuthoringQuestionAgentResult,
+            AuthoringAgentQuestion,
+            QuestionMaterialInput,
+            QuestionMaterialRole,
+            AgentEvidenceRef,
+            LineRangeLocator,
+            JsonPointerLocator,
+            EventLocator,
+        ]
+    )
     return EncryptedSerializer.from_pycryptodome_aes(serde=serde, key=key.encode())
 
 

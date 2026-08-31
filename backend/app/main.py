@@ -10,6 +10,7 @@ from app.features.case_builder.router import (
     ingestion_router,
     router as case_builder_router,
 )
+from app.features.case_builder.authoring_router import router as authoring_router
 from app.features.workspaces.router import router as workspaces_router
 from app.features.evaluation_sets.router import router as evaluation_sets_router
 from app.lib.errors import AppError, app_error_handler, error_response, validation_error_handler
@@ -68,4 +69,5 @@ app.include_router(workspaces_router, prefix="/api")
 app.include_router(case_builder_router, prefix="/api")
 app.include_router(ingestion_router, prefix="/api")
 app.include_router(cocreation_router, prefix="/api")
+app.include_router(authoring_router, prefix="/api")
 app.include_router(evaluation_sets_router, prefix="/api")

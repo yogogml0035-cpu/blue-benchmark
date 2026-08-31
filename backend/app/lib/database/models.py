@@ -419,3 +419,106 @@ class EvaluationSetVersionRow(Base):
     frozen_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
     frozen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AuthoringConversationRow(Base):
+    """User-visible authoring aggregate; Agent continuity stays elsewhere."""
+
+    __tablename__ = "authoring_conversations"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "command_id", name="uq_authoring_conversation_command"),
+        Index("ix_authoring_conversation_workspace_status", "workspace_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    upload_batch_id: Mapped[str | None] = mapped_column(
+        ForeignKey("upload_batches.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    task_instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_file_ids_json: Mapped[list] = mapped_column(JSON, default=list)
+    command_id: Mapped[str] = mapped_column(String(255))
+    command_payload_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    active_operation_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    pending_question_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    command_receipts_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AuthoringMessageRow(Base):
+    __tablename__ = "authoring_messages"
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "sequence", name="uq_authoring_message_sequence"),
+        UniqueConstraint("conversation_id", "command_id", name="uq_authoring_message_command"),
+        UniqueConstraint("command_id", name="uq_authoring_message_command_global"),
+        Index("ix_authoring_message_conversation_sequence", "conversation_id", "sequence"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("authoring_conversations.id", ondelete="CASCADE"), index=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer)
+    role: Mapped[str] = mapped_column(String(32))
+    message_type: Mapped[str] = mapped_column(String(64), default="chat")
+    content_text: Mapped[str] = mapped_column(Text)
+    attachment_ids_json: Mapped[list] = mapped_column(JSON, default=list)
+    question_draft_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    command_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class SafeStreamEventRow(Base):
+    __tablename__ = "safe_stream_events"
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "sequence", name="uq_safe_stream_event_sequence"),
+        Index("ix_safe_stream_event_conversation_sequence", "conversation_id", "sequence"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("authoring_conversations.id", ondelete="CASCADE"), index=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(64))
+    payload_json: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class BenchmarkQuestionDraftRow(Base):
+    __tablename__ = "benchmark_question_drafts"
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "id", name="uq_benchmark_question_draft_conversation_id"),
+        Index("ix_benchmark_question_draft_conversation_status", "conversation_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("authoring_conversations.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    summary: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    input_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    reference_answer_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reference_answer_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    evidence_file_ids_json: Mapped[list] = mapped_column(JSON, default=list)
+    source_refs_json: Mapped[list] = mapped_column(JSON, default=list)
+    question_checkpoint_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    question_question_count: Mapped[int] = mapped_column(Integer, default=0)
+    question_input_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    question_prompt_sequence: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confirmed_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confirmed_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    confirmed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_confirmation_command_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

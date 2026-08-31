@@ -21,7 +21,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   if (init.body && !(init.body instanceof FormData)) {
     headers.set("content-type", "application/json");
   }
-  const response = await fetch(path, { ...init, headers, credentials: "include" });
+  const response = await fetch(path, { ...init, cache: "no-store", headers, credentials: "include" });
   if (response.status === 204) return undefined as T;
   const body = (await response.json().catch(() => undefined)) as
     | { error?: ErrorPayload }
@@ -30,3 +30,17 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   return body as T;
 }
 
+/**
+ * 同源的增量响应入口。SSE 不是业务事实源，调用方仍需用 GET 快照确认
+ * 状态；这里仅复用统一 Cookie 与错误合同，避免组件各自直接 fetch。
+ */
+export async function apiStream(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const response = await fetch(path, { ...init, cache: "no-store", headers, credentials: "include" });
+  if (response.ok) return response;
+
+  const body = (await response.json().catch(() => undefined)) as
+    | { error?: ErrorPayload }
+    | undefined;
+  throw new ApiError(response.status, body?.error);
+}

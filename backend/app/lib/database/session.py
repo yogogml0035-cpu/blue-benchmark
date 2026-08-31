@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.lib.database.models import (
     AgentRunAttemptRow,
+    AuthoringConversationRow,
+    AuthoringMessageRow,
+    BenchmarkQuestionDraftRow,
     Base,
     CaseRow,
     CoCreationSessionRow,
@@ -22,6 +25,7 @@ from app.lib.database.models import (
     OperationJobRow,
     QuestionRevisionRow,
     SessionRow,
+    SafeStreamEventRow,
     ScenarioContractRevisionRow,
     SkillRunEvidenceRow,
     StandardPromotionProposalRow,
@@ -37,7 +41,7 @@ from app.lib.database.models import (
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0005_evaluation_versioning"
+BUSINESS_SCHEMA_HEAD = "0008_authoring_question_prompt"
 
 
 def as_utc(value: datetime) -> datetime:
@@ -104,6 +108,10 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             "contract_impact_reviews": {"id", "draft_id", "task_package_id", "status"},
             "coverage_snapshots": {"id", "draft_id", "snapshot_json", "risk_confirmed"},
             "evaluation_set_versions": {"id", "workspace_id", "version_number", "overall_sha256"},
+            "authoring_conversations": {"id", "workspace_id", "status", "revision", "active_operation_id", "source_file_ids_json"},
+            "authoring_messages": {"id", "conversation_id", "sequence", "role", "content_text"},
+            "safe_stream_events": {"id", "conversation_id", "sequence", "kind", "payload_json"},
+            "benchmark_question_drafts": {"id", "conversation_id", "status", "revision", "input_json", "question_checkpoint_id", "question_question_count", "question_input_revision", "question_prompt_sequence"},
         }
         return all(
             columns.issubset({item["name"] for item in inspect(connection).get_columns(table)})
@@ -138,6 +146,10 @@ def clear_business_data() -> None:
     create_schema_for_tests()
     tables = [
         AgentRunAttemptRow,
+        SafeStreamEventRow,
+        AuthoringMessageRow,
+        BenchmarkQuestionDraftRow,
+        AuthoringConversationRow,
         OperationJobRow,
         StandardPromotionProposalRow,
         TeacherFeedbackRow,

@@ -515,6 +515,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/authoring-conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Conversation */
+        post: operations["create_conversation_api_workspaces__workspace_id__authoring_conversations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring-conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Conversation */
+        get: operations["get_conversation_api_workspaces__workspace_id__authoring_conversations__conversation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring-conversations/{conversation_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Message */
+        post: operations["post_message_api_workspaces__workspace_id__authoring_conversations__conversation_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring-conversations/{conversation_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream Events */
+        get: operations["stream_events_api_workspaces__workspace_id__authoring_conversations__conversation_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring-conversations/{conversation_id}/question-boundaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mutate Boundaries */
+        post: operations["mutate_boundaries_api_workspaces__workspace_id__authoring_conversations__conversation_id__question_boundaries_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring-conversations/{conversation_id}/question-drafts/{draft_id}/input-answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Input Answer */
+        patch: operations["patch_input_answer_api_workspaces__workspace_id__authoring_conversations__conversation_id__question_drafts__draft_id__input_answer_patch"];
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring-conversations/{conversation_id}/question-drafts/{draft_id}/input-answer-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Input Answer */
+        post: operations["confirm_input_answer_api_workspaces__workspace_id__authoring_conversations__conversation_id__question_drafts__draft_id__input_answer_confirmation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring-conversations/{conversation_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Conversation */
+        post: operations["retry_conversation_api_workspaces__workspace_id__authoring_conversations__conversation_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring-conversations/{conversation_id}/continuity-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Continuity */
+        post: operations["reset_continuity_api_workspaces__workspace_id__authoring_conversations__conversation_id__continuity_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/evaluation-sets/drafts": {
         parameters: {
             query?: never;
@@ -780,6 +933,168 @@ export interface components {
             /** Size Bytes */
             size_bytes: number;
         };
+        /** AuthoringContinuityResetRequest */
+        AuthoringContinuityResetRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Reason */
+            reason: string;
+        };
+        /** AuthoringConversationCreateRequest */
+        AuthoringConversationCreateRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Title */
+            title: string;
+            /** Upload Batch Id */
+            upload_batch_id?: string | null;
+            /** Task Instruction */
+            task_instruction?: string | null;
+            /** Message */
+            message?: string | null;
+            /** Reference Answer Text */
+            reference_answer_text?: string | null;
+            /** Source File Ids */
+            source_file_ids?: string[];
+        };
+        /** AuthoringConversationResponse */
+        AuthoringConversationResponse: {
+            conversation: components["schemas"]["AuthoringConversationView"];
+        };
+        /**
+         * AuthoringConversationStatus
+         * @enum {string}
+         */
+        AuthoringConversationStatus: "queued" | "processing" | "waiting_for_teacher" | "review_ready" | "ready" | "confirmed" | "failed" | "projection_pending" | "continuity_reset";
+        /** AuthoringConversationView */
+        AuthoringConversationView: {
+            /** Id */
+            id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Upload Batch Id */
+            upload_batch_id?: string | null;
+            /**
+             * Source File Count
+             * @default 0
+             */
+            source_file_count: number;
+            /** Title */
+            title: string;
+            status: components["schemas"]["AuthoringConversationStatus"];
+            /** Revision */
+            revision: number;
+            /** Messages */
+            messages?: components["schemas"]["AuthoringMessageView"][];
+            /** Question Drafts */
+            question_drafts?: components["schemas"]["BenchmarkQuestionDraftView"][];
+            pending_question?: components["schemas"]["AuthoringQuestion"] | null;
+            next_action: components["schemas"]["AuthoringNextAction"];
+            active_operation?: components["schemas"]["AuthoringOperationView"] | null;
+            /**
+             * Events Cursor
+             * @default 0
+             */
+            events_cursor: number;
+            /** Blocking Issues */
+            blocking_issues?: string[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AuthoringMessageRequest */
+        AuthoringMessageRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Conversation Revision */
+            conversation_revision: number;
+            /** Content */
+            content: string;
+            /** @default chat */
+            message_type: components["schemas"]["AuthoringMessageType"];
+            /** Question Draft Id */
+            question_draft_id?: string | null;
+            /** Attachment Ids */
+            attachment_ids?: string[];
+        };
+        /**
+         * AuthoringMessageRole
+         * @enum {string}
+         */
+        AuthoringMessageRole: "teacher" | "assistant";
+        /**
+         * AuthoringMessageType
+         * @enum {string}
+         */
+        AuthoringMessageType: "chat" | "standard_answer";
+        /** AuthoringMessageView */
+        AuthoringMessageView: {
+            /** Id */
+            id: string;
+            /** Sequence */
+            sequence: number;
+            role: components["schemas"]["AuthoringMessageRole"];
+            message_type: components["schemas"]["AuthoringMessageType"];
+            /** Content */
+            content: string;
+            /** Attachment Ids */
+            attachment_ids?: string[];
+            /** Question Draft Id */
+            question_draft_id?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * AuthoringNextAction
+         * @enum {string}
+         */
+        AuthoringNextAction: "wait_for_processing" | "confirm_question_boundaries" | "provide_standard_answer" | "review_question" | "confirm_input_answer" | "retry_processing" | "continuity_reset" | "none";
+        /** AuthoringOperationView */
+        AuthoringOperationView: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "authoring_process" | "authoring_reproject";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "failed" | "projection_pending";
+        };
+        /** AuthoringQuestion */
+        AuthoringQuestion: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Gap Type
+             * @enum {string}
+             */
+            gap_type: "scope" | "input" | "standard_answer" | "evidence";
+            /** Question Draft Id */
+            question_draft_id?: string | null;
+        };
+        /** AuthoringRetryRequest */
+        AuthoringRetryRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Conversation Revision */
+            conversation_revision: number;
+        };
         /** BatchImpactReviewRequest */
         BatchImpactReviewRequest: {
             /** Command Id */
@@ -788,6 +1103,33 @@ export interface components {
             draft_revision: number;
             /** Note */
             note?: string | null;
+        };
+        /** BenchmarkQuestionDraftView */
+        BenchmarkQuestionDraftView: {
+            /** Id */
+            id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            status: components["schemas"]["QuestionDraftStatus"];
+            /** Revision */
+            revision: number;
+            input: components["schemas"]["QuestionInput"];
+            /** Reference Answer Text */
+            reference_answer_text?: string | null;
+            /** Reference Answer Source */
+            reference_answer_source?: ("teacher_message" | "teacher_input") | null;
+            /** Evidence File Ids */
+            evidence_file_ids?: string[];
+            /** Materials */
+            materials?: components["schemas"]["QuestionMaterialView"][];
+            /** Confirmed Revision */
+            confirmed_revision?: number | null;
+            /** Confirmed At */
+            confirmed_at?: string | null;
         };
         /** BlockingGap */
         BlockingGap: {
@@ -1355,6 +1697,23 @@ export interface components {
          * @enum {string}
          */
         ImpactReviewStatus: "not_required" | "review_required" | "reviewed" | "no_conflict_confirmed";
+        /** InputAnswerConfirmationRequest */
+        InputAnswerConfirmationRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Draft Revision */
+            draft_revision: number;
+        };
+        /** InputAnswerPatchRequest */
+        InputAnswerPatchRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Draft Revision */
+            draft_revision: number;
+            input: components["schemas"]["QuestionInput"];
+            /** Reference Answer Text */
+            reference_answer_text?: string | null;
+        };
         /** JsonPointerLocator */
         JsonPointerLocator: {
             /**
@@ -1548,6 +1907,87 @@ export interface components {
             text: string;
             /** Evidence Refs */
             evidence_refs?: components["schemas"]["EvidenceRef"][];
+        };
+        /** QuestionBoundaryGroupInput */
+        QuestionBoundaryGroupInput: {
+            /** Title */
+            title: string;
+            /**
+             * Summary
+             * @default 老师确认的一个独立任务。
+             */
+            summary: string;
+            /** Evidence File Ids */
+            evidence_file_ids?: string[];
+        };
+        /** QuestionBoundaryRequest */
+        QuestionBoundaryRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Conversation Revision */
+            conversation_revision: number;
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "confirm" | "split" | "merge" | "discard";
+            /** Draft Ids */
+            draft_ids?: string[];
+            /** Groups */
+            groups?: components["schemas"]["QuestionBoundaryGroupInput"][];
+        };
+        /**
+         * QuestionDraftStatus
+         * @enum {string}
+         */
+        QuestionDraftStatus: "candidate" | "input_answer_drafting" | "input_answer_review" | "input_answer_confirmed" | "discarded";
+        /** QuestionInput */
+        QuestionInput: {
+            /** Task Instruction */
+            task_instruction: string;
+            /** Materials */
+            materials?: components["schemas"]["QuestionMaterialInput"][];
+            /** Must Include */
+            must_include?: string[];
+            /** Prohibited */
+            prohibited?: string[];
+            /** Background */
+            background?: string | null;
+        };
+        /** QuestionMaterialInput */
+        QuestionMaterialInput: {
+            /** File Id */
+            file_id: string;
+            /** @default unconfirmed */
+            role: components["schemas"]["QuestionMaterialRole"];
+            /**
+             * Priority
+             * @default 0
+             */
+            priority: number;
+            /** Rationale */
+            rationale?: string | null;
+        };
+        /**
+         * QuestionMaterialRole
+         * @enum {string}
+         */
+        QuestionMaterialRole: "unconfirmed" | "brief" | "fact" | "style" | "current_draft" | "background" | "ignored";
+        /** QuestionMaterialView */
+        QuestionMaterialView: {
+            /** File Id */
+            file_id: string;
+            /** @default unconfirmed */
+            role: components["schemas"]["QuestionMaterialRole"];
+            /**
+             * Priority
+             * @default 0
+             */
+            priority: number;
+            /** Rationale */
+            rationale?: string | null;
+            /** File Name */
+            file_name?: string | null;
         };
         /** ReferenceOutcome */
         ReferenceOutcome: {
@@ -3756,6 +4196,629 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_conversation_api_workspaces__workspace_id__authoring_conversations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthoringConversationCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringConversationResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_conversation_api_workspaces__workspace_id__authoring_conversations__conversation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringConversationResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_message_api_workspaces__workspace_id__authoring_conversations__conversation_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthoringMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringConversationResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    stream_events_api_workspaces__workspace_id__authoring_conversations__conversation_id__events_get: {
+        parameters: {
+            query?: {
+                after?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mutate_boundaries_api_workspaces__workspace_id__authoring_conversations__conversation_id__question_boundaries_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionBoundaryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringConversationResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    patch_input_answer_api_workspaces__workspace_id__authoring_conversations__conversation_id__question_drafts__draft_id__input_answer_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                conversation_id: string;
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InputAnswerPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringConversationResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    confirm_input_answer_api_workspaces__workspace_id__authoring_conversations__conversation_id__question_drafts__draft_id__input_answer_confirmation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                conversation_id: string;
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InputAnswerConfirmationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringConversationResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_conversation_api_workspaces__workspace_id__authoring_conversations__conversation_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthoringRetryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringConversationResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reset_continuity_api_workspaces__workspace_id__authoring_conversations__conversation_id__continuity_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthoringContinuityResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthoringConversationResponse"];
                 };
             };
             /** @description Unauthorized */

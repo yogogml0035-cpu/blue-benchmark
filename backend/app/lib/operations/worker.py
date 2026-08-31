@@ -99,14 +99,51 @@ class OperationWorker:
                     retryable=True,
                 )
             except ProjectionPendingOperation as exc:
-                return repository.mark_projection_pending(
+                projection = repository.mark_projection_pending(
                     job.id,
                     self.worker_id,
                     produced_checkpoint_id=exc.produced_checkpoint_id,
                     result_hash=exc.result_hash,
                     runtime_mode=self.runtime_mode,
                 )
+                if job.target_type == "authoring_conversation":
+                    try:
+                        from app.features.case_builder import authoring_repository
+
+                        authoring_repository.mark_projection_pending(
+                            job.target_id,
+                            expected_revision=job.business_revision,
+                            expected_operation_id=job.id,
+                        )
+                    except Exception:
+                        # The OperationJob projection remains authoritative if
+                        # the public conversation update cannot commit.  A
+                        # later GET/retry still exposes the operation state.
+                        pass
+                return projection
             except Exception:
+                # A failed authoring handler must release the public
+                # conversation lease as well as the OperationJob.  Otherwise
+                # a process crash between enqueue and projection leaves the
+                # browser on an unbounded "processing" state with no retry.
+                if job.target_type == "authoring_conversation":
+                    try:
+                        from app.features.case_builder import authoring_repository
+
+                        current = authoring_repository.get_conversation(job.target_id)
+                        if current:
+                            authoring_repository.mark_failed(
+                                current.id,
+                                "AUTHORING_PROCESS_FAILED",
+                                expected_revision=job.business_revision,
+                                expected_operation_id=job.id,
+                                expected_operation_attempt=job.attempts,
+                                expected_worker_id=self.worker_id,
+                            )
+                    except Exception:
+                        # The OperationJob failure remains authoritative if
+                        # the best-effort projection cleanup cannot commit.
+                        pass
                 return repository.fail(
                     job.id,
                     self.worker_id,
@@ -145,6 +182,7 @@ def _build_worker(runtime_mode: str = "fake") -> OperationWorker:
         handle_cocreation_resume,
         handle_cocreation_start,
     )
+    from app.features.case_builder.authoring_service import process_authoring, reproject_authoring
     from app.features.evaluation_sets.service import handle_coverage_review, handle_freeze
 
     worker = OperationWorker(runtime_mode=runtime_mode)
@@ -152,6 +190,8 @@ def _build_worker(runtime_mode: str = "fake") -> OperationWorker:
     worker.register("cocreation_start", lambda job: handle_cocreation_start(job))
     worker.register("cocreation_resume", lambda job: handle_cocreation_resume(job))
     worker.register("cocreation_reproject", lambda job: handle_cocreation_reproject(job))
+    worker.register("authoring_process", lambda job: process_authoring(job))
+    worker.register("authoring_reproject", lambda job: reproject_authoring(job))
     worker.register("coverage_review", lambda job: handle_coverage_review(job))
     worker.register("freeze_package", lambda job: handle_freeze(job))
     return worker

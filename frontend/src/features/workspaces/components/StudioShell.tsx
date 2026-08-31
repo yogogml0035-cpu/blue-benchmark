@@ -435,6 +435,9 @@ function CurrentWorkspace({
         <ButtonLink href={`/workspaces/${workspaceId}/upload`} variant="primary">
           上传资料
         </ButtonLink>
+        <ButtonLink href={`/workspaces/${workspaceId}/authoring/new`} variant="quiet">
+          直接手动建题
+        </ButtonLink>
       </div>
     </section>
   );

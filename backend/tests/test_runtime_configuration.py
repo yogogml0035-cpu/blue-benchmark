@@ -6,6 +6,7 @@ from pydantic import SecretStr, ValidationError
 from app.lib.ai_runtime.adapters import DeepAgentsCoverageReviewer, production_adapters
 from app.lib.ai_runtime.model import ModelConfigurationError, build_runtime_model, runtime_model_identity
 from app.lib.settings import PROJECT_ROOT, Settings
+from langchain_openai import ChatOpenAI
 
 
 def test_relative_storage_root_is_stable_across_entrypoint_working_directories() -> None:
@@ -27,7 +28,7 @@ def _model_settings(**overrides: object) -> Settings:
 def test_openai_compatible_model_is_explicit_and_non_streaming() -> None:
     model, identity = build_runtime_model(_model_settings(ai_request_timeout_seconds=42))
 
-    assert model.__class__.__name__ == "ChatOpenAI"
+    assert isinstance(model, ChatOpenAI)
     assert model.model == "compatible-model"
     assert model.openai_api_base == "https://models.example/v1"
     assert model.streaming is False

@@ -114,6 +114,14 @@ def test_sync_checkpointer_uses_encrypted_saver_and_closes_connection(monkeypatc
             "CoCreationAgentResult"
             in repr(getattr(saver.serde.serde, "_allowed_msgpack_modules", None))
         )
+        assert (
+            "AuthoringQuestionAgentResult"
+            in repr(getattr(saver.serde.serde, "_allowed_msgpack_modules", None))
+        )
+        assert (
+            "QuestionMaterialRole"
+            in repr(getattr(saver.serde.serde, "_allowed_msgpack_modules", None))
+        )
 
     assert connect_args["autocommit"] is True
     assert connect_args["prepare_threshold"] == 0
