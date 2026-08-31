@@ -664,6 +664,8 @@ export function QuestionsSection({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<PageFault | null>(null);
   const requestGeneration = useRef(0);
+  const operationStatus = projection.active_operation?.status ?? null;
+  const groupingSourceKey = packages.map((pkg) => `${pkg.id}:${pkg.status}:${pkg.revision}`).join("|");
 
   const loadPackages = useCallback(() => {
     const generation = ++requestGeneration.current;
@@ -693,7 +695,7 @@ export function QuestionsSection({
   useEffect(() => {
     setLoading(true);
     loadPackages();
-  }, [loadPackages]);
+  }, [loadPackages, operationStatus]);
 
   if (loading) {
     return (
@@ -723,12 +725,78 @@ export function QuestionsSection({
     );
   }
 
+  const canConfirmGrouping =
+    projection.batch_status === "ready_for_confirmation" &&
+    projection.next_action.kind === "none" &&
+    !projection.active_operation;
+
   if (packages.length === 0) {
+    const availableFiles = (projection.files ?? []).filter((file) => !file.ignored);
+    if (projection.batch_id && availableFiles.length > 0 && canConfirmGrouping) {
+      return (
+        <div className="stack-lg">
+          <div className="stack-sm">
+            <h1 className="doc-title">题</h1>
+            <p className="secondary">
+              AI 没有生成候选任务分组。请手动新增任务并选择资料归属，系统不会替你猜测任务边界。
+            </p>
+          </div>
+          <TaskGroupConfirmation
+            batchId={projection.batch_id}
+            batchRevision={batchRevision}
+            files={availableFiles}
+            onConfirmed={() => {
+              loadPackages();
+              onRefresh();
+            }}
+            key={`${workspaceId}:${projection.batch_id}:${groupingSourceKey}`}
+            packages={[]}
+            workspaceId={workspaceId}
+          />
+        </div>
+      );
+    }
+    if (projection.active_operation) {
+      return (
+        <div className="stack-lg">
+          <h1 className="doc-title">题</h1>
+          <div className="sheet sheet-pad stack">
+            <p className="secondary">
+              {projection.active_operation.status === "queued" || projection.active_operation.status === "running"
+                ? "资料仍在整理，完成后才能确认任务分组。"
+                : "资料整理没有完成，请回到「当前」重试。"}
+            </p>
+            <div className="row">
+              <ButtonLink
+                href={`/workspaces/${workspaceId}?section=current${projection.batch_id ? `&batch=${projection.batch_id}` : ""}`}
+                variant="primary"
+              >
+                回当前查看
+              </ButtonLink>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="stack-lg">
         <h1 className="doc-title">题</h1>
         <div className="sheet sheet-pad stack">
-          <p className="secondary">还没有确认的任务。先在「当前」完成资料上传和任务分组确认。</p>
+          <p className="secondary">
+            {availableFiles.length > 0
+              ? "当前还不能确认任务分组，请回到「当前」查看资料整理状态。"
+              : "当前批次没有可用于分组的资料，请上传新的资料后继续。"}
+          </p>
+          <div className="row">
+            <ButtonLink
+              href={availableFiles.length > 0
+                ? `/workspaces/${workspaceId}?section=current${projection.batch_id ? `&batch=${projection.batch_id}` : ""}`
+                : `/workspaces/${workspaceId}/upload`}
+              variant="primary"
+            >
+              {availableFiles.length > 0 ? "回当前查看" : "上传新的资料"}
+            </ButtonLink>
+          </div>
         </div>
       </div>
     );
@@ -745,7 +813,28 @@ export function QuestionsSection({
           确认的任务会在这里形成题稿。每一道题都来自真实交付的沉淀。
         </p>
       </div>
-      {proposed.length > 0 && projection.batch_id && (
+      {proposed.length > 0 && !canConfirmGrouping && (
+        <section className="sheet sheet-pad stack">
+          <p className="secondary">
+            {projection.active_operation
+              ? projection.active_operation.status === "queued" || projection.active_operation.status === "running"
+                ? "资料仍在整理，完成后才能确认任务分组。"
+                : "资料整理没有完成，请回到「当前」重试。"
+              : projection.next_action.kind === "confirm_file_roles"
+                ? "请先在「当前」确认每份资料的用途和可见范围，之后才能确认任务分组。"
+                : "当前还不能确认任务分组，请回到「当前」查看资料整理状态。"}
+          </p>
+          <div className="row">
+            <ButtonLink
+              href={`/workspaces/${workspaceId}?section=current${projection.batch_id ? `&batch=${projection.batch_id}` : ""}`}
+              variant="primary"
+            >
+              回当前查看
+            </ButtonLink>
+          </div>
+        </section>
+      )}
+      {proposed.length > 0 && projection.batch_id && canConfirmGrouping && (
         <TaskGroupConfirmation
           batchId={projection.batch_id}
           batchRevision={batchRevision}
@@ -756,7 +845,7 @@ export function QuestionsSection({
           }}
           packages={proposed}
           workspaceId={workspaceId}
-          key={`${workspaceId}:${projection.batch_id}`}
+          key={`${workspaceId}:${projection.batch_id}:${groupingSourceKey}`}
         />
       )}
       <div className="stack">
@@ -873,7 +962,9 @@ function TaskGroupConfirmation({
         <span className="section-label">待确认</span>
         <h2 className="doc-title-sm">确认任务分组</h2>
         <p className="secondary">
-          AI 从资料中提议了 {packages.length} 组任务。你可以拆分或合并，确认后开始逐题共创。
+          {packages.length === 0
+            ? "请手动新增任务并选择资料归属，系统不会替你猜测任务边界。"
+            : `AI 从资料中提议了 ${packages.length} 组任务。你可以拆分或合并，确认后开始逐题共创。`}
         </p>
       </div>
       <div className="stack">

@@ -18,6 +18,8 @@
 
 场景工作台的唯一事实来源是 `GET /api/workspaces/{id}/upload-batches/studio` 返回的 `StudioProjection`，包含 `next_action`、`active_operation`、`latest_receipt` 和 `blocking_issues`。前端不得根据文件列表自行推导“下一步是什么”；所有当前工作流状态分支以 `next_action.kind` 为准。
 
+任务分组页还要把批次状态、活动操作和任务包列表一起看：`task_packages=[]` 不能单独解释为“没有下一步”。当批次为 `ready_for_confirmation`、没有活动操作且存在未忽略资料时，空列表代表“AI 没有候选分组”，应显示手动新增/分配/确认入口；处理中或失败时应显示等待/回当前重试；没有可用资料时应提供上传新批次的出口，不能把用户送回同一空状态。
+
 文件角色确认通过 `PATCH /upload-batches/{batchId}/files/{fileId}/disposition` 逐个提交；每次提交推进 `batch_revision`，连续提交时必须用最新 revision（参考 `StudioShell::FileRoleConfirmation::submit`）。
 
 共创会话的 `status` 字段穷尽 `queued | processing | waiting_for_teacher | ready_for_confirmation | confirmed | failed | projection_pending | continuity_reset`，前端 UI 分支必须覆盖全部八个状态（参考 `case-builder/components/QuestionPage.tsx`）。
