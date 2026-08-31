@@ -1,0 +1,6 @@
+{"file":".trellis/spec/backend/evaluation-sets.md","reason":"不可变题目修订、版本包和 runtime/judge/provenance 隔离"}
+{"file":".trellis/spec/backend/structure-and-boundaries.md","reason":"Rubric Service、AI adapter 与版本 builder 所有权"}
+{"file":".trellis/spec/frontend/type-and-api-contracts.md","reason":"Rubric/Revision DTO 只来自 OpenAPI"}
+{"file":".trellis/spec/frontend/components-and-styling.md","reason":"规则审阅、确认与修订历史 UI"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"发布状态、修订和生成类型同步"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/task-decomposition-review.md","reason":"第二阶段业务边界、锚点和双层判定"}

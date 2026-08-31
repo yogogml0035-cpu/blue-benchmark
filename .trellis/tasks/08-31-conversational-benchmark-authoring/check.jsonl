@@ -1,0 +1,6 @@
+{"file":".trellis/spec/backend/quality-and-tests.md","reason":"父任务后端权限、并发、幂等、恢复和存储质量门"}
+{"file":".trellis/spec/frontend/quality-and-verification.md","reason":"父任务前端类型、构建、Preview 与浏览器验收"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"检查三个子任务的数据流、泄漏与状态一致性"}
+{"file":".trellis/spec/backend/evaluation-sets.md","reason":"历史版本、hash、runtime/judge/provenance 和重评绑定"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/publish-gate-adversarial-review.md","reason":"检查发布、规则修订和历史评分移动门槛风险"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/adversarial-planning-review.md","reason":"父任务权限、并发、恢复、泄漏、迁移和评分一致性审查"}

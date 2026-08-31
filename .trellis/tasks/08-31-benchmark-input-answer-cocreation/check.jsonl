@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/quality-and-tests.md","reason":"后端权限、状态、幂等与恢复质量门"}
+{"file":".trellis/spec/frontend/quality-and-verification.md","reason":"类型、生产构建、预演与浏览器验收"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"检查内部 ID/正文泄漏与跨层状态一致性"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/streaming-session-boundary.md","reason":"验证原始事件不直通与断线恢复边界"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/adversarial-planning-review.md","reason":"检查会话并发、跨题证据、旧数据和流泄漏"}

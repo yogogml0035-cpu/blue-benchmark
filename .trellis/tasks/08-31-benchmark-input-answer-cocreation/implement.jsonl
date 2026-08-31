@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/structure-and-boundaries.md","reason":"保持 Router-Service-Repository 与 AI runtime 业务权威边界"}
+{"file":".trellis/spec/backend/stub-state-and-contracts.md","reason":"复用上传、TaskPackage、会话状态与确认合同"}
+{"file":".trellis/spec/frontend/state-model.md","reason":"服务端快照、单活跃状态、generation guard 与恢复"}
+{"file":".trellis/spec/frontend/components-and-styling.md","reason":"会话、composer、sheet 与可访问性原语"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"Schema 到 OpenAPI、生成类型、UI 与测试同步"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/evaldata-authoring-workflow.md","reason":"真实聊天多题、终版与资料角色证据"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/streaming-session-boundary.md","reason":"安全流、HITL、SSE 与单活跃轮次研究"}

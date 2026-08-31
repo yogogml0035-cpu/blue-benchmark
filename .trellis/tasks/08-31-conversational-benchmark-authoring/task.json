@@ -1,0 +1,30 @@
+{
+  "id": "conversational-benchmark-authoring",
+  "name": "conversational-benchmark-authoring",
+  "title": "对话式 Benchmark 出题与评分重构",
+  "description": "基于现有 M0 和 Deep Agents，将 Benchmark 建题重构为全中文多轮会话，形成题目输入、单一标准答案和打分规则，并支持单份待评主文本的老师人工评分",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-08-31",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "08-31-benchmark-input-answer-cocreation",
+    "08-31-benchmark-rubric-publishing",
+    "08-31-benchmark-human-scoring"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

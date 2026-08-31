@@ -1,0 +1,8 @@
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"父任务跨三子任务的业务状态、OpenAPI、前端与版本合同"}
+{"file":".trellis/spec/backend/structure-and-boundaries.md","reason":"业务数据库、OperationJob、AI runtime 与评分 Feature 权威边界"}
+{"file":".trellis/spec/backend/evaluation-sets.md","reason":"不可变题目/评测集修订和版本包隔离"}
+{"file":".trellis/spec/frontend/state-model.md","reason":"会话、题目、评分和服务端快照所有权"}
+{"file":".trellis/spec/frontend/components-and-styling.md","reason":"全中文会话与人工评分 UI 约束"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/evaldata-authoring-workflow.md","reason":"真实老师工作流和多题/终版/反馈证据"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/streaming-session-boundary.md","reason":"Deep Agents 流、安全事件、SSE 和恢复边界"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/task-decomposition-review.md","reason":"三子任务边界与顺序"}

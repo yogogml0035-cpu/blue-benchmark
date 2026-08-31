@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/evaluation-sets.md","reason":"历史不可变、hash、ready marker 和三分区检查"}
+{"file":".trellis/spec/backend/quality-and-tests.md","reason":"分值、并发、失败和重试测试规范"}
+{"file":".trellis/spec/frontend/quality-and-verification.md","reason":"Rubric 状态预演、类型检查和生产构建"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"上游失效、发布修订与泄漏检查"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/adversarial-planning-review.md","reason":"检查锚点、关键项、发布 CAS、历史和版本包"}

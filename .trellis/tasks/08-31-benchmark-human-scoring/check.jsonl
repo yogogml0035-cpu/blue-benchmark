@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/quality-and-tests.md","reason":"权限、幂等、不可变历史和文件失败测试"}
+{"file":".trellis/spec/frontend/quality-and-verification.md","reason":"评分状态、类型、构建和浏览器验收"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"伪总分、正文泄漏、旧/新修订和授权检查"}
+{"file":".trellis/spec/backend/evaluation-sets.md","reason":"评分绑定不可变题目修订且不污染 runtime"}
+{"file":".trellis/tasks/08-31-conversational-benchmark-authoring/research/adversarial-planning-review.md","reason":"检查伪总分、理由绕过、历史覆盖、文件残留和正文泄漏"}
