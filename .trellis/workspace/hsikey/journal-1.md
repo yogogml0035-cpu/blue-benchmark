@@ -244,3 +244,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 11: 修复零候选任务分组死循环
+<!-- trellis-session: v=2 fp=545f2b676f593f1a -->
+
+**Date**: 2026-08-31
+**Task**: 修复零候选任务分组死循环
+**Branch**: `main`
+
+### Summary
+
+定位到整理完成但 task_packages 为空时，前端把可恢复的分组状态渲染成无操作空页。修复题页在有可用资料时支持手动新增、分配和确认；分析中/失败、全部资料忽略、资料用途未确认分别提供等待、重试或上传入口。完成真实隔离浏览器回归、对抗式审查、111 个后端测试、前端 typecheck/build、OpenAPI 合同检查，并合并到 main。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e09d6ac` | fix: keep empty task grouping recoverable |
+
+### Status
+
+[OK] **Completed**
