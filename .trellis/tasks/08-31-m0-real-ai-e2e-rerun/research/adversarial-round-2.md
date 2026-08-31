@@ -15,3 +15,5 @@
 - 本轮使用临时 PostgreSQL 映射端口，不把用户 `.env` 指向的本机 5432 说成已就绪；真实数据、凭证和内部 Checkpoint 未进入 Git 或报告。
 - 仓库没有 Playwright CI suite；浏览器结论来自真实运行中的 API/Worker/Next 和 Playwright CLI 交互，不能升级为自动化回归覆盖。
 - M0 仍不包括被测 Skill/Agent 执行、Judge、评测报告或 M1 知识库检索。
+
+合并后的 `main` 第一次标准真实重跑曾在第三道 judgment 的 start operation 失败，第二次诊断复跑和第三次标准 Worker 复跑均通过；这保留了 Provider 瞬时失败证据，也说明当前结果不是“一次通过即证明长期稳定”。

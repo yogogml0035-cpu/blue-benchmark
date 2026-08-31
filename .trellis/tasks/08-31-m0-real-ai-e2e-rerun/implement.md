@@ -18,3 +18,4 @@
 - 首次真实重跑在任务分组命令重放处复现不稳定顺序；修复后分组回归、projection 恢复、lease reclaim、合同变更和证据 quote 负例均通过。
 - 最终真实 runner：`AI_PROVIDER_SMOKE=PASS`；隔离 PostgreSQL 17 双库、production Worker、三份 EvalData、5 份展开证据、2 个任务/3 个 attempts、合同与两道题判定依据、覆盖确认、v1 包 hash/隔离全部通过，`M0_REAL_AI_E2E_STAGE=complete` 且 runner exit 0。
 - Fake Worker 反例仍能把业务流程跑到冻结前，但 runner 以 `worker_attestation/non_production_worker` 拒绝；真实浏览器完成注册、建场景、上传三份文件、202/后台处理/刷新恢复、390px Dialog 焦点、旧路由和第二账号 403。
+- 合并后的 `main` 首次标准重跑有一次 `mega-judgment` 的清洗失败；随后模块化诊断复跑和标准 production Worker 复跑均完成，最终门禁以最后一次标准复跑为准，并保留首次失败边界。

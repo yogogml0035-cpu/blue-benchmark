@@ -30,6 +30,8 @@ cd backend && uv run python scripts/accept_real_ai_e2e.py \
 - 下一版草稿、覆盖风险确认、冻结排队和 v1 版本包完成；包包含 4 个预期条目，Manifest、runtime/judge/provenance 三分区 bytes/hash 和下载身份一致，runtime allowlist 未包含评分依据、老师判断、形成记录或凭证；
 - runner 输出 `M0_REAL_AI_E2E_STAGE=complete`，runner exit 0；本轮日志未命中实际 AI key、Checkpointer key、authorization、api_key、private_reasoning、thread/checkpoint 字段或样本文件名。
 
+合并到 `main` 后，第一次标准 production Worker 重跑在第三道 `mega-judgment` start 进入清洗后的 `OPERATION_FAILED`；第二次用同一隔离配置的模块化诊断 Worker 越过该阶段并完整通过，随后第三次使用未包装的标准 production Worker 也完整通过。由此把第一次记录为真实 Provider/结构化调用瞬时失败，不把单次绿灯表述为长期稳定性；本轮没有观察到固定代码异常。
+
 ## 浏览器真实回归
 
 单独隔离栈上，真实浏览器完成账号注册、私有场景创建、同三份文件上传，页面观察到上传 `202`、后台“正在处理”到“处理完成/确认资料用途”，刷新后仍恢复服务端快照。390px 窄屏导航进入 Dialog，Escape 后焦点回到“切换工作区导航”。旧 `/cases/new` 重定向到工作台，旧 case ID 重定向到题稿路由并显示 `RESOURCE_NOT_FOUND`；第二账号访问第一账号场景得到 `403` 且没有私有内容。
