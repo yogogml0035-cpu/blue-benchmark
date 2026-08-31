@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
+- **Total Sessions**: 12
 - **Last Active**: 2026-08-31
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~268 | Active |
+| `journal-1.md` | ~290 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 12 | 2026-08-31 | 修复共创阶段连续性与 Worker 模式隔离 | `60e9119` | `main` |
 | 11 | 2026-08-31 | 修复零候选任务分组死循环 | `e09d6ac` | `main` |
 | 10 | 2026-08-31 | M0 真实 AI E2E 重跑与对抗加固 | `6eadc16`, `a631041` | `main` |
 | 9 | 2026-08-31 | M0 真实 AI E2E 验证与跨层加固 | `347df56` | `main` |

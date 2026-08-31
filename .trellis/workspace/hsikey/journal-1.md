@@ -266,3 +266,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 12: 修复共创阶段连续性与 Worker 模式隔离
+<!-- trellis-session: v=2 fp=78538d093988427d -->
+
+**Date**: 2026-08-31
+**Task**: 修复共创阶段连续性与 Worker 模式隔离
+**Branch**: `main`
+
+### Summary
+
+核实 /goal 当前问题由 Fake Worker 混入真实队列与题级共创未继承场景合同共同造成；补齐合同传递、共享 hard gate 防弱化、Worker 数据库互斥锁和 Fake PostgreSQL 隔离，完成对抗式审查并在 main 复验。旧 Fake 会话不静默改写，真实 Provider E2E 仍需单独验收。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `60e9119` | fix: preserve co-creation continuity and worker mode |
+
+### Status
+
+[OK] **Completed**
