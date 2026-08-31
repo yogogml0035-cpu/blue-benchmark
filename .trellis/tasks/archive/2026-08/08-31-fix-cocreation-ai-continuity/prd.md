@@ -21,13 +21,13 @@
 
 ## Acceptance Criteria
 
-- [ ] 真实代码路径能说明 Fake、DeepAgent、业务 Service、Worker 各自负责什么；最近操作能区分 Worker 运行模式且不把 Fake 结果称为真实 AI。
-- [ ] 场景合同确认后启动题级共创时，题级 Agent 收到已确认合同；Fake 回归路径出现题级问题，不再返回“这组真实任务共同要判断的最终交付结果是什么？”。
-- [ ] 题级 resume/reproject 继续使用同一合同快照和 accepted Checkpoint，不重复要求老师回答共享场景边界。
-- [ ] 同一 Postgres 业务库的第二个长驻 Worker 在 claim 前无法取得运行锁；释放锁后单个 Worker 可正常处理队列；测试环境不因新增锁破坏既有 run_once() 合同。
-- [ ] 覆盖重复 start、重复 answer、过期 session、合同更新、旧 Fake 会话和 Worker 退出/重启等边界；不产生第二个业务答案或越过老师确认。
-- [ ] cd backend && uv run pytest -q、make test、适用的 make build 和 git diff --check 通过。
-- [ ] 完成一轮针对权限、并发、幂等、恢复、证据泄漏、旧数据和存储完整性的对抗式审查；发现的可安全修正问题已修复并有回归证据。
+- [x] 真实代码路径能说明 Fake、DeepAgent、业务 Service、Worker 各自负责什么；最近操作能区分 Worker 运行模式且不把 Fake 结果称为真实 AI。
+- [x] 场景合同确认后启动题级共创时，题级 Agent 收到已确认合同；Fake 回归路径出现题级问题，不再返回“这组真实任务共同要判断的最终交付结果是什么？”。
+- [x] 题级 resume/reproject 继续使用同一合同快照和 accepted Checkpoint，不重复要求老师回答共享场景边界。
+- [x] 同一 Postgres 业务库的第二个长驻 Worker 在 claim 前无法取得运行锁；释放锁后单个 Worker 可正常处理队列；测试环境不因新增锁破坏既有 run_once() 合同。
+- [x] 覆盖重复 start、重复 answer、过期 session、合同更新、旧 Fake 会话和 Worker 退出/重启等边界；不产生第二个业务答案或越过老师确认。
+- [x] cd backend && uv run pytest -q、make test、适用的 make build 和 git diff --check 通过。
+- [x] 完成一轮针对权限、并发、幂等、恢复、证据泄漏、旧数据和存储完整性的对抗式审查；发现的可安全修正问题已修复并有回归证据。
 
 ## Constraints and out of scope
 
