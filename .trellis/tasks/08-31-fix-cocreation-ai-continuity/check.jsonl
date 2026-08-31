@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/stub-state-and-contracts.md", "reason": "按 M0 业务状态与 AI runtime 合同检查实现"}
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "按质量门和并发/恢复/泄漏清单复核"}
+{"file": ".trellis/spec/frontend/state-model.md", "reason": "检查前端是否仍由服务端快照驱动"}
+{"file": ".trellis/spec/frontend/quality-and-verification.md", "reason": "检查页面状态、busy、刷新与构建验证"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "检查 OpenAPI、权限、数据流和证据等级"}

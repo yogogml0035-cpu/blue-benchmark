@@ -217,6 +217,57 @@ Command(resume={"decisions": [{"type": "respond", "message": answer}]})
 
 达到提问预算后，按当前共创 kind 只请求一个 completion wire schema（合同或判定依据），再由应用归一化并严格校验业务 Schema。fallback 只允许 source-only refs；未知 source、非法 locator 或不完整结构仍失败；不能把 fallback 写成已确认标准。
 
+## Scenario: 共创合同继承与 Worker 单消费者
+
+### 1. Scope / Trigger
+
+- Trigger: 场景标准确认后进入题级判定依据共创，或本地出现 Fake/Production Worker 混合消费同一业务队列。
+
+### 2. Signatures
+
+- StandardCoCreator.start/resume/reproject(..., shared_contract: dict[str, Any] | None = None)：题级共创必须接收已确认场景合同。
+- cocreation_service._shared_contract_for_session(session, package)：校验合同状态与 session/TaskPackage 版本，并返回经过 Pydantic 校验的合同快照。
+- worker_process_lock(database_engine: Engine | None = None)：长驻 Worker 的数据库级进程互斥；OperationWorker.run_once() 仍是测试和显式一次性调用的低层原语。
+
+### 3. Contracts
+
+- task_judgment 的 start、resume、reproject 都使用当前 TaskPackage.contract_revision_id 对应的 confirmed 合同；合同 ID 不一致时旧操作只能 supersede，不得调用模型或覆盖新分支。
+- DeepAgent 的题级 prompt 明确“场景标准已确认，本轮只补充本题判定依据”；合同作为受限业务数据传入，不进入 HTTP DTO、版本 runtime 分区或日志。
+- PostgreSQL 使用业务数据库连接上的 session-level advisory lock；SQLite 开发环境使用同库文件的 fcntl 锁。run_forever() 和 Worker CLI --once 必须在 claim 前取得锁。
+- 同一业务数据库只允许一个长驻 Worker，不区分 Fake 或 Production；AI_RUNTIME_MODE=fake 只能用于自动化测试和显式本地运行，不能与生产 Worker 并存。
+
+### 4. Validation & Error Matrix
+
+- 合同缺失或未确认 -> 共创操作失败，不调用 DeepAgent。
+- session 合同 ID 与当前 TaskPackage 不一致 -> SupersededOperation，OperationJob 标记 superseded，accepted Checkpoint 不变。
+- 第二个长驻 Worker 无法取得锁 -> WorkerAlreadyRunning，不调用 claim_next。
+- 合同/教师回答中的文本不能绕过现有 EvidenceBackend allowlist、canonical locator 校验或 runtime/judge/provenance 分区边界。
+
+### 5. Good/Base/Bad Cases
+
+- Good: 合同确认后题级首问针对本题特有判定依据，题级完成结果继承合同硬门禁，重复 start/answer 仍幂等。
+- Base: Worker 崩溃后依靠 OperationJob lease reclaim 恢复；锁随数据库连接/进程退出释放，不改变 accepted pointer。
+- Bad: 题级重新询问共享任务边界、Fake Worker 抢到生产操作、旧合同迟到结果覆盖新合同、或把 shared contract 写入公开响应；全部拒绝或隔离。
+
+### 6. Tests Required
+
+- 共创 API：场景合同确认 -> 题级 start，断言题级问题不是场景 scope 问题，题级 hard gates 与合同一致。
+- Adapter：无合同的题级 start/resume/reproject 失败；真实 Graph system prompt 包含 confirmed contract，而场景阶段不包含。
+- Worker：SQLite 和 PostgreSQL 锁的第二持有者失败；run_forever 在 claim_next 前失败；既有 handler 异常/lease/complete 语义不回退。
+- Recovery/security：旧合同、重复 command、Checkpoint reproject、跨 workspace 证据、版本三分区和公开 DTO 无新增泄漏。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+    # 只把同一批文件交给新的题级 session，要求模型重新猜共享标准。
+    adapter.start(context, CoCreationKind.task_judgment)
+
+#### Correct
+
+    contract = _shared_contract_for_session(session, package)
+    adapter.start(context, CoCreationKind.task_judgment, contract)
+
 ## Scenario: M0 业务持久化与安全上传
 
 ### 1. Scope / Trigger

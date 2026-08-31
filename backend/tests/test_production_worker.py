@@ -7,6 +7,7 @@ import sys
 import time
 
 import pytest
+from sqlalchemy import create_engine
 
 from app.lib.ai_runtime import get_adapters, reset_adapters
 from app.lib.ai_runtime.checkpoint import (
@@ -16,6 +17,7 @@ from app.lib.ai_runtime.checkpoint import (
 )
 from app.lib.ai_runtime.model import RuntimeModelIdentity
 from app.lib.operations import worker as worker_module
+from app.lib.operations.guard import WorkerAlreadyRunning, worker_process_lock
 from app.lib.settings import settings
 
 
@@ -202,6 +204,16 @@ def test_production_worker_checkpointer_failure_happens_before_any_operation_cla
     assert claimed is False
 
 
+def test_fake_worker_rejects_a_postgres_business_database() -> None:
+    from types import SimpleNamespace
+    from app.lib.ai_runtime.model import ModelConfigurationError
+
+    with pytest.raises(ModelConfigurationError, match="SQLite"):
+        worker_module._assert_fake_worker_database(
+            SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+        )
+
+
 def test_worker_module_help_does_not_emit_runpy_warning() -> None:
     backend_root = Path(__file__).resolve().parents[1]
     result = subprocess.run(
@@ -215,6 +227,78 @@ def test_worker_module_help_does_not_emit_runpy_warning() -> None:
     assert result.returncode == 0
     assert "RuntimeWarning" not in result.stderr
     assert "runpy" not in result.stderr
+
+
+def test_worker_process_lock_blocks_a_second_sqlite_consumer(tmp_path: Path) -> None:
+    database_engine = create_engine(f"sqlite:///{tmp_path / 'business.db'}")
+
+    with worker_process_lock(database_engine):
+        with pytest.raises(WorkerAlreadyRunning, match="another Worker"):
+            with worker_process_lock(database_engine):
+                pass
+
+
+def test_worker_process_lock_uses_postgres_session_advisory_lock() -> None:
+    from types import SimpleNamespace
+
+    state = {"locked": False, "closed": 0}
+
+    class Result:
+        def __init__(self, value: bool) -> None:
+            self.value = value
+
+        def scalar(self) -> bool:
+            return self.value
+
+    class Connection:
+        def execute(self, query, _parameters):
+            if "pg_try_advisory_lock" in str(query):
+                if state["locked"]:
+                    return Result(False)
+                state["locked"] = True
+                return Result(True)
+            if "pg_advisory_unlock" in str(query):
+                state["locked"] = False
+                return Result(True)
+            raise AssertionError(f"unexpected query: {query}")
+
+        def close(self) -> None:
+            state["closed"] += 1
+
+    class Engine:
+        dialect = SimpleNamespace(name="postgresql")
+
+        def connect(self):
+            return Connection()
+
+    database_engine = Engine()
+    with worker_process_lock(database_engine):
+        with pytest.raises(WorkerAlreadyRunning):
+            with worker_process_lock(database_engine):
+                pass
+        assert state["locked"] is True
+    assert state == {"locked": False, "closed": 2}
+
+
+def test_run_forever_does_not_claim_when_worker_lock_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    claimed = False
+
+    @contextmanager
+    def unavailable_lock():
+        raise WorkerAlreadyRunning("another Worker already owns the business database")
+        yield
+
+    def unexpected_claim(_worker_id):
+        nonlocal claimed
+        claimed = True
+        return None
+
+    monkeypatch.setattr("app.lib.operations.guard.worker_process_lock", unavailable_lock)
+    monkeypatch.setattr(worker_module.repository, "claim_next", unexpected_claim)
+
+    with pytest.raises(WorkerAlreadyRunning):
+        worker_module.OperationWorker(worker_id="locked-worker").run_forever(poll_seconds=0)
+    assert claimed is False
 
 
 def test_worker_renews_a_long_running_operation_lease(monkeypatch: pytest.MonkeyPatch) -> None:

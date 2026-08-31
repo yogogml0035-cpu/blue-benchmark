@@ -163,6 +163,23 @@ def result_hash(value: Any) -> str:
     return hashlib.sha256(json.dumps(_json(value), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def _assert_judgment_preserves_contract(
+    session,
+    session_row: CoCreationSessionRow,
+    judgment: JudgmentPackageContent,
+) -> None:
+    if session_row.kind != CoCreationKind.task_judgment.value:
+        return
+    if not session_row.contract_revision_id:
+        raise RepositoryConflict("judgment session has no scenario contract")
+    contract_row = session.get(ScenarioContractRevisionRow, session_row.contract_revision_id)
+    if contract_row is None or contract_row.status != ContractRevisionStatus.confirmed.value:
+        raise RepositoryConflict("judgment session has no confirmed scenario contract")
+    contract = ScenarioContractContent.model_validate(contract_row.contract_json)
+    if any(gate not in judgment.hard_gates for gate in contract.hard_gates):
+        raise RepositoryConflict("judgment package weakens scenario hard gates")
+
+
 def _task(row: TaskPackageRow) -> TaskPackageRecord:
     return TaskPackageRecord(
         id=row.id,
@@ -775,6 +792,7 @@ def commit_agent_result(
             )
             session_row.contract_revision_id = contract_row.id
         if result.judgment_package is not None:
+            _assert_judgment_preserves_contract(session, session_row, result.judgment_package)
             projection["judgment_package"] = result.judgment_package.model_dump(mode="json")
         session_row.projection_json = projection
         session_row.accepted_checkpoint_id = produced_checkpoint_id
@@ -1033,6 +1051,7 @@ def confirm_judgment(
             raise KeyError(row.task_package_id)
         if row.contract_revision_id != task.contract_revision_id:
             raise RepositoryConflict("judgment session uses an outdated contract")
+        _assert_judgment_preserves_contract(session, row, judgment)
         task.judgment_package_json = judgment.model_dump(mode="json")
         task.draft_json = {
             "title": task.title,

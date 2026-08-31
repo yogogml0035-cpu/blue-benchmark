@@ -344,6 +344,11 @@ export function QuestionPage({
           <p className="secondary">
             {cocreationSession.kind === "scenario_contract" ? "场景标准共创" : "题稿共创"} · 修订 {cocreationSession.business_revision}
           </p>
+          {cocreationSession.kind === "task_judgment" && (
+            <p className="secondary">
+              已沿用确认过的场景标准，本轮只补充这道题特有的判定依据。
+            </p>
+          )}
         </div>
 
         {commandFault && (

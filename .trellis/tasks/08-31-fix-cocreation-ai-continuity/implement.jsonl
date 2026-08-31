@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/stub-state-and-contracts.md", "reason": "业务状态、DeepAgent adapter、Checkpointer 与 Worker 的边界"}
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "后端质量门、幂等、恢复、真实 AI 与 Worker 回归要求"}
+{"file": ".trellis/spec/frontend/state-model.md", "reason": "前端服务端快照、共创状态与刷新恢复规则"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "跨层数据流、运行时证据与泄漏检查"}

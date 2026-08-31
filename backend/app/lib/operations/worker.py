@@ -121,16 +121,21 @@ class OperationWorker:
             lease_thread.join(timeout=max(1.0, min(5.0, float(settings.operation_lease_seconds) / 3.0)))
 
     def run_forever(self, poll_seconds: float = 1.0) -> None:
-        while True:
-            try:
-                result = self.run_once()
-            except Exception:
-                # Keep one bad operation from killing the sole consumer. The
-                # operation's own state/error record remains the retry source.
-                time.sleep(poll_seconds)
-                continue
-            if result is None:
-                time.sleep(poll_seconds)
+        from app.lib.operations.guard import worker_process_lock
+
+        with worker_process_lock():
+            while True:
+                try:
+                    result = self.run_once()
+                except Exception:
+                    # Keep one bad operation from killing the sole consumer.
+                    # The operation's own state/error record remains the retry
+                    # source. Lock acquisition happens outside this loop so a
+                    # second Worker fails closed instead of retrying forever.
+                    time.sleep(poll_seconds)
+                    continue
+                if result is None:
+                    time.sleep(poll_seconds)
 
 
 def _build_worker(runtime_mode: str = "fake") -> OperationWorker:
@@ -152,11 +157,21 @@ def _build_worker(runtime_mode: str = "fake") -> OperationWorker:
     return worker
 
 
+def _assert_fake_worker_database(database_engine: Any | None = None) -> None:
+    from app.lib.ai_runtime.model import ModelConfigurationError
+    from app.lib.database import engine as business_engine
+
+    target = database_engine if database_engine is not None else business_engine
+    if target.dialect.name != "sqlite":
+        raise ModelConfigurationError("fake Worker requires a SQLite business database")
+
+
 def default_worker() -> OperationWorker:
     """Build the deterministic Worker used by tests and explicit fake runs."""
 
     from app.lib.ai_runtime import initialize_ai_runtime
 
+    _assert_fake_worker_database()
     initialize_ai_runtime()
     return _build_worker("fake")
 
@@ -190,6 +205,7 @@ def production_worker() -> Iterator[OperationWorker]:
 def fake_worker() -> OperationWorker:
     """Build a deterministic worker for contract and recovery tests."""
 
+    _assert_fake_worker_database()
     worker = OperationWorker(worker_id="fake-worker", runtime_mode="fake")
     for kind in OPERATION_KINDS:
         worker.register(kind, lambda job, operation_kind=kind: {"kind": operation_kind, "target_id": job.target_id})
@@ -209,26 +225,29 @@ if __name__ == "__main__":
     from app.lib.ai_runtime.checkpoint import CheckpointError
     from app.lib.ai_runtime.model import ModelConfigurationError
     from app.lib.settings import settings
+    from app.lib.operations.guard import WorkerLockError, worker_process_lock
 
     args = _parse_args()
     try:
         if args.fake or settings.ai_runtime_mode == "fake":
             worker = default_worker()
             if args.once:
-                result = worker.run_once()
+                with worker_process_lock():
+                    result = worker.run_once()
                 print(result.status.value if result else "idle")
             else:
                 worker.run_forever()
         elif settings.ai_runtime_mode == "production":
             with production_worker() as worker:
                 if args.once:
-                    result = worker.run_once()
+                    with worker_process_lock():
+                        result = worker.run_once()
                     print(result.status.value if result else "idle")
                 else:
                     worker.run_forever()
         else:
             raise ModelConfigurationError("AI_RUNTIME_MODE must be production or fake")
-    except (CheckpointError, ModelConfigurationError) as exc:
+    except (CheckpointError, ModelConfigurationError, WorkerLockError) as exc:
         print(f"Worker startup failed: {exc}", file=sys.stderr)
         raise SystemExit(2) from None
     except Exception as exc:

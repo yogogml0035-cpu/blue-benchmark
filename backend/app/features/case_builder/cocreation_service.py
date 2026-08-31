@@ -305,6 +305,23 @@ def _session_context(session: repository.CoCreationSessionRecord, package: repos
     )
 
 
+def _shared_contract_for_session(
+    session: repository.CoCreationSessionRecord,
+    package: repository.TaskPackageRecord,
+) -> dict[str, Any] | None:
+    if session.kind != CoCreationKind.task_judgment.value:
+        return None
+    contract_id = package.contract_revision_id
+    if not contract_id or session.contract_revision_id != contract_id:
+        from app.lib.operations.worker import SupersededOperation
+
+        raise SupersededOperation("题级共创引用的场景标准已经更新。")
+    contract = repository.get_contract_revision(contract_id)
+    if contract is None or contract.status != ContractRevisionStatus.confirmed.value:
+        raise RuntimeError("task judgment requires a confirmed shared contract")
+    return ScenarioContractContent.model_validate(contract.contract).model_dump(mode="json")
+
+
 def _job_for_session(session: repository.CoCreationSessionRecord) -> OperationJob | None:
     jobs = operation_repository.list_for_target("co_creation_session", session.id)
     for job in jobs:
@@ -764,8 +781,13 @@ def _run_cocreation_agent(job: OperationJob, mode: str) -> dict[str, Any]:
     context = _session_context(session, package)
     adapters = get_adapters()
     try:
+        shared_contract = _shared_contract_for_session(session, package)
         if mode == "start":
-            result = adapters.standard_cocreator.start(context, CoCreationKind(session.kind))
+            result = adapters.standard_cocreator.start(
+                context,
+                CoCreationKind(session.kind),
+                shared_contract,
+            )
         elif mode == "resume":
             turns = repository.list_turns(session.id)
             answered = next((item for item in reversed(turns) if item.status == "answered_pending_resume"), None)
@@ -776,6 +798,7 @@ def _run_cocreation_agent(job: OperationJob, mode: str) -> dict[str, Any]:
                 CoCreationKind(session.kind),
                 session.accepted_checkpoint_id,
                 answered.answer,
+                shared_contract,
             )
         else:
             if not job.accepted_checkpoint_id:
@@ -784,6 +807,7 @@ def _run_cocreation_agent(job: OperationJob, mode: str) -> dict[str, Any]:
                 context,
                 CoCreationKind(session.kind),
                 job.accepted_checkpoint_id,
+                shared_contract,
             )
         if not isinstance(result, AgentRunResult) or not isinstance(result.result, CoCreationAgentResult):
             raise RuntimeError("standard_cocreator returned an invalid result")

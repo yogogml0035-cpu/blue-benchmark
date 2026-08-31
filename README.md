@@ -58,6 +58,8 @@ make worker
 make frontend
 ```
 
+同一个业务数据库只允许一个长驻 Worker。`make start-all` 已经会启动一个 Worker，不要再在其他终端执行 `make worker` 或用另一种 `AI_RUNTIME_MODE` 启动第二个消费者；Worker 会在领取任务前取得数据库级互斥锁。环境变量优先级高于 `.env`，因此显式设置过 `AI_RUNTIME_MODE=fake` 的旧终端仍会使用 Fake，即使 `.env` 写的是 `production`。切换模式前先确认只有一个 Worker 进程，并停止旧进程。
+
 成功标记：
 
 - API 健康检查：<http://127.0.0.1:8000/healthz> 返回 `status=ok`、`persistence=business database`，且 `ai` 与当前 `AI_RUNTIME_MODE` 一致；
@@ -66,7 +68,7 @@ make frontend
 - 前端只请求同源 `/api/*`，Next.js Rewrite 转发到 `BACKEND_URL`；
 - Worker 终端在有任务时逐个处理，空闲时持续等待，不要再启动第二个消费者；它会在配置、Checkpointer 连接或 schema 未就绪时于领取任务前退出。
 
-若 API 进程因 schema 未就绪退出，先运行 `make db-migrate` 和 `make db-check`。若 Worker 报 Checkpointer schema 未就绪，先运行 `make checkpoint-setup`。若页面一直显示“等待后台处理”，检查 Worker 是否连接了同一个 `DATABASE_URL` 和 `STORAGE_ROOT`；端口能打开或返回 HTTP 200 不能代替这项检查。仅用于显式本地演示时，可设置 `AI_RUNTIME_MODE=fake` 或运行 `cd backend && uv run python -m app.lib.operations.worker --fake`，不要用该模式做真实 AI 验收。
+若 API 进程因 schema 未就绪退出，先运行 `make db-migrate` 和 `make db-check`。若 Worker 报 Checkpointer schema 未就绪，先运行 `make checkpoint-setup`。若页面一直显示“等待后台处理”，检查 Worker 是否连接了同一个 `DATABASE_URL` 和 `STORAGE_ROOT`；端口能打开或返回 HTTP 200 不能代替这项检查。仅用于显式本地演示时，可设置 `AI_RUNTIME_MODE=fake` 或运行 `cd backend && uv run python -m app.lib.operations.worker --fake`；Fake Worker 只允许连接 SQLite 业务库，不要用该模式做真实 AI 验收。
 
 ## 合同与自动化验证
 

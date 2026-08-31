@@ -36,7 +36,17 @@ from app.lib.ai_runtime.context import AgentRunContext
 from app.lib.ai_runtime.profile import get_ai_profile
 from app.lib.ai_runtime.evidence import EvidenceDocument, ReadOnlyEvidenceBackend
 from app.lib.ai_runtime.evidence import EvidenceValidationError, validate_evidence_refs
-from app.features.case_builder.cocreation_schemas import AgentEvidenceRef, BatchAnalysis, CoCreationAgentResult, CoCreationKind, CoverageReview, EventLocator, JsonPointerLocator
+from app.features.case_builder.cocreation_schemas import (
+    AgentEvidenceRef,
+    BatchAnalysis,
+    CoCreationAgentResult,
+    CoCreationKind,
+    CoverageReview,
+    EventLocator,
+    JudgmentPackageContent,
+    JsonPointerLocator,
+    ScenarioContractContent,
+)
 from app.lib.ai_runtime.middleware import ModelToolSurfaceMiddleware
 from app.lib.ai_runtime.adapters import _question_from_interrupt
 from langchain.agents.middleware.types import ToolCallRequest
@@ -822,6 +832,70 @@ def test_production_graphs_construct_with_role_specific_tool_surfaces():
     assert not co_tools & {"task", "execute", "write_file", "edit_file", "delete"}
 
 
+def test_real_task_judgment_requires_a_confirmed_shared_contract():
+    profile = get_ai_profile()
+    context = AgentRunContext(
+        user_id="u",
+        workspace_id="w",
+        target_type="task_package",
+        target_id="task",
+        thread_key="task-judgment-contract-required",
+        business_revision=0,
+        evidence_file_ids=(),
+        evidence_scope="/evidence/task-package/task",
+        ai_profile_version=profile.version,
+        graph_schema_version="m0-cocreation-graph-v2",
+    )
+    adapter = DeepAgentsStandardCoCreator(
+        checkpointer=object(),
+        model=ChatOpenAI(
+            model="test-model",
+            api_key="test-secret",
+            base_url="https://models.example/v1",
+            streaming=False,
+        ),
+        model_spec="openai:test-model",
+    )
+
+    with pytest.raises(RuntimeError, match="confirmed shared contract"):
+        adapter.start(context, CoCreationKind.task_judgment)
+
+
+def test_judgment_candidate_cannot_remove_a_shared_hard_gate():
+    from types import SimpleNamespace
+
+    contract = ScenarioContractContent(
+        task_boundary="shared boundary",
+        input_contract=["input"],
+        output_contract=["output"],
+        hard_gates=["shared gate"],
+        quality_dimensions=["quality"],
+        capabilities=["capability"],
+        evidence_refs=[AgentEvidenceRef(source_id="file")],
+    )
+    judgment = JudgmentPackageContent(
+        reference_results=["result"],
+        accepted_reasons=["accepted"],
+        rejected_reasons=["rejected"],
+        hard_gates=["task-only gate"],
+        minimum_quality_line="usable",
+        task_specific_rules=["rule"],
+        capabilities=["capability"],
+        dimensions=["quality"],
+        evidence_refs=[AgentEvidenceRef(source_id="file")],
+    )
+    session_row = SimpleNamespace(kind="task_judgment", contract_revision_id="contract")
+    session = SimpleNamespace(
+        get=lambda _model, _identifier: SimpleNamespace(
+            status="confirmed",
+            contract_json=contract.model_dump(mode="json"),
+        )
+    )
+
+    with pytest.raises(cocreation_repository.RepositoryConflict, match="weakens"):
+        cocreation_repository._assert_judgment_preserves_contract(session, session_row, judgment)
+
+
 def test_production_graph_explicitly_disables_empty_skill_and_memory_sources(monkeypatch: pytest.MonkeyPatch):
     captured: dict[str, object] = {}
 
@@ -836,25 +910,34 @@ def test_production_graph_explicitly_disables_empty_skill_and_memory_sources(mon
         base_url="https://models.example/v1",
         streaming=False,
     )
-    adapter = DeepAgentsCoverageReviewer(model=model, model_spec="openai:test-model")
+    adapter = DeepAgentsStandardCoCreator(model=model, model_spec="openai:test-model")
     context = AgentRunContext(
         user_id="u",
         workspace_id="w",
-        target_type="coverage",
+        target_type="task_package",
         target_id="t",
         thread_key="coverage-no-memory",
         business_revision=0,
         evidence_file_ids=(),
-        evidence_scope="/evidence/none",
+        evidence_scope="/evidence/task-package",
         ai_profile_version=get_ai_profile().version,
         graph_schema_version="m0-cocreation-graph-v2",
     )
 
-    adapter._graph(context, {}, CoverageReview, allowed_tools={"CoverageReview"})
+    adapter._graph(
+        context,
+        {},
+        CoCreationAgentResult,
+        allowed_tools={"ls", "read_file", "glob", "grep", "ask_teacher", "CoCreationAgentResult"},
+        ask_teacher=True,
+        shared_contract={"hard_gates": ["contract-marker"]},
+    )
 
     assert captured["skills"] is None
     assert captured["memory"] is None
     assert captured["store"] is None
+    assert "confirmed_shared_scenario_contract" in captured["system_prompt"]
+    assert "contract-marker" in captured["system_prompt"]
 
 
 def test_teacher_can_split_groups_and_repeat_confirmation_without_duplicates(client: TestClient):
@@ -975,6 +1058,90 @@ def test_cocreation_is_one_question_at_a_time_and_uses_stable_server_thread(clie
     assert len(second["turns"]) == 2
     record = cocreation_repository.get_session(session_id)
     assert record is not None and record.accepted_checkpoint_id
+
+
+def test_task_judgment_inherits_confirmed_contract_instead_of_repeating_scope_questions(client: TestClient):
+    workspace_id, package_id, package_revision = _confirmed_package(client)
+    contract_start = client.post(
+        f"/api/workspaces/{workspace_id}/task-packages/{package_id}/co-creation",
+        json={
+            "command_id": "inheritance-contract-start",
+            "kind": "scenario_contract",
+            "task_package_revision": package_revision,
+        },
+    )
+    assert contract_start.status_code == 202
+    contract_session_id = contract_start.json()["session"]["id"]
+    assert default_worker().run_once().status.value == "succeeded"
+    for index in range(2):
+        session = client.get(
+            f"/api/workspaces/{workspace_id}/co-creation/{contract_session_id}"
+        ).json()["session"]
+        answer = client.post(
+            f"/api/workspaces/{workspace_id}/co-creation/{contract_session_id}/answers",
+            json={
+                "command_id": f"inheritance-contract-answer-{index}",
+                "question_id": session["pending_question"]["id"],
+                "answer": f"老师确认的共享标准 {index + 1}",
+                "business_revision": session["business_revision"],
+            },
+        )
+        assert answer.status_code == 202
+        assert default_worker().run_once().status.value == "succeeded"
+    contract_ready = client.get(
+        f"/api/workspaces/{workspace_id}/co-creation/{contract_session_id}"
+    ).json()["session"]
+    contract_confirmed = client.post(
+        f"/api/workspaces/{workspace_id}/co-creation/{contract_session_id}/contract-confirmation",
+        json={
+            "command_id": "inheritance-contract-confirm",
+            "business_revision": contract_ready["business_revision"],
+        },
+    )
+    assert contract_confirmed.status_code == 200
+    shared_hard_gates = contract_confirmed.json()["session"]["contract"]["hard_gates"]
+
+    package = client.get(
+        f"/api/workspaces/{workspace_id}/task-packages/{package_id}"
+    ).json()["task_package"]
+    judgment_start = client.post(
+        f"/api/workspaces/{workspace_id}/task-packages/{package_id}/co-creation",
+        json={
+            "command_id": "inheritance-judgment-start",
+            "kind": "task_judgment",
+            "task_package_revision": package["revision"],
+        },
+    )
+    assert judgment_start.status_code == 202
+    judgment_session_id = judgment_start.json()["session"]["id"]
+    assert default_worker().run_once().status.value == "succeeded"
+    first_question = client.get(
+        f"/api/workspaces/{workspace_id}/co-creation/{judgment_session_id}"
+    ).json()["session"]
+    assert first_question["pending_question"]["text"] != "这组真实任务共同要判断的最终交付结果是什么？"
+    assert "场景标准" in first_question["pending_question"]["reason"]
+
+    for index in range(2):
+        session = client.get(
+            f"/api/workspaces/{workspace_id}/co-creation/{judgment_session_id}"
+        ).json()["session"]
+        answer = client.post(
+            f"/api/workspaces/{workspace_id}/co-creation/{judgment_session_id}/answers",
+            json={
+                "command_id": f"inheritance-judgment-answer-{index}",
+                "question_id": session["pending_question"]["id"],
+                "answer": f"老师确认的本题判定依据 {index + 1}",
+                "business_revision": session["business_revision"],
+            },
+        )
+        assert answer.status_code == 202
+        assert default_worker().run_once().status.value == "succeeded"
+    judgment = client.get(
+        f"/api/workspaces/{workspace_id}/co-creation/{judgment_session_id}"
+    ).json()["session"]
+    assert judgment["status"] == "ready_for_confirmation"
+    assert judgment["judgment_package"]["hard_gates"] == shared_hard_gates
+    assert "不重复定义已确认的场景标准" in judgment["judgment_package"]["task_specific_rules"][0]
 
 
 def test_cocreation_completion_requires_teacher_confirmation_and_survives_checkpoint_delete(client: TestClient):
