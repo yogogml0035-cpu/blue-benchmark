@@ -15,3 +15,5 @@ storage/skill-eval.db
 backend/storage/
 .local-samples/
 .playwright-cli/
+frontend/playwright-report/
+frontend/test-results/

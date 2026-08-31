@@ -73,6 +73,114 @@ Case 状态变化必须由后端 Service 完成，前端只显示返回快照。
 - 浏览器闭环实际完成：真实前后端交互已验收；
 - 文档或 Mock 写明能力：只代表设计或说明，不能升级为运行证据。
 
+## Authoring conversation release contract
+
+### 1. Scope / Trigger
+
+- Trigger: the first-stage authoring flow adds a database-backed conversation,
+  safe-event stream, candidate question projections, and matching App Router
+  screens.
+- Scope: candidate discovery, teacher-controlled boundaries, input/answer
+  review, recovery, and the cross-layer OpenAPI chain. Rubric publication and
+  human scoring remain separate child tasks.
+
+### 2. Signatures
+
+- `POST /api/workspaces/{workspace_id}/authoring-conversations` creates a
+  `202` conversation using `command_id`, optional `upload_batch_id`, manual
+  instruction/message, and optional teacher reference answer.
+- `POST .../{conversation_id}/messages` accepts a teacher message plus an
+  optional `question_draft_id` and attachment IDs, guarded by
+  `conversation_revision`.
+- Boundary mutations use `action=confirm|split|merge|discard`; input/answer
+  edits use `draft_revision`; all writes carry a stable `command_id`.
+- `authoring_conversations`, `authoring_messages`, `safe_stream_events`, and
+  `benchmark_question_drafts` are forward-only business projections. Safe
+  events retain the latest 500 sequence values per conversation; the GET
+  snapshot remains the recovery authority when older events are compacted.
+
+### 3. Contracts
+
+- Only parsed, non-ignored evidence IDs enter the authoring analyzer. A legacy
+  upload role maps `brief -> brief` and `runtime -> fact`; `judge`,
+  `provenance`, and unknown roles reopen as `unconfirmed`.
+- After boundary confirmation, each active draft uses a distinct internal
+  question-agent thread and accepted checkpoint. The agent may ask one safe
+  Chinese question; only a teacher-marked standard-answer message can become
+  the reference answer.
+- A normal teacher message that answers a pending question is targeted to that
+  draft by the service; the draft stores the prompt sequence so an older
+  targeted answer cannot be replayed as a new response.
+- A projection failure stores the already-validated internal projection in the
+  OperationJob. Retry chooses `authoring_reproject` and commits that payload
+  without another model call; a missing payload is not treated as safely
+  reprojectable.
+- A teacher may edit a local draft while an AI operation is active, but the
+  save/confirm commands stay disabled in the UI and are rejected by the
+  service/repository with `409`.
+- A boundary mutation may target only `candidate` drafts. Once a draft has
+  entered input/answer review or confirmation, its evidence boundary is
+  immutable in this first-stage flow.
+- If a file-backed analyzer returns zero usable groups, the service persists a
+  zero-candidate recoverable state; it must not manufacture an evidence-free
+  question.
+
+### 4. Validation & Error Matrix
+
+- non-owner workspace or conversation -> `403 FORBIDDEN`;
+- unknown conversation/draft -> `404 RESOURCE_NOT_FOUND`;
+- active authoring operation -> `409 AUTHORING_ACTIVE`;
+- stale conversation/draft revision -> `409 STALE_AUTHORING` or
+  `409 STALE_QUESTION_DRAFT`;
+- boundary action on a non-candidate draft -> `409 QUESTION_BOUNDARY_LOCKED`;
+- unconfirmed material role or missing teacher answer -> `409` confirmation
+  error;
+- event kind, payload key, payload size, internal term, or host path outside
+  its allowlist -> reject before persistence;
+- every command replay with the same payload returns the original projection;
+  a different payload returns `409 COMMAND_ID_REUSED`.
+
+### 5. Good/Base/Bad Cases
+
+- Good: a real parsed file yields candidate groups, the teacher confirms or
+  splits them, assigns roles, supplies a teacher answer, and refreshes to the
+  same server snapshot.
+- Base: an analyzer finds no group or all files are ignored; the UI explains
+  the missing evidence and offers recovery instead of showing a confirmable
+  no-evidence draft.
+- Bad: a delayed browser command tries to merge a confirmed draft, or a model
+  emits an ignored/legacy file ID; the request fails closed without changing
+  the existing projection.
+
+### 6. Tests Required
+
+- API tests assert owner isolation, one active operation, command replay and
+  conflict, boundary lock, split/merge/discard evidence coverage, ignored and
+  legacy role handling, safe-event rejection/retention, and recovery states.
+- `make openapi`, `make test`, `make build`, and `git diff --check` must pass.
+- The explicit browser gate must run against a production API, one production
+  Worker, the real Provider, and `/Users/hsikey/BenchMark/EvalData`; assert
+  multi-question creation, a second teacher turn, confirmation, refresh, and
+  no browser console errors.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+# The UI hid the action, so the API accepts any selected draft.
+mutate_boundaries(draft_ids=payload.draft_ids, action=payload.action)
+```
+
+#### Correct
+
+```python
+if any(draft.status != "candidate" for draft in drafts):
+    raise RepositoryConflict("only candidate question draft boundaries can be changed")
+```
+
+The server owns the invariant; UI disabling is only an interaction aid.
+
 ## 真实运行与命令身份检查
 
 - Provider smoke、真实文件读取、HITL resume、业务 projection 和版本下载是不同证据等级；任何一个绿灯不能替代其他层。

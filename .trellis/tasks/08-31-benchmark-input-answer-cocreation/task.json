@@ -3,7 +3,7 @@
   "name": "benchmark-input-answer-cocreation",
   "title": "对话式题目与标准答案共创",
   "description": "将聊天或手动输入通过全中文可恢复会话形成 0..N 道候选题，并由老师确认每道题的题目输入、资料边界和单一标准答案",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -12,7 +12,7 @@
   "assignee": "hsikey",
   "createdAt": "2026-08-31",
   "completedAt": null,
-  "branch": null,
+  "branch": "codex/benchmark-input-answer-cocreation",
   "base_branch": "main",
   "worktree_path": null,
   "commit": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "08-31-conversational-benchmark-authoring",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "2026-09-01: 第一阶段会话、题级独立 question_cocreator/HITL、安全 SSE、投影无模型恢复、前端 transcript/composer/窄屏交互已实现并完成真实 EvalData E2E；待按分支提交、合并 main、复验、归档和删支。",
   "meta": {}
 }

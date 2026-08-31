@@ -1,6 +1,6 @@
 # Skill Eval Platform
 
-这是 M0 评测集工作台：业务老师从真实资料开始，确认任务分组，逐轮形成场景标准和单题判定依据，把选中的题加入唯一下一版草稿，最后冻结为可回查的不可变版本包。
+这是 M0 评测集工作台：业务老师从真实资料开始，在可恢复的建题会话里确认候选题边界、题目输入和单一标准答案；后续再形成评分规则、发布修订并进行人工评分。
 
 当前源码边界：业务事实保存在 SQLAlchemy/Alembic 业务数据库，上传文件保存在服务端文件存储，后台操作由单消费者 Worker 处理。常驻 Worker 默认使用真实 AI；自动化测试和显式 `AI_RUNTIME_MODE=fake` 才使用确定性的 Fake。M2 的 Skill/Agent 执行、评测运行和报告不在当前实现内。
 
@@ -86,6 +86,26 @@ make openapi
 ```
 
 不要手改生成文件。
+
+## 第一阶段：建题会话
+
+当前已实现的第一阶段入口是：
+
+- `/workspaces/{workspace_id}/authoring/new`：绑定上传批次或直接手动输入；
+- `/workspaces/{workspace_id}/authoring/{conversation_id}`：正文式会话记录、候选题轨、边界确认、资料角色、题目输入和标准答案确认。
+
+会话的公开快照来自 FastAPI，安全事件通过有限 SSE 窗口增量读取；SSE 断线不会取消后台 Worker，刷新后仍以 GET 快照恢复。AI 候选不会自动成为标准答案，未经过老师显式确认的题目不能进入下一阶段。旧 `/cases` 和旧工作台路由仍保留兼容，不与新会话并行维护第二个编辑器。
+
+前端真实 AI 浏览器验收是显式命令，默认不会在 CI 中运行：
+
+```bash
+E2E_REAL_AI=1 \
+E2E_TIMEOUT_MS=1800000 \
+PLAYWRIGHT_CHROMIUM_PATH="/path/to/chromium" \
+pnpm --dir frontend test:e2e:authoring
+```
+
+用例只读取调用者指定的 `/Users/hsikey/BenchMark/EvalData` 三个文件，输出阶段断言，不打印资料正文；它要求 API、单个生产 Worker 和前端已分别启动。题目边界确认后，每道题通过独立的题级 Agent 追问和 checkpoint 恢复，标准答案仍必须由老师显式提供或认可。
 
 ## 显式真实样本验收
 

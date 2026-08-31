@@ -29,6 +29,9 @@ make test
 - [ ] 上传在同一表单重试复用稳定 command；静默轮询遇到 401/403/404 清空旧内容，workspace/batch 变化后的迟到响应被丢弃。
 - [ ] 任务分组回归覆盖 `task_packages=[]` 的零候选但有可用资料、分析进行中、全部资料 ignored 三种状态；前者可手动确认，后两者不能展示可确认编辑器且必须有明确出口。
 - [ ] `projection_pending` 不被伪装成普通处理中，页面提供服务端重投影/重试动作。
+- [ ] authoring 的 SSE 空 heartbeat 不能结束状态读取；必须用带 cleanup 的递归 GET 回退持续读取，直到服务端状态离开 `queued|processing|projection_pending`，且不能在同一页面并发无限请求。
+- [ ] 题级 Agent 等待期间保留题稿本地编辑器但关闭保存/确认；`waiting_for_teacher` 先按 pending question 的类型把输入导向标准答案或普通补充消息，不能因题稿卡片存在而跳过待答问题。
+- [ ] `舍弃`、`合并`等会改变题目边界的高后果动作使用现有 `ConfirmSheet` 二次确认，确认后仍以服务端 CAS 响应更新页面。
 - [ ] 新状态已同步 `STATE_META`、进度派生、错误视图和预演 fixture。
 - [ ] 表单标签、键盘操作、焦点、busy、alert 与 reduced-motion 没有回退。
 - [ ] 样式复用全局 token；大块 Feature 样式在 colocated CSS Module。
