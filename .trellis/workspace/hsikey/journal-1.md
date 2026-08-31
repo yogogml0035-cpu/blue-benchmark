@@ -221,3 +221,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 10: M0 真实 AI E2E 重跑与对抗加固
+<!-- trellis-session: v=2 fp=5acac76663dbbacd -->
+
+**Date**: 2026-08-31
+**Task**: M0 真实 AI E2E 重跑与对抗加固
+**Branch**: `main`
+
+### Summary
+
+按归档 M0 需求使用 EvalData 三份真实文件重跑 Provider/Worker/PostgreSQL/API/版本包和浏览器链路；修复分组顺序、projection/lease/合同/证据/前端迟到状态与 Fake Worker 验收冒充边界，完成两轮对抗回归并在 main 复验。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6eadc16` | fix: harden M0 real AI E2E boundaries |
+| `a631041` | docs: record M0 main E2E rerun evidence |
+
+### Status
+
+[OK] **Completed**
