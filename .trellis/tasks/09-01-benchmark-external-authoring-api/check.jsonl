@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/errors-and-api-responses.md", "reason": "凭证、越权、过期和上传错误矩阵"}
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "租户隔离、幂等、并发和泄漏质量门"}
+{"file": ".trellis/spec/frontend/quality-and-verification.md", "reason": "连接 UI、生成合同和浏览器验收"}

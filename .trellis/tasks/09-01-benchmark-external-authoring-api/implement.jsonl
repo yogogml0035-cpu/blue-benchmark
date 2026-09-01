@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/structure-and-boundaries.md", "reason": "外部认证 Feature、Service 和 Repository 所有权"}
+{"file": ".trellis/spec/backend/stub-state-and-contracts.md", "reason": "账号、Workspace、持久化与命令合同"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "外部 Schema、OpenAPI、连接 UI 和草稿数据流"}

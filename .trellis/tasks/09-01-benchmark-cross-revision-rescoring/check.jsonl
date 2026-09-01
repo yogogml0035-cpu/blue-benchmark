@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "迁移、权限、并发和回归质量门"}
+{"file": ".trellis/spec/frontend/quality-and-verification.md", "reason": "类型、构建、E2E 和响应式检查"}
+{"file": ".trellis/tasks/08-31-conversational-benchmark-authoring/research/first-principles-realignment-2026-09-01.md", "reason": "核对不可变待评结果和每条评分自带修订的决策"}
