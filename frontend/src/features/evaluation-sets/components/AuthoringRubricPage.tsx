@@ -307,7 +307,7 @@ function CriterionEditor({
       </div>
       <div className={styles.criterionGrid}>
         <Field htmlFor={`criterion-reference-${criterion.id}`} label="标准答案期望得分">
-          <input className="control" disabled={disabled} max={criterion.max_score} min={0} onChange={(event) => onChange({ reference_expected_score: Number(event.target.value) || 0 })} type="number" value={criterion.reference_expected_score} />
+          <input className="control" disabled={disabled} id={`criterion-reference-${criterion.id}`} max={criterion.max_score} min={0} onChange={(event) => onChange({ reference_expected_score: Number(event.target.value) || 0 })} type="number" value={criterion.reference_expected_score} />
         </Field>
         <div />
       </div>
