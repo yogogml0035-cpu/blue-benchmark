@@ -41,7 +41,17 @@ export const RUBRIC_PREVIEW_STATES = [
 ] as const;
 
 export type RubricPreviewState = (typeof RUBRIC_PREVIEW_STATES)[number];
-export type PreviewBarState = PreviewState | AuthoringPreviewState | RubricPreviewState;
+export const HUMAN_SCORING_PREVIEW_STATES = [
+  "human_entry",
+  "human_invalid",
+  "human_draft",
+  "human_submitted",
+  "human_rescore",
+  "human_history",
+] as const;
+
+export type HumanScoringPreviewState = (typeof HUMAN_SCORING_PREVIEW_STATES)[number];
+export type PreviewBarState = PreviewState | AuthoringPreviewState | RubricPreviewState | HumanScoringPreviewState;
 
 export const PREVIEW_ENABLED = process.env.NODE_ENV !== "production";
 
@@ -65,6 +75,12 @@ const LABELS: Record<PreviewBarState, string> = {
   rubric_failed: "规则失败",
   rubric_published: "规则已发布",
   rubric_stale: "规则已过期",
+  human_entry: "提交入口",
+  human_invalid: "无效答卷",
+  human_draft: "评分草稿",
+  human_submitted: "已提交",
+  human_rescore: "重新评分",
+  human_history: "评分历史",
 };
 
 export function usePreviewState(): PreviewState | null {
@@ -88,6 +104,15 @@ export function useRubricPreviewState(): RubricPreviewState | null {
   if (!PREVIEW_ENABLED) return null;
   const value = params.get("preview");
   return RUBRIC_PREVIEW_STATES.find((state) => state === value) ?? null;
+}
+
+export function useHumanScoringPreviewState(): PreviewState | HumanScoringPreviewState | null {
+  const standard = usePreviewState();
+  const params = useSearchParams();
+  if (standard) return standard;
+  if (!PREVIEW_ENABLED) return null;
+  const value = params.get("preview");
+  return HUMAN_SCORING_PREVIEW_STATES.find((state) => state === value) ?? null;
 }
 
 export function PreviewBar({ states }: { states: readonly PreviewBarState[] }) {

@@ -12,6 +12,7 @@
 | [前端状态模型](./state-model.md) | 修改服务端资源快照、Case 状态、表单或错误状态 |
 | [类型与 API 合同](./type-and-api-contracts.md) | 修改 DTO、OpenAPI、Feature Service 或生成类型 |
 | [前端质量与验证](./quality-and-verification.md) | Review、类型检查、构建和人工状态验收 |
+| [人工评分](./human-scoring.md) | 答卷入口、双区评分页、历史、条件理由和可访问性 |
 
 ## 开发前检查
 

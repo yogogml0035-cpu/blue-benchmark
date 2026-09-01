@@ -1010,6 +1010,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/question-revisions/{question_revision_id}/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Pasted Submission */
+        post: operations["create_pasted_submission_api_workspaces__workspace_id__question_revisions__question_revision_id__submissions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/question-revisions/{question_revision_id}/submissions/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Uploaded Submission */
+        post: operations["create_uploaded_submission_api_workspaces__workspace_id__question_revisions__question_revision_id__submissions_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/submissions/{submission_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Submission */
+        get: operations["get_submission_api_workspaces__workspace_id__submissions__submission_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/submissions/{submission_id}/scores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Score History */
+        get: operations["get_score_history_api_workspaces__workspace_id__submissions__submission_id__scores_get"];
+        put?: never;
+        /** Submit Score */
+        post: operations["submit_score_api_workspaces__workspace_id__submissions__submission_id__scores_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1302,6 +1371,13 @@ export interface components {
             task_description?: string | null;
             /** Command Id */
             command_id?: string | null;
+        };
+        /** Body_create_uploaded_submission_api_workspaces__workspace_id__question_revisions__question_revision_id__submissions_upload_post */
+        Body_create_uploaded_submission_api_workspaces__workspace_id__question_revisions__question_revision_id__submissions_upload_post: {
+            /** Command Id */
+            command_id: string;
+            /** File */
+            file: string[];
         };
         /** BuilderSnapshot */
         BuilderSnapshot: {
@@ -1827,6 +1903,68 @@ export interface components {
             /** Ai */
             ai: string;
         };
+        /** HumanScoreHistoryResponse */
+        HumanScoreHistoryResponse: {
+            /** Submission Id */
+            submission_id: string;
+            /** Scores */
+            scores?: components["schemas"]["HumanScoreView"][];
+        };
+        /** HumanScoreItemView */
+        HumanScoreItemView: {
+            /** Criterion Id */
+            criterion_id: string;
+            /** Score */
+            score: number;
+            /** Reason */
+            reason?: string | null;
+            /** Hard Fail Triggered */
+            hard_fail_triggered?: boolean | null;
+            /** Critical Passed */
+            critical_passed: boolean;
+        };
+        /** HumanScoreResponse */
+        HumanScoreResponse: {
+            score: components["schemas"]["HumanScoreView"];
+        };
+        /** HumanScoreView */
+        HumanScoreView: {
+            /** Id */
+            id: string;
+            /** Submission Id */
+            submission_id: string;
+            /** Question Revision Id */
+            question_revision_id: string;
+            /** Parent Score Id */
+            parent_score_id?: string | null;
+            /**
+             * Status
+             * @constant
+             */
+            status: "submitted";
+            /** Items */
+            items: components["schemas"]["HumanScoreItemView"][];
+            /** Overall Reason */
+            overall_reason?: string | null;
+            /** Total Score */
+            total_score: number;
+            /** Critical Passed */
+            critical_passed: boolean;
+            /** Passed */
+            passed: boolean;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+        };
+        /** HumanSubmissionResponse */
+        HumanSubmissionResponse: {
+            submission: components["schemas"]["SubmissionView"];
+            question_revision: components["schemas"]["QuestionRevisionView"];
+            /** Scores */
+            scores?: components["schemas"]["HumanScoreView"][];
+        };
         /** ImpactReviewDecisionRequest */
         ImpactReviewDecisionRequest: {
             /** Command Id */
@@ -2186,6 +2324,24 @@ export interface components {
              */
             action: "include" | "remove";
         };
+        /** QuestionRevisionView */
+        QuestionRevisionView: {
+            /** Id */
+            id: string;
+            /** Revision Number */
+            revision_number: number;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            question_input: components["schemas"]["QuestionInput"];
+            /** Reference Answer Text */
+            reference_answer_text: string;
+            /** Criteria */
+            criteria: components["schemas"]["RubricCriterion"][];
+            /** Pass Threshold */
+            pass_threshold: number;
+        };
         /** ReferenceOutcome */
         ReferenceOutcome: {
             /** Accepted Result */
@@ -2414,6 +2570,28 @@ export interface components {
             /** Evidence Refs */
             evidence_refs: components["schemas"]["AgentEvidenceRef"][];
         };
+        /** ScoreCreateRequest */
+        ScoreCreateRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Items */
+            items: components["schemas"]["ScoreItemInput"][];
+            /** Overall Reason */
+            overall_reason?: string | null;
+            /** Parent Score Id */
+            parent_score_id?: string | null;
+        };
+        /** ScoreItemInput */
+        ScoreItemInput: {
+            /** Criterion Id */
+            criterion_id: string;
+            /** Score */
+            score: number;
+            /** Reason */
+            reason?: string | null;
+            /** Hard Fail Triggered */
+            hard_fail_triggered?: boolean | null;
+        };
         /** SkillAttemptInput */
         SkillAttemptInput: {
             /** Attempt Key */
@@ -2447,6 +2625,42 @@ export interface components {
             latest_receipt?: components["schemas"]["OperationReceipt"] | null;
             /** Blocking Issues */
             blocking_issues?: string[];
+        };
+        /** SubmissionCreateRequest */
+        SubmissionCreateRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Content Text */
+            content_text: string;
+        };
+        /** SubmissionView */
+        SubmissionView: {
+            /** Id */
+            id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Question Revision Id */
+            question_revision_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "paste" | "file";
+            /** Original Name */
+            original_name?: string | null;
+            /** Media Type */
+            media_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Sha256 */
+            sha256: string;
+            /** Content Text */
+            content_text: string;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
         };
         /** TaskGroupInput */
         TaskGroupInput: {
@@ -6888,6 +7102,430 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RubricDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_pasted_submission_api_workspaces__workspace_id__question_revisions__question_revision_id__submissions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                question_revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmissionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HumanSubmissionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_uploaded_submission_api_workspaces__workspace_id__question_revisions__question_revision_id__submissions_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                question_revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_create_uploaded_submission_api_workspaces__workspace_id__question_revisions__question_revision_id__submissions_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HumanSubmissionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_submission_api_workspaces__workspace_id__submissions__submission_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HumanSubmissionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_score_history_api_workspaces__workspace_id__submissions__submission_id__scores_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HumanScoreHistoryResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    submit_score_api_workspaces__workspace_id__submissions__submission_id__scores_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScoreCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HumanScoreResponse"];
                 };
             };
             /** @description Unauthorized */

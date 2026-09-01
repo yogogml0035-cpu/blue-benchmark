@@ -27,12 +27,18 @@ test.skip(process.env.E2E_REAL_AI !== "1", "需要 E2E_REAL_AI=1 才执行真实
 
 test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
   const consoleErrors: string[] = [];
+  const scoreRequestBodies: Record<string, unknown>[] = [];
   page.on("console", (message) => {
     if (message.type() === "error" && !message.text().includes("401")) {
       consoleErrors.push(message.text());
     }
   });
   page.on("pageerror", (error) => consoleErrors.push(error.message));
+  page.on("request", (request) => {
+    if (request.method() !== "POST" || !request.url().includes("/submissions/") || !request.url().endsWith("/scores")) return;
+    const body = request.postData();
+    if (body) scoreRequestBodies.push(JSON.parse(body) as Record<string, unknown>);
+  });
 
   const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const username = `authoring-e2e-${nonce}`;
@@ -179,6 +185,55 @@ test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
   await page.getByRole("button", { name: "确认发布", exact: true }).click();
   await expect(page.getByTestId("rubric-status")).toHaveText("已发布", { timeout: 30_000 });
   await expect(page.getByText("已发布修订")).toBeVisible();
+
+  // Human scoring is intentionally not an AI operation. The answer itself is
+  // still a real EvalData file, and the page must bind it to the exact
+  // published revision returned by the real provider/worker flow above.
+  await page.getByRole("link", { name: "提交待评答卷" }).click();
+  await expect(page).toHaveURL(/\/question-revisions\/[0-9a-f-]+\/submissions\/new$/);
+  await page.getByRole("button", { name: "上传文件" }).click();
+  await page.locator('input[type="file"]').setInputFiles(SAMPLE_FILES[2]);
+  await page.getByRole("button", { name: "保存并开始评分" }).click();
+  await expect(page).toHaveURL(/\/submissions\/[0-9a-f-]+$/);
+  await expect(page.getByTestId("human-scoring-page")).toBeVisible();
+
+  const criteria = page.locator('article[data-testid^="criterion-"]');
+  await expect(criteria.first()).toBeVisible();
+  expect(await criteria.count()).toBeGreaterThan(0);
+  for (let index = 0; index < await criteria.count(); index += 1) {
+    const criterion = criteria.nth(index);
+    const score = criterion.getByLabel("待评得分");
+    const maximum = await score.getAttribute("max");
+    await score.fill(maximum ?? "0");
+    const safeHardFail = criterion.getByLabel("未命中");
+    if (await safeHardFail.count() > 0) await safeHardFail.check();
+  }
+  await page.getByRole("button", { name: "提交评分" }).click();
+  await expect(page.getByTestId("score-result")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("score-history")).toContainText("1 次");
+  expect(scoreRequestBodies.length).toBe(1);
+  expect(scoreRequestBodies[0]).not.toHaveProperty("total_score");
+  expect(scoreRequestBodies[0]).not.toHaveProperty("passed");
+  expect(scoreRequestBodies[0]).not.toHaveProperty("critical_passed");
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "重新评分" })).toBeVisible();
+  await page.getByRole("button", { name: "重新评分" }).click();
+  const firstCriterion = page.locator('article[data-testid^="criterion-"]').first();
+  await firstCriterion.getByLabel("待评得分").fill("0");
+  const firstSafeHardFail = firstCriterion.getByLabel("未命中");
+  if (await firstSafeHardFail.count() > 0) await firstSafeHardFail.check();
+  await firstCriterion.getByLabel(/评分理由/).fill("本轮复核发现第一项没有达到标准答案锚点。");
+  await page.getByRole("button", { name: "保存重新评分" }).click();
+  await expect(page.getByTestId("score-history")).toContainText("2 次", { timeout: 30_000 });
+  expect(scoreRequestBodies.length).toBe(2);
+  expect(scoreRequestBodies[1]).not.toHaveProperty("total_score");
+  expect(scoreRequestBodies[1]).not.toHaveProperty("passed");
+  expect(scoreRequestBodies[1]).not.toHaveProperty("critical_passed");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileWidths = await page.evaluate(() => ({ body: document.body.scrollWidth, viewport: window.innerWidth }));
+  expect(mobileWidths.body).toBeLessThanOrEqual(mobileWidths.viewport);
 
   expect(consoleErrors).toEqual([]);
 });

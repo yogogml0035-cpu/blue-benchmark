@@ -1,6 +1,18 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -576,6 +588,7 @@ class BenchmarkQuestionRevisionRow(Base):
     __table_args__ = (
         UniqueConstraint("question_draft_id", "revision_number", name="uq_benchmark_question_revision_number"),
         UniqueConstraint("question_draft_id", "content_sha256", name="uq_benchmark_question_revision_hash"),
+        UniqueConstraint("id", "workspace_id", name="uq_benchmark_question_revision_workspace_identity"),
         Index("ix_benchmark_question_revision_workspace", "workspace_id", "revision_number"),
     )
 
@@ -597,4 +610,94 @@ class BenchmarkQuestionRevisionRow(Base):
     content_sha256: Mapped[str] = mapped_column(String(64))
     published_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class EvaluationSubmissionRow(Base):
+    """A ready, immutable-at-source answer submitted for human review."""
+
+    __tablename__ = "evaluation_submissions"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "command_id", name="uq_evaluation_submission_command"),
+        UniqueConstraint("content_storage_key", name="uq_evaluation_submission_storage_key"),
+        UniqueConstraint("id", "question_revision_id", name="uq_evaluation_submission_revision_identity"),
+        CheckConstraint("source IN ('paste', 'file')", name="ck_evaluation_submission_source"),
+        CheckConstraint("size_bytes > 0 AND size_bytes <= 1048576", name="ck_evaluation_submission_size"),
+        CheckConstraint("length(sha256) = 64", name="ck_evaluation_submission_sha256"),
+        ForeignKeyConstraint(
+            ["question_revision_id", "workspace_id"],
+            ["benchmark_question_revisions.id", "benchmark_question_revisions.workspace_id"],
+            name="fk_evaluation_submission_question_revision_workspace",
+        ),
+        Index("ix_evaluation_submission_workspace_created", "workspace_id", "submitted_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    question_revision_id: Mapped[str] = mapped_column(String(36), index=True)
+    content_storage_key: Mapped[str] = mapped_column(String(512))
+    source: Mapped[str] = mapped_column(String(16))
+    original_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    media_type: Mapped[str] = mapped_column(String(255))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    command_id: Mapped[str] = mapped_column(String(255))
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    submitted_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class HumanScoreRow(Base):
+    """A submitted score; there is deliberately no mutable draft state."""
+
+    __tablename__ = "human_scores"
+    __table_args__ = (
+        UniqueConstraint("submission_id", "command_id", name="uq_human_score_command"),
+        UniqueConstraint("id", "submission_id", name="uq_human_score_submission_identity"),
+        CheckConstraint("status = 'submitted'", name="ck_human_score_status"),
+        CheckConstraint("total_score >= 0 AND total_score <= 100", name="ck_human_score_total"),
+        ForeignKeyConstraint(
+            ["submission_id", "question_revision_id"],
+            ["evaluation_submissions.id", "evaluation_submissions.question_revision_id"],
+            name="fk_human_score_submission_revision",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["parent_score_id", "submission_id"],
+            ["human_scores.id", "human_scores.submission_id"],
+            name="fk_human_score_parent_submission",
+            ondelete="CASCADE",
+        ),
+        Index("ix_human_score_submission_submitted", "submission_id", "submitted_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    submission_id: Mapped[str] = mapped_column(String(36), index=True)
+    question_revision_id: Mapped[str] = mapped_column(String(36), index=True)
+    parent_score_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(16), default="submitted")
+    total_score: Mapped[int] = mapped_column(Integer)
+    critical_passed: Mapped[bool] = mapped_column(Boolean)
+    passed: Mapped[bool] = mapped_column(Boolean)
+    overall_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    command_id: Mapped[str] = mapped_column(String(255))
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    scored_by: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class HumanScoreItemRow(Base):
+    __tablename__ = "human_score_items"
+    __table_args__ = (
+        UniqueConstraint("score_id", "criterion_id", name="uq_human_score_item_criterion"),
+        CheckConstraint("score >= 0 AND score <= 100", name="ck_human_score_item_score"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    score_id: Mapped[str] = mapped_column(ForeignKey("human_scores.id", ondelete="CASCADE"), index=True)
+    criterion_id: Mapped[str] = mapped_column(String(64))
+    score: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    hard_fail_triggered: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    critical_passed: Mapped[bool] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

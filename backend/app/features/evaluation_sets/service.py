@@ -68,6 +68,26 @@ def _authorized_draft(workspace_id: str, draft_id: str, user: UserRecord) -> rep
     return draft
 
 
+def get_published_question_revision(
+    workspace_id: str,
+    revision_id: str,
+) -> rubric_repository.QuestionRevisionRecord:
+    """Expose the immutable scoring snapshot to sibling features.
+
+    Consumers must use this service boundary instead of reaching into the
+    rubric repository. Authorization of the current user remains at the HTTP
+    feature boundary; this function only validates the already-scoped
+    workspace identity and published revision.
+    """
+
+    revision = rubric_repository.get_revision(revision_id)
+    if revision is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "已发布的题目修订不存在。")
+    if revision.workspace_id != workspace_id:
+        raise AppError(403, "FORBIDDEN", "你无权使用这道题目修订。")
+    return revision
+
+
 def _active_operation(draft_id: str) -> OperationJob | None:
     jobs = operation_repository.list_for_target("working_set_draft", draft_id)
     for job in jobs:

@@ -69,6 +69,25 @@ def test_storage_uses_server_keys_and_hashes_content(tmp_path):
         storage.read_bytes("/etc/passwd")
 
 
+def test_storage_publish_does_not_overwrite_and_reconciles_human_submission_orphans(tmp_path):
+    storage = LocalStorage(tmp_path)
+    first = storage.stage_bytes("batch-a", "file", b"first")
+    storage.publish(first.key, "evidence/batch-a/file")
+    replacement = storage.stage_bytes("batch-b", "file", b"replacement")
+    with pytest.raises(StorageError, match="already exists"):
+        storage.publish(replacement.key, "evidence/batch-a/file")
+    assert storage.read_bytes("evidence/batch-a/file") == b"first"
+    storage.delete(replacement.key)
+
+    orphan_id = "11111111-1111-4111-8111-111111111111"
+    staged = storage.stage_bytes(f"human-scoring/{orphan_id}", "content", b"orphan")
+    storage.publish(staged.key, f"submissions/{orphan_id}/content")
+    assert storage.is_ready(f"submissions/{orphan_id}/content")
+    assert storage.reconcile_submission_objects(set()) >= 1
+    assert not (tmp_path / "submissions" / orphan_id).exists()
+    assert not (tmp_path / "staging" / "human-scoring" / orphan_id).exists()
+
+
 def test_upload_batch_returns_202_and_read_only_polling(client: TestClient):
     workspace_id = _setup(client)
     response = client.post(

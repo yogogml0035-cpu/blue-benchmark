@@ -11,6 +11,7 @@ storage/uploads/
 storage/evidence/
 storage/versions/
 storage/staging/
+storage/submissions/
 storage/skill-eval.db
 backend/storage/
 .local-samples/

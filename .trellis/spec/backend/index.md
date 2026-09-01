@@ -11,6 +11,7 @@
 | [错误与 API 响应](./errors-and-api-responses.md) | 新增错误分支、状态码、异常处理或前后端错误合同 |
 | [后端质量与测试](./quality-and-tests.md) | 编写或审查后端代码、补充 API 测试、执行质量门 |
 | [评测集版本与版本包](./evaluation-sets.md) | 修改 WorkingSetDraft、合同影响、覆盖检查、freeze 或三分区包 |
+| [人工评分](./human-scoring.md) | 新增答卷提交、人工评分、重评历史、正文存储或相关迁移 |
 
 ## 开发前检查
 

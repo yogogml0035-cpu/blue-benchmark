@@ -14,6 +14,8 @@ from app.features.case_builder.authoring_router import router as authoring_route
 from app.features.workspaces.router import router as workspaces_router
 from app.features.evaluation_sets.router import router as evaluation_sets_router
 from app.features.evaluation_sets.rubric_router import router as rubric_router
+from app.features.human_scoring.router import router as human_scoring_router
+from app.features.human_scoring import service as human_scoring_service
 from app.lib.errors import AppError, app_error_handler, error_response, validation_error_handler
 from app.lib.database import check_schema_ready
 from app.lib.schemas import HealthResponse
@@ -22,8 +24,10 @@ from app.lib.settings import settings
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    if settings.database_schema_check_on_startup and not check_schema_ready():
-        raise RuntimeError("business schema is not ready; run: make db-migrate")
+    if settings.database_schema_check_on_startup:
+        if not check_schema_ready():
+            raise RuntimeError("business schema is not ready; run: make db-migrate")
+        human_scoring_service.reconcile_submission_storage()
     yield
 
 
@@ -73,3 +77,4 @@ app.include_router(cocreation_router, prefix="/api")
 app.include_router(authoring_router, prefix="/api")
 app.include_router(evaluation_sets_router, prefix="/api")
 app.include_router(rubric_router, prefix="/api")
+app.include_router(human_scoring_router, prefix="/api")

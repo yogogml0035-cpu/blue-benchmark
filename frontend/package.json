@@ -9,7 +9,8 @@
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
     "generate:api": "openapi-typescript ../backend/openapi.json -o src/lib/api/generated.ts",
-    "test:e2e:authoring": "playwright test e2e/authoring.spec.ts"
+    "test:e2e:authoring": "playwright test e2e/authoring.spec.ts",
+    "test:e2e:human-scoring": "playwright test e2e/human-scoring.spec.ts"
   },
   "dependencies": {
     "next": "15.5.9",

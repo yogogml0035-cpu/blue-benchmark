@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import tempfile
+from uuid import UUID
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -27,7 +29,7 @@ class StoredObject:
 class LocalStorage:
     """A key-addressed local store that never accepts user paths as keys."""
 
-    _NAMESPACES = frozenset({"uploads", "evidence", "versions", "staging"})
+    _NAMESPACES = frozenset({"uploads", "evidence", "versions", "submissions", "staging"})
 
     def __init__(self, root: Path | None = None) -> None:
         self.root = (root or settings.storage_root).expanduser().resolve()
@@ -61,8 +63,23 @@ class LocalStorage:
         final = self._path_for_key(final_key)
         if not staged.is_file():
             raise StorageError("staged object is missing")
+        if self._ready_path(final).exists():
+            raise StorageError("final storage object already exists")
         final.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(staged, final)
+        try:
+            # A hard link is atomic and fails if the destination already
+            # exists; os.replace would silently overwrite an immutable object
+            # under a rare key collision or concurrent publish.
+            os.link(staged, final)
+            os.unlink(staged)
+        except FileExistsError as exc:
+            raise StorageError("final storage object already exists") from exc
+        except Exception:
+            try:
+                final.unlink()
+            except FileNotFoundError:
+                pass
+            raise
         try:
             self._atomic_write(self._ready_path(final), b"ready\n")
         except Exception:
@@ -98,6 +115,43 @@ class LocalStorage:
             self._ready_path(path).unlink()
         except FileNotFoundError:
             return
+
+    def reconcile_submission_objects(self, live_submission_ids: set[str]) -> int:
+        """Remove only human-scoring objects with no committed DB row.
+
+        A process can die after publishing a ready object but before its
+        database transaction commits. The human-scoring namespace is isolated
+        so the next API start can safely reclaim that exact orphan without
+        touching evidence, versions, or uploads. Staging uses its own prefix
+        for the same reason.
+        """
+
+        removed = 0
+        roots = (
+            self.root / "submissions",
+            self.root / "staging" / "human-scoring",
+        )
+        for root in roots:
+            if not root.is_dir() or root.is_symlink():
+                continue
+            for child in root.iterdir():
+                if child.is_symlink() or not child.is_dir():
+                    continue
+                try:
+                    submission_id = str(UUID(child.name))
+                except ValueError:
+                    continue
+                if submission_id in live_submission_ids:
+                    continue
+                try:
+                    shutil.rmtree(child)
+                except FileNotFoundError:
+                    # Another API process may have reclaimed the same orphan
+                    # between iteration and deletion. Reconciliation is
+                    # intentionally idempotent.
+                    continue
+                removed += 1
+        return removed
 
     def exists(self, key: str) -> bool:
         path = self._path_for_key(key)

@@ -123,6 +123,15 @@ cd backend && uv run python scripts/accept_real_samples.py --samples-dir /Users/
 
 发布会创建不可变 `BenchmarkQuestionRevision`。在“版本”工作台中，已发布题目修订会和旧 `TaskPackage` 一起显示，可加入同一个 Working Set；只要包含新题目修订，冻结包使用 `m0-evaluation-package-v2`，`runtime.json` 不含标准答案、rubric、通过线或形成记录，v1 历史包仍按原 schema 和 hash 读取。
 
+## 第三阶段：待评答卷与人工评分
+
+发布后的题目修订可从版本工作台或规则发布页进入：
+
+- `/workspaces/{workspace_id}/question-revisions/{question_revision_id}/submissions/new`：粘贴一份文本，或上传单个 UTF-8 `.md` / `.txt` 文件，大小不超过 1 MiB；
+- `/workspaces/{workspace_id}/submissions/{submission_id}`：阅读这一份独立答卷，按发布快照逐项填写分数、关键项判定和必要理由。
+
+答卷只绑定一条已发布题目修订。评分不调用 AI，服务端从不可变 rubric 重新计算总分、关键项和通过结果；提交后评分不可覆盖，重新评分会新增 parent-linked 历史。答卷正文只在当前账号的授权详情接口返回，不能进入日志、Worker 运行元数据或版本包。
+
 ## 浏览器人工验收路径
 
 真实浏览器路径必须使用运行中的 API、单个 Worker 和前端，不以 Preview、静态截图、文档或 HTTP 200 作为闭环证据：
@@ -137,6 +146,7 @@ cd backend && uv run python scripts/accept_real_samples.py --samples-dir /Users/
 8. 冻结版本后打开历史版本详情并下载完整包。解包确认只有 `manifest.json`、`runtime.json`、`judge.json`、`provenance.json`；检查 Manifest、三个分区 hash 和下载响应头一致，`runtime` 不含参考结果、评分规则、attempts、老师判断或形成记录。
 9. 在资料整理、等待回答、回答已保存但 Worker 尚未恢复、冻结排队时刷新或关闭重开页面；确认状态只由服务端快照恢复，重复点击不会产生第二个任务、回答或版本。
 10. 删除已完成共创的 Checkpoint thread 后回查题、场景标准、形成记录和版本包；活动中的待答会话不能被清理流程误删。另用第二个账号访问第一个账号的场景、题和版本，必须得到 `403` 且不渲染私有内容。
+11. 从已发布题目进入人工评分，使用一份本地 Markdown 答卷；逐项填写分数，低于标准答案期望得分时填写理由，提交后刷新确认页面变为只读结果。点击“重新评分”提交第二条记录，确认历史保留且 parent link 正确；检查 390px 窄屏、键盘焦点、硬失败判定和无横向溢出。
 
 当前 M0 只验收主观型文案/新闻稿场景。通过当前回归集不等于 Skill 已全面可靠；覆盖风险和样本边界必须随冻结版本保留。
 

@@ -1532,6 +1532,13 @@ function DraftPanel({
                   >
                     加入下一版
                   </Button>
+                  <ButtonLink
+                    href={`/workspaces/${workspaceId}/question-revisions/${revision.id}/submissions/new`}
+                    size="sm"
+                    variant="quiet"
+                  >
+                    去人工评分
+                  </ButtonLink>
                 </div>
               ))}
             </div>
