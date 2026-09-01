@@ -311,3 +311,27 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 14: 完成评分规则共创与题目发布
+<!-- trellis-session: v=2 fp=4966eb94c426f83e -->
+
+**Date**: 2026-09-01
+**Task**: 完成评分规则共创与题目发布
+**Branch**: `main`
+
+### Summary
+
+完成 100 分制 rubric 共创、标准答案双层门、不可变题目修订、Working Set authored/mixed v2 包桥接和前端规则审阅 UI。补齐 projection_pending 无模型重投影、真实 Provider 输出修复、服务端轮询、空态 200、favicon/标签可访问性。main 上 make test 155 passed、build、迁移/schema、OpenAPI、ai-smoke 和 EvalData 真实浏览器 E2E 1 passed；Worker 运行标记为 production。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `29c0c15` | feat: publish rubric and authored question revisions |
+| `43457e8` | test: cover conservative rubric review path |
+| `c025aab` | fix: bind rubric anchor labels to inputs |
+
+### Status
+
+[OK] **Completed**

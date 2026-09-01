@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
+- **Total Sessions**: 14
 - **Last Active**: 2026-09-01
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~313 | Active |
+| `journal-1.md` | ~337 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-09-01 | 完成评分规则共创与题目发布 | `29c0c15`, `43457e8`, `c025aab` | `main` |
 | 13 | 2026-09-01 | 完成对话式建题与题级恢复 | `01b9121`, `c9c2ce9` | `main` |
 | 12 | 2026-08-31 | 修复共创阶段连续性与 Worker 模式隔离 | `60e9119` | `main` |
 | 11 | 2026-08-31 | 修复零候选任务分组死循环 | `e09d6ac` | `main` |
