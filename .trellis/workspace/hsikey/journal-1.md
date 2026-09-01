@@ -357,3 +357,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 16: 完成 Benchmark 外部收题 API 与真实验收
+<!-- trellis-session: v=2 fp=8d47e6e5733ef59f -->
+
+**Date**: 2026-09-02
+**Task**: 完成 Benchmark 外部收题 API 与真实验收
+**Branch**: `main`
+
+### Summary
+
+在 main 合并外部收题子任务：新增场景绑定连接码、hash-only token、严格文本 payload、幂等草稿写入与 Web-only 编辑；补齐空场景快照、连接管理 UI、精确草稿链接、OpenAPI、对抗测试和真实 HTTP/Provider/Worker/浏览器 E2E。迁移至 0017，质量门 183 passed。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a23361e` | feat: add external authoring draft API |
+
+### Status
+
+[OK] **Completed**

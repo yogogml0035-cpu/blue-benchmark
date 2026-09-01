@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 15
-- **Last Active**: 2026-09-01
+- **Total Sessions**: 16
+- **Last Active**: 2026-09-02
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~359 | Active |
+| `journal-1.md` | ~381 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 16 | 2026-09-02 | 完成 Benchmark 外部收题 API 与真实验收 | `a23361e` | `main` |
 | 15 | 2026-09-01 | 完成待评答卷与人工评分 | `e1439b5` | `main` |
 | 14 | 2026-09-01 | 完成评分规则共创与题目发布 | `29c0c15`, `43457e8`, `c025aab` | `main` |
 | 13 | 2026-09-01 | 完成对话式建题与题级恢复 | `01b9121`, `c9c2ce9` | `main` |
