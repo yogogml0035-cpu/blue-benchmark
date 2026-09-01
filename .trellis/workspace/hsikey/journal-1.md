@@ -379,3 +379,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 17: 补充绝对草稿链接并完成 ai-eval-push 本地验收
+<!-- trellis-session: v=2 fp=88cc2a47883b708b -->
+
+**Date**: 2026-09-02
+**Task**: 补充绝对草稿链接并完成 ai-eval-push 本地验收
+**Branch**: `main`
+
+### Summary
+
+将外部草稿响应改为基于 FRONTEND_URL 的绝对可点击链接；独立 ai-eval-push 已完成 SKILL/AGENTS/stdlib 客户端、预览确认、Keychain/0600 凭证、验证与安全扫描、本地安装和真实 HTTP 重试 E2E。私有 GitHub 仓库已创建，但 push 因 github.com:443 网络不可达未完成。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `109e134` | fix: return absolute external draft URL |
+
+### Status
+
+[OK] **Completed**

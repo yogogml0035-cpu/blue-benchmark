@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
+- **Total Sessions**: 17
 - **Last Active**: 2026-09-02
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~381 | Active |
+| `journal-1.md` | ~403 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-09-02 | 补充绝对草稿链接并完成 ai-eval-push 本地验收 | `109e134` | `main` |
 | 16 | 2026-09-02 | 完成 Benchmark 外部收题 API 与真实验收 | `a23361e` | `main` |
 | 15 | 2026-09-01 | 完成待评答卷与人工评分 | `e1439b5` | `main` |
 | 14 | 2026-09-01 | 完成评分规则共创与题目发布 | `29c0c15`, `43457e8`, `c025aab` | `main` |
