@@ -10,9 +10,15 @@ const SAMPLE_FILES = [
 async function reloadUntilVisible(page: Page, target: Locator, timeoutMs = 900_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    await page.reload({ waitUntil: "domcontentloaded" });
-    if (await target.isVisible().catch(() => false)) return;
-    await page.waitForTimeout(1_500);
+    // Let the mounted page's SSE/GET recovery loop finish first. Reloading
+    // every 1.5s aborts the very request that would produce the target and can
+    // livelock a real Provider run forever.
+    try {
+      await target.waitFor({ state: "visible", timeout: 5_000 });
+      return;
+    } catch {
+      await page.reload({ waitUntil: "domcontentloaded" });
+    }
   }
   throw new Error("页面在服务端快照完成后仍未出现预期状态");
 }
@@ -138,5 +144,26 @@ test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
   await expect(page.getByTestId("authoring-status")).toHaveText("已确认", { timeout: 60_000 });
   await page.reload();
   await expect(page.getByTestId("authoring-status")).toHaveText("已确认", { timeout: 30_000 });
+
+  // The second-stage rubric flow is also a real Provider/Worker path.  The
+  // page owns its own GET polling, so this assertion covers recovery from the
+  // initial 202 rather than relying on a preview fixture.
+  await page.getByRole("link", { name: "进入规则审阅" }).click();
+  await expect(page).toHaveURL(/\/authoring\/[0-9a-f-]+\/rubric$/);
+  await expect(page.getByTestId("rubric-page")).toBeVisible();
+  const generateRubric = page.getByRole("button", { name: "生成打分规则" });
+  if (await generateRubric.isVisible().catch(() => false)) await generateRubric.click();
+  await expect(page.getByTestId("rubric-status")).toHaveText("待审阅", { timeout: 900_000 });
+  await expect(page.getByText("评分项满分 / 100")).toBeVisible();
+  await expect(page.getByText("标准答案可通过")).toBeVisible();
+
+  await page.getByRole("button", { name: "确认打分规则" }).click();
+  await page.getByRole("button", { name: "确认规则", exact: true }).click();
+  await expect(page.getByTestId("rubric-status")).toHaveText("待发布", { timeout: 30_000 });
+  await page.getByRole("button", { name: "发布为题目修订" }).click();
+  await page.getByRole("button", { name: "确认发布", exact: true }).click();
+  await expect(page.getByTestId("rubric-status")).toHaveText("已发布", { timeout: 30_000 });
+  await expect(page.getByText("已发布修订")).toBeVisible();
+
   expect(consoleErrors).toEqual([]);
 });

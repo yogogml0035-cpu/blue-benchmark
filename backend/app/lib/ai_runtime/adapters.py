@@ -26,6 +26,7 @@ from app.features.case_builder.cocreation_schemas import (
     TaskGroupProposal,
 )
 from app.features.case_builder.authoring_schemas import QuestionInput
+from app.features.evaluation_sets.rubric_schemas import RubricContent, validate_public_rubric_text
 from app.lib.ai_runtime.checkpoint import CheckpointError, CheckpointIncompatible, FakeCheckpointStore
 from app.lib.ai_runtime.context import AgentRunContext
 from app.lib.ai_runtime.evidence import (
@@ -226,6 +227,10 @@ class QuestionCoCreator(Protocol):
         checkpoint_id: str,
         draft: dict[str, Any],
     ) -> AgentRunResult: ...
+
+
+class RubricCoCreator(Protocol):
+    def generate(self, context: AgentRunContext, source: dict[str, Any]) -> AgentRunResult: ...
 
 
 class CoverageReviewer(Protocol):
@@ -499,6 +504,43 @@ class FakeQuestionCoCreator:
         return AgentRunResult(
             AuthoringQuestionAgentResult.model_validate(state["result"]),
             checkpoint_id,
+        )
+
+
+class FakeRubricCoCreator:
+    """Deterministic 100-point rubric for local contract tests."""
+
+    def generate(self, context: AgentRunContext, source: dict[str, Any]) -> AgentRunResult:
+        del source
+        return AgentRunResult(
+            RubricContent(
+                pass_threshold=60,
+                criteria=[
+                    {
+                        "id": "fact_accuracy",
+                        "name": "事实准确性",
+                        "purpose": "确保关键事实与资料边界一致。",
+                        "max_score": 60,
+                        "award_points": ["关键事实可从已确认资料中复核。"],
+                        "deduction_points": ["编造或篡改资料未提供的事实。"],
+                        "critical": True,
+                        "critical_mode": "minimum",
+                        "critical_min_score": 36,
+                        "reference_expected_score": 58,
+                        "reference_score_reason": "标准答案遵守已确认的事实边界。",
+                    },
+                    {
+                        "id": "deliverable_quality",
+                        "name": "交付可用性",
+                        "purpose": "确保结果满足任务目标并可直接使用。",
+                        "max_score": 40,
+                        "award_points": ["完整回应任务要求，表达清楚且可直接使用。"],
+                        "deduction_points": ["遗漏必要交付内容或保留明显占位信息。"],
+                        "reference_expected_score": 40,
+                        "reference_score_reason": "标准答案完整覆盖交付目标。",
+                    },
+                ],
+            )
         )
 
 
@@ -1569,6 +1611,8 @@ class DeepAgentsQuestionCoCreator(_DeepAgentBase):
         self,
         context: AgentRunContext,
         documents: dict[str, EvidenceDocument],
+        *,
+        system_prompt_suffix: str = "",
     ) -> Any:
         return self._graph(
             context,
@@ -1578,7 +1622,7 @@ class DeepAgentsQuestionCoCreator(_DeepAgentBase):
             ask_teacher=True,
             evidence_context=_bounded_evidence_context(documents),
             include_filesystem_tools=True,
-            system_prompt_suffix=self._PROMPT_SUFFIX,
+            system_prompt_suffix=self._PROMPT_SUFFIX + system_prompt_suffix,
         )
 
     def _normalize(
@@ -1598,13 +1642,32 @@ class DeepAgentsQuestionCoCreator(_DeepAgentBase):
             raise RuntimeError("authoring question agent requires a checkpointer")
         self._assert_compatibility(context)
         documents = documents_for_files(list(context.evidence_file_ids))
-        graph = self._graph_for_question(context, documents)
-        result = self._invoke_question(
-            graph,
-            {"messages": [{"role": "user", "content": self._payload(draft, _bounded_evidence_context(documents))}]},
-            context,
-        )
-        return self._normalize(result, documents)
+        last_error: Exception | None = None
+        for attempt in range(2):
+            # Question checkpoints are business-addressed by this stable key;
+            # a repair changes only the prompt, never the accepted thread.
+            attempt_context = context
+            graph = self._graph_for_question(
+                attempt_context,
+                documents,
+                system_prompt_suffix=(
+                    "上一版输出没有通过题目范围或结构校验；请只返回完整、可验证的当前题目结果。"
+                    if attempt
+                    else ""
+                ),
+            )
+            try:
+                result = self._invoke_question(
+                    graph,
+                    {"messages": [{"role": "user", "content": self._payload(draft, _bounded_evidence_context(documents))}]},
+                    attempt_context,
+                )
+                return self._normalize(result, documents)
+            except (EvidenceValidationError, ValidationError, ValueError, RuntimeError) as exc:
+                last_error = exc
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("authoring question agent did not return a result")
 
     def resume(
         self,
@@ -1619,14 +1682,30 @@ class DeepAgentsQuestionCoCreator(_DeepAgentBase):
             raise RuntimeError("authoring question agent requires a checkpointer")
         self._assert_compatibility(context)
         documents = documents_for_files(list(context.evidence_file_ids))
-        graph = self._graph_for_question(context, documents)
-        result = self._invoke_question(
-            graph,
-            Command(resume={"decisions": [{"type": "respond", "message": answer}]}),
-            context,
-            checkpoint_id,
-        )
-        return self._normalize(result, documents)
+        last_error: Exception | None = None
+        for attempt in range(2):
+            graph = self._graph_for_question(
+                context,
+                documents,
+                system_prompt_suffix=(
+                    "上一版输出没有通过题目范围或结构校验；请修复后再返回当前题目结果。"
+                    if attempt
+                    else ""
+                ),
+            )
+            try:
+                result = self._invoke_question(
+                    graph,
+                    Command(resume={"decisions": [{"type": "respond", "message": answer}]}),
+                    context,
+                    checkpoint_id,
+                )
+                return self._normalize(result, documents)
+            except (EvidenceValidationError, ValidationError, ValueError, RuntimeError) as exc:
+                last_error = exc
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("authoring question agent did not return a result")
 
     def reproject(
         self,
@@ -1664,6 +1743,77 @@ class DeepAgentsQuestionCoCreator(_DeepAgentBase):
         raise RuntimeError("authoring question checkpoint has no projectable result")
 
 
+class DeepAgentsRubricCoCreator(_DeepAgentBase):
+    """Generate a rubric from one confirmed question and its reference answer."""
+
+    _PROMPT_SUFFIX = (
+        "当前只处理一条已经由老师确认的题目，不读取其他题目或其他会话。"
+        "请输出完整的 100 分制打分规则：评分项 ID 必须稳定且唯一，满分合计必须正好 100，"
+        "默认通过线为 60；每项都要有评分目的、给分点、扣分点、标准答案期望得分和理由。"
+        "关键项只能使用 minimum 或 hard_fail；关键项失败不能被其他项补偿。"
+        "标准答案锚点不是待评答案的上限；不得使用字面、标题、结构或措辞相似度作为默认评分依据。"
+        "所有面向老师的文字使用中文；不要生成发布结论、待评答案分数、系统提示或运行信息。"
+    )
+
+    def generate(self, context: AgentRunContext, source: dict[str, Any]) -> AgentRunResult:
+        documents = documents_for_files(list(context.evidence_file_ids))
+        last_error: Exception | None = None
+        for attempt in range(2):
+            attempt_context = (
+                context
+                if attempt == 0
+                else context.model_copy(update={"thread_key": f"{context.thread_key}-repair"})
+            )
+            repair_hint = (
+                "上一版规则没有通过严格校验。请重新生成完整结果：所有评分项满分合计正好 100，"
+                "关键项只能是 minimum 或 hard_fail，所有面向老师的字段都必须是中文且不能含路径、"
+                "系统提示、凭证或私有推理。不要解释修复过程，只返回结构化规则。"
+                if attempt
+                else ""
+            )
+            graph = self._graph(
+                attempt_context,
+                documents,
+                RubricContent,
+                allowed_tools=set(READ_TOOLS) | {"RubricContent"},
+                ask_teacher=False,
+                evidence_context=_bounded_evidence_context(documents),
+                include_filesystem_tools=True,
+                system_prompt_suffix=self._PROMPT_SUFFIX + repair_hint,
+            )
+            try:
+                result = self._invoke(
+                    graph,
+                    {
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": json.dumps(
+                                    {
+                                        "confirmed_question": source,
+                                        "evidence": _bounded_evidence_context(documents),
+                                    },
+                                    ensure_ascii=False,
+                                    sort_keys=True,
+                                    separators=(",", ":"),
+                                ),
+                            }
+                        ]
+                    },
+                    attempt_context,
+                    RubricContent,
+                )
+                if not isinstance(result.result, RubricContent):
+                    raise RuntimeError("rubric co-creator returned an invalid rubric")
+                validate_public_rubric_text(result.result)
+                return result
+            except (ValidationError, ValueError, RuntimeError) as exc:
+                last_error = exc
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("rubric co-creator did not return a result")
+
+
 class DeepAgentsCoverageReviewer(_DeepAgentBase):
     def review(self, context: AgentRunContext, snapshot: dict[str, Any]) -> AgentRunResult:
         graph = self._graph(
@@ -1687,6 +1837,7 @@ class RuntimeAdapters:
     standard_cocreator: StandardCoCreator
     coverage_reviewer: CoverageReviewer
     question_cocreator: QuestionCoCreator | None = None
+    rubric_cocreator: RubricCoCreator | None = None
 
 
 _fake_checkpoints = FakeCheckpointStore()
@@ -1695,6 +1846,7 @@ _adapters: RuntimeAdapters = RuntimeAdapters(
     standard_cocreator=FakeStandardCoCreator(_fake_checkpoints),
     coverage_reviewer=FakeCoverageReviewer(),
     question_cocreator=FakeQuestionCoCreator(_fake_checkpoints),
+    rubric_cocreator=FakeRubricCoCreator(),
 )
 
 
@@ -1712,6 +1864,7 @@ def production_adapters(
         standard_cocreator=DeepAgentsStandardCoCreator(checkpointer, model=model, model_spec=model_spec),
         coverage_reviewer=DeepAgentsCoverageReviewer(model=model, model_spec=model_spec),
         question_cocreator=DeepAgentsQuestionCoCreator(checkpointer, model=model, model_spec=model_spec),
+        rubric_cocreator=DeepAgentsRubricCoCreator(checkpointer, model=model, model_spec=model_spec),
     )
     _assert_production_tool_surfaces(adapters, model_spec)
     return adapters
@@ -1755,6 +1908,13 @@ def _assert_production_tool_surfaces(adapters: RuntimeAdapters, model_spec: str)
             True,
             True,
         ),
+        (
+            adapters.rubric_cocreator,
+            RubricContent,
+            READ_TOOLS | frozenset({"RubricContent"}),
+            False,
+            True,
+        ),
     )
     for adapter, schema, allowed_tools, ask_teacher, include_filesystem_tools in graphs:
         if adapter is None:
@@ -1790,4 +1950,5 @@ def reset_adapters() -> None:
         standard_cocreator=FakeStandardCoCreator(_fake_checkpoints),
         coverage_reviewer=FakeCoverageReviewer(),
         question_cocreator=FakeQuestionCoCreator(_fake_checkpoints),
+        rubric_cocreator=FakeRubricCoCreator(),
     )

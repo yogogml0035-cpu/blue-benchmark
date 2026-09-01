@@ -11,6 +11,7 @@ from app.features.auth.repository import UserRecord
 from app.features.case_builder import cocreation_service as case_service
 from app.features.case_builder.cocreation_schemas import CoverageReview, EvaluationTaskSnapshot
 from app.features.evaluation_sets import repository
+from app.features.evaluation_sets import rubric_repository, rubric_service
 from app.features.evaluation_sets.schemas import (
     BatchImpactReviewRequest,
     CoverageConfirmationRequest,
@@ -26,6 +27,9 @@ from app.features.evaluation_sets.schemas import (
     MemberMutationRequest,
     MemberStatus,
     ManifestResponse,
+    PublishedQuestionRevisionListResponse,
+    PublishedQuestionRevisionSummary,
+    QuestionRevisionMemberMutationRequest,
     VersionListResponse,
     VersionSummary,
     WorkingSetDraftResponse,
@@ -38,7 +42,16 @@ from app.lib.errors import AppError
 from app.lib.operations import repository as operation_repository
 from app.lib.operations.repository import OperationJob, OperationJobStatus
 from app.lib.storage import LocalStorage, StorageError
-from app.lib.version_packages import PACKAGE_SCHEMA_VERSION, VersionPackageError, build_package, read_manifest
+from app.lib.version_packages import (
+    PACKAGE_SCHEMA_VERSION,
+    QUESTION_REVISION_PACKAGE_SCHEMA_VERSION,
+    VersionPackageError,
+    build_package,
+    build_question_revision_package,
+    read_manifest,
+    read_manifest_v2,
+)
+from app.lib.version_packages.v2 import QuestionRevisionPackageFile, QuestionRevisionPackageTask
 
 
 def _now() -> datetime:
@@ -73,7 +86,14 @@ def _active_operation(draft_id: str) -> OperationJob | None:
 def _snapshot_for_member(
     draft: repository.WorkingSetDraftRecord,
     member: repository.WorkingSetMemberRecord,
-) -> EvaluationTaskSnapshot:
+) -> EvaluationTaskSnapshot | QuestionRevisionPackageTask:
+    if member.question_revision_id is not None:
+        return rubric_service.get_question_revision_for_version(
+            draft.workspace_id,
+            member.question_revision_id,
+        )
+    if member.task_package_id is None:
+        raise AppError(500, "WORKING_SET_MEMBER_INVALID", "下一版本草稿包含无效的题目来源。")
     try:
         return case_service.get_evaluation_task_snapshot(draft.workspace_id, member.task_package_id)
     except AppError as exc:
@@ -91,6 +111,56 @@ def _snapshot_for_member(
             member.task_package_id,
             require_current_judgment=False,
         )
+
+
+def _member_source_id(member: repository.WorkingSetMemberRecord) -> str:
+    return member.question_revision_id or member.task_package_id or member.id
+
+
+def _as_v2_package_task(
+    task: EvaluationTaskSnapshot | QuestionRevisionPackageTask,
+) -> QuestionRevisionPackageTask:
+    if isinstance(task, QuestionRevisionPackageTask):
+        return task
+    files = tuple(
+        QuestionRevisionPackageFile(
+            file_id=file.file_id,
+            name=file.name,
+            media_type=file.media_type,
+            size_bytes=file.size_bytes,
+            sha256=file.sha256,
+            storage_key=file.storage_key,
+            role=file.role,
+            required=file.required,
+            visibility=file.visibility,
+        )
+        for file in task.files
+    )
+    return QuestionRevisionPackageTask(
+        task_id=task.task_package_id,
+        revision=task.revision,
+        title=task.title,
+        brief=task.task_description or task.title,
+        input={
+            "task_instruction": task.task_description or task.title,
+            "must_include": [],
+            "prohibited": [],
+            "background": None,
+            "materials": [
+                {"file_id": file.file_id, "role": file.role, "priority": index, "rationale": None}
+                for index, file in enumerate(files)
+                if file.role not in {"ignored", "provenance"}
+            ],
+        },
+        files=files,
+        judge={"legacy_judgment": task.judgment_package.model_dump(mode="json")},
+        provenance={
+            "legacy_task_package_id": task.task_package_id,
+            "contract_revision_id": task.contract_revision_id,
+            "attempts": [attempt.model_dump(mode="json") for attempt in task.attempts],
+            "formation": task.provenance,
+        },
+    )
 
 
 def _version_summary(version: repository.EvaluationSetVersionRecord) -> VersionSummary:
@@ -129,7 +199,10 @@ def _draft_view(draft: repository.WorkingSetDraftRecord) -> WorkingSetDraftView:
         DraftMemberView(
             id=item.id,
             task_package_id=item.task_package_id,
+            question_revision_id=item.question_revision_id,
             task_package_revision=item.task_package_revision,
+            question_revision_number=item.question_revision_number,
+            question_revision_hash=item.question_revision_hash,
             status=MemberStatus(item.status),
             review_status=ImpactReviewStatus(item.review_status),
             deterministic_conflicts=list(item.deterministic_conflicts),
@@ -148,10 +221,16 @@ def _draft_view(draft: repository.WorkingSetDraftRecord) -> WorkingSetDraftView:
     for item in included:
         try:
             snapshot = _snapshot_for_member(draft, item)
-            if snapshot.revision != item.task_package_revision:
-                blocking.append(f"{item.task_package_id}: 题已有新修订，请明确更新下一版引用。")
+            expected_revision = item.question_revision_number if item.question_revision_id else item.task_package_revision
+            expected_hash = item.question_revision_hash if item.question_revision_id else None
+            current_hash = snapshot.content_sha256 if isinstance(snapshot, QuestionRevisionPackageTask) else None
+            if (
+                snapshot.revision != expected_revision
+                or (expected_hash is not None and current_hash != expected_hash)
+            ):
+                blocking.append(f"{_member_source_id(item)}: 题已有新修订，请明确更新下一版引用。")
         except AppError as exc:
-            blocking.append(exc.message)
+            blocking.append(f"{_member_source_id(item)}: {exc.message}")
     coverage = repository.get_latest_coverage(draft.id)
     latest_contract = case_service.get_latest_confirmed_contract(draft.workspace_id)
     if latest_contract is not None and latest_contract.id != draft.contract_revision_id:
@@ -209,16 +288,39 @@ def _response(draft: repository.WorkingSetDraftRecord) -> WorkingSetDraftRespons
     return WorkingSetDraftResponse(draft=_draft_view(draft))
 
 
-def _base_members_from_manifest(version: repository.EvaluationSetVersionRecord) -> list[tuple[str, int, str]]:
+def _base_members_from_manifest(
+    version: repository.EvaluationSetVersionRecord,
+) -> list[tuple[str | None, str | None, int, str | None, str]]:
     try:
         manifest, _ = _verified_manifest(version)
     except VersionPackageError:
         raise AppError(500, "VERSION_PACKAGE_UNREADABLE", "最新历史版本包无法读取。")
-    members: list[tuple[str, int, str]] = []
+    members: list[tuple[str | None, str | None, int, str | None, str]] = []
     for item in manifest.get("tasks", []):
-        if not isinstance(item, dict) or not item.get("task_id") or not item.get("contract_revision_id"):
+        if not isinstance(item, dict) or not item.get("contract_revision_id"):
             raise AppError(500, "VERSION_MANIFEST_INVALID", "最新历史版本包的任务清单无效。")
-        members.append((str(item["task_id"]), int(item.get("revision", 0)), str(item["contract_revision_id"])))
+        task_id = str(item["task_id"]) if item.get("task_id") else None
+        question_revision_id = str(item["question_revision_id"]) if item.get("question_revision_id") else None
+        if question_revision_id is not None:
+            if task_id is not None and task_id != question_revision_id:
+                raise AppError(500, "VERSION_MANIFEST_INVALID", "最新历史版本包的题目来源不一致。")
+            question_revision_hash = item.get("content_sha256")
+            if not isinstance(question_revision_hash, str) or len(question_revision_hash) != 64:
+                raise AppError(500, "VERSION_MANIFEST_INVALID", "最新历史版本包缺少题目修订校验。")
+            task_id = None
+        else:
+            question_revision_hash = None
+        if (task_id is None) == (question_revision_id is None):
+            raise AppError(500, "VERSION_MANIFEST_INVALID", "最新历史版本包的任务来源无效。")
+        members.append(
+            (
+                task_id,
+                question_revision_id,
+                int(item.get("revision", 0)),
+                question_revision_hash,
+                str(item["contract_revision_id"]),
+            )
+        )
     return members
 
 
@@ -236,6 +338,11 @@ def create_draft(workspace_id: str, payload: DraftCreateRequest, user: UserRecor
     versions = repository.list_versions(workspace_id)
     latest = versions[0] if versions else None
     base_members = _base_members_from_manifest(latest) if latest else []
+    if any(
+        question_revision_id is not None and member_contract_id != contract.id
+        for _task_id, question_revision_id, _revision, _content_hash, member_contract_id in base_members
+    ):
+        raise AppError(409, "CONTRACT_REVIEW_REQUIRED", "历史版本中的题目修订引用了旧场景标准，请先完成合同影响复核。")
     try:
         draft = repository.create_draft(
             workspace_id=workspace_id,
@@ -313,6 +420,83 @@ def mutate_member(
         raise AppError(409, "STALE_DRAFT", "下一版本草稿已经更新，请重新读取。") from exc
     except repository.RepositoryConflict as exc:
         raise AppError(409, "DRAFT_NOT_EDITABLE", "当前下一版本草稿不能执行这项操作。") from exc
+    return _response(changed)
+
+
+def list_published_question_revisions(
+    workspace_id: str,
+    user: UserRecord,
+) -> PublishedQuestionRevisionListResponse:
+    workspace_service.assert_owner(workspace_id, user)
+    revisions = rubric_repository.list_published_revisions(workspace_id)
+    items: list[PublishedQuestionRevisionSummary] = []
+    for item in revisions:
+        snapshot = item.question_snapshot
+        if not isinstance(snapshot, dict):
+            raise AppError(500, "QUESTION_REVISION_INVALID", "已发布的题目修订无法读取。")
+        items.append(
+            PublishedQuestionRevisionSummary(
+                id=item.id,
+                question_draft_id=item.question_draft_id,
+                revision=item.revision_number,
+                title=str(snapshot.get("title") or "已发布题目"),
+                pass_threshold=item.pass_threshold,
+                content_sha256=item.content_sha256,
+                published_at=item.published_at,
+            )
+        )
+    return PublishedQuestionRevisionListResponse(workspace_id=workspace_id, revisions=items)
+
+
+def mutate_question_revision_member(
+    workspace_id: str,
+    draft_id: str,
+    payload: QuestionRevisionMemberMutationRequest,
+    user: UserRecord,
+) -> WorkingSetDraftResponse:
+    draft = _authorized_draft(workspace_id, draft_id, user)
+    active = _active_operation(draft.id)
+    if active and active.kind == "freeze_package" and active.status in {
+        OperationJobStatus.queued,
+        OperationJobStatus.running,
+    }:
+        raise AppError(409, "FREEZE_IN_PROGRESS", "冻结操作进行中，不能修改当前草稿。")
+    published = rubric_repository.get_revision(payload.question_revision_id)
+    if published is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "已发布的题目修订不存在。")
+    if published.workspace_id != workspace_id:
+        raise AppError(403, "FORBIDDEN", "你无权把这道题加入版本。")
+    if published.revision_number != payload.question_revision_number:
+        raise AppError(409, "STALE_QUESTION_REVISION", "题目修订已经变化，请重新读取。")
+    if published.content_sha256 != payload.question_revision_hash:
+        raise AppError(409, "STALE_QUESTION_REVISION", "题目修订内容已经变化，请重新读取。")
+    # Removing a member is always safe to offer, even when its referenced
+    # evidence later becomes unreadable.  Inclusion/freeze still performs the
+    # full evidence-ready and metadata-integrity check.
+    if payload.action == "include":
+        source = rubric_service.get_question_revision_for_version(
+            workspace_id,
+            payload.question_revision_id,
+        )
+        source_contract_revision_id = source.provenance.get("contract_revision_id")
+        if source_contract_revision_id and source_contract_revision_id != draft.contract_revision_id:
+            raise AppError(409, "CONTRACT_REVIEW_REQUIRED", "题目发布时引用了另一版场景标准，需先完成合同影响复核。")
+    try:
+        changed = repository.mutate_question_revision_member(
+            draft.id,
+            payload=payload,
+            contract_revision_id=draft.contract_revision_id,
+            question_revision_number=published.revision_number,
+        )
+    except repository.StaleDraft as exc:
+        raise AppError(409, "STALE_DRAFT", "下一版本草稿已经更新，请重新读取。") from exc
+    except repository.RepositoryConflict as exc:
+        message = str(exc)
+        if "question revision is not" in message:
+            code = "RESOURCE_NOT_FOUND"
+        else:
+            code = "DRAFT_NOT_EDITABLE"
+        raise AppError(409 if code != "RESOURCE_NOT_FOUND" else 404, code, "当前题目修订不能加入这个版本。") from exc
     return _response(changed)
 
 
@@ -433,7 +617,11 @@ def _freeze_inputs(
     *,
     allow_risk_confirmation: bool = False,
     require_coverage: bool = True,
-) -> tuple[list[EvaluationTaskSnapshot], repository.ContractRevisionRecord, repository.CoverageSnapshotRecord | None]:
+) -> tuple[
+    list[EvaluationTaskSnapshot | QuestionRevisionPackageTask],
+    repository.ContractRevisionRecord,
+    repository.CoverageSnapshotRecord | None,
+]:
     if draft.status != "active":
         raise AppError(409, "DRAFT_NOT_EDITABLE", "已冻结或丢弃的草稿不能冻结。")
     contract = case_service.get_contract_revision_for_evaluation(draft.workspace_id, draft.contract_revision_id)
@@ -446,7 +634,7 @@ def _freeze_inputs(
     if not members:
         raise AppError(409, "FREEZE_BLOCKED", "至少选择一道已定稿题后才能冻结。", {"issues": ["没有入选题。"]})
     review_issues = [
-        item.task_package_id
+        _member_source_id(item)
         for item in members
         if item.review_status not in {
             ImpactReviewStatus.not_required.value,
@@ -456,17 +644,20 @@ def _freeze_inputs(
     ]
     if review_issues:
         raise AppError(409, "FREEZE_BLOCKED", "还有题没有完成合同影响复核。", {"task_package_ids": review_issues})
-    tasks: list[EvaluationTaskSnapshot] = []
+    tasks: list[EvaluationTaskSnapshot | QuestionRevisionPackageTask] = []
     issues: list[str] = []
     for member in members:
         try:
             task = _snapshot_for_member(draft, member)
-            if task.revision != member.task_package_revision:
-                issues.append(f"{member.task_package_id}: 题引用的修订已过期。")
+            expected_revision = member.question_revision_number if member.question_revision_id else member.task_package_revision
+            expected_hash = member.question_revision_hash if member.question_revision_id else None
+            current_hash = task.content_sha256 if isinstance(task, QuestionRevisionPackageTask) else None
+            if task.revision != expected_revision or (expected_hash is not None and current_hash != expected_hash):
+                issues.append(f"{_member_source_id(member)}: 题引用的修订已过期。")
             else:
                 tasks.append(task)
         except AppError as exc:
-            issues.append(f"{member.task_package_id}: {exc.message}")
+            issues.append(f"{_member_source_id(member)}: {exc.message}")
     if issues:
         raise AppError(409, "FREEZE_BLOCKED", "入选题还不具备完整的冻结材料。", {"issues": issues})
     coverage = repository.get_latest_coverage(draft.id)
@@ -559,7 +750,12 @@ def _verified_manifest(version: repository.EvaluationSetVersionRecord) -> tuple[
     storage = LocalStorage()
     try:
         manifest_bytes = storage.read_bytes(version.manifest_key)
-        manifest = read_manifest(storage, version.manifest_key)
+        if version.schema_version == PACKAGE_SCHEMA_VERSION:
+            manifest = read_manifest(storage, version.manifest_key)
+        elif version.schema_version == QUESTION_REVISION_PACKAGE_SCHEMA_VERSION:
+            manifest = read_manifest_v2(storage, version.manifest_key)
+        else:
+            raise VersionPackageError("version package schema is not supported")
         if hashlib.sha256(manifest_bytes).hexdigest() != version.manifest_sha256:
             raise VersionPackageError("manifest hash does not match the version record")
         if manifest.get("overall_sha256") != version.overall_sha256:
@@ -655,14 +851,29 @@ def handle_coverage_review(job: OperationJob) -> dict[str, Any]:
 
         raise SupersededOperation("下一版本草稿已经更新。")
     tasks, contract, _ = _freeze_inputs(draft, allow_risk_confirmation=True, require_coverage=False)
-    capabilities = sorted({item for task in tasks for item in [*task.contract.capabilities, *task.judgment_package.capabilities]})
-    dimensions = sorted({item for task in tasks for item in [*task.contract.quality_dimensions, *task.judgment_package.dimensions]})
-    failure_modes = sorted({item for task in tasks for item in task.judgment_package.rejected_reasons})
+    capabilities: set[str] = set()
+    dimensions: set[str] = set()
+    failure_modes: set[str] = set()
+    for task in tasks:
+        if isinstance(task, QuestionRevisionPackageTask):
+            capabilities.add("已发布题目修订")
+            rubric = task.judge.get("rubric") or {}
+            for criterion in rubric.get("criteria", []):
+                if isinstance(criterion, dict) and criterion.get("name"):
+                    dimensions.add(str(criterion["name"]))
+                    failure_modes.update(str(item) for item in criterion.get("deduction_points", []))
+            continue
+        capabilities.update((*task.contract.capabilities, *task.judgment_package.capabilities))
+        dimensions.update((*task.contract.quality_dimensions, *task.judgment_package.dimensions))
+        failure_modes.update(task.judgment_package.rejected_reasons)
     snapshot_input = {
-        "capabilities": capabilities,
-        "dimensions": dimensions,
-        "failure_modes": failure_modes,
-        "task_ids": [task.task_package_id for task in tasks],
+        "capabilities": sorted(capabilities),
+        "dimensions": sorted(dimensions),
+        "failure_modes": sorted(failure_modes),
+        "task_ids": [
+            task.task_id if isinstance(task, QuestionRevisionPackageTask) else task.task_package_id
+            for task in tasks
+        ],
         "contract_revision_id": contract.id,
     }
     context = AgentRunContext(
@@ -755,22 +966,41 @@ def handle_freeze(job: OperationJob) -> dict[str, Any]:
         "risk_confirmed": coverage.risk_confirmed or bool(intent.get("coverage_risk_confirmed")),
         "risk_confirmation_note": coverage.risk_confirmation_note or intent.get("risk_confirmation_note"),
     }
-    artifacts = build_package(
-        version_id=version_id,
-        workspace_id=draft.workspace_id,
-        version_number=version_number,
-        contract_revision=contract.revision,
-        contract_revision_id=contract.id,
-        contract=contract.contract,
-        coverage=coverage_json,
-        tasks=tasks,
-        frozen_by=str(intent.get("frozen_by")),
-        frozen_at=frozen_at,
-        risk_confirmation={
-            "confirmed": coverage_json["risk_confirmed"],
-            "note": coverage_json["risk_confirmation_note"],
-        },
-    )
+    risk_confirmation = {
+        "confirmed": coverage_json["risk_confirmed"],
+        "note": coverage_json["risk_confirmation_note"],
+    }
+    uses_question_revisions = any(isinstance(task, QuestionRevisionPackageTask) for task in tasks)
+    if uses_question_revisions:
+        artifacts = build_question_revision_package(
+            version_id=version_id,
+            workspace_id=draft.workspace_id,
+            version_number=version_number,
+            contract_revision=contract.revision,
+            contract_revision_id=contract.id,
+            contract=contract.contract,
+            coverage=coverage_json,
+            tasks=[_as_v2_package_task(task) for task in tasks],
+            frozen_by=str(intent.get("frozen_by")),
+            frozen_at=frozen_at,
+            risk_confirmation=risk_confirmation,
+        )
+        package_schema_version = QUESTION_REVISION_PACKAGE_SCHEMA_VERSION
+    else:
+        artifacts = build_package(
+            version_id=version_id,
+            workspace_id=draft.workspace_id,
+            version_number=version_number,
+            contract_revision=contract.revision,
+            contract_revision_id=contract.id,
+            contract=contract.contract,
+            coverage=coverage_json,
+            tasks=[task for task in tasks if isinstance(task, EvaluationTaskSnapshot)],
+            frozen_by=str(intent.get("frozen_by")),
+            frozen_at=frozen_at,
+            risk_confirmation=risk_confirmation,
+        )
+        package_schema_version = PACKAGE_SCHEMA_VERSION
     objects = {
         "manifest.json": artifacts.manifest_bytes,
         "runtime.json": artifacts.runtime_bytes,
@@ -789,7 +1019,7 @@ def handle_freeze(job: OperationJob) -> dict[str, Any]:
             version_number=version_number,
             contract_revision_id=contract.id,
             freeze_command_id=command_id,
-            schema_version=PACKAGE_SCHEMA_VERSION,
+            schema_version=package_schema_version,
             keys={
                 "manifest": key_map["manifest.json"],
                 "runtime": key_map["runtime.json"],

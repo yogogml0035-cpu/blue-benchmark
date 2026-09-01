@@ -2,7 +2,7 @@
 
 Skill Eval Platform 前端的设计系统。改 UI 前先读这份，值已经定好了，照用不要重新推导。
 
-状态说明：第 7 节“场景工作台”及其关联词表、主动作、技术详情和路由规则是 M0 已批准的目标合同；现有工作台基础和第一阶段建题会话已落地，后续 rubric/发布/人工评分仍由各自子任务补齐。其余条款描述当前可复用视觉基础。
+状态说明：第 7 节“场景工作台”及其关联词表、主动作、技术详情和路由规则是 M0 已批准的目标合同；第一阶段建题会话、第二阶段评分规则和题目发布已落地，人工评分仍由后续子任务补齐。其余条款描述当前可复用视觉基础。
 
 实现位置：`frontend/src/app/globals.css`（token 与基础件）、`frontend/src/components/ui/`（跨 Feature 原件）、
 各 Feature 目录下的 `*.module.css`（组合件）。
@@ -52,12 +52,18 @@ Skill Eval Platform 前端的设计系统。改 UI 前先读这份，值已经�
 | 给 Skill 的材料 | runtime | 被测 Skill 未来可以读取的输入分区 |
 | 评分依据 | judge | 参考结果、规则、硬门和最低质量线 |
 | 形成记录 | provenance | 来源定位、老师确认和形成历史 |
+| 评分规则 | rubric | 100 分制评分项、关键项和标准答案锚点 |
+| 题目修订 | benchmark question revision | 发布后不可变的题目、答案和规则快照 |
 
-生命周期：资料批次 → 任务确认 → 场景标准共创 → 题稿共创/审改 → 定稿为题 → 加入下一版 → 冻结为历史版本。
+生命周期：资料批次 → 任务确认 → 场景标准共创 → 题稿共创/审改 → 定稿为题 → 评分规则审阅 → 发布题目修订 → 加入下一版 → 冻结为历史版本。
 
 八个状态的界面标签：parsing=解析中 · parse_failed=解析失败 · ready_for_ai=待整理 ·
 generating=AI 整理中 · waiting_for_input=需要补充 · waiting_for_confirmation=待你定稿 ·
 ai_failed=整理失败 · confirmed=已定稿。
+
+评分规则状态的界面标签：not_started=尚未生成 · queued=等待开始 · processing=规则处理中 ·
+review_ready=待审阅 · confirmed=待发布 · published=已发布 · stale=规则已过期 ·
+projection_pending=等待恢复 · failed=规则失败。
 
 关键动作：创建场景 · 上传资料 · 确认任务 · 提交回答 · 定稿 · 检查并冻结。
 
@@ -259,6 +265,8 @@ route family：`/workspaces` = 场景列表 · `/workspaces/{id}` = 场景工作
 
 第一阶段建题会话实际入口：`/workspaces/{id}/authoring/new`（手动或绑定上传批次）与 `/workspaces/{id}/authoring/{conversationId}`（transcript、候选题轨、题目输入和标准答案确认）。旧工作台仍保留资料/版本兼容链路，不能把它的轮询状态冒充为新会话事实。题目边界确认后，每道题使用独立的题级安全追问；处理中仍显示本地可编辑草稿，但保存/确认动作关闭，完成后再由服务端快照恢复。
 
+第二阶段规则审阅入口：`/workspaces/{id}/authoring/{conversationId}/rubric`。页面保持单一焦点：左侧是已确认题目输入和标准答案，主区是评分项连续审阅；生成中的状态通过服务端 GET 轮询恢复，投影待恢复和失败分别提供“恢复规则快照”和“重新生成规则”，不把两者伪装成普通处理中。每项以正文展示满分、给分点、扣分点、关键项判定和标准答案期望得分；确认与发布均使用 `ConfirmSheet`，发布后只显示去版本组集的下一步。
+
 ## 14. 硬性约束
 
 - 承载不定长正文的文本框一律 `AutoTextarea` 按内容增高；聚焦阅读里用无边框文本域。
@@ -266,6 +274,8 @@ route family：`/workspaces` = 场景列表 · `/workspaces/{id}` = 场景工作
 - 页面只调本 Feature 的 Service；Service 只调 `lib/api/client`。
 - 新增控件先看 `src/components/ui/` 有没有；重复第二次就抽成组件。
 - 新增装饰性图标/徽记前先问是否必要——历史反馈：符号要少、胶囊禁用、文字优先。
+- 已发布题目修订在版本工作台中与旧任务并列显示；加入动作使用同一 `WorkingSet`，但成员明确携带题目修订号和内容 hash，不能伪装成 `TaskPackage`。
+- 含已发布题目修订的混合版本包使用 v2 schema；`runtime`、`judge`、`provenance` 的信息边界由包 builder 的 allowlist 执行，前端不展示或拼接包内容。
 - **文字预算按上下文执行**：副标/hint 保持短；高后果确认必须说清影响，再通过渐进披露收起。
 - **开发/验收辅助信息不得出现在面向业务老师的界面**：Stub 标记说明、`GET /api/...` 合同原文、
   `retryable` 原始值、完整 UUID、内部 ID、hash 与 Schema 一律用 `PREVIEW_ENABLED` 或折叠技术详情门控；

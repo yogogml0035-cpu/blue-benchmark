@@ -15,14 +15,17 @@ import {
   type TaskPackageSummary,
   type WorkingSetDraftView,
   type DraftMemberView,
+  type PublishedQuestionRevisionSummary,
   type VersionSummary,
   listTaskPackages,
   listWorkspaceTaskPackages,
+  listPublishedQuestionRevisions,
   listVersions,
   getTaskPackage,
   createWorkingDraft,
   getWorkingDraft,
   mutateDraftMember,
+  mutateQuestionRevisionMember,
   decideImpactReview,
   requestCoverageReview,
   confirmCoverage,
@@ -40,6 +43,10 @@ import { PREVIEW_STUDIO_SUCCESS } from "@/src/features/workspaces/preview/studio
 import styles from "./studio.module.css";
 
 export type StudioSection = "current" | "questions" | "versions";
+
+function memberSourceId(member: DraftMemberView): string {
+  return member.task_package_id ?? member.question_revision_id ?? member.id;
+}
 
 type Load =
   | { status: "loading" }
@@ -1259,6 +1266,10 @@ export function VersionsSection({
 function MemberLabel({ member, workspaceId }: { member: DraftMemberView; workspaceId: string }) {
   const [title, setTitle] = useState<string | null>(null);
   useEffect(() => {
+    if (!member.task_package_id) {
+      setTitle(null);
+      return;
+    }
     let active = true;
     getTaskPackage(workspaceId, member.task_package_id)
       .then((result) => {
@@ -1270,10 +1281,23 @@ function MemberLabel({ member, workspaceId }: { member: DraftMemberView; workspa
     return () => {
       active = false;
     };
-  }, [workspaceId, member.task_package_id]);
+  }, [member.task_package_id, workspaceId]);
+  if (member.question_revision_id) {
+    return (
+      <span style={{ fontSize: "var(--t-13)" }}>
+        已发布题目修订 v{member.question_revision_number ?? member.task_package_revision}
+        {member.review_status === "review_required" && (
+          <span className="state state-amber" style={{ marginLeft: "var(--s-2)", fontSize: "var(--t-12)" }}>
+            <span className="dot" />
+            待复核
+          </span>
+        )}
+      </span>
+    );
+  }
   return (
     <span style={{ fontSize: "var(--t-13)" }}>
-      {title ?? member.task_package_id.slice(0, 8) + "…"}
+      {title ?? `${memberSourceId(member).slice(0, 8)}…`}
       {member.review_status === "review_required" && (
         <span className="state state-amber" style={{ marginLeft: "var(--s-2)", fontSize: "var(--t-12)" }}>
           <span className="dot" />
@@ -1298,21 +1322,31 @@ function DraftPanel({
   const [error, setError] = useState<PageFault | null>(null);
   const [note, setNote] = useState("");
   const [packages, setPackages] = useState<TaskPackageSummary[]>([]);
+  const [questionRevisions, setQuestionRevisions] = useState<PublishedQuestionRevisionSummary[]>([]);
   const requestGeneration = useRef(0);
 
   useEffect(() => {
     const generation = ++requestGeneration.current;
     if (!draft || draft.status !== "active") {
       setPackages([]);
+      setQuestionRevisions([]);
       return;
     }
     setPackages([]);
+    setQuestionRevisions([]);
     listWorkspaceTaskPackages(workspaceId)
       .then((result) => {
         if (generation === requestGeneration.current) setPackages(result.task_packages);
       })
       .catch(() => {
         if (generation === requestGeneration.current) setPackages([]);
+      });
+    listPublishedQuestionRevisions(workspaceId)
+      .then((result) => {
+        if (generation === requestGeneration.current) setQuestionRevisions(result.revisions ?? []);
+      })
+      .catch(() => {
+        if (generation === requestGeneration.current) setQuestionRevisions([]);
       });
   }, [draft?.id, draft?.revision, draft?.status, workspaceId]);
 
@@ -1356,8 +1390,20 @@ function DraftPanel({
   }
 
   const included = (draft.members ?? []).filter((m) => m.status === "included");
-  const includedIds = new Set(included.map((member) => member.task_package_id));
+  const includedIds = new Set(
+    included
+      .map((member) => member.task_package_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const includedQuestionRevisionIds = new Set(
+    included
+      .map((member) => member.question_revision_id)
+      .filter((id): id is string => Boolean(id)),
+  );
   const available = packages.filter((pkg) => pkg.status === "confirmed" && !includedIds.has(pkg.id));
+  const availableQuestionRevisions = questionRevisions.filter(
+    (revision) => !includedQuestionRevisionIds.has(revision.id),
+  );
   const reviewRequired = included.filter((member) => member.review_status === "review_required");
   const coverage = draft.coverage;
   const hasCoverageWarnings = (coverage?.warnings ?? []).length > 0;
@@ -1391,17 +1437,27 @@ function DraftPanel({
                 <Button
                   busy={busy}
                   busyLabel="移出中…"
-                  onClick={() =>
-                    run(() =>
-                      mutateDraftMember(workspaceId, draft.id, {
-                        commandId: `remove-${draft.id}-${member.task_package_id}-${Date.now()}`,
+                  onClick={() => run(() => {
+                    if (member.question_revision_id) {
+                      if (!member.question_revision_number || !member.question_revision_hash) return Promise.resolve();
+                      return mutateQuestionRevisionMember(workspaceId, draft.id, {
+                        commandId: `remove-${draft.id}-${member.question_revision_id}-${Date.now()}`,
                         draftRevision: draft.revision,
-                        taskPackageId: member.task_package_id,
-                        taskPackageRevision: member.task_package_revision,
+                        questionRevisionId: member.question_revision_id,
+                        questionRevisionNumber: member.question_revision_number,
+                        questionRevisionHash: member.question_revision_hash,
                         action: "remove",
-                      }),
-                    )
-                  }
+                      });
+                    }
+                    if (!member.task_package_id) return Promise.resolve();
+                    return mutateDraftMember(workspaceId, draft.id, {
+                      commandId: `remove-${draft.id}-${member.task_package_id}-${Date.now()}`,
+                      draftRevision: draft.revision,
+                      taskPackageId: member.task_package_id,
+                      taskPackageRevision: member.task_package_revision,
+                      action: "remove",
+                    });
+                  })}
                   size="sm"
                   variant="quiet"
                 >
@@ -1449,6 +1505,37 @@ function DraftPanel({
               </div>
             ))
           )}
+          {availableQuestionRevisions.length > 0 && (
+            <div className="stack-sm" style={{ marginTop: "var(--s-5)" }}>
+              <span className="section-label">已发布题目修订</span>
+              {availableQuestionRevisions.map((revision) => (
+                <div className="inset row-between" key={revision.id} style={{ padding: "var(--s-3)" }}>
+                  <div className="stack-sm">
+                    <span style={{ fontSize: "var(--t-13)", fontWeight: 600 }}>{revision.title}</span>
+                    <span className="secondary" style={{ fontSize: "var(--t-13)" }}>
+                      题 v{revision.revision} · 通过线 {revision.pass_threshold}
+                    </span>
+                  </div>
+                  <Button
+                    busy={busy}
+                    busyLabel="加入中…"
+                    onClick={() => run(() => mutateQuestionRevisionMember(workspaceId, draft.id, {
+                      commandId: `include-${draft.id}-${revision.id}-${Date.now()}`,
+                      draftRevision: draft.revision,
+                      questionRevisionId: revision.id,
+                      questionRevisionNumber: revision.revision,
+                      questionRevisionHash: revision.content_sha256,
+                      action: "include",
+                    }))}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    加入下一版
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1458,7 +1545,10 @@ function DraftPanel({
           <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
             场景标准已有新修订。请逐题确认旧判定依据是否仍适用，确认后才能继续覆盖审查。
           </p>
-          {reviewRequired.map((member) => (
+          {reviewRequired.map((member) => {
+            const taskPackageId = member.task_package_id;
+            if (!taskPackageId) return null;
+            return (
             <div className="stack-sm" key={member.id}>
               <MemberLabel member={member} workspaceId={workspaceId} />
               {(member.deterministic_conflicts ?? []).length > 0 && (
@@ -1477,8 +1567,8 @@ function DraftPanel({
                 disabled={!note.trim()}
                 onClick={() =>
                   run(() =>
-                    decideImpactReview(workspaceId, draft.id, member.task_package_id, {
-                      commandId: `impact-${draft.id}-${member.task_package_id}-${Date.now()}`,
+                    decideImpactReview(workspaceId, draft.id, taskPackageId, {
+                      commandId: `impact-${draft.id}-${taskPackageId}-${Date.now()}`,
                       draftRevision: draft.revision,
                       decision: "reviewed",
                       note: note.trim(),
@@ -1491,7 +1581,8 @@ function DraftPanel({
                 确认本题继续适用
               </Button>
             </div>
-          ))}
+            );
+          })}
           <input
             aria-label="合同影响复核说明"
             className="control"

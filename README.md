@@ -1,6 +1,6 @@
 # Skill Eval Platform
 
-这是 M0 评测集工作台：业务老师从真实资料开始，在可恢复的建题会话里确认候选题边界、题目输入和单一标准答案；后续再形成评分规则、发布修订并进行人工评分。
+这是 M0 评测集工作台：业务老师从真实资料开始，在可恢复的建题会话里确认候选题边界、题目输入和单一标准答案，再形成 100 分制评分规则、发布不可变题目修订并进行人工评分。
 
 当前源码边界：业务事实保存在 SQLAlchemy/Alembic 业务数据库，上传文件保存在服务端文件存储，后台操作由单消费者 Worker 处理。常驻 Worker 默认使用真实 AI；自动化测试和显式 `AI_RUNTIME_MODE=fake` 才使用确定性的 Fake。M2 的 Skill/Agent 执行、评测运行和报告不在当前实现内。
 
@@ -109,13 +109,19 @@ pnpm --dir frontend test:e2e:authoring
 
 ## 显式真实样本验收
 
-真实资料只允许本地显式运行，不进入 Git、默认 CI 或日志。准备好用户确认的三份文件后运行 Fake/SQLite 结构验收：
+真实资料只允许本地显式运行，不进入 Git、默认 CI 或日志。准备好用户确认的三份文件后，可用 Fake/SQLite 做确定性边界验收：
 
 ```bash
-cd backend && uv run python scripts/accept_real_samples.py --samples-dir ../.local-samples/m0
+cd backend && uv run python scripts/accept_real_samples.py --samples-dir /Users/hsikey/BenchMark/EvalData
 ```
 
-成功输出应包含 `M0_REAL_SAMPLE_ACCEPTANCE=PASS`。runner 使用临时数据库、临时存储和 Fake adapter，只输出阶段标记、任务数和 attempts 数，不输出样本原文、老师回答、凭证、内部 thread/checkpoint 或实际哈希。若失败，按 `stage=...` 检查样本目录是否恰好包含一份 JSONL、一份 ZIP 和一份 Markdown，以及 API/Worker 的本地依赖是否可用。
+成功输出应包含 `M0_REAL_SAMPLE_ACCEPTANCE=PASS`。runner 使用临时数据库、临时存储和 Fake adapter，只验证资料边界和业务合同，不代表真实模型已经执行；真实模型证据见下方 Provider/浏览器 E2E。它只输出阶段标记、任务数和 attempts 数，不输出样本原文、老师回答、凭证、内部 thread/checkpoint 或实际哈希。若失败，按 `stage=...` 检查样本目录是否恰好包含一份 JSONL、一份 ZIP 和一份 Markdown，以及 API/Worker 的本地依赖是否可用。
+
+## 第二阶段：评分规则与题目发布
+
+题目输入和标准答案确认后，从同一会话进入 `/workspaces/{workspace_id}/authoring/{conversation_id}/rubric`。页面以逐项正文方式审阅规则：每项显示满分、给分点、扣分点、关键项、标准答案期望得分和理由；满分合计必须为 100，标准答案必须过总分线并通过关键项。规则生成、失败和投影恢复都由服务端快照驱动，生成后页面持续轮询，发布前需要老师二次确认。
+
+发布会创建不可变 `BenchmarkQuestionRevision`。在“版本”工作台中，已发布题目修订会和旧 `TaskPackage` 一起显示，可加入同一个 Working Set；只要包含新题目修订，冻结包使用 `m0-evaluation-package-v2`，`runtime.json` 不含标准答案、rubric、通过线或形成记录，v1 历史包仍按原 schema 和 hash 读取。
 
 ## 浏览器人工验收路径
 
@@ -126,10 +132,11 @@ cd backend && uv run python scripts/accept_real_samples.py --samples-dir ../.loc
 3. 在“当前”确认每份资料的角色和可见范围：Brief/运行材料进入“给 Skill 的材料”，事件流/对话记录进入“形成记录”。
 4. 在“题”检查 AI 分组；用“新增任务”和每份资料的“归属任务”下拉框把两组真实材料拆成两个任务，必要时用“合并到其他任务”，再确认分组。
 5. 打开第一道题。若场景标准尚未确认，题页会先进行“场景标准共创”；每轮只回答一个问题，确认标准后自动进入“题稿共创”。刷新页面，确认已提交的回答仍在。
-6. 两道题分别完成单题判定依据共创并定稿。完成后在“版本”创建下一版草稿，把两道题加入，运行覆盖审查；有风险时必须填写说明并明确确认。
-7. 冻结版本后打开历史版本详情并下载完整包。解包确认只有 `manifest.json`、`runtime.json`、`judge.json`、`provenance.json`；检查 Manifest、三个分区 hash 和下载响应头一致，`runtime` 不含参考结果、评分规则、attempts、老师判断或形成记录。
-8. 在资料整理、等待回答、回答已保存但 Worker 尚未恢复、冻结排队时刷新或关闭重开页面；确认状态只由服务端快照恢复，重复点击不会产生第二个任务、回答或版本。
-9. 删除已完成共创的 Checkpoint thread 后回查题、场景标准、形成记录和版本包；活动中的待答会话不能被清理流程误删。另用第二个账号访问第一个账号的场景、题和版本，必须得到 `403` 且不渲染私有内容。
+6. 进入“评分规则”，生成并逐项审阅 100 分制规则；确认规则后再确认发布。发布后查看修订历史，并可从指定旧修订派生新草稿。
+7. 两道题分别完成单题判定依据共创并定稿。完成后在“版本”创建下一版草稿，把旧任务或已发布题目修订加入，运行覆盖审查；有风险时必须填写说明并明确确认。
+8. 冻结版本后打开历史版本详情并下载完整包。解包确认只有 `manifest.json`、`runtime.json`、`judge.json`、`provenance.json`；检查 Manifest、三个分区 hash 和下载响应头一致，`runtime` 不含参考结果、评分规则、attempts、老师判断或形成记录。
+9. 在资料整理、等待回答、回答已保存但 Worker 尚未恢复、冻结排队时刷新或关闭重开页面；确认状态只由服务端快照恢复，重复点击不会产生第二个任务、回答或版本。
+10. 删除已完成共创的 Checkpoint thread 后回查题、场景标准、形成记录和版本包；活动中的待答会话不能被清理流程误删。另用第二个账号访问第一个账号的场景、题和版本，必须得到 `403` 且不渲染私有内容。
 
 当前 M0 只验收主观型文案/新闻稿场景。通过当前回归集不等于 Skill 已全面可靠；覆盖风险和样本边界必须随冻结版本保留。
 

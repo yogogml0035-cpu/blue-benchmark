@@ -19,6 +19,8 @@ export type VersionListResponse = components["schemas"]["VersionListResponse"];
 export type ManifestResponse = components["schemas"]["ManifestResponse"];
 export type CoverageSnapshotView = components["schemas"]["CoverageSnapshotView"];
 export type DraftMemberView = components["schemas"]["DraftMemberView"];
+export type PublishedQuestionRevisionSummary = components["schemas"]["PublishedQuestionRevisionSummary"];
+export type PublishedQuestionRevisionListResponse = components["schemas"]["PublishedQuestionRevisionListResponse"];
 export type FileDispositionRequest = components["schemas"]["FileDispositionRequest"];
 
 function studioBase(workspaceId: string) {
@@ -82,6 +84,12 @@ export function listTaskPackages(workspaceId: string, batchId: string) {
 export function listWorkspaceTaskPackages(workspaceId: string) {
   return apiFetch<TaskPackageWorkspaceListResponse>(
     `${studioBase(workspaceId)}/task-packages`,
+  );
+}
+
+export function listPublishedQuestionRevisions(workspaceId: string) {
+  return apiFetch<PublishedQuestionRevisionListResponse>(
+    `${studioBase(workspaceId)}/evaluation-sets/question-revisions`,
   );
 }
 
@@ -277,6 +285,34 @@ export function mutateDraftMember(
         draft_revision: input.draftRevision,
         task_package_id: input.taskPackageId,
         task_package_revision: input.taskPackageRevision,
+        action: input.action,
+      }),
+    },
+  );
+}
+
+export function mutateQuestionRevisionMember(
+  workspaceId: string,
+  draftId: string,
+  input: {
+    commandId: string;
+    draftRevision: number;
+    questionRevisionId: string;
+    questionRevisionNumber: number;
+    questionRevisionHash: string;
+    action: "include" | "remove";
+  },
+) {
+  return apiFetch<WorkingSetDraftResponse>(
+    `${studioBase(workspaceId)}/evaluation-sets/drafts/${draftId}/question-revisions`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        command_id: input.commandId,
+        draft_revision: input.draftRevision,
+        question_revision_id: input.questionRevisionId,
+        question_revision_number: input.questionRevisionNumber,
+        question_revision_hash: input.questionRevisionHash,
         action: input.action,
       }),
     },

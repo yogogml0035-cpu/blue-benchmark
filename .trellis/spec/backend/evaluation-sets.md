@@ -2,7 +2,7 @@
 
 ## 先确认当前实现边界
 
-`evaluation_sets` 已实现单用户场景下的唯一下一版本草稿、合同影响复核、覆盖快照、freeze OperationJob 和本地不可变三分区包。M2 的 Skill/Agent 执行、judge 运行和报告不属于当前实现。历史版本的内容事实只来自版本记录指向的 ready 文件。
+`evaluation_sets` 已实现单用户场景下的唯一下一版本草稿、合同影响复核、覆盖快照、freeze OperationJob 和本地不可变三分区包。已发布的 `BenchmarkQuestionRevision` 可以作为 Working Set 成员，与旧 `TaskPackage` 成员共存；含新题目修订的版本使用独立的 v2 package builder/reader。M2 的 Skill/Agent 执行、judge 运行和报告不属于当前实现。历史版本的内容事实只来自版本记录指向的 ready 文件。
 
 ## Scenario: Working Set 与 immutable package
 
@@ -25,13 +25,16 @@
 
 - Draft 以 `revision` 做 CAS；成员变更、影响复核会推进 revision，CoverageSnapshot 必须精确匹配当前 revision。discard 后只能从最新版本重新派生。
 - 冻结硬门：合同已确认；至少一道 included 且已定稿题；任务快照、判定依据、来源证据、文件 visibility 和 runtime 输入完整；所有合同冲突已逐题复核或确定性无冲突批量确认；当前 coverage 已生成；覆盖 warning 已由老师明确确认。
-- `runtime.json` 只允许 `schema_version/tasks/task_id/title/brief/input_files`，文件只允许 `file_id/name/media_type/sha256/content`；参考结果、hard gate、评分维度、老师判断和形成记录分别保存在 `judge.json`/`provenance.json`。
+- v1 `runtime.json` 只允许 `schema_version/tasks/task_id/title/brief/input_files`，文件只允许 `file_id/name/media_type/sha256/content`；参考结果、hard gate、评分维度、老师判断和形成记录分别保存在 `judge.json`/`provenance.json`。v1 builder/reader 不改写历史字节。
+- Working Set 成员必须且只能引用一个来源：旧成员保存 `task_package_id + task_package_revision`， authored 成员保存 `question_revision_id + question_revision_number + question_revision_hash`。后者由外键、XOR check 和发布内容 hash 同时约束。
+- v2 `runtime.json` 只含题目输入、brief 和 runtime 可见资料；`judge.json` 对 authored 题目包含标准答案、rubric 和 threshold；`provenance.json` 包含来源题目修订、hash、资料元数据和老师发布信息。发布后资料元数据或可见性变化会阻塞冻结，不静默改变题目。
 - runtime 文件在进入 Agent 或版本包前都要再次验证 ready marker、字节数和 SHA-256；任务 revision 落后于 WorkingSetMember 时即使同一个题 ID 仍然阻塞 freeze。
 - 场景合同确认会传播到当前 workspace 内所有已确认任务；如果题的既有判定依据来自旧合同修订，TaskPackage 会保留历史数据但不再标记为当前可用，必须重新完成单题共创后才可冻结。
 - 下一版草稿中的 `reviewed`/`no_conflict_confirmed` 是老师明确认可旧判定依据仍适用于新合同的放行证据；只有在该草稿影响复核完成后，freeze 才可读取这份旧依据，普通题读取仍保持严格不匹配阻塞。
 - 标准升级提案批准同样创建合同新修订并使旧题判定依据进入复核；拒绝或仅本题保留不能改变场景合同。
 - Manifest 使用固定排序和 JSON 序列化，记录合同快照、题 revision、来源文件 hash、分区 hash、冻结人/时间、风险确认和 `overall_sha256`。ZIP 固定条目顺序/时间戳；API 和下载都校验 Manifest、三个分区和 ZIP 内容一致。
 - Manifest 的 `version.id/workspace_id/number` 必须分别等于 `EvaluationSetVersion` 的数据库字段；freeze command 在同一 workspace 不能复用于另一份草稿。历史派生前也必须先完成整包完整性校验，不能只读 Manifest。
+- 历史派生读取 v1 或 v2 Manifest 后都必须校验版本身份、三个分区 hash、ready marker、ZIP 条目和分区内容；不能把 v2 Manifest 交给 v1 reader，也不能把 v2 authored 成员降级成旧 TaskPackage。
 - freeze 先 staging 和 ready marker，再以 draft revision CAS 创建 `EvaluationSetVersion`；打包或 DB 失败不能留下可见版本。相同 `freeze_command_id` 重试只返回同一版本。draft 创建 command 在终态后重放仍返回原 draft，不因 active draft 已清除而创建第二份 lineage；OperationJob command 若跨 `coverage_review` / `freeze_package` kind 复用必须冲突。
 - API 不返回 storage key、绝对路径、Checkpoint、原始消息或 private reasoning；教师完整下载包时，调用方必须把 runtime 分区与 judge/provenance 分开使用。
 
@@ -54,6 +57,7 @@
 ### 6. Tests Required
 
 - Draft：唯一 active draft、从 Manifest 派生、include/remove、discard/rebuild、stale revision、同命令幂等和 payload 冲突。
+- Authored member：发布题目修订列表、加入/移除、跨 workspace 403、重复 command、stale revision/hash、旧合同不一致阻塞，以及 legacy/authored mixed freeze。
 - Gates：合同/题/判定依据/来源/visibility/coverage/impact review 的逐项失败；覆盖不足经老师确认可冻且无固定题数。
 - Package：canonical hash 稳定、三分区 allowlist、runtime 机械泄漏、ZIP 条目和分区 hash 一致、文件篡改导致 API/download 拒绝。
 - Concurrency/recovery：freeze `202`、重复 command 单版本、打包失败无可见版本并可重试、Worker 在 DB 提交后崩溃重跑不生成 v2、连续版本和历史不可变。

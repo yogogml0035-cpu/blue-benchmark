@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from app.lib.database import as_utc, session_scope
 from app.lib.database.models import (
     AgentRunAttemptRow,
+    BenchmarkQuestionRevisionRow,
     ContractImpactReviewRow,
     CoverageSnapshotRow,
     EvaluationSetVersionRow,
@@ -30,6 +31,7 @@ from app.features.evaluation_sets.schemas import (
     MemberMutationRequest,
     MemberStatus,
     ImpactReviewStatus,
+    QuestionRevisionMemberMutationRequest,
 )
 
 
@@ -59,8 +61,11 @@ class WorkingSetDraftRecord:
 class WorkingSetMemberRecord:
     id: str
     draft_id: str
-    task_package_id: str
+    task_package_id: str | None
+    question_revision_id: str | None
     task_package_revision: int
+    question_revision_number: int | None
+    question_revision_hash: str | None
     contract_revision_id: str
     status: str
     review_status: str
@@ -171,7 +176,10 @@ def _member(row: WorkingSetMemberRow) -> WorkingSetMemberRecord:
         id=row.id,
         draft_id=row.draft_id,
         task_package_id=row.task_package_id,
+        question_revision_id=row.question_revision_id,
         task_package_revision=row.task_package_revision,
+        question_revision_number=row.question_revision_number,
+        question_revision_hash=row.question_revision_hash,
         contract_revision_id=row.contract_revision_id,
         status=row.status,
         review_status=row.review_status,
@@ -355,7 +363,7 @@ def create_draft(
     workspace_id: str,
     contract_revision_id: str,
     base_version_id: str | None,
-    base_members: list[tuple[str, int, str]],
+    base_members: list[tuple[str | None, str | None, int, str | None, str]],
     command_id: str,
 ) -> WorkingSetDraftRecord:
     now = _now()
@@ -376,12 +384,15 @@ def create_draft(
         with session_scope() as session:
             session.add(row)
             session.flush()
-            for order, (task_id, task_revision, task_contract_id) in enumerate(base_members):
+            for order, (task_id, question_revision_id, task_revision, question_revision_hash, task_contract_id) in enumerate(base_members):
                 member = WorkingSetMemberRow(
                     id=str(uuid4()),
                     draft_id=row.id,
                     task_package_id=task_id,
+                    question_revision_id=question_revision_id,
                     task_package_revision=task_revision,
+                    question_revision_number=(task_revision if question_revision_id else None),
+                    question_revision_hash=question_revision_hash,
                     contract_revision_id=task_contract_id,
                     status=MemberStatus.included.value,
                     review_status=(
@@ -428,6 +439,117 @@ def create_draft(
         if existing is not None:
             return existing
         raise
+
+
+def mutate_question_revision_member(
+    draft_id: str,
+    *,
+    payload: QuestionRevisionMemberMutationRequest,
+    contract_revision_id: str,
+    question_revision_number: int,
+) -> WorkingSetDraftRecord:
+    """Mutate a Working Set member backed by an immutable question revision."""
+
+    now = _now()
+    digest = payload_hash(payload.model_dump(mode="json"))
+    with session_scope() as session:
+        draft = session.scalar(
+            select(WorkingSetDraftRow).where(WorkingSetDraftRow.id == draft_id).with_for_update()
+        )
+        if draft is None:
+            raise KeyError(draft_id)
+        prior_command = session.scalar(
+            select(WorkingSetCommandRow).where(
+                WorkingSetCommandRow.draft_id == draft_id,
+                WorkingSetCommandRow.command_id == payload.command_id,
+            )
+        )
+        if prior_command is not None:
+            if prior_command.payload_hash != digest:
+                raise RepositoryConflict("working-set command payload changed")
+            return _draft(draft)
+        if draft.status != "active":
+            raise RepositoryConflict("working-set draft is not editable")
+        if draft.revision != payload.draft_revision:
+            raise StaleDraft("working-set draft revision changed")
+        source = session.get(BenchmarkQuestionRevisionRow, payload.question_revision_id)
+        if source is None or source.workspace_id != draft.workspace_id:
+            raise RepositoryConflict("question revision is not in this workspace")
+        if source.revision_number != question_revision_number:
+            raise StaleDraft("question revision number changed")
+        if source.content_sha256 != payload.question_revision_hash:
+            raise StaleDraft("question revision content changed")
+        member = session.scalar(
+            select(WorkingSetMemberRow).where(
+                WorkingSetMemberRow.draft_id == draft_id,
+                WorkingSetMemberRow.question_revision_id == payload.question_revision_id,
+            )
+        )
+        if member is None:
+            if payload.action != "include":
+                raise RepositoryConflict("question revision is not a working-set member")
+            member = WorkingSetMemberRow(
+                id=str(uuid4()),
+                draft_id=draft_id,
+                task_package_id=None,
+                question_revision_id=payload.question_revision_id,
+                task_package_revision=question_revision_number,
+                question_revision_number=question_revision_number,
+                question_revision_hash=source.content_sha256,
+                contract_revision_id=contract_revision_id,
+                status=MemberStatus.included.value,
+                review_status=ImpactReviewStatus.not_required.value,
+                deterministic_conflicts_json=[],
+                ai_suggestions_json=[],
+                sort_order=(
+                    session.scalar(
+                        select(func.max(WorkingSetMemberRow.sort_order)).where(
+                            WorkingSetMemberRow.draft_id == draft_id
+                        )
+                    )
+                    or -1
+                )
+                + 1,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(member)
+        else:
+            member.status = (
+                MemberStatus.included.value if payload.action == "include" else MemberStatus.removed.value
+            )
+            member.task_package_revision = question_revision_number
+            member.question_revision_number = question_revision_number
+            member.question_revision_hash = source.content_sha256
+            member.contract_revision_id = contract_revision_id
+            member.review_status = ImpactReviewStatus.not_required.value
+            member.deterministic_conflicts_json = []
+            member.ai_suggestions_json = []
+            member.teacher_note = None
+            member.updated_at = now
+        draft.revision += 1
+        draft.updated_at = now
+        session.add(
+            WorkingSetCommandRow(
+                id=str(uuid4()),
+                draft_id=draft_id,
+                command_id=payload.command_id,
+                payload_hash=digest,
+                result_json={
+                    "question_revision_id": payload.question_revision_id,
+                    "action": payload.action,
+                },
+                created_at=now,
+            )
+        )
+        try:
+            session.flush()
+        except IntegrityError:
+            recovered = _recover_duplicate_command(session, draft_id, payload.command_id, digest)
+            if recovered is not None:
+                return recovered
+            raise RepositoryConflict("working-set was updated concurrently")
+        return _draft(draft)
 
 
 def mutate_member(

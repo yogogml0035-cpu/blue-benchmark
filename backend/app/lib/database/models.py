@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -325,13 +325,29 @@ class WorkingSetMemberRow(Base):
     __tablename__ = "working_set_members"
     __table_args__ = (
         UniqueConstraint("draft_id", "task_package_id", name="uq_working_set_member_task"),
+        UniqueConstraint("draft_id", "question_revision_id", name="uq_working_set_member_question_revision"),
+        CheckConstraint(
+            "(task_package_id IS NOT NULL AND question_revision_id IS NULL) OR "
+            "(task_package_id IS NULL AND question_revision_id IS NOT NULL)",
+            name="ck_working_set_member_one_source",
+        ),
+        CheckConstraint(
+            "(question_revision_id IS NULL AND question_revision_number IS NULL AND question_revision_hash IS NULL) OR "
+            "(question_revision_id IS NOT NULL AND question_revision_number IS NOT NULL AND question_revision_hash IS NOT NULL)",
+            name="ck_working_set_member_revision_identity",
+        ),
         Index("ix_working_set_member_draft_status", "draft_id", "status"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     draft_id: Mapped[str] = mapped_column(ForeignKey("working_set_drafts.id", ondelete="CASCADE"), index=True)
-    task_package_id: Mapped[str] = mapped_column(ForeignKey("task_packages.id"), index=True)
+    task_package_id: Mapped[str | None] = mapped_column(ForeignKey("task_packages.id"), nullable=True, index=True)
+    question_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("benchmark_question_revisions.id"), nullable=True, index=True
+    )
     task_package_revision: Mapped[int] = mapped_column(Integer)
+    question_revision_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    question_revision_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     contract_revision_id: Mapped[str] = mapped_column(String(36))
     status: Mapped[str] = mapped_column(String(32), index=True)
     review_status: Mapped[str] = mapped_column(String(32), index=True)
@@ -522,3 +538,63 @@ class BenchmarkQuestionDraftRow(Base):
     last_confirmation_command_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RubricDraftRow(Base):
+    """Mutable rubric projection tied to one confirmed authoring question."""
+
+    __tablename__ = "benchmark_rubric_drafts"
+    __table_args__ = (
+        UniqueConstraint("question_draft_id", name="uq_benchmark_rubric_draft_question"),
+        Index("ix_benchmark_rubric_draft_workspace_status", "workspace_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    question_draft_id: Mapped[str] = mapped_column(
+        ForeignKey("benchmark_question_drafts.id"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    source_question_revision: Mapped[int] = mapped_column(Integer)
+    source_question_hash: Mapped[str] = mapped_column(String(64))
+    rubric_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    pending_question_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    command_receipts_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    active_operation_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    confirmed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class BenchmarkQuestionRevisionRow(Base):
+    """Immutable published snapshot consumed by later scoring work."""
+
+    __tablename__ = "benchmark_question_revisions"
+    __table_args__ = (
+        UniqueConstraint("question_draft_id", "revision_number", name="uq_benchmark_question_revision_number"),
+        UniqueConstraint("question_draft_id", "content_sha256", name="uq_benchmark_question_revision_hash"),
+        Index("ix_benchmark_question_revision_workspace", "workspace_id", "revision_number"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    question_draft_id: Mapped[str] = mapped_column(
+        ForeignKey("benchmark_question_drafts.id"), index=True
+    )
+    revision_number: Mapped[int] = mapped_column(Integer)
+    source_question_revision: Mapped[int] = mapped_column(Integer)
+    source_question_hash: Mapped[str] = mapped_column(String(64))
+    contract_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("scenario_contract_revisions.id"), nullable=True, index=True
+    )
+    question_snapshot_json: Mapped[dict] = mapped_column(JSON)
+    reference_answer_text: Mapped[str] = mapped_column(Text)
+    rubric_json: Mapped[dict] = mapped_column(JSON)
+    pass_threshold: Mapped[int] = mapped_column(Integer)
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    published_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

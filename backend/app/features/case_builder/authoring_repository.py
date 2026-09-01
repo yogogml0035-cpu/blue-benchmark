@@ -274,6 +274,16 @@ def get_conversation(conversation_id: str) -> AuthoringConversationRecord | None
         return _conversation(row) if row else None
 
 
+def get_conversation_by_draft(draft_id: str) -> AuthoringConversationRecord | None:
+    with session_scope() as session:
+        row = session.scalar(
+            select(AuthoringConversationRow)
+            .join(BenchmarkQuestionDraftRow, BenchmarkQuestionDraftRow.conversation_id == AuthoringConversationRow.id)
+            .where(BenchmarkQuestionDraftRow.id == draft_id)
+        )
+        return _conversation(row) if row else None
+
+
 def get_conversation_by_command(workspace_id: str, command_id: str) -> AuthoringConversationRecord | None:
     with session_scope() as session:
         row = session.scalar(

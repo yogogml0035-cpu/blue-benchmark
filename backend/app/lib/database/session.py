@@ -13,6 +13,7 @@ from app.lib.database.models import (
     AuthoringConversationRow,
     AuthoringMessageRow,
     BenchmarkQuestionDraftRow,
+    BenchmarkQuestionRevisionRow,
     Base,
     CaseRow,
     CoCreationSessionRow,
@@ -26,6 +27,7 @@ from app.lib.database.models import (
     QuestionRevisionRow,
     SessionRow,
     SafeStreamEventRow,
+    RubricDraftRow,
     ScenarioContractRevisionRow,
     SkillRunEvidenceRow,
     StandardPromotionProposalRow,
@@ -41,7 +43,7 @@ from app.lib.database.models import (
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0008_authoring_question_prompt"
+BUSINESS_SCHEMA_HEAD = "0012_qrev_checks"
 
 
 def as_utc(value: datetime) -> datetime:
@@ -104,7 +106,7 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             "co_creation_turns": {"id", "session_id", "question_id", "answer_command_id"},
             "scenario_contract_revisions": {"id", "workspace_id", "revision", "contract_json"},
             "working_set_drafts": {"id", "workspace_id", "active_key", "revision", "freeze_intent_json"},
-            "working_set_members": {"id", "draft_id", "task_package_id", "review_status"},
+            "working_set_members": {"id", "draft_id", "task_package_id", "question_revision_id", "question_revision_number", "question_revision_hash", "review_status"},
             "contract_impact_reviews": {"id", "draft_id", "task_package_id", "status"},
             "coverage_snapshots": {"id", "draft_id", "snapshot_json", "risk_confirmed"},
             "evaluation_set_versions": {"id", "workspace_id", "version_number", "overall_sha256"},
@@ -112,6 +114,8 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             "authoring_messages": {"id", "conversation_id", "sequence", "role", "content_text"},
             "safe_stream_events": {"id", "conversation_id", "sequence", "kind", "payload_json"},
             "benchmark_question_drafts": {"id", "conversation_id", "status", "revision", "input_json", "question_checkpoint_id", "question_question_count", "question_input_revision", "question_prompt_sequence"},
+            "benchmark_rubric_drafts": {"id", "workspace_id", "question_draft_id", "status", "revision", "source_question_revision", "source_question_hash", "rubric_json"},
+            "benchmark_question_revisions": {"id", "workspace_id", "question_draft_id", "revision_number", "source_question_revision", "contract_revision_id", "question_snapshot_json", "rubric_json", "content_sha256"},
         }
         return all(
             columns.issubset({item["name"] for item in inspect(connection).get_columns(table)})
@@ -148,8 +152,7 @@ def clear_business_data() -> None:
         AgentRunAttemptRow,
         SafeStreamEventRow,
         AuthoringMessageRow,
-        BenchmarkQuestionDraftRow,
-        AuthoringConversationRow,
+        RubricDraftRow,
         OperationJobRow,
         StandardPromotionProposalRow,
         TeacherFeedbackRow,
@@ -161,6 +164,9 @@ def clear_business_data() -> None:
         ContractImpactReviewRow,
         WorkingSetCommandRow,
         WorkingSetMemberRow,
+        BenchmarkQuestionRevisionRow,
+        BenchmarkQuestionDraftRow,
+        AuthoringConversationRow,
         WorkingSetDraftRow,
         SkillRunEvidenceRow,
         TaskPackageRow,

@@ -787,7 +787,8 @@ export function AuthoringConversationPage({
             {currentStatus === "confirmed" && (
               <section className="sheet sheet-pad stack">
                 <span className="state state-green"><span className="dot" />题目输入与标准答案已确认</span>
-                <p className="secondary">下一阶段会在后续流程中生成评分规则；这里不会把 AI 候选当作发布事实。</p>
+                <p className="secondary">题目内容已冻结为规则生成的上游；下一步由你审阅评分项和通过条件。</p>
+                <ButtonLink href={`/workspaces/${workspaceId}/authoring/${conversationId}/rubric`} variant="primary">进入规则审阅</ButtonLink>
               </section>
             )}
           </section>

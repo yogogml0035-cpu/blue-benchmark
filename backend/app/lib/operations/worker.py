@@ -120,6 +120,17 @@ class OperationWorker:
                         # the public conversation update cannot commit.  A
                         # later GET/retry still exposes the operation state.
                         pass
+                elif job.target_type == "rubric_draft":
+                    try:
+                        from app.features.evaluation_sets import rubric_repository
+
+                        rubric_repository.mark_projection_pending(
+                            job.target_id,
+                            expected_revision=job.business_revision,
+                            expected_operation_id=job.id,
+                        )
+                    except Exception:
+                        pass
                 return projection
             except Exception:
                 # A failed authoring handler must release the public
@@ -143,6 +154,22 @@ class OperationWorker:
                     except Exception:
                         # The OperationJob failure remains authoritative if
                         # the best-effort projection cleanup cannot commit.
+                        pass
+                elif job.target_type == "rubric_draft":
+                    try:
+                        from app.features.evaluation_sets import rubric_repository
+
+                        current = rubric_repository.get_draft(job.target_id)
+                        if current:
+                            rubric_repository.mark_failed(
+                                current.id,
+                                "RUBRIC_PROCESS_FAILED",
+                                expected_revision=job.business_revision,
+                                expected_operation_id=job.id,
+                                expected_operation_attempt=job.attempts,
+                                expected_worker_id=self.worker_id,
+                            )
+                    except Exception:
                         pass
                 return repository.fail(
                     job.id,
@@ -183,6 +210,7 @@ def _build_worker(runtime_mode: str = "fake") -> OperationWorker:
         handle_cocreation_start,
     )
     from app.features.case_builder.authoring_service import process_authoring, reproject_authoring
+    from app.features.evaluation_sets.rubric_service import process_rubric, reproject_rubric
     from app.features.evaluation_sets.service import handle_coverage_review, handle_freeze
 
     worker = OperationWorker(runtime_mode=runtime_mode)
@@ -192,6 +220,8 @@ def _build_worker(runtime_mode: str = "fake") -> OperationWorker:
     worker.register("cocreation_reproject", lambda job: handle_cocreation_reproject(job))
     worker.register("authoring_process", lambda job: process_authoring(job))
     worker.register("authoring_reproject", lambda job: reproject_authoring(job))
+    worker.register("rubric_process", lambda job: process_rubric(job))
+    worker.register("rubric_reproject", lambda job: reproject_rubric(job))
     worker.register("coverage_review", lambda job: handle_coverage_review(job))
     worker.register("freeze_package", lambda job: handle_freeze(job))
     return worker

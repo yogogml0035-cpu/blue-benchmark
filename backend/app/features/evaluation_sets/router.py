@@ -20,6 +20,8 @@ from app.features.evaluation_sets.schemas import (
     ImpactReviewDecisionRequest,
     ManifestResponse,
     MemberMutationRequest,
+    PublishedQuestionRevisionListResponse,
+    QuestionRevisionMemberMutationRequest,
     VersionListResponse,
     WorkingSetDraftResponse,
 )
@@ -90,6 +92,32 @@ def mutate_member(
     user: UserRecord = Depends(auth_service.require_current_user),
 ) -> WorkingSetDraftResponse:
     return service.mutate_member(workspace_id, draft_id, payload, user)
+
+
+@router.get(
+    "/question-revisions",
+    response_model=PublishedQuestionRevisionListResponse,
+    responses=common_errors,
+)
+def list_question_revisions(
+    workspace_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> PublishedQuestionRevisionListResponse:
+    return service.list_published_question_revisions(workspace_id, user)
+
+
+@router.post(
+    "/drafts/{draft_id}/question-revisions",
+    response_model=WorkingSetDraftResponse,
+    responses=common_errors,
+)
+def mutate_question_revision_member(
+    payload: QuestionRevisionMemberMutationRequest,
+    workspace_id: str = Path(min_length=1),
+    draft_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> WorkingSetDraftResponse:
+    return service.mutate_question_revision_member(workspace_id, draft_id, payload, user)
 
 
 @router.post(

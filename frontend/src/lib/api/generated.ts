@@ -736,6 +736,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/evaluation-sets/question-revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Question Revisions */
+        get: operations["list_question_revisions_api_workspaces__workspace_id__evaluation_sets_question_revisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/question-revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mutate Question Revision Member */
+        post: operations["mutate_question_revision_member_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__question_revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/evaluation-sets/drafts/{draft_id}/impact-reviews/{task_package_id}": {
         parameters: {
             query?: never;
@@ -866,6 +900,110 @@ export interface paths {
         get: operations["download_package_api_workspaces__workspace_id__evaluation_sets_versions__version_id__download_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring/question-drafts/{question_draft_id}/rubric": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Rubric For Question */
+        get: operations["get_rubric_for_question_api_workspaces__workspace_id__authoring_question_drafts__question_draft_id__rubric_get"];
+        put?: never;
+        /** Start Rubric */
+        post: operations["start_rubric_api_workspaces__workspace_id__authoring_question_drafts__question_draft_id__rubric_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring/rubrics/{rubric_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Rubric */
+        get: operations["get_rubric_api_workspaces__workspace_id__authoring_rubrics__rubric_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Rubric */
+        patch: operations["patch_rubric_api_workspaces__workspace_id__authoring_rubrics__rubric_id__patch"];
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring/rubrics/{rubric_id}/confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Rubric */
+        post: operations["confirm_rubric_api_workspaces__workspace_id__authoring_rubrics__rubric_id__confirmation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring/rubrics/{rubric_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Rubric */
+        post: operations["publish_rubric_api_workspaces__workspace_id__authoring_rubrics__rubric_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring/question-drafts/{question_draft_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Revisions */
+        get: operations["list_revisions_api_workspaces__workspace_id__authoring_question_drafts__question_draft_id__revisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring/question-drafts/{question_draft_id}/revisions/{revision_id}/derive-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Derive Draft */
+        post: operations["derive_draft_api_workspaces__workspace_id__authoring_question_drafts__question_draft_id__revisions__revision_id__derive_draft_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1422,6 +1560,11 @@ export interface components {
             /** Confirmed At */
             confirmed_at?: string | null;
         };
+        /**
+         * CriticalMode
+         * @enum {string}
+         */
+        CriticalMode: "none" | "minimum" | "hard_fail";
         /** Dimension */
         Dimension: {
             /** Id */
@@ -1482,9 +1625,15 @@ export interface components {
             /** Id */
             id: string;
             /** Task Package Id */
-            task_package_id: string;
+            task_package_id?: string | null;
+            /** Question Revision Id */
+            question_revision_id?: string | null;
             /** Task Package Revision */
             task_package_revision: number;
+            /** Question Revision Number */
+            question_revision_number?: number | null;
+            /** Question Revision Hash */
+            question_revision_hash?: string | null;
             status: components["schemas"]["MemberStatus"];
             review_status: components["schemas"]["ImpactReviewStatus"];
             /** Deterministic Conflicts */
@@ -1908,6 +2057,33 @@ export interface components {
             /** Evidence Refs */
             evidence_refs?: components["schemas"]["EvidenceRef"][];
         };
+        /** PublishedQuestionRevisionListResponse */
+        PublishedQuestionRevisionListResponse: {
+            /** Workspace Id */
+            workspace_id: string;
+            /** Revisions */
+            revisions?: components["schemas"]["PublishedQuestionRevisionSummary"][];
+        };
+        /** PublishedQuestionRevisionSummary */
+        PublishedQuestionRevisionSummary: {
+            /** Id */
+            id: string;
+            /** Question Draft Id */
+            question_draft_id: string;
+            /** Revision */
+            revision: number;
+            /** Title */
+            title: string;
+            /** Pass Threshold */
+            pass_threshold: number;
+            /** Content Sha256 */
+            content_sha256: string;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+        };
         /** QuestionBoundaryGroupInput */
         QuestionBoundaryGroupInput: {
             /** Title */
@@ -1989,6 +2165,27 @@ export interface components {
             /** File Name */
             file_name?: string | null;
         };
+        /**
+         * QuestionRevisionMemberMutationRequest
+         * @description Add or remove one immutable published authoring revision.
+         */
+        QuestionRevisionMemberMutationRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Draft Revision */
+            draft_revision: number;
+            /** Question Revision Id */
+            question_revision_id: string;
+            /** Question Revision Number */
+            question_revision_number: number;
+            /** Question Revision Hash */
+            question_revision_hash: string;
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "include" | "remove";
+        };
         /** ReferenceOutcome */
         ReferenceOutcome: {
             /** Accepted Result */
@@ -2013,6 +2210,183 @@ export interface components {
             command_id: string;
             /** Batch Revision */
             batch_revision: number;
+        };
+        /** RubricConfirmationRequest */
+        RubricConfirmationRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Rubric Revision */
+            rubric_revision: number;
+        };
+        /** RubricContent */
+        RubricContent: {
+            /** Criteria */
+            criteria: components["schemas"]["RubricCriterion"][];
+            /**
+             * Pass Threshold
+             * @default 60
+             */
+            pass_threshold: number;
+        };
+        /** RubricCriterion */
+        RubricCriterion: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Purpose */
+            purpose: string;
+            /** Max Score */
+            max_score: number;
+            /** Award Points */
+            award_points: string[];
+            /** Deduction Points */
+            deduction_points?: string[];
+            /**
+             * Critical
+             * @default false
+             */
+            critical: boolean;
+            /** @default none */
+            critical_mode: components["schemas"]["CriticalMode"];
+            /** Critical Min Score */
+            critical_min_score?: number | null;
+            /** Hard Fail Conditions */
+            hard_fail_conditions?: string[];
+            /** Reference Expected Score */
+            reference_expected_score: number;
+            /** Reference Score Reason */
+            reference_score_reason: string;
+            /**
+             * Reference Hard Fail Triggered
+             * @default false
+             */
+            reference_hard_fail_triggered: boolean;
+        };
+        /** RubricDeriveRequest */
+        RubricDeriveRequest: {
+            /** Command Id */
+            command_id: string;
+        };
+        /** RubricDraftResponse */
+        RubricDraftResponse: {
+            rubric: components["schemas"]["RubricDraftView"];
+        };
+        /**
+         * RubricDraftStatus
+         * @enum {string}
+         */
+        RubricDraftStatus: "not_started" | "queued" | "processing" | "waiting_for_teacher" | "review_ready" | "confirmed" | "published" | "stale" | "failed" | "projection_pending";
+        /** RubricDraftView */
+        RubricDraftView: {
+            /** Id */
+            id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Question Draft Id */
+            question_draft_id: string;
+            /** Question Title */
+            question_title: string;
+            /** Source Question Revision */
+            source_question_revision: number;
+            status: components["schemas"]["RubricDraftStatus"];
+            /** Revision */
+            revision: number;
+            question_input: components["schemas"]["QuestionInput"];
+            /** Reference Answer Text */
+            reference_answer_text: string;
+            rubric?: components["schemas"]["RubricContent"] | null;
+            /** Reference Total Score */
+            reference_total_score?: number | null;
+            /** Reference Critical Passed */
+            reference_critical_passed?: boolean | null;
+            /** Reference Passed */
+            reference_passed?: boolean | null;
+            pending_question?: components["schemas"]["AuthoringQuestion"] | null;
+            /** Blocking Issues */
+            blocking_issues?: string[];
+            /**
+             * Next Action
+             * @enum {string}
+             */
+            next_action: "start_rubric" | "wait_for_processing" | "review_rubric" | "confirm_rubric" | "publish" | "retry_processing" | "stale_upstream" | "none";
+            active_operation?: components["schemas"]["RubricOperationView"] | null;
+            /** Published Revision Id */
+            published_revision_id?: string | null;
+            /** Confirmed At */
+            confirmed_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** RubricGenerateRequest */
+        RubricGenerateRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Question Revision */
+            question_revision: number;
+        };
+        /** RubricOperationView */
+        RubricOperationView: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rubric_process" | "rubric_reproject";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "failed" | "projection_pending";
+        };
+        /** RubricPatchRequest */
+        RubricPatchRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Rubric Revision */
+            rubric_revision: number;
+            rubric: components["schemas"]["RubricContent"];
+        };
+        /** RubricPublishRequest */
+        RubricPublishRequest: {
+            /** Command Id */
+            command_id: string;
+            /** Rubric Revision */
+            rubric_revision: number;
+        };
+        /** RubricRevisionListResponse */
+        RubricRevisionListResponse: {
+            /** Question Draft Id */
+            question_draft_id: string;
+            /** Revisions */
+            revisions?: components["schemas"]["RubricRevisionSummary"][];
+        };
+        /** RubricRevisionSummary */
+        RubricRevisionSummary: {
+            /** Id */
+            id: string;
+            /** Question Draft Id */
+            question_draft_id: string;
+            /** Revision */
+            revision: number;
+            /** Source Question Revision */
+            source_question_revision: number;
+            /** Pass Threshold */
+            pass_threshold: number;
+            /** Content Sha256 */
+            content_sha256: string;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
         };
         /** Scenario */
         Scenario: {
@@ -5187,6 +5561,163 @@ export interface operations {
             };
         };
     };
+    list_question_revisions_api_workspaces__workspace_id__evaluation_sets_question_revisions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishedQuestionRevisionListResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    mutate_question_revision_member_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__question_revisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionRevisionMemberMutationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingSetDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     decide_impact_api_workspaces__workspace_id__evaluation_sets_drafts__draft_id__impact_reviews__task_package_id__post: {
         parameters: {
             query?: never;
@@ -5765,6 +6296,643 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_rubric_for_question_api_workspaces__workspace_id__authoring_question_drafts__question_draft_id__rubric_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                question_draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    start_rubric_api_workspaces__workspace_id__authoring_question_drafts__question_draft_id__rubric_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                question_draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RubricGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_rubric_api_workspaces__workspace_id__authoring_rubrics__rubric_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                rubric_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    patch_rubric_api_workspaces__workspace_id__authoring_rubrics__rubric_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                rubric_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RubricPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    confirm_rubric_api_workspaces__workspace_id__authoring_rubrics__rubric_id__confirmation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                rubric_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RubricConfirmationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    publish_rubric_api_workspaces__workspace_id__authoring_rubrics__rubric_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                rubric_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RubricPublishRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_revisions_api_workspaces__workspace_id__authoring_question_drafts__question_draft_id__revisions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                question_draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricRevisionListResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    derive_draft_api_workspaces__workspace_id__authoring_question_drafts__question_draft_id__revisions__revision_id__derive_draft_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                question_draft_id: string;
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RubricDeriveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RubricDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Internal Server Error */

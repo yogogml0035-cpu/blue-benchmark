@@ -36,6 +36,8 @@ OPERATION_KINDS = (
     "cocreation_reproject",
     "authoring_process",
     "authoring_reproject",
+    "rubric_process",
+    "rubric_reproject",
     "coverage_review",
     "freeze_package",
 )

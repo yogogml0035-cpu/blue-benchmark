@@ -683,6 +683,70 @@ class _Candidate:
     evidence_file_ids: list[str]
 
 
+@dataclass(frozen=True, slots=True)
+class ConfirmedQuestionSource:
+    """Cross-feature snapshot exposed to rubric generation, never to Agents directly."""
+
+    id: str
+    conversation_id: str
+    workspace_id: str
+    title: str
+    summary: str
+    input: QuestionInput
+    reference_answer_text: str
+    evidence_file_ids: list[str]
+    source_refs: list[dict[str, Any]]
+    confirmed_revision: int
+    confirmed_hash: str
+    confirmed_by: str
+    confirmed_at: Any
+
+
+def get_confirmed_question_source(
+    workspace_id: str,
+    draft_id: str,
+) -> ConfirmedQuestionSource:
+    """Return one immutable-at-this-moment upstream snapshot for rubric work."""
+
+    conversation = repository.get_conversation_by_draft(draft_id)
+    if conversation is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "题目草稿不存在。")
+    if conversation.workspace_id != workspace_id:
+        raise AppError(403, "FORBIDDEN", "你无权使用这道题。")
+    draft = next((item for item in repository.list_drafts(conversation.id) if item.id == draft_id), None)
+    if draft is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "题目草稿不存在。")
+    if (
+        draft.status != QuestionDraftStatus.input_answer_confirmed.value
+        or draft.confirmed_revision is None
+        or not draft.confirmed_hash
+        or not draft.reference_answer_text
+        or not draft.confirmed_by
+        or draft.confirmed_at is None
+    ):
+        raise AppError(409, "QUESTION_NOT_CONFIRMED", "请先确认题目输入和标准答案。")
+    question_input = QuestionInput.model_validate(draft.input)
+    allowed_files = set(draft.evidence_file_ids)
+    question_input = question_input.model_copy(
+        update={"materials": [item for item in question_input.materials if item.file_id in allowed_files]}
+    )
+    return ConfirmedQuestionSource(
+        id=draft.id,
+        conversation_id=conversation.id,
+        workspace_id=conversation.workspace_id,
+        title=draft.title,
+        summary=draft.summary,
+        input=question_input,
+        reference_answer_text=draft.reference_answer_text,
+        evidence_file_ids=list(draft.evidence_file_ids),
+        source_refs=list(draft.source_refs),
+        confirmed_revision=draft.confirmed_revision,
+        confirmed_hash=draft.confirmed_hash,
+        confirmed_by=draft.confirmed_by,
+        confirmed_at=draft.confirmed_at,
+    )
+
+
 def _manual_candidates(text: str | None, fallback_title: str) -> list[_Candidate]:
     source = (text or "").strip()
     if not source:

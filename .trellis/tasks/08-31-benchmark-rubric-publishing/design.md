@@ -41,6 +41,10 @@ Service 不变量：criterion ID 唯一；max 合计 100；分数/阈值范围�
 - runtime 只含被测输入；judge 含 reference/rubric/threshold；provenance 含老师确认与来源。
 - v1 文件和 ready marker 只读；新 builder 写新 key/schema，不覆盖。
 
+### Working Set bridge
+
+`WorkingSetMember` 保留旧 `TaskPackage` 来源，同时允许且只能允许一个已发布 `BenchmarkQuestionRevision` 来源。旧成员保存 `task_package_id + task_package_revision`；authored 成员保存 `question_revision_id + question_revision_number + question_revision_hash`，并由外键、数据库 XOR/identity check 和服务端 hash 校验共同保护。含 authored 成员的 mixed Working Set 用 v2 builder；v1 历史包不重拼。题目发布时记录资料元数据和可选场景标准修订，冻结前再次核对 ready、hash、可见性和合同；资料变更时 fail-closed。
+
 ## Frontend
 
 - 同一会话从上游确认进入 rubric 处理中/追问/审阅。
@@ -52,4 +56,3 @@ Service 不变量：criterion ID 唯一；max 合计 100；分数/阈值范围�
 
 - 失败保留已确认上游和 rubric draft，不创建发布修订。
 - 版本包升级失败不改变现有 v1 读取；可关闭新 publish 入口而不回滚历史。
-

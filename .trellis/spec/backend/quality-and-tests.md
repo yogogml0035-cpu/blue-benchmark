@@ -71,6 +71,8 @@ make test
 - [ ] Checkpoint serializer 显式 allowlist 应用类型，并在 `LANGGRAPH_STRICT_MSGPACK=true` 下执行 read/delete；删除 completed thread 后业务资产仍可读。
 - [ ] 新增题级 Agent 的 Pydantic 类型、嵌套资料角色枚举和证据 locator 必须加入 Checkpoint serializer allowlist；仅默认宽松模式无警告不算通过，必须用 `LANGGRAPH_STRICT_MSGPACK=true` 启动并回读。
 - [ ] authoring projection 写入失败时只允许重试已保存的内部 projection payload；`authoring_reproject` 不得重新调用 analyzer/question Agent，缺少 payload 时必须显式失败。
+- [ ] rubric 生成的结构化输出和中文/泄漏校验最多做一次受限修复；`rubric_reproject` 只读取同一题目修订、同一业务 revision 的已保存 projection，不能因旧 job 的 terminal 状态遮蔽当前快照。
+- [ ] 新 authored question revision 加入 Working Set 时必须校验发布内容 hash、资料元数据/ready marker 和当前合同；含 authored member 的 mixed package 使用 v2，v1 builder/reader 不得改变。
 - [ ] 真实 runner 必须显式传 `--samples-dir`，每轮命令使用全局唯一 nonce，只输出阶段/计数/错误类型；禁止把 `EvalData`、凭证、正文或 raw model output 写入 Git。
 - [ ] 真实 runner 在共享隔离业务库中核验本轮 operation 的私有 Worker 运行标记为 `production`；API health 或 `AI_RUNTIME_MODE` 不能替代实际 Worker 证明，标记不得进入业务 API。
 - [ ] pnpm v11 的 `allowBuilds` 必须在 `frontend/pnpm-workspace.yaml` 明确列出需要执行的依赖脚本；`make test` 与 `make build` 都要在该配置下通过。

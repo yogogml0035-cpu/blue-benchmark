@@ -192,3 +192,5 @@ The server owns the invariant; UI disabling is only an interaction aid.
 - 真实 E2E 结束前要清理精确命名的临时容器/存储；删除 completed Checkpoint thread 后再次回查业务 TaskPackage、合同和版本，证明执行连续性与业务资产确实分离。
 - 前端上传必须传入组件生命周期内稳定的 `command_id`，以覆盖成功响应丢失后的同表单重试；disposition Service 的返回类型必须与实际 `UploadBatchResponse` 合同一致。
 - 轮询响应提交前要通过 workspace/batch/session generation guard；401/403/404 不能保留旧私有快照，`projection_pending` 要走明确的服务端 reproject/retry 动作。
+- rubric 未开始是可读取的 `200 + not_started` 页面状态；生成轮询只持续到 `queued|processing` 离开，投影待恢复单独走无模型 `rubric_reproject`，避免把预期资源空态变成浏览器 404 噪声。
+- `BenchmarkQuestionRevision` 进入 Working Set 时必须沿 `question_revision_id + question_revision_number + question_revision_hash` 传过 OpenAPI、Feature Service、Repository 和版本 builder；与旧 `TaskPackage` 混合时整包升级到 v2，v1 历史字节不可重拼。

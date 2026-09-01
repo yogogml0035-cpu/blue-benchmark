@@ -92,6 +92,7 @@ def _encrypted_serializer(key: str) -> object:
     from app.features.case_builder.authoring_schemas import QuestionMaterialInput, QuestionMaterialRole
     from app.features.case_builder.cocreation_schemas import CoCreationAgentResult
     from app.features.case_builder.cocreation_schemas import AgentEvidenceRef, EventLocator, JsonPointerLocator, LineRangeLocator
+    from app.features.evaluation_sets.rubric_schemas import CriticalMode, RubricContent, RubricCriterion
     from app.lib.ai_runtime.adapters import AuthoringAgentQuestion, AuthoringQuestionAgentResult
     from langgraph.checkpoint.serde.encrypted import EncryptedSerializer
     from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
@@ -107,6 +108,9 @@ def _encrypted_serializer(key: str) -> object:
             LineRangeLocator,
             JsonPointerLocator,
             EventLocator,
+            RubricContent,
+            RubricCriterion,
+            CriticalMode,
         ]
     )
     return EncryptedSerializer.from_pycryptodome_aes(serde=serde, key=key.encode())

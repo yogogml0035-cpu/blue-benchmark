@@ -50,6 +50,19 @@ class MemberMutationRequest(BaseModel):
     action: Literal["include", "remove"]
 
 
+class QuestionRevisionMemberMutationRequest(BaseModel):
+    """Add or remove one immutable published authoring revision."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: str = Field(min_length=1, max_length=255)
+    draft_revision: int = Field(ge=0)
+    question_revision_id: str = Field(min_length=1, max_length=36)
+    question_revision_number: int = Field(ge=1)
+    question_revision_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-fA-F]{64}$")
+    action: Literal["include", "remove"]
+
+
 class ImpactReviewDecisionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -105,15 +118,34 @@ class FreezeRequest(BaseModel):
 
 
 class DraftMemberView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: str
-    task_package_id: str
+    task_package_id: str | None = None
+    question_revision_id: str | None = None
     task_package_revision: int = Field(ge=0)
+    question_revision_number: int | None = Field(default=None, ge=1)
+    question_revision_hash: str | None = Field(default=None, min_length=64, max_length=64)
     status: MemberStatus
     review_status: ImpactReviewStatus
     deterministic_conflicts: list[str] = Field(default_factory=list)
     ai_suggestions: list[str] = Field(default_factory=list)
     teacher_note: str | None = None
     sort_order: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_source(self) -> "DraftMemberView":
+        if (self.task_package_id is None) == (self.question_revision_id is None):
+            raise ValueError("a draft member must reference exactly one source")
+        if self.question_revision_id is not None and (
+            self.question_revision_number is None or self.question_revision_hash is None
+        ):
+            raise ValueError("an authored member must include its revision identity")
+        if self.task_package_id is not None and (
+            self.question_revision_number is not None or self.question_revision_hash is not None
+        ):
+            raise ValueError("a legacy member cannot include authored revision fields")
+        return self
 
 
 class CoverageSnapshotView(BaseModel):
@@ -177,6 +209,21 @@ class VersionSummary(BaseModel):
 class VersionListResponse(BaseModel):
     workspace_id: str
     versions: list[VersionSummary]
+
+
+class PublishedQuestionRevisionSummary(BaseModel):
+    id: str
+    question_draft_id: str
+    revision: int = Field(ge=1)
+    title: str
+    pass_threshold: int = Field(ge=0, le=100)
+    content_sha256: str = Field(min_length=64, max_length=64)
+    published_at: datetime
+
+
+class PublishedQuestionRevisionListResponse(BaseModel):
+    workspace_id: str
+    revisions: list[PublishedQuestionRevisionSummary] = Field(default_factory=list)
 
 
 class ManifestResponse(BaseModel):

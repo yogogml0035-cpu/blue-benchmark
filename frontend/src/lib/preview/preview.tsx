@@ -31,7 +31,17 @@ export const AUTHORING_PREVIEW_STATES = [
 ] as const;
 
 export type AuthoringPreviewState = (typeof AUTHORING_PREVIEW_STATES)[number];
-export type PreviewBarState = PreviewState | AuthoringPreviewState;
+export const RUBRIC_PREVIEW_STATES = [
+  "rubric_processing",
+  "rubric_waiting",
+  "rubric_review",
+  "rubric_failed",
+  "rubric_published",
+  "rubric_stale",
+] as const;
+
+export type RubricPreviewState = (typeof RUBRIC_PREVIEW_STATES)[number];
+export type PreviewBarState = PreviewState | AuthoringPreviewState | RubricPreviewState;
 
 export const PREVIEW_ENABLED = process.env.NODE_ENV !== "production";
 
@@ -49,6 +59,12 @@ const LABELS: Record<PreviewBarState, string> = {
   failed: "后台失败",
   projection_pending: "等待恢复",
   continuity_reset: "重建连续性",
+  rubric_processing: "规则处理中",
+  rubric_waiting: "规则需补充",
+  rubric_review: "规则审阅",
+  rubric_failed: "规则失败",
+  rubric_published: "规则已发布",
+  rubric_stale: "规则已过期",
 };
 
 export function usePreviewState(): PreviewState | null {
@@ -58,13 +74,20 @@ export function usePreviewState(): PreviewState | null {
   return PREVIEW_STATES.find((state) => state === value) ?? null;
 }
 
-export function useAuthoringPreviewState(): PreviewBarState | null {
+export function useAuthoringPreviewState(): PreviewState | AuthoringPreviewState | null {
   const standard = usePreviewState();
   const params = useSearchParams();
   if (standard) return standard;
   if (!PREVIEW_ENABLED) return null;
   const value = params.get("preview");
   return AUTHORING_PREVIEW_STATES.find((state) => state === value) ?? null;
+}
+
+export function useRubricPreviewState(): RubricPreviewState | null {
+  const params = useSearchParams();
+  if (!PREVIEW_ENABLED) return null;
+  const value = params.get("preview");
+  return RUBRIC_PREVIEW_STATES.find((state) => state === value) ?? null;
 }
 
 export function PreviewBar({ states }: { states: readonly PreviewBarState[] }) {
