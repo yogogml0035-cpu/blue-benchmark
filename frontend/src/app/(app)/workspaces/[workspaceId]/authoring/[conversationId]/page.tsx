@@ -11,13 +11,16 @@ export const metadata: Metadata = {
 
 export default async function AuthoringConversationRoute({
   params,
+  searchParams,
 }: {
   params: Promise<{ workspaceId: string; conversationId: string }>;
+  searchParams?: Promise<{ draft?: string }>;
 }) {
   const { workspaceId, conversationId } = await params;
+  const query = searchParams ? await searchParams : {};
   return (
     <Suspense fallback={<PageFallback />}>
-      <AuthoringConversationPage conversationId={conversationId} workspaceId={workspaceId} />
+      <AuthoringConversationPage conversationId={conversationId} draftId={query.draft} workspaceId={workspaceId} />
     </Suspense>
   );
 }

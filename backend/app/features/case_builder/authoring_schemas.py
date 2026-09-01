@@ -92,6 +92,38 @@ class QuestionMaterialView(QuestionMaterialInput):
     file_name: str | None = None
 
 
+class AuthoringInputFileView(BaseModel):
+    """Editable content is exposed only through the browser-session draft view."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    file_id: str
+    file_name: str
+    media_type: Literal["text/plain", "text/markdown"]
+    size_bytes: int = Field(ge=0)
+    sha256: str = Field(min_length=64, max_length=64)
+    content_mode: Literal["full", "teacher_confirmed_excerpt"]
+    source_file_name: str | None = None
+    excerpt_marker: str | None = None
+    content_text: str
+    editable: bool = True
+
+
+class InputFileUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    file_id: str = Field(min_length=1, max_length=36)
+    content_text: str = Field(min_length=1, max_length=1_048_576)
+
+    @field_validator("content_text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        if "\x00" in value or not value.strip():
+            raise ValueError("content_text must be non-empty UTF-8 text")
+        value.encode("utf-8")
+        return value
+
+
 class QuestionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -285,6 +317,7 @@ class InputAnswerPatchRequest(BaseModel):
     input: QuestionInput
     reference_answer_text: str | None = Field(default=None, max_length=50_000)
     bad_samples: list[BadSample] = Field(default_factory=list, max_length=20)
+    input_file_updates: list[InputFileUpdate] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
     def normalize_input(self) -> "InputAnswerPatchRequest":
@@ -296,6 +329,9 @@ class InputAnswerPatchRequest(BaseModel):
         sample_ids = [item.id for item in self.bad_samples]
         if len(sample_ids) != len(set(sample_ids)):
             raise ValueError("bad sample IDs must be unique")
+        file_ids = [item.file_id for item in self.input_file_updates]
+        if len(file_ids) != len(set(file_ids)):
+            raise ValueError("input file update IDs must be unique")
         return self
 
 
@@ -388,6 +424,7 @@ class BenchmarkQuestionDraftView(BaseModel):
     status: QuestionDraftStatus
     revision: int = Field(ge=0)
     input: QuestionInput
+    input_files: list[AuthoringInputFileView] = Field(default_factory=list)
     bad_samples: list[BadSample] = Field(default_factory=list)
     reference_answer_text: str | None = None
     reference_answer_source: Literal["teacher_message", "teacher_input"] | None = None

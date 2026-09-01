@@ -146,6 +146,20 @@ cd backend && uv run python scripts/accept_real_samples.py --samples-dir /Users/
 
 当前 M0 只验收主观型文案/新闻稿场景。通过当前回归集不等于 Skill 已全面可靠；覆盖风险和样本边界必须随自动历史版本保留。
 
+### 外部 Agent 收题 HTTP / 浏览器验收
+
+登录目标场景的“当前”区，点击“创建连接码”，把一次性连接码交给明确启动的本地客户端。客户端兑换后只能创建待审阅草稿；题目确认、打分规则和发布仍回到网站完成。连接码不会进入 URL，兑换后的 token 也不由网站保存。
+
+真实本地 HTTP 客户端验收使用 EvalData 的 Markdown 原文，并断言重放幂等、精确草稿链接、网站回查和撤销失效：
+
+```bash
+cd backend && uv run python scripts/accept_external_authoring.py \
+  --samples-dir /Users/hsikey/BenchMark/EvalData \
+  --base-url http://127.0.0.1:8000
+```
+
+外部上传本身是确定性保存边界，不会创建 AI/rubric `OperationJob`；真实 Provider/Worker 仍按下面的完整 E2E 单独验收。
+
 ### 真实 Provider 与 PostgreSQL E2E
 
 先完成业务迁移、独立 Checkpointer setup 和 `make ai-smoke`，再启动一个 API、一个真实 Worker 和前端。真实验收 runner 必须显式指定已批准的样本目录；例如本机评测集：

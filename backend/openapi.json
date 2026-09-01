@@ -6790,6 +6790,448 @@
           }
         }
       }
+    },
+    "/api/workspaces/{workspace_id}/authoring-connections": {
+      "post": {
+        "tags": [
+          "external-authoring"
+        ],
+        "summary": "Create Connection",
+        "operationId": "create_connection_api_workspaces__workspace_id__authoring_connections_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalConnectionCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalConnectionCreateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/authoring-connection": {
+      "get": {
+        "tags": [
+          "external-authoring"
+        ],
+        "summary": "Get Connection",
+        "operationId": "get_connection_api_workspaces__workspace_id__authoring_connection_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalConnectionStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/authoring-connections/{connection_id}": {
+      "delete": {
+        "tags": [
+          "external-authoring"
+        ],
+        "summary": "Revoke Connection",
+        "operationId": "revoke_connection_api_workspaces__workspace_id__authoring_connections__connection_id__delete",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Connection Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalConnectionStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/external/authoring-connections/exchange": {
+      "post": {
+        "tags": [
+          "external-authoring"
+        ],
+        "summary": "Exchange Connection",
+        "operationId": "exchange_connection_api_external_authoring_connections_exchange_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalConnectionExchangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalConnectionExchangeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/external/authoring-connection": {
+      "get": {
+        "tags": [
+          "external-authoring"
+        ],
+        "summary": "External Status",
+        "operationId": "external_status_api_external_authoring_connection_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalConnectionStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/external/evaluation-case-drafts": {
+      "post": {
+        "tags": [
+          "external-authoring"
+        ],
+        "summary": "Create External Draft",
+        "operationId": "create_external_draft_api_external_evaluation_case_drafts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalEvaluationCaseDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalEvaluationCaseDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Content Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -7214,6 +7656,89 @@
         ],
         "title": "AuthoringConversationView"
       },
+      "AuthoringInputFileView": {
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "title": "File Id"
+          },
+          "file_name": {
+            "type": "string",
+            "title": "File Name"
+          },
+          "media_type": {
+            "type": "string",
+            "enum": [
+              "text/plain",
+              "text/markdown"
+            ],
+            "title": "Media Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Size Bytes"
+          },
+          "sha256": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Sha256"
+          },
+          "content_mode": {
+            "type": "string",
+            "enum": [
+              "full",
+              "teacher_confirmed_excerpt"
+            ],
+            "title": "Content Mode"
+          },
+          "source_file_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source File Name"
+          },
+          "excerpt_marker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excerpt Marker"
+          },
+          "content_text": {
+            "type": "string",
+            "title": "Content Text"
+          },
+          "editable": {
+            "type": "boolean",
+            "title": "Editable",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "file_id",
+          "file_name",
+          "media_type",
+          "size_bytes",
+          "sha256",
+          "content_mode",
+          "content_text"
+        ],
+        "title": "AuthoringInputFileView",
+        "description": "Editable content is exposed only through the browser-session draft view."
+      },
       "AuthoringMessageRequest": {
         "properties": {
           "command_id": {
@@ -7567,6 +8092,13 @@
           },
           "input": {
             "$ref": "#/components/schemas/QuestionInput"
+          },
+          "input_files": {
+            "items": {
+              "$ref": "#/components/schemas/AuthoringInputFileView"
+            },
+            "type": "array",
+            "title": "Input Files"
           },
           "bad_samples": {
             "items": {
@@ -9157,6 +9689,419 @@
         ],
         "title": "EvidenceRef"
       },
+      "ExternalBadSample": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "source_ref": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Source Ref"
+          },
+          "content_text": {
+            "type": "string",
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Content Text"
+          },
+          "teacher_feedback_texts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Teacher Feedback Texts"
+          },
+          "reason_summary": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason Summary"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "source_ref",
+          "content_text",
+          "teacher_feedback_texts",
+          "reason_summary"
+        ],
+        "title": "ExternalBadSample"
+      },
+      "ExternalConnectionCreateRequest": {
+        "properties": {
+          "client_name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Client Name",
+            "default": "本地 Agent"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ExternalConnectionCreateRequest"
+      },
+      "ExternalConnectionCreateResponse": {
+        "properties": {
+          "connection": {
+            "$ref": "#/components/schemas/ExternalConnectionView"
+          },
+          "connection_code": {
+            "type": "string",
+            "title": "Connection Code"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "exchange_url": {
+            "type": "string",
+            "title": "Exchange Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connection",
+          "connection_code",
+          "expires_at",
+          "exchange_url"
+        ],
+        "title": "ExternalConnectionCreateResponse"
+      },
+      "ExternalConnectionExchangeRequest": {
+        "properties": {
+          "connection_code": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 20,
+            "title": "Connection Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "connection_code"
+        ],
+        "title": "ExternalConnectionExchangeRequest"
+      },
+      "ExternalConnectionExchangeResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "const": "Bearer",
+            "title": "Token Type",
+            "default": "Bearer"
+          },
+          "connection": {
+            "$ref": "#/components/schemas/ExternalConnectionView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "connection"
+        ],
+        "title": "ExternalConnectionExchangeResponse"
+      },
+      "ExternalConnectionStatusResponse": {
+        "properties": {
+          "connection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExternalConnectionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ExternalConnectionStatusResponse"
+      },
+      "ExternalConnectionView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "client_name": {
+            "type": "string",
+            "title": "Client Name"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_exchange",
+              "active",
+              "expired",
+              "revoked"
+            ],
+            "title": "Status"
+          },
+          "scopes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "connection:read",
+                "draft:create"
+              ]
+            },
+            "type": "array",
+            "title": "Scopes"
+          },
+          "workspace_name": {
+            "type": "string",
+            "title": "Workspace Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "client_name",
+          "status",
+          "scopes",
+          "workspace_name",
+          "created_at"
+        ],
+        "title": "ExternalConnectionView"
+      },
+      "ExternalEvaluationCaseDraftRequest": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0",
+            "title": "Schema Version"
+          },
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "task_requirement": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Task Requirement"
+          },
+          "input_files": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalInputFile"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Input Files"
+          },
+          "bad_samples": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalBadSample"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Bad Samples"
+          },
+          "reference_answer_text": {
+            "type": "string",
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Reference Answer Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "command_id",
+          "title",
+          "task_requirement",
+          "reference_answer_text"
+        ],
+        "title": "ExternalEvaluationCaseDraftRequest"
+      },
+      "ExternalEvaluationCaseDraftResponse": {
+        "properties": {
+          "draft_id": {
+            "type": "string",
+            "title": "Draft Id"
+          },
+          "conversation_id": {
+            "type": "string",
+            "title": "Conversation Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "draft_ready",
+            "title": "Status"
+          },
+          "workspace_name": {
+            "type": "string",
+            "title": "Workspace Name"
+          },
+          "draft_url": {
+            "type": "string",
+            "title": "Draft Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "draft_id",
+          "conversation_id",
+          "status",
+          "workspace_name",
+          "draft_url"
+        ],
+        "title": "ExternalEvaluationCaseDraftResponse"
+      },
+      "ExternalInputFile": {
+        "properties": {
+          "client_file_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client File Id"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "media_type": {
+            "type": "string",
+            "enum": [
+              "text/plain",
+              "text/markdown"
+            ],
+            "title": "Media Type"
+          },
+          "content_mode": {
+            "type": "string",
+            "enum": [
+              "full",
+              "teacher_confirmed_excerpt"
+            ],
+            "title": "Content Mode"
+          },
+          "content_text": {
+            "type": "string",
+            "maxLength": 1048576,
+            "minLength": 1,
+            "title": "Content Text"
+          },
+          "source_file_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source File Name"
+          },
+          "excerpt_marker": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excerpt Marker"
+          },
+          "source_size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10485760.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Size Bytes"
+          },
+          "source_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "client_file_id",
+          "display_name",
+          "media_type",
+          "content_mode",
+          "content_text"
+        ],
+        "title": "ExternalInputFile"
+      },
       "Fact": {
         "properties": {
           "id": {
@@ -9680,6 +10625,14 @@
             "type": "array",
             "maxItems": 20,
             "title": "Bad Samples"
+          },
+          "input_file_updates": {
+            "items": {
+              "$ref": "#/components/schemas/InputFileUpdate"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Input File Updates"
           }
         },
         "additionalProperties": false,
@@ -9690,6 +10643,29 @@
           "input"
         ],
         "title": "InputAnswerPatchRequest"
+      },
+      "InputFileUpdate": {
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "File Id"
+          },
+          "content_text": {
+            "type": "string",
+            "maxLength": 1048576,
+            "minLength": 1,
+            "title": "Content Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "file_id",
+          "content_text"
+        ],
+        "title": "InputFileUpdate"
       },
       "JsonPointerLocator": {
         "properties": {
@@ -11556,7 +12532,14 @@
             "title": "Workspace Id"
           },
           "batch_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Batch Id"
           },
           "batch_status": {
@@ -12069,6 +13052,7 @@
       "UploadBatchState": {
         "type": "string",
         "enum": [
+          "none",
           "received",
           "analyzing",
           "ready_for_confirmation",
@@ -12450,6 +13434,12 @@
           "workspace"
         ],
         "title": "WorkspaceResponse"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
       }
     }
   }

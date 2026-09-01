@@ -51,10 +51,25 @@
 }
 
 .canvas {
+  display: grid;
+  gap: var(--s-8);
   max-width: 720px;
   width: 100%;
   margin: 0 auto;
   padding: var(--s-8) var(--s-6) var(--s-14);
+}
+
+.agentConnection {
+  border-color: rgb(0 113 227 / 18%);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -20px rgb(0 113 227 / 35%);
+}
+
+.agentConnectionDetails {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-top: var(--s-2);
 }
 
 .mobileNav {
@@ -73,6 +88,11 @@
   .canvas {
     max-width: 100%;
     padding: var(--s-5) var(--s-4) var(--s-10);
+  }
+
+  .agentConnectionDetails {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .mobileNav {

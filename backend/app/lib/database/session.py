@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.lib.database.models import (
     AgentRunAttemptRow,
+    AuthoringConnectionRow,
     AuthoringConversationRow,
+    AuthoringExternalCommandRow,
     AuthoringMessageRow,
     BenchmarkQuestionDraftRow,
     BenchmarkQuestionRevisionRow,
@@ -46,7 +48,7 @@ from app.lib.database.models import (
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0015_question_lifecycle"
+BUSINESS_SCHEMA_HEAD = "0017_external_input_metadata"
 
 
 def as_utc(value: datetime) -> datetime:
@@ -103,6 +105,9 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             "users": {"id", "username", "password_hash"},
             "workspaces": {"id", "owner_user_id", "updated_at"},
             "upload_batches": {"id", "workspace_id", "command_id", "revision"},
+            "evidence_files": {"id", "upload_batch_id", "workspace_id", "storage_key", "sha256", "external_metadata_json"},
+            "authoring_connections": {"id", "workspace_id", "user_id", "scope_json", "code_hash", "token_hash", "revoked_at", "active_request_count"},
+            "authoring_external_commands": {"id", "connection_id", "command_id", "payload_hash", "status", "conversation_id", "draft_id"},
             "operation_jobs": {"id", "kind", "command_id", "status", "lease_until"},
             "task_packages": {"id", "upload_batch_id", "analysis_json", "judgment_package_json"},
             "co_creation_sessions": {"id", "task_package_id", "command_id", "kind", "projection_json"},
@@ -128,6 +133,10 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             for table, columns in required_columns.items()
         )
         required_unique_constraints = {
+            "authoring_connections": {
+                "uq_authoring_connection_code_hash",
+                "uq_authoring_connection_token_hash",
+            },
             "benchmark_question_revisions": {
                 "uq_benchmark_question_revision_workspace_identity",
             },
@@ -178,6 +187,7 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             for table, names in required_foreign_keys.items()
         )
         required_indexes = {
+            "authoring_connections": {"uq_authoring_connection_active_workspace"},
             "evaluation_submissions": {"ix_evaluation_submission_workspace_created"},
             "human_scores": {
                 "ix_human_score_submission_submitted",
@@ -221,6 +231,8 @@ def clear_business_data() -> None:
     create_schema_for_tests()
     tables = [
         AgentRunAttemptRow,
+        AuthoringExternalCommandRow,
+        AuthoringConnectionRow,
         SafeStreamEventRow,
         AuthoringMessageRow,
         HumanScoreItemRow,

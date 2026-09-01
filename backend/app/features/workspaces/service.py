@@ -54,5 +54,14 @@ def owner_id_for_workspace(workspace_id: str) -> str:
     return workspace.owner_user_id
 
 
+def get_for_internal(workspace_id: str) -> repository.WorkspaceRecord:
+    """Read a workspace after another trusted boundary already authenticated it."""
+
+    workspace = repository.get(workspace_id)
+    if workspace is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "私有场景不存在。")
+    return workspace
+
+
 def get_owned(workspace_id: str, user: UserRecord) -> Workspace:
     return to_workspace(assert_owner(workspace_id, user))

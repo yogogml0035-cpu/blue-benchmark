@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+import hashlib
 import re
 
 from app.features.auth.repository import UserRecord
 from app.features.case_builder import authoring_repository as repository
-from app.features.case_builder import ingestion_repository
+from app.features.case_builder import ingestion_repository, ingestion_service
 from app.features.case_builder.authoring_schemas import (
     AuthoringConversationCreateRequest,
     AuthoringConversationResponse,
@@ -27,12 +28,14 @@ from app.features.case_builder.authoring_schemas import (
     AuthoringRetryRequest,
     AuthoringContinuityResetRequest,
     BenchmarkQuestionDraftView,
+    AuthoringInputFileView,
     InputAnswerConfirmationRequest,
     InputAnswerPatchRequest,
     QuestionLifecycleRequest,
     QuestionBoundaryRequest,
     QuestionDraftStatus,
     QuestionInput,
+    QuestionMaterialInput,
     QuestionMaterialView,
 )
 from app.features.workspaces import service as workspace_service
@@ -42,6 +45,7 @@ from app.lib.ai_runtime.profile import GRAPH_SCHEMA_VERSION
 from app.lib.errors import AppError
 from app.lib.operations import repository as operation_repository
 from app.lib.operations.repository import OperationJob, OperationJobStatus
+from app.lib.storage import LocalStorage, StorageError
 
 
 _ACTIVE_JOB_STATUSES = {OperationJobStatus.queued, OperationJobStatus.running}
@@ -174,6 +178,7 @@ def _draft_view(
         status=QuestionDraftStatus(draft.status),
         revision=draft.revision,
         input=question_input,
+        input_files=_input_file_views(draft, files),
         bad_samples=[BadSample.model_validate(item) for item in draft.bad_samples],
         reference_answer_text=draft.reference_answer_text,
         reference_answer_source=draft.reference_answer_source,
@@ -184,6 +189,47 @@ def _draft_view(
         lifecycle_status=draft.lifecycle_status,
         active_revision_id=draft.active_revision_id,
     )
+
+
+def _input_file_views(
+    draft: repository.QuestionDraftRecord,
+    files: dict[str, ingestion_repository.EvidenceFileRecord],
+) -> list[AuthoringInputFileView]:
+    """Expose editable text only for external-authoring evidence objects."""
+
+    storage = LocalStorage()
+    views: list[AuthoringInputFileView] = []
+    for file_id in draft.evidence_file_ids:
+        file = files.get(file_id)
+        metadata = file.external_metadata if file else None
+        if file is None or not metadata:
+            continue
+        try:
+            content = storage.read_bytes(file.storage_key)
+            if (
+                not storage.is_ready(file.storage_key)
+                or len(content) != file.size_bytes
+                or hashlib.sha256(content).hexdigest() != file.sha256
+            ):
+                raise StorageError("external input hash mismatch")
+            content_text = content.decode("utf-8")
+        except (StorageError, UnicodeDecodeError) as exc:
+            raise AppError(503, "EXTERNAL_INPUT_UNAVAILABLE", "外部输入文件暂时无法读取，请稍后重试。") from exc
+        views.append(
+            AuthoringInputFileView(
+                file_id=file.id,
+                file_name=file.original_name,
+                media_type=file.media_type,
+                size_bytes=file.size_bytes,
+                sha256=file.sha256,
+                content_mode=str(metadata.get("content_mode") or "full"),
+                source_file_name=metadata.get("source_file_name"),
+                excerpt_marker=metadata.get("excerpt_marker"),
+                content_text=content_text,
+                editable=True,
+            )
+        )
+    return views
 
 
 def _next_action(
@@ -422,6 +468,51 @@ def create_conversation(
     return _conversation_response(repository.get_conversation(conversation.id) or conversation)
 
 
+def create_external_draft(
+    *,
+    connection_id: str,
+    external_command_id: str,
+    external_payload_hash: str,
+    workspace_id: str,
+    upload_batch_id: str | None,
+    title: str,
+    task_requirement: str,
+    source_file_ids: list[str],
+    bad_samples: list[dict[str, Any]],
+    reference_answer_text: str,
+    created_by: str,
+) -> tuple[repository.AuthoringConversationRecord, repository.QuestionDraftRecord]:
+    question_input = QuestionInput(
+        task_instruction=task_requirement,
+        materials=[
+            QuestionMaterialInput(
+                file_id=file_id,
+                role="fact",
+                priority=index,
+                rationale="老师在外部预览中确认的文本输入。",
+            )
+            for index, file_id in enumerate(source_file_ids)
+        ],
+        must_include=[],
+        prohibited=[],
+        background=None,
+    )
+    return repository.create_external_draft(
+        connection_id=connection_id,
+        external_command_id=external_command_id,
+        external_payload_hash=external_payload_hash,
+        workspace_id=workspace_id,
+        upload_batch_id=upload_batch_id,
+        title=title,
+        task_requirement=task_requirement,
+        source_file_ids=source_file_ids,
+        input_json=question_input.model_dump(mode="json"),
+        bad_samples=bad_samples,
+        reference_answer_text=reference_answer_text,
+        created_by=created_by,
+    )
+
+
 def post_message(
     workspace_id: str,
     conversation_id: str,
@@ -564,6 +655,10 @@ def patch_input_answer(
             confirmed_by=user.id,
         ):
             raise AppError(409, "BATCH_NOT_READY", "资料批次还不能确认用途，请刷新后重试。")
+    replacements = ingestion_service.stage_external_file_replacements(
+        workspace_id=workspace_id,
+        updates=[item.model_dump(mode="json") for item in payload.input_file_updates],
+    )
     try:
         repository.update_draft_input(
             draft.id,
@@ -574,12 +669,33 @@ def patch_input_answer(
             bad_samples=[item.model_dump(mode="json") for item in payload.bad_samples],
             reference_answer_text=payload.reference_answer_text,
             source_refs=draft.source_refs,
+            external_file_replacements=[
+                {
+                    "file_id": item.file_id,
+                    "new_storage_key": item.new_storage_key,
+                    "sha256": item.sha256,
+                    "size_bytes": item.size_bytes,
+                    "canonical_view": item.canonical_view,
+                }
+                for item in replacements
+            ],
         )
     except repository.StaleProjection as exc:
+        ingestion_service.discard_external_file_replacements(replacements)
         raise AppError(409, "STALE_QUESTION_DRAFT", "题目草稿已经更新，请刷新后再保存。") from exc
     except repository.RepositoryConflict as exc:
+        ingestion_service.discard_external_file_replacements(replacements)
         code = "AUTHORING_ACTIVE" if "active operation" in str(exc) else "QUESTION_NOT_EDITABLE"
         raise AppError(409, code, "本轮 AI 还在处理，请等待完成后再编辑。" if code == "AUTHORING_ACTIVE" else "当前题目边界尚未确认或已经舍弃。") from exc
+    except Exception:
+        ingestion_service.discard_external_file_replacements(replacements)
+        raise
+    if replacements:
+        current = repository.get_draft(draft.id)
+        if current is not None and current.revision != draft.revision:
+            ingestion_service.finalize_external_file_replacements(replacements)
+        else:
+            ingestion_service.discard_external_file_replacements(replacements)
     return _conversation_response(repository.get_conversation(conversation.id) or conversation)
 
 

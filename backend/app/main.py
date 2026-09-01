@@ -16,6 +16,7 @@ from app.features.evaluation_sets.router import router as evaluation_sets_router
 from app.features.evaluation_sets.rubric_router import router as rubric_router
 from app.features.human_scoring.router import router as human_scoring_router
 from app.features.human_scoring import service as human_scoring_service
+from app.features.external_authoring.router import router as external_authoring_router
 from app.lib.errors import AppError, app_error_handler, error_response, validation_error_handler
 from app.lib.database import check_schema_ready
 from app.lib.schemas import HealthResponse
@@ -78,3 +79,4 @@ app.include_router(authoring_router, prefix="/api")
 app.include_router(evaluation_sets_router, prefix="/api")
 app.include_router(rubric_router, prefix="/api")
 app.include_router(human_scoring_router, prefix="/api")
+app.include_router(external_authoring_router, prefix="/api")

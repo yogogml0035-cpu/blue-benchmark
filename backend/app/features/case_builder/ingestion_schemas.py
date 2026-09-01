@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class UploadBatchState(StrEnum):
+    none = "none"
     received = "received"
     analyzing = "analyzing"
     ready_for_confirmation = "ready_for_confirmation"
@@ -82,7 +83,7 @@ NextAction = Annotated[
 
 class StudioProjection(BaseModel):
     workspace_id: str
-    batch_id: str
+    batch_id: str | None
     batch_status: UploadBatchState
     files: list[EvidenceFileSummary]
     next_action: NextAction

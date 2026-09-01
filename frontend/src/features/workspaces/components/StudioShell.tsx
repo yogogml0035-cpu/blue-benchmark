@@ -23,6 +23,7 @@ import { stamp } from "@/src/lib/format";
 import { PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
 import { PREVIEW_STUDIO_SUCCESS } from "@/src/features/workspaces/preview/studioFixtures";
 import { listQuestions, type QuestionListResponse } from "@/src/features/case-builder/services/authoringService";
+import { AgentConnectionPanel } from "@/src/features/workspaces/components/AgentConnectionPanel";
 
 import styles from "./studio.module.css";
 
@@ -179,6 +180,7 @@ export function StudioShell({
           )}
         </aside>
         <main className={styles.canvas}>
+          {section === "current" && <AgentConnectionPanel workspaceId={workspaceId} />}
           {children}
         </main>
       </div>
@@ -685,7 +687,7 @@ export function QuestionsSection({ workspaceId }: { workspaceId: string }) {
                 <div className="row-between"><div className="stack-sm"><span className="section-label">{question.lifecycle_status === "active" ? "当前题" : disabled ? "已停用" : deleted ? "已删除" : "题稿"}</span><h2 className="doc-title-sm">{question.title}</h2></div><span className={deleted ? "state state-red" : disabled ? "state state-amber" : question.lifecycle_status === "active" ? "state state-green" : "state state-neutral"}><span className="dot" />{question.lifecycle_status === "active" ? "已发布" : disabled ? "停用" : deleted ? "删除" : "待确认"}</span></div>
                 <p className="secondary">{question.summary}</p>
                 <div className="row"><span className="mono faint">{question.bad_samples?.length ?? 0} 个坏样本</span><span className="mono faint">{question.input.materials?.length ?? 0} 份材料</span></div>
-                <div className="row"><ButtonLink href={`/workspaces/${workspaceId}/authoring/${question.conversation_id}`} variant="primary">{deleted ? "查看历史" : disabled ? "查看并恢复" : question.lifecycle_status === "active" ? "管理题目" : "继续审阅"}</ButtonLink>{question.active_revision_id && !disabled && !deleted && <ButtonLink href={`/workspaces/${workspaceId}/question-revisions/${question.active_revision_id}/submissions/new`} variant="quiet">提交待评结果</ButtonLink>}</div>
+                <div className="row"><ButtonLink href={`/workspaces/${workspaceId}/authoring/${question.conversation_id}?draft=${encodeURIComponent(question.id)}`} variant="primary">{deleted ? "查看历史" : disabled ? "查看并恢复" : question.lifecycle_status === "active" ? "管理题目" : "继续审阅"}</ButtonLink>{question.active_revision_id && !disabled && !deleted && <ButtonLink href={`/workspaces/${workspaceId}/question-revisions/${question.active_revision_id}/submissions/new`} variant="quiet">提交待评结果</ButtonLink>}</div>
               </article>
             );
           })}

@@ -49,6 +49,14 @@ class IncomingFile:
     source_member: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class ExternalTextInput:
+    name: str
+    content: str
+    media_type: str
+    metadata: dict[str, Any]
+
+
 @dataclass(slots=True)
 class ParseBudget:
     file_count: int = 0
@@ -414,6 +422,183 @@ async def create_upload_batch(
     return _batch_response(batch, files, jobs)
 
 
+def create_external_text_batch(
+    *,
+    workspace_id: str,
+    title: str,
+    task_requirement: str,
+    inputs: list[ExternalTextInput],
+    confirmed_by: str,
+) -> tuple[ingestion_repository.UploadBatchRecord | None, list[ingestion_repository.EvidenceFileRecord]]:
+    """Persist external text inputs without creating a batch-analysis job."""
+
+    if not inputs:
+        return None, []
+    if len(inputs) > settings.external_authoring_max_files:
+        raise AppError(413, "TOO_MANY_INPUT_FILES", "外部收题的输入文件数量超过限制。", {"max_files": settings.external_authoring_max_files})
+
+    batch_id = str(uuid4())
+    storage = LocalStorage()
+    files: list[ingestion_repository.EvidenceFileRecord] = []
+    published_keys: list[str] = []
+    staged_keys: list[str] = []
+    try:
+        for item in inputs:
+            safe_name = _validate_name(item.name)
+            extension = _extension(safe_name)
+            if extension not in {"md", "txt"}:
+                raise AppError(415, "UNSUPPORTED_FILE_TYPE", "外部收题只接受 TXT 或 Markdown 文件。")
+            expected_media_type = "text/markdown" if extension == "md" else "text/plain"
+            if item.media_type != expected_media_type:
+                raise AppError(422, "INPUT_FILE_MEDIA_TYPE_MISMATCH", "输入文件的媒体类型与文件名不一致。")
+            content = item.content.encode("utf-8")
+            if len(content) > settings.external_authoring_max_file_bytes:
+                raise AppError(413, "INPUT_FILE_TOO_LARGE", "外部输入文件超过限制。", {"max_bytes": settings.external_authoring_max_file_bytes})
+            state, canonical_view, parse_error = _parse_view(safe_name, content)
+            if state != EvidenceParseState.parsed.value or parse_error is not None or canonical_view is None:
+                raise AppError(422, "INPUT_FILE_NOT_READABLE", "外部输入文件不是可读取的 UTF-8 文本。")
+            file_id = str(uuid4())
+            staged = storage.stage_bytes(batch_id, file_id, content)
+            staged_keys.append(staged.key)
+            final_key = f"evidence/{batch_id}/{file_id}"
+            storage.publish(staged.key, final_key)
+            published_keys.append(final_key)
+            files.append(
+                ingestion_repository.EvidenceFileRecord(
+                    id=file_id,
+                    upload_batch_id=batch_id,
+                    workspace_id=workspace_id,
+                    storage_key=final_key,
+                    original_name=safe_name,
+                    media_type=item.media_type,
+                    size_bytes=len(content),
+                    sha256=staged.sha256,
+                    parse_state=state,
+                    parse_error=None,
+                    canonical_view=canonical_view,
+                    source_member=None,
+                    created_at=_now(),
+                    external_metadata=dict(item.metadata),
+                )
+            )
+        timestamp = _now()
+        batch = ingestion_repository.UploadBatchRecord(
+            id=batch_id,
+            workspace_id=workspace_id,
+            title=title,
+            task_description=task_requirement,
+            command_id=None,
+            status=UploadBatchState.ready_for_confirmation.value,
+            revision=0,
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        ingestion_repository.add_batch(batch, files)
+        if not ingestion_repository.sync_authoring_dispositions(
+            batch_id=batch_id,
+            materials=[
+                {"file_id": item.id, "role": "fact", "rationale": "老师在外部预览中确认的文本输入。"}
+                for item in files
+            ],
+            confirmed_by=confirmed_by,
+        ):
+            raise RuntimeError("external input disposition could not be confirmed")
+        return ingestion_repository.get_batch(batch_id), ingestion_repository.list_files(batch_id)
+    except Exception:
+        for key in published_keys:
+            storage.delete(key)
+        for key in staged_keys:
+            storage.delete(key)
+        ingestion_repository.delete_batch(batch_id)
+        raise
+
+
+def discard_external_text_batch(
+    batch: ingestion_repository.UploadBatchRecord | None,
+    files: list[ingestion_repository.EvidenceFileRecord],
+) -> None:
+    if batch is None:
+        return
+    storage = LocalStorage()
+    for item in files:
+        storage.delete(item.storage_key)
+    ingestion_repository.delete_batch(batch.id)
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalFileReplacement:
+    file_id: str
+    old_storage_key: str
+    new_storage_key: str
+    sha256: str
+    size_bytes: int
+    canonical_view: dict[str, Any]
+
+
+def stage_external_file_replacements(
+    *,
+    workspace_id: str,
+    updates: list[dict[str, str]],
+) -> list[ExternalFileReplacement]:
+    """Stage edited external files; the authoring repository commits metadata."""
+
+    storage = LocalStorage()
+    replacements: list[ExternalFileReplacement] = []
+    try:
+        for update in updates:
+            file_id = update["file_id"]
+            record = ingestion_repository.get_file(file_id)
+            if record is None or record.workspace_id != workspace_id or not record.external_metadata:
+                raise AppError(422, "EXTERNAL_INPUT_NOT_EDITABLE", "只能编辑当前场景的外部文本输入。")
+            content = update["content_text"].encode("utf-8")
+            if not content.strip():
+                raise AppError(422, "INPUT_FILE_EMPTY", "输入文件内容不能为空。")
+            if len(content) > settings.external_authoring_max_file_bytes:
+                raise AppError(413, "INPUT_FILE_TOO_LARGE", "外部输入文件超过限制。", {"max_bytes": settings.external_authoring_max_file_bytes})
+            state, canonical_view, parse_error = _parse_view(record.original_name, content)
+            if state != EvidenceParseState.parsed.value or parse_error is not None or canonical_view is None:
+                raise AppError(422, "INPUT_FILE_NOT_READABLE", "外部输入文件不是可读取的 UTF-8 文本。")
+            replacement_id = str(uuid4())
+            staged = storage.stage_bytes(f"external-replace-{replacement_id}", file_id, content)
+            final_key = f"evidence/{record.upload_batch_id}/{file_id}-{staged.sha256[:16]}"
+            storage.publish(staged.key, final_key)
+            replacements.append(
+                ExternalFileReplacement(
+                    file_id=file_id,
+                    old_storage_key=record.storage_key,
+                    new_storage_key=final_key,
+                    sha256=staged.sha256,
+                    size_bytes=len(content),
+                    canonical_view=canonical_view,
+                )
+            )
+        return replacements
+    except Exception:
+        for item in replacements:
+            storage.delete(item.new_storage_key)
+        raise
+
+
+def discard_external_file_replacements(
+    replacements: list[ExternalFileReplacement],
+    *,
+    remove_old: bool = False,
+) -> None:
+    storage = LocalStorage()
+    for item in replacements:
+        storage.delete(item.new_storage_key)
+        if remove_old:
+            storage.delete(item.old_storage_key)
+
+
+def finalize_external_file_replacements(replacements: list[ExternalFileReplacement]) -> None:
+    """Remove superseded evidence objects after the DB metadata commit."""
+
+    storage = LocalStorage()
+    for item in replacements:
+        storage.delete(item.old_storage_key)
+
+
 def get_upload_batch(workspace_id: str, batch_id: str, user: UserRecord) -> UploadBatchResponse:
     workspace_service.assert_owner(workspace_id, user)
     batch = ingestion_repository.get_batch(batch_id)
@@ -434,7 +619,20 @@ def get_studio(
     workspace_service.assert_owner(workspace_id, user)
     batch = ingestion_repository.get_batch(batch_id) if batch_id else ingestion_repository.latest_batch(workspace_id)
     if batch is None:
-        raise AppError(404, "RESOURCE_NOT_FOUND", "当前场景还没有资料批次。")
+        if batch_id is not None:
+            raise AppError(404, "RESOURCE_NOT_FOUND", "上传批次不存在。")
+        from app.features.case_builder.ingestion_schemas import NextActionNone
+
+        return StudioProjection(
+            workspace_id=workspace_id,
+            batch_id=None,
+            batch_status=UploadBatchState.none,
+            files=[],
+            next_action=NextActionNone(label="上传资料"),
+            active_operation=None,
+            latest_receipt=None,
+            blocking_issues=[],
+        )
     if batch.workspace_id != workspace_id:
         raise AppError(403, "FORBIDDEN", "你无权访问这个资料批次。")
     files = ingestion_repository.list_files(batch.id)

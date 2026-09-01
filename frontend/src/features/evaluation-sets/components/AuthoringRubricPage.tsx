@@ -430,9 +430,11 @@ function RevisionHistory({
 export function AuthoringRubricPage({
   workspaceId,
   conversationId,
+  startedFromConfirmation = false,
 }: {
   workspaceId: string;
   conversationId: string;
+  startedFromConfirmation?: boolean;
 }) {
   const router = useRouter();
   const preview = useRubricPreviewState();
@@ -446,6 +448,7 @@ export function AuthoringRubricPage({
   const [busy, setBusy] = useState<BusyAction>(null);
   const [fault, setFault] = useState<PageFault | null>(null);
   const [confirmAction, setConfirmAction] = useState<"publish" | null>(null);
+  const [awaitingStartedRubric, setAwaitingStartedRubric] = useState(startedFromConfirmation);
   const generation = useRef(0);
 
   const previewDraft = preview ? previewRubric(preview) : null;
@@ -485,7 +488,13 @@ export function AuthoringRubricPage({
     getRubricForQuestion(workspaceId, questionId)
       .then((result) => {
         if (!active || currentGeneration !== generation.current) return;
-        setRubricLoad(result.rubric.status === "not_started" ? { status: "not_started" } : { status: "ready", rubric: result.rubric });
+        if (result.rubric.status === "not_started") {
+          setRubricLoad({ status: "not_started" });
+          setAwaitingStartedRubric(startedFromConfirmation);
+        } else {
+          setRubricLoad({ status: "ready", rubric: result.rubric });
+          setAwaitingStartedRubric(false);
+        }
         void listRubricRevisions(workspaceId, questionId)
           .then((revisions) => {
             if (active && currentGeneration === generation.current) setHistory(revisions);
@@ -501,7 +510,48 @@ export function AuthoringRubricPage({
       active = false;
       generation.current += 1;
     };
-  }, [preview, selectedQuestion, session.status, workspaceId]);
+  }, [preview, selectedQuestion, session.status, startedFromConfirmation, workspaceId]);
+
+  useEffect(() => {
+    if (
+      preview
+      || session.status !== "authenticated"
+      || !selectedQuestion
+      || !awaitingStartedRubric
+      || rubricLoad.status !== "not_started"
+    ) return;
+    const currentGeneration = ++generation.current;
+    let active = true;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const result = await getRubricForQuestion(workspaceId, selectedQuestion.id);
+        if (!active || currentGeneration !== generation.current) return;
+        if (result.rubric.status !== "not_started") {
+          setRubricLoad({ status: "ready", rubric: result.rubric });
+          setAwaitingStartedRubric(false);
+          return;
+        }
+        if (attempts >= 12) {
+          setAwaitingStartedRubric(false);
+          return;
+        }
+        timer = setTimeout(() => void poll(), 500);
+      } catch (cause: unknown) {
+        if (!active || currentGeneration !== generation.current) return;
+        setAwaitingStartedRubric(false);
+        setRubricLoad({ status: "failed", fault: toPageFault(cause) });
+      }
+    };
+    timer = setTimeout(() => void poll(), 250);
+    return () => {
+      active = false;
+      generation.current += 1;
+      if (timer) clearTimeout(timer);
+    };
+  }, [awaitingStartedRubric, preview, rubricLoad.status, selectedQuestion, session.status, workspaceId]);
 
   useEffect(() => {
     if (
@@ -697,6 +747,8 @@ export function AuthoringRubricPage({
               )
             ) : rubricLoad.status === "loading" ? (
               <section aria-busy="true" className="sheet sheet-pad stack-lg"><SkeletonLine height={20} width="35%" /><SkeletonLine height={100} /><SkeletonLine height={180} /></section>
+            ) : rubricLoad.status === "not_started" && awaitingStartedRubric ? (
+              <section aria-busy="true" className="sheet sheet-pad stack"><span className="section-label">已提交启动命令</span><h2 className="doc-title-sm">正在确认规则任务</h2><p className="secondary">规则任务已经提交，正在等待服务端快照出现；页面不会重复启动。</p></section>
             ) : rubricLoad.status === "not_started" ? (
               <form className="sheet sheet-pad stack" onSubmit={(event) => void handleStart(event)}><div className="stack-sm"><span className="section-label">还没有规则草稿</span><h2 className="doc-title-sm">先让 AI 提出一版规则</h2><p className="secondary">它只读取这道已确认题的输入、标准答案和资料边界，最终由你逐项确认。</p></div><Button busy={busy === "start"} busyLabel="正在生成…" size="lg" type="submit" variant="primary">生成打分规则</Button></form>
             ) : rubricLoad.status === "failed" ? (

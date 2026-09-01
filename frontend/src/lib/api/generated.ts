@@ -1147,6 +1147,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/authoring-connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Connection */
+        post: operations["create_connection_api_workspaces__workspace_id__authoring_connections_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Connection */
+        get: operations["get_connection_api_workspaces__workspace_id__authoring_connection_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/authoring-connections/{connection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Connection */
+        delete: operations["revoke_connection_api_workspaces__workspace_id__authoring_connections__connection_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/external/authoring-connections/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Exchange Connection */
+        post: operations["exchange_connection_api_external_authoring_connections_exchange_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/external/authoring-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** External Status */
+        get: operations["external_status_api_external_authoring_connection_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/external/evaluation-case-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create External Draft */
+        post: operations["create_external_draft_api_external_evaluation_case_drafts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1284,6 +1386,41 @@ export interface components {
              */
             updated_at: string;
         };
+        /**
+         * AuthoringInputFileView
+         * @description Editable content is exposed only through the browser-session draft view.
+         */
+        AuthoringInputFileView: {
+            /** File Id */
+            file_id: string;
+            /** File Name */
+            file_name: string;
+            /**
+             * Media Type
+             * @enum {string}
+             */
+            media_type: "text/plain" | "text/markdown";
+            /** Size Bytes */
+            size_bytes: number;
+            /** Sha256 */
+            sha256: string;
+            /**
+             * Content Mode
+             * @enum {string}
+             */
+            content_mode: "full" | "teacher_confirmed_excerpt";
+            /** Source File Name */
+            source_file_name?: string | null;
+            /** Excerpt Marker */
+            excerpt_marker?: string | null;
+            /** Content Text */
+            content_text: string;
+            /**
+             * Editable
+             * @default true
+             */
+            editable: boolean;
+        };
         /** AuthoringMessageRequest */
         AuthoringMessageRequest: {
             /** Command Id */
@@ -1409,6 +1546,8 @@ export interface components {
             /** Revision */
             revision: number;
             input: components["schemas"]["QuestionInput"];
+            /** Input Files */
+            input_files?: components["schemas"]["AuthoringInputFileView"][];
             /** Bad Samples */
             bad_samples?: components["schemas"]["BadSample"][];
             /** Reference Answer Text */
@@ -1911,6 +2050,149 @@ export interface components {
             /** Quote */
             quote?: string | null;
         };
+        /** ExternalBadSample */
+        ExternalBadSample: {
+            /** Id */
+            id: string;
+            /** Source Ref */
+            source_ref: string;
+            /** Content Text */
+            content_text: string;
+            /** Teacher Feedback Texts */
+            teacher_feedback_texts: string[];
+            /** Reason Summary */
+            reason_summary: string;
+        };
+        /** ExternalConnectionCreateRequest */
+        ExternalConnectionCreateRequest: {
+            /**
+             * Client Name
+             * @default 本地 Agent
+             */
+            client_name: string;
+        };
+        /** ExternalConnectionCreateResponse */
+        ExternalConnectionCreateResponse: {
+            connection: components["schemas"]["ExternalConnectionView"];
+            /** Connection Code */
+            connection_code: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Exchange Url */
+            exchange_url: string;
+        };
+        /** ExternalConnectionExchangeRequest */
+        ExternalConnectionExchangeRequest: {
+            /** Connection Code */
+            connection_code: string;
+        };
+        /** ExternalConnectionExchangeResponse */
+        ExternalConnectionExchangeResponse: {
+            /** Access Token */
+            access_token: string;
+            /**
+             * Token Type
+             * @default Bearer
+             * @constant
+             */
+            token_type: "Bearer";
+            connection: components["schemas"]["ExternalConnectionView"];
+        };
+        /** ExternalConnectionStatusResponse */
+        ExternalConnectionStatusResponse: {
+            connection?: components["schemas"]["ExternalConnectionView"] | null;
+        };
+        /** ExternalConnectionView */
+        ExternalConnectionView: {
+            /** Id */
+            id: string;
+            /** Client Name */
+            client_name: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending_exchange" | "active" | "expired" | "revoked";
+            /** Scopes */
+            scopes: ("connection:read" | "draft:create")[];
+            /** Workspace Name */
+            workspace_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Used At */
+            last_used_at?: string | null;
+            /** Revoked At */
+            revoked_at?: string | null;
+        };
+        /** ExternalEvaluationCaseDraftRequest */
+        ExternalEvaluationCaseDraftRequest: {
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "1.0";
+            /** Command Id */
+            command_id: string;
+            /** Title */
+            title: string;
+            /** Task Requirement */
+            task_requirement: string;
+            /** Input Files */
+            input_files?: components["schemas"]["ExternalInputFile"][];
+            /** Bad Samples */
+            bad_samples?: components["schemas"]["ExternalBadSample"][];
+            /** Reference Answer Text */
+            reference_answer_text: string;
+        };
+        /** ExternalEvaluationCaseDraftResponse */
+        ExternalEvaluationCaseDraftResponse: {
+            /** Draft Id */
+            draft_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "draft_ready";
+            /** Workspace Name */
+            workspace_name: string;
+            /** Draft Url */
+            draft_url: string;
+        };
+        /** ExternalInputFile */
+        ExternalInputFile: {
+            /** Client File Id */
+            client_file_id: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Media Type
+             * @enum {string}
+             */
+            media_type: "text/plain" | "text/markdown";
+            /**
+             * Content Mode
+             * @enum {string}
+             */
+            content_mode: "full" | "teacher_confirmed_excerpt";
+            /** Content Text */
+            content_text: string;
+            /** Source File Name */
+            source_file_name?: string | null;
+            /** Excerpt Marker */
+            excerpt_marker?: string | null;
+            /** Source Size Bytes */
+            source_size_bytes?: number | null;
+            /** Source Sha256 */
+            source_sha256?: string | null;
+        };
         /** Fact */
         Fact: {
             /** Id */
@@ -2106,6 +2388,15 @@ export interface components {
             reference_answer_text?: string | null;
             /** Bad Samples */
             bad_samples?: components["schemas"]["BadSample"][];
+            /** Input File Updates */
+            input_file_updates?: components["schemas"]["InputFileUpdate"][];
+        };
+        /** InputFileUpdate */
+        InputFileUpdate: {
+            /** File Id */
+            file_id: string;
+            /** Content Text */
+            content_text: string;
         };
         /** JsonPointerLocator */
         JsonPointerLocator: {
@@ -2746,7 +3037,7 @@ export interface components {
             /** Workspace Id */
             workspace_id: string;
             /** Batch Id */
-            batch_id: string;
+            batch_id: string | null;
             batch_status: components["schemas"]["UploadBatchState"];
             /** Files */
             files: components["schemas"]["EvidenceFileSummary"][];
@@ -2938,7 +3229,7 @@ export interface components {
          * UploadBatchState
          * @enum {string}
          */
-        UploadBatchState: "received" | "analyzing" | "ready_for_confirmation" | "failed";
+        UploadBatchState: "none" | "received" | "analyzing" | "ready_for_confirmation" | "failed";
         /** User */
         User: {
             /** Id */
@@ -7990,6 +8281,352 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_connection_api_workspaces__workspace_id__authoring_connections_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalConnectionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalConnectionCreateResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_connection_api_workspaces__workspace_id__authoring_connection_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalConnectionStatusResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_connection_api_workspaces__workspace_id__authoring_connections__connection_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalConnectionStatusResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exchange_connection_api_external_authoring_connections_exchange_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalConnectionExchangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalConnectionExchangeResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    external_status_api_external_authoring_connection_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalConnectionStatusResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_external_draft_api_external_evaluation_case_drafts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalEvaluationCaseDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalEvaluationCaseDraftResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -194,3 +194,106 @@ The server owns the invariant; UI disabling is only an interaction aid.
 - 轮询响应提交前要通过 workspace/batch/session generation guard；401/403/404 不能保留旧私有快照，`projection_pending` 要走明确的服务端 reproject/retry 动作。
 - rubric 未开始是可读取的 `200 + not_started` 页面状态；生成轮询只持续到 `queued|processing` 离开，投影待恢复单独走无模型 `rubric_reproject`，避免把预期资源空态变成浏览器 404 噪声。
 - `BenchmarkQuestionRevision` 进入 Working Set 时必须沿 `question_revision_id + question_revision_number + question_revision_hash` 传过 OpenAPI、Feature Service、Repository 和版本 builder；与旧 `TaskPackage` 混合时整包升级到 v2，v1 历史字节不可重拼。
+
+## Scenario: External authoring connection and draft ingestion
+
+### 1. Scope / Trigger
+
+- Trigger: a logged-in teacher explicitly binds one local Agent to one
+  Workspace and the Agent uploads one complete text evaluation-case draft.
+- Scope: connection-code exchange, least-privilege bearer auth, exact text
+  preservation, idempotent draft creation, website handoff and empty-workspace
+  recovery. The external API never starts AI, rubric or publication work.
+
+### 2. Signatures
+
+- `POST /api/workspaces/{workspace_id}/authoring-connections` creates a short
+  lived one-time code; `DELETE .../{connection_id}` revokes the binding.
+- `POST /api/external/authoring-connections/exchange` consumes the code once
+  and returns a bearer token; `GET /api/external/authoring-connection` only
+  returns the bound display name and scopes.
+- `POST /api/external/evaluation-case-drafts` accepts `schema_version=1.0`,
+  `command_id`, `title`, raw `task_requirement`, text `input_files`,
+  `bad_samples` and raw `reference_answer_text`; it has no Workspace/account
+  path parameter.
+- `authoring_connections` stores only code/token hashes and a request lease;
+  `authoring_external_commands` stores only connection-scoped payload hash and
+  draft/conversation IDs; external text is stored as ready evidence objects.
+
+### 3. Contracts
+
+- Full input files require matching UTF-8 byte size and SHA-256; excerpts
+  require a source display name and explicit excerpt marker. Only `.txt` and
+  `.md` are accepted, with a 1 MiB per-file and 2 MiB canonical payload limit.
+- The API creates a normal `input_answer_review` draft and no `OperationJob`.
+  The response contains `draft_ready`, current Workspace display name and an
+  exact same-origin URL with `?draft=<draft_id>`; the URL never contains a
+  token.
+- Web Session GET/PATCH may display and edit external text evidence. External
+  bearer auth has only `connection:read` and `draft:create`; it cannot read,
+  patch, score, publish, download or delete a draft.
+- Empty `GET /upload-batches/studio` returns `200` with `batch_id=null` and
+  `batch_status=none`, so a new Workspace is a recoverable upload state rather
+  than a browser-console 404.
+- If question confirmation already submitted rubric start, the route carries
+  `started=1`; the rubric page polls `not_started` snapshots briefly before
+  showing a manual start button, avoiding a second start command during the
+  commit/GET race.
+
+### 4. Validation & Error Matrix
+
+- reused connection code -> `409 CONNECTION_CODE_REUSED`; expired/invalid code
+  -> `409 CONNECTION_CODE_EXPIRED` or `401 CONNECTION_CODE_INVALID`;
+  revoked token -> `401 EXTERNAL_TOKEN_INVALID`;
+- same `connection_id + command_id + payload_hash` -> original draft response;
+  same command with a different hash -> `409 COMMAND_ID_REUSED`;
+- non-text, path-like source name, missing excerpt provenance, mismatched full
+  hash/size, vague feedback or private/tool trace -> `422` with a stable code;
+- payload/file/count over limit -> `413`; per-token concurrency or frequency
+  over limit -> `429` without正文; stale request/command leases are reclaimable;
+- an external bearer presented to a Web Session endpoint never authenticates;
+  a non-owner Session cannot create, inspect or revoke another Workspace.
+
+### 5. Good/Base/Bad Cases
+
+- Good: create code, exchange once, push a complete EvalData Markdown file,
+  replay the same command, then open the exact URL in the teacher browser and
+  edit the text there.
+- Base: no input files is allowed for a manual text-only draft; a Workspace
+  with no upload batch still shows connection and upload controls.
+- Bad: client supplies `workspace_id`, silently truncates a full file, puts a
+  token in the URL, retries after revoke, or sends system/tool/private trace;
+  fail closed without creating an AI job or leaking the body.
+
+### 6. Tests Required
+
+- API tests assert token/code hashes, one-time exchange, rebind/revoke,
+  owner isolation, exact task/answer/file bytes, excerpt markers, bad-sample
+  allowlist, command replay/conflict, no OperationJob, Web-only editing,
+  storage cleanup and stale request/command lease recovery.
+- Live HTTP E2E runs `scripts/accept_external_authoring.py` with
+  `/Users/hsikey/BenchMark/EvalData`; browser E2E asserts the empty Workspace
+  connection card, one-time-code Sheet, exact draft URL, 390px layout and no
+  console errors.
+- The real Provider/Worker E2E remains a separate gate and must still pass the
+  three-file EvalData upload, rubric/package/lifecycle and real browser flow.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+# The external client chooses the tenant and the router starts AI implicitly.
+workspace_id = payload.workspace_id
+create_conversation(workspace_id, payload)
+operation_repository.create_or_get(kind="rubric_process", ...)
+```
+
+#### Correct
+
+```python
+# Tenant and scope come only from the bearer principal; upload is synchronous.
+principal = require_external_principal(token)
+draft = create_external_draft(principal.workspace_id, raw_payload)
+assert no_operation_job_was_created(draft.id)
+```

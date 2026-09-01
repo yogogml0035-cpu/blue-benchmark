@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     operation_max_attempts: int = 3
     upload_max_files: int = 50
     upload_max_total_bytes: int = 10_485_760
+    authoring_connection_code_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    external_authoring_max_payload_bytes: int = Field(default=2_000_000, ge=1024, le=10_485_760)
+    external_authoring_max_file_bytes: int = Field(default=1_048_576, ge=1, le=2_000_000)
+    external_authoring_max_files: int = Field(default=20, ge=1, le=100)
+    external_authoring_max_bad_samples: int = Field(default=20, ge=0, le=100)
+    external_authoring_max_concurrent_requests: int = Field(default=2, ge=1, le=10)
+    external_authoring_min_request_interval_seconds: float = Field(default=0.5, ge=0, le=60)
+    external_authoring_request_lease_seconds: int = Field(default=120, ge=30, le=900)
     archive_max_members: int = 50
     archive_max_uncompressed_bytes: int = 20_971_520
     archive_max_depth: int = 1

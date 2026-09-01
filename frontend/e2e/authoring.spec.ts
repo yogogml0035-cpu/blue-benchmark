@@ -183,7 +183,7 @@ test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
 
   // The second-stage rubric flow is entered by the single
   // “确认题目并生成打分规则” action and owns its own GET polling.
-  await expect(page).toHaveURL(/\/authoring\/[0-9a-f-]+\/rubric$/);
+  await expect(page).toHaveURL(/\/authoring\/[0-9a-f-]+\/rubric(?:\?.*)?$/);
   await expect(page.getByTestId("rubric-page")).toBeVisible();
   const generateRubric = page.getByRole("button", { name: "生成打分规则" });
   if (await generateRubric.isVisible().catch(() => false)) await generateRubric.click();

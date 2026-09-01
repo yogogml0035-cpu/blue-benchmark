@@ -26,8 +26,10 @@ from app.features.case_builder.authoring_schemas import (
 from app.lib.database import as_utc, session_scope
 from app.lib.database.models import (
     AuthoringConversationRow,
+    AuthoringExternalCommandRow,
     AuthoringMessageRow,
     BenchmarkQuestionDraftRow,
+    EvidenceFileRow,
     OperationJobRow,
     SafeStreamEventRow,
 )
@@ -648,6 +650,120 @@ def create_conversation(
         raise
 
 
+def create_external_draft(
+    *,
+    connection_id: str,
+    external_command_id: str,
+    external_payload_hash: str,
+    workspace_id: str,
+    upload_batch_id: str | None,
+    title: str,
+    task_requirement: str,
+    source_file_ids: list[str],
+    input_json: dict[str, Any],
+    bad_samples: list[dict[str, Any]],
+    reference_answer_text: str,
+    created_by: str,
+) -> tuple[AuthoringConversationRecord, QuestionDraftRecord]:
+    """Create a review-ready ordinary draft without enqueueing an operation."""
+
+    timestamp = now()
+    internal_command_id = f"external-authoring-{uuid4()}"
+    with session_scope() as session:
+        receipt = session.scalar(
+            select(AuthoringExternalCommandRow)
+            .where(
+                AuthoringExternalCommandRow.connection_id == connection_id,
+                AuthoringExternalCommandRow.command_id == external_command_id,
+            )
+            .with_for_update()
+        )
+        if receipt is None or receipt.status != "creating" or receipt.payload_hash != external_payload_hash:
+            raise RepositoryConflict("external command reservation is not available")
+        conversation = AuthoringConversationRow(
+            id=str(uuid4()),
+            workspace_id=workspace_id,
+            upload_batch_id=upload_batch_id,
+            title=title,
+            task_instruction=task_requirement,
+            source_file_ids_json=list(source_file_ids),
+            command_id=internal_command_id,
+            command_payload_hash=external_payload_hash,
+            status=AuthoringConversationStatus.review_ready.value,
+            revision=0,
+            active_operation_id=None,
+            pending_question_json=None,
+            command_receipts_json={},
+            created_by=created_by,
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        session.add(conversation)
+        session.flush()
+        session.add(
+            AuthoringMessageRow(
+                id=str(uuid4()),
+                conversation_id=conversation.id,
+                sequence=1,
+                role=AuthoringMessageRole.teacher.value,
+                message_type=AuthoringMessageType.chat.value,
+                content_text=task_requirement,
+                attachment_ids_json=list(source_file_ids),
+                question_draft_id=None,
+                command_id=None,
+                verified=True,
+                created_at=timestamp,
+            )
+        )
+        session.add(
+            AuthoringMessageRow(
+                id=str(uuid4()),
+                conversation_id=conversation.id,
+                sequence=2,
+                role=AuthoringMessageRole.teacher.value,
+                message_type=AuthoringMessageType.standard_answer.value,
+                content_text=reference_answer_text,
+                attachment_ids_json=[],
+                question_draft_id=None,
+                command_id=None,
+                verified=True,
+                created_at=timestamp,
+            )
+        )
+        draft = BenchmarkQuestionDraftRow(
+            id=str(uuid4()),
+            conversation_id=conversation.id,
+            title=title,
+            summary="外部 Agent 已提交完整草稿，等待老师在网站审阅。",
+            status=QuestionDraftStatus.input_answer_review.value,
+            revision=0,
+            input_json=dict(input_json),
+            bad_samples_json=[dict(item) for item in bad_samples],
+            lifecycle_status="draft",
+            active_revision_id=None,
+            lifecycle_receipts_json={},
+            lifecycle_pending_json=None,
+            reference_answer_text=reference_answer_text,
+            reference_answer_source="teacher_input",
+            evidence_file_ids_json=list(source_file_ids),
+            source_refs_json=[],
+            question_checkpoint_id=None,
+            question_question_count=0,
+            question_input_revision=None,
+            question_prompt_sequence=None,
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        session.add(draft)
+        session.flush()
+        receipt.status = "ready"
+        receipt.conversation_id = conversation.id
+        receipt.draft_id = draft.id
+        receipt.completed_at = timestamp
+        session.flush()
+        return _conversation(conversation), _draft(draft)
+
+
 def set_active_operation(
     conversation_id: str,
     operation_id: str,
@@ -1053,6 +1169,7 @@ def update_draft_input(
     bad_samples: list[dict[str, Any]],
     reference_answer_text: str | None,
     source_refs: list[dict[str, Any]],
+    external_file_replacements: list[dict[str, Any]] | None = None,
 ) -> QuestionDraftRecord:
     timestamp = now()
     with session_scope() as session:
@@ -1078,6 +1195,19 @@ def update_draft_input(
             raise RepositoryConflict("confirm the question boundary before editing the question")
         if draft.revision != expected_revision:
             raise StaleProjection("question draft revision changed")
+        for replacement in external_file_replacements or []:
+            file_row = session.get(EvidenceFileRow, str(replacement["file_id"]), with_for_update=True)
+            if (
+                file_row is None
+                or file_row.workspace_id != conversation.workspace_id
+                or not file_row.external_metadata_json
+                or file_row.upload_batch_id != conversation.upload_batch_id
+            ):
+                raise RepositoryConflict("external input file is not editable in this conversation")
+            file_row.storage_key = str(replacement["new_storage_key"])
+            file_row.size_bytes = int(replacement["size_bytes"])
+            file_row.sha256 = str(replacement["sha256"])
+            file_row.canonical_view_json = dict(replacement["canonical_view"])
         materials = input_json.get("materials") or []
         draft.input_json = dict(input_json)
         draft.bad_samples_json = [dict(item) for item in bad_samples]

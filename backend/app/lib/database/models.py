@@ -102,6 +102,7 @@ class EvidenceFileRow(Base):
     parse_state: Mapped[str] = mapped_column(String(64), index=True)
     parse_error_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     canonical_view_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    external_metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     source_member: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -518,6 +519,64 @@ class SafeStreamEventRow(Base):
     kind: Mapped[str] = mapped_column(String(64))
     payload_json: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AuthoringConnectionRow(Base):
+    """A revocable, workspace-bound credential for explicit external authoring."""
+
+    __tablename__ = "authoring_connections"
+    __table_args__ = (
+        UniqueConstraint("code_hash", name="uq_authoring_connection_code_hash"),
+        UniqueConstraint("token_hash", name="uq_authoring_connection_token_hash"),
+        Index("ix_authoring_connection_workspace", "workspace_id", "created_at"),
+        Index(
+            "uq_authoring_connection_active_workspace",
+            "workspace_id",
+            unique=True,
+            sqlite_where=text("revoked_at IS NULL"),
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    client_name: Mapped[str] = mapped_column(String(100), default="本地 Agent")
+    scope_json: Mapped[list] = mapped_column(JSON, default=list)
+    code_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    code_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    code_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    token_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    active_request_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_request_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AuthoringExternalCommandRow(Base):
+    """Idempotency receipt without storing the external payload or its text."""
+
+    __tablename__ = "authoring_external_commands"
+    __table_args__ = (
+        UniqueConstraint("connection_id", "command_id", name="uq_authoring_external_command"),
+        Index("ix_authoring_external_command_connection_status", "connection_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    connection_id: Mapped[str] = mapped_column(
+        ForeignKey("authoring_connections.id", ondelete="CASCADE"), index=True
+    )
+    command_id: Mapped[str] = mapped_column(String(255))
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(32), default="creating", index=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    draft_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class BenchmarkQuestionDraftRow(Base):

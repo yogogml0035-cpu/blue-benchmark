@@ -61,6 +61,14 @@ type DraftForm = {
     priority: number;
     rationale: string;
   }>;
+  inputFiles: Array<{
+    fileId: string;
+    fileName: string;
+    contentMode: "full" | "teacher_confirmed_excerpt";
+    sourceFileName: string;
+    excerptMarker: string;
+    contentText: string;
+  }>;
 };
 
 const STATUS_LABEL: Record<AuthoringConversation["status"], string> = {
@@ -218,6 +226,14 @@ function draftFormFrom(draft: QuestionDraft): DraftForm {
       priority: item.priority,
       rationale: item.rationale ?? "",
     })),
+    inputFiles: (draft.input_files ?? []).map((item) => ({
+      fileId: item.file_id,
+      fileName: item.file_name,
+      contentMode: item.content_mode,
+      sourceFileName: item.source_file_name ?? "",
+      excerptMarker: item.excerpt_marker ?? "",
+      contentText: item.content_text,
+    })),
   };
 }
 
@@ -228,15 +244,17 @@ function lines(value: string) {
 export function AuthoringConversationPage({
   workspaceId,
   conversationId,
+  draftId,
 }: {
   workspaceId: string;
   conversationId: string;
+  draftId?: string;
 }) {
   const router = useRouter();
   const preview = useAuthoringPreviewState();
   const session = useSession();
   const reloadSession = session.reload;
-  const returnTo = `/workspaces/${workspaceId}/authoring/${conversationId}`;
+  const returnTo = `/workspaces/${workspaceId}/authoring/${conversationId}${draftId ? `?draft=${encodeURIComponent(draftId)}` : ""}`;
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [busy, setBusy] = useState<string | null>(null);
   const [fault, setFault] = useState<PageFault | null>(null);
@@ -262,10 +280,10 @@ export function AuthoringConversationPage({
     setSelectedAttachmentIds([]);
     setStreamEvents([]);
     setSelectedIds([]);
-    setSelectedDraftId(null);
+    setSelectedDraftId(draftId ?? null);
     setDraftForm(null);
     lastDraftRevision.current = null;
-  }, [conversationId, preview, workspaceId]);
+  }, [conversationId, draftId, preview, workspaceId]);
 
   const read = useCallback(async (silent: boolean) => {
     const currentGeneration = ++generation.current;
@@ -514,6 +532,10 @@ export function AuthoringConversationPage({
         teacher_feedback_texts: sample.teacherFeedback.split(/\r?\n/).filter((item) => item.trim()),
         reason_summary: sample.reasonSummary.trim(),
       })),
+      input_file_updates: draftForm.inputFiles.map((file) => ({
+        file_id: file.fileId,
+        content_text: file.contentText,
+      })),
     };
     const stable = stableCommand("draft-input", { draftId: selectedDraft.id, ...draftInput });
     setBusy("draft");
@@ -550,7 +572,7 @@ export function AuthoringConversationPage({
       });
       if (requestRouteGeneration !== routeGeneration.current) return;
       clearStableCommand("draft-confirm", stable.fingerprint);
-      router.push(`/workspaces/${workspaceId}/authoring/${conversationId}/rubric`);
+      router.push(`/workspaces/${workspaceId}/authoring/${conversationId}/rubric?started=1`);
     } catch (cause: unknown) {
       handleCommandError(cause, requestRouteGeneration);
     } finally {
@@ -1202,6 +1224,34 @@ function DraftReview({
             ))}
           </div>
         </fieldset>
+      )}
+      {form.inputFiles.length > 0 && (
+        <section className="inset stack" aria-label="外部文本输入">
+          <div className="stack-sm">
+            <span className="section-label">外部文本输入</span>
+            <span className="secondary">这些正文来自外部 Agent 的确认预览；你可以在网站内修改，保存后会形成新的草稿修订。</span>
+          </div>
+          {form.inputFiles.map((file) => (
+            <Field htmlFor={`input-file-${file.fileId}`} key={file.fileId} label={file.fileName}>
+              <div className="stack-sm">
+                <span className="mono faint">
+                  {file.contentMode === "full" ? "完整文件" : `老师确认节选 · 来源：${file.sourceFileName || "未标注"}${file.excerptMarker ? ` · ${file.excerptMarker}` : ""}`}
+                </span>
+                <AutoTextarea
+                  className="control"
+                  disabled={busy || processing}
+                  id={`input-file-${file.fileId}`}
+                  minRows={5}
+                  onChange={(event) => onChange({
+                    ...form,
+                    inputFiles: form.inputFiles.map((current) => current.fileId === file.fileId ? { ...current, contentText: event.target.value } : current),
+                  })}
+                  value={file.contentText}
+                />
+              </div>
+            </Field>
+          ))}
+        </section>
       )}
       <Field hint="每行一项" htmlFor="draft-must" label="必须包含">
         <AutoTextarea className="control" disabled={busy} id="draft-must" minRows={2} onChange={(event) => set("mustInclude", event.target.value)} value={form.mustInclude} />

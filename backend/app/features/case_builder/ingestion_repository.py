@@ -39,6 +39,7 @@ class EvidenceFileRecord:
     canonical_view: dict[str, Any] | None
     source_member: str | None
     created_at: datetime
+    external_metadata: dict[str, Any] | None = None
     role: str = "unknown"
     required: bool = False
     ignored: bool = False
@@ -75,6 +76,7 @@ def _file(row: EvidenceFileRow, disposition: FileDispositionRow | None = None) -
         parse_state=row.parse_state,
         parse_error=row.parse_error_json,
         canonical_view=row.canonical_view_json,
+        external_metadata=dict(row.external_metadata_json or {}) if row.external_metadata_json else None,
         source_member=row.source_member,
         created_at=as_utc(row.created_at),
         role=disposition.role if disposition else "unknown",
@@ -117,6 +119,7 @@ def add_batch(batch: UploadBatchRecord, files: list[EvidenceFileRecord]) -> None
                     parse_state=item.parse_state,
                     parse_error_json=item.parse_error,
                     canonical_view_json=item.canonical_view,
+                    external_metadata_json=item.external_metadata,
                     source_member=item.source_member,
                     created_at=item.created_at,
                 )
