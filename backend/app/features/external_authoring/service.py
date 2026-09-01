@@ -204,7 +204,10 @@ def _response(principal: ExternalAuthoringPrincipal, conversation_id: str, draft
         conversation_id=conversation_id,
         status="draft_ready",
         workspace_name=_workspace_name(principal.workspace_id),
-        draft_url=f"/workspaces/{principal.workspace_id}/authoring/{conversation_id}?draft={draft_id}",
+        draft_url=(
+            f"{settings.frontend_url.rstrip('/')}/workspaces/"
+            f"{principal.workspace_id}/authoring/{conversation_id}?draft={draft_id}"
+        ),
     )
 
 
