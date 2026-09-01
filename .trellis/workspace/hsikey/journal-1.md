@@ -335,3 +335,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 15: 完成待评答卷与人工评分
+<!-- trellis-session: v=2 fp=67ff3dee151fd190 -->
+
+**Date**: 2026-09-01
+**Task**: 完成待评答卷与人工评分
+**Branch**: `main`
+
+### Summary
+
+完成独立答卷粘贴/单文件上传、发布题目修订绑定、服务端确定性评分、parent-linked 不可变重评历史与双区评分 UI；补齐 OpenAPI、Preview、真实 EvalData AI/Worker/浏览器 E2E、迁移和对抗式权限/幂等/存储完整性测试。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e1439b5` | feat: add human submission scoring workflow |
+
+### Status
+
+[OK] **Completed**
