@@ -67,6 +67,7 @@ class ScoreCreateRequest(BaseModel):
     items: list[ScoreItemInput] = Field(min_length=1, max_length=100)
     overall_reason: str | None = Field(default=None, max_length=5_000)
     parent_score_id: str | None = Field(default=None, max_length=36)
+    question_revision_id: str | None = Field(default=None, max_length=36)
 
     @field_validator("command_id")
     @classmethod
@@ -86,6 +87,13 @@ class ScoreCreateRequest(BaseModel):
     @field_validator("parent_score_id")
     @classmethod
     def normalize_parent_score_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+    @field_validator("question_revision_id")
+    @classmethod
+    def normalize_question_revision_id(cls, value: str | None) -> str | None:
         if value is None:
             return None
         return value.strip() or None
@@ -148,6 +156,7 @@ class HumanScoreView(BaseModel):
 class HumanSubmissionResponse(BaseModel):
     submission: SubmissionView
     question_revision: QuestionRevisionView
+    question_revisions: dict[str, QuestionRevisionView] = Field(default_factory=dict)
     scores: list[HumanScoreView] = Field(default_factory=list)
 
 
@@ -157,4 +166,5 @@ class HumanScoreResponse(BaseModel):
 
 class HumanScoreHistoryResponse(BaseModel):
     submission_id: str
+    question_revisions: dict[str, QuestionRevisionView] = Field(default_factory=dict)
     scores: list[HumanScoreView] = Field(default_factory=list)

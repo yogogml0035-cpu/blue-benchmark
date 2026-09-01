@@ -308,6 +308,25 @@ function initialDraft(revision: QuestionRevision, score?: HumanScore): ScoreDraf
   );
 }
 
+function revisionMap(snapshot: HumanSubmissionResponse): Record<string, QuestionRevision> {
+  return {
+    ...(snapshot.question_revisions ?? {}),
+    [snapshot.question_revision.id]: snapshot.question_revision,
+  };
+}
+
+function revisionFor(
+  snapshot: HumanSubmissionResponse,
+  revisionId: string | null | undefined,
+): QuestionRevision {
+  const revisions = revisionMap(snapshot);
+  return (revisionId && revisions[revisionId]) || snapshot.question_revision;
+}
+
+function revisionOptions(snapshot: HumanSubmissionResponse) {
+  return Object.values(revisionMap(snapshot)).sort((left, right) => right.revision_number - left.revision_number);
+}
+
 function latestScore(scores: HumanScore[]) {
   return scores.length > 0 ? scores[scores.length - 1] : null;
 }
@@ -316,7 +335,13 @@ function formatScoreDate(value: string) {
   return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-function ScoreHistory({ scores, revision }: { scores: HumanScore[]; revision: QuestionRevision }) {
+function ScoreHistory({
+  scores,
+  revisions,
+}: {
+  scores: HumanScore[];
+  revisions: Record<string, QuestionRevision>;
+}) {
   if (scores.length === 0) return null;
   return (
     <section className={`sheet sheet-pad ${styles.historySheet}`} aria-label="评分历史" data-testid="score-history">
@@ -329,6 +354,7 @@ function ScoreHistory({ scores, revision }: { scores: HumanScore[]; revision: Qu
       </div>
       <div className={styles.history}>
         {scores.map((score, index) => {
+          const scoreRevision = revisions[score.question_revision_id];
           const parentIndex = score.parent_score_id
             ? scores.findIndex((candidate) => candidate.id === score.parent_score_id)
             : -1;
@@ -336,6 +362,7 @@ function ScoreHistory({ scores, revision }: { scores: HumanScore[]; revision: Qu
           <article className={styles.historyItem} key={score.id}>
             <div className={styles.historyMeta}>
               <span>第 {index + 1} 次{score.parent_score_id ? (parentIndex >= 0 ? ` · 基于第 ${parentIndex + 1} 次评分` : " · 重评") : " · 首次评分"}</span>
+              <span>题 v{scoreRevision?.revision_number ?? "—"}</span>
               <span>{formatScoreDate(score.submitted_at)}</span>
             </div>
             <div className="row-between">
@@ -349,11 +376,11 @@ function ScoreHistory({ scores, revision }: { scores: HumanScore[]; revision: Qu
               <summary className="section-label">查看逐项记录</summary>
               <div className="stack-sm" style={{ marginTop: "var(--s-3)" }}>
                 {score.items.map((item) => {
-                  const criterion = revision.criteria.find((candidate) => candidate.id === item.criterion_id);
-                  const criterionIndex = revision.criteria.findIndex((candidate) => candidate.id === item.criterion_id);
+                  const criterion = scoreRevision?.criteria.find((candidate) => candidate.id === item.criterion_id);
+                  const criterionIndex = scoreRevision?.criteria.findIndex((candidate) => candidate.id === item.criterion_id) ?? -1;
                   return (
                     <div className="row-between" key={item.criterion_id}>
-                      <span className="secondary">评分项 {criterionIndex + 1}{criterion?.critical ? " · 关键项" : ""}</span>
+                      <span className="secondary">{criterion?.name ?? `评分项 ${criterionIndex + 1}`}{criterion?.critical ? " · 关键项" : ""}</span>
                       <span className="mono">{item.score} / {criterion?.max_score ?? "—"}</span>
                       {criterion?.critical && <span className={item.critical_passed ? "state state-green" : "state state-red"}><span className="dot" />{item.critical_passed ? "关键项通过" : "关键项未通过"}</span>}
                       {item.hard_fail_triggered !== null && item.hard_fail_triggered !== undefined && (
@@ -372,6 +399,39 @@ function ScoreHistory({ scores, revision }: { scores: HumanScore[]; revision: Qu
         })}
       </div>
     </section>
+  );
+}
+
+function RevisionPicker({
+  revisions,
+  value,
+  disabled,
+  onChange,
+}: {
+  revisions: QuestionRevision[];
+  value: string;
+  disabled: boolean;
+  onChange: (revisionId: string) => void;
+}) {
+  if (revisions.length <= 1) {
+    return <p className={styles.revisionHint}>当前只有题 v{revisions[0]?.revision_number ?? "—"} 可供重评。</p>;
+  }
+  return (
+    <Field htmlFor="rescore-revision" hint="切换版本会清空不兼容的评分草稿" label="按哪一版标准重评">
+      <select
+        className="control"
+        disabled={disabled}
+        id="rescore-revision"
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        {revisions.map((revision) => (
+          <option key={revision.id} value={revision.id}>
+            题 v{revision.revision_number} · {revision.title}
+          </option>
+        ))}
+      </select>
+    </Field>
   );
 }
 
@@ -546,6 +606,7 @@ export function HumanScoringPage({
   const [busy, setBusy] = useState(false);
   const [rescoreMode, setRescoreMode] = useState(false);
   const [parentScoreId, setParentScoreId] = useState<string | null>(null);
+  const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null);
   const [fault, setFault] = useState<PageFault | null>(null);
   const scoreCommandRef = useRef<string | null>(null);
   const resultTitleRef = useRef<HTMLDivElement>(null);
@@ -571,8 +632,10 @@ export function HumanScoringPage({
       const next = previewSubmission(previewSnapshotState as "human_draft" | "human_submitted" | "human_rescore" | "human_history");
       setLoad({ status: "ready", snapshot: next });
       const nextLatest = latestScore(next.scores ?? []);
-      setDraft(initialDraft(next.question_revision, nextLatest ?? undefined));
-      setOverallReason("");
+      const nextRevisionId = nextLatest?.question_revision_id ?? next.question_revision.id;
+      setSelectedRevisionId(nextRevisionId);
+      setDraft(initialDraft(revisionFor(next, nextRevisionId), nextLatest ?? undefined));
+      setOverallReason(nextLatest?.overall_reason ?? "");
       setErrors({});
       setRescoreMode(previewSnapshotState === "human_rescore");
       setParentScoreId(previewSnapshotState === "human_rescore" ? nextLatest?.id ?? null : null);
@@ -587,8 +650,10 @@ export function HumanScoringPage({
         if (!active) return;
         setLoad({ status: "ready", snapshot: result });
         const nextLatest = latestScore(result.scores ?? []);
-        setDraft(initialDraft(result.question_revision, nextLatest ?? undefined));
-        setOverallReason("");
+        const nextRevisionId = nextLatest?.question_revision_id ?? result.question_revision.id;
+        setSelectedRevisionId(nextRevisionId);
+        setDraft(initialDraft(revisionFor(result, nextRevisionId), nextLatest ?? undefined));
+        setOverallReason(nextLatest?.overall_reason ?? "");
         setErrors({});
         setRescoreMode(false);
         setParentScoreId(null);
@@ -615,10 +680,22 @@ export function HumanScoringPage({
 
   function enterRescore() {
     if (!snapshot || !latest) return;
-    setDraft(initialDraft(snapshot.question_revision, latest));
+    const nextRevisionId = latest.question_revision_id;
+    setSelectedRevisionId(nextRevisionId);
+    setDraft(initialDraft(revisionFor(snapshot, nextRevisionId), latest));
     setOverallReason(latest.overall_reason ?? "");
     setParentScoreId(latest.id);
     setRescoreMode(true);
+    setErrors({});
+    scoreCommandRef.current = null;
+  }
+
+  function changeRescoreRevision(nextRevisionId: string) {
+    if (!snapshot || !rescoreMode) return;
+    const target = revisionFor(snapshot, nextRevisionId);
+    setSelectedRevisionId(nextRevisionId);
+    setDraft(initialDraft(target, nextRevisionId === latest?.question_revision_id ? latest : undefined));
+    setOverallReason(nextRevisionId === latest?.question_revision_id ? latest?.overall_reason ?? "" : "");
     setErrors({});
     scoreCommandRef.current = null;
   }
@@ -653,7 +730,8 @@ export function HumanScoringPage({
 
   async function saveScore() {
     if (!snapshot || busy || preview) return;
-    const nextErrors = validateDraft(snapshot.question_revision);
+    const activeRevision = revisionFor(snapshot, selectedRevisionId);
+    const nextErrors = validateDraft(activeRevision);
     setErrors(nextErrors);
     const firstError = Object.keys(nextErrors)[0];
     if (firstError) {
@@ -666,7 +744,7 @@ export function HumanScoringPage({
     setBusy(true);
     setFault(null);
     if (!scoreCommandRef.current) scoreCommandRef.current = commandId(rescoreMode ? "rescore" : "score");
-    const items = snapshot.question_revision.criteria.map((criterion) => {
+    const items = activeRevision.criteria.map((criterion) => {
       const item = draft[criterion.id];
       const value: {
         criterion_id: string;
@@ -682,12 +760,14 @@ export function HumanScoringPage({
       return value;
     });
     try {
-      await submitScore(workspaceId, submissionId, {
+      const scoreInput = {
         command_id: scoreCommandRef.current,
         items,
         overall_reason: overallReason.trim() || null,
         parent_score_id: rescoreMode ? parentScoreId : null,
-      });
+        ...(rescoreMode ? { question_revision_id: activeRevision.id } : {}),
+      };
+      await submitScore(workspaceId, submissionId, scoreInput);
       let refreshed: HumanSubmissionResponse;
       try {
         refreshed = await getSubmission(workspaceId, submissionId);
@@ -699,7 +779,10 @@ export function HumanScoringPage({
         return;
       }
       setLoad({ status: "ready", snapshot: refreshed });
-      setDraft(initialDraft(refreshed.question_revision, latestScore(refreshed.scores ?? []) ?? undefined));
+      const refreshedLatest = latestScore(refreshed.scores ?? []);
+      const refreshedRevisionId = refreshedLatest?.question_revision_id ?? refreshed.question_revision.id;
+      setSelectedRevisionId(refreshedRevisionId);
+      setDraft(initialDraft(revisionFor(refreshed, refreshedRevisionId), refreshedLatest ?? undefined));
       setRescoreMode(false);
       setParentScoreId(null);
       setOverallReason("");
@@ -722,7 +805,9 @@ export function HumanScoringPage({
     if (next.kind === "unauthorized") session.reload();
   }
 
-  const title = snapshot?.question_revision.title ?? "人工评分";
+  const title = snapshot
+    ? revisionFor(snapshot, selectedRevisionId).title
+    : "人工评分";
   const rail = previewRail(title, session, preview);
   if (preview === "loading" || (!preview && session.status === "loading")) return <>{rail}<EntrySkeleton /></>;
   if (!preview && session.status === "anonymous") return <>{rail}<main className="page page-mid"><FaultPanel fault={session.fault} returnTo={returnTo} /></main></>;
@@ -746,6 +831,8 @@ export function HumanScoringPage({
   const scores = snapshot.scores ?? [];
   const editing = scores.length === 0 || rescoreMode;
   const displayScore = latest;
+  const revisions = revisionMap(snapshot);
+  const activeRevision = revisionFor(snapshot, rescoreMode ? selectedRevisionId : latest?.question_revision_id);
 
   return (
     <>
@@ -753,9 +840,9 @@ export function HumanScoringPage({
       <main className={`${styles.page} page stack-lg`} data-testid="human-scoring-page">
         <header className={styles.header}>
           <div className="stack-sm">
-            <span className="section-label">人工评分 · 题 v{snapshot.question_revision.revision_number}</span>
-            <h1 className="doc-title">{snapshot.question_revision.title}</h1>
-            <p className="secondary">{snapshot.question_revision.summary}</p>
+            <span className="section-label">人工评分 · 题 v{activeRevision.revision_number}</span>
+            <h1 className="doc-title">{activeRevision.title}</h1>
+            <p className="secondary">{activeRevision.summary}</p>
           </div>
           <span className={editing ? "state state-amber" : "state state-green"}>
             <span className="dot" />{editing ? (scores.length > 0 ? "重新评分" : "待评分") : "已提交"}
@@ -779,8 +866,8 @@ export function HumanScoringPage({
               </div>
               <div className={styles.answerText}>{snapshot.submission.content_text}</div>
             </section>
-            <StandardColumn revision={snapshot.question_revision} />
-            <ScoreHistory revision={snapshot.question_revision} scores={scores} />
+            <StandardColumn revision={activeRevision} />
+            <ScoreHistory revisions={revisions} scores={scores} />
           </div>
           <aside className={styles.reviewColumn} aria-label="连续评分">
             <form className={`sheet sheet-pad ${styles.reviewSheet}`} onSubmit={(event) => { event.preventDefault(); void saveScore(); }}>
@@ -796,8 +883,16 @@ export function HumanScoringPage({
               </div>
               {editing ? (
                 <>
+                  {rescoreMode && (
+                    <RevisionPicker
+                      disabled={busy}
+                      onChange={changeRescoreRevision}
+                      revisions={revisionOptions(snapshot)}
+                      value={activeRevision.id}
+                    />
+                  )}
                   <div className={styles.criteria}>
-                    {snapshot.question_revision.criteria.map((criterion) => (
+                    {activeRevision.criteria.map((criterion) => (
                       <CriterionCard
                         criterion={criterion}
                         disabled={busy}
@@ -827,7 +922,7 @@ export function HumanScoringPage({
               ) : displayScore ? (
                 <>
                   <div ref={resultTitleRef} tabIndex={-1}>
-                    <ResultSummary passThreshold={snapshot.question_revision.pass_threshold} score={displayScore} />
+                    <ResultSummary passThreshold={activeRevision.pass_threshold} score={displayScore} />
                   </div>
                   <Button className={styles.submit} onClick={enterRescore} size="lg" type="button" variant="primary">
                     重新评分

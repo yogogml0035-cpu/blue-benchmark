@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -657,9 +658,15 @@ class HumanScoreRow(Base):
         CheckConstraint("status = 'submitted'", name="ck_human_score_status"),
         CheckConstraint("total_score >= 0 AND total_score <= 100", name="ck_human_score_total"),
         ForeignKeyConstraint(
-            ["submission_id", "question_revision_id"],
-            ["evaluation_submissions.id", "evaluation_submissions.question_revision_id"],
-            name="fk_human_score_submission_revision",
+            ["submission_id"],
+            ["evaluation_submissions.id"],
+            name="fk_human_score_submission",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["question_revision_id"],
+            ["benchmark_question_revisions.id"],
+            name="fk_human_score_question_revision",
             ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
@@ -669,6 +676,14 @@ class HumanScoreRow(Base):
             ondelete="CASCADE",
         ),
         Index("ix_human_score_submission_submitted", "submission_id", "submitted_at"),
+        Index(
+            "uq_human_score_submission_parent",
+            "submission_id",
+            "parent_score_id",
+            unique=True,
+            sqlite_where=text("parent_score_id IS NOT NULL"),
+            postgresql_where=text("parent_score_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

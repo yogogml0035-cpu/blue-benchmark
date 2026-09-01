@@ -1907,6 +1907,10 @@ export interface components {
         HumanScoreHistoryResponse: {
             /** Submission Id */
             submission_id: string;
+            /** Question Revisions */
+            question_revisions?: {
+                [key: string]: components["schemas"]["QuestionRevisionView"];
+            };
             /** Scores */
             scores?: components["schemas"]["HumanScoreView"][];
         };
@@ -1962,6 +1966,10 @@ export interface components {
         HumanSubmissionResponse: {
             submission: components["schemas"]["SubmissionView"];
             question_revision: components["schemas"]["QuestionRevisionView"];
+            /** Question Revisions */
+            question_revisions?: {
+                [key: string]: components["schemas"]["QuestionRevisionView"];
+            };
             /** Scores */
             scores?: components["schemas"]["HumanScoreView"][];
         };
@@ -2580,6 +2588,8 @@ export interface components {
             overall_reason?: string | null;
             /** Parent Score Id */
             parent_score_id?: string | null;
+            /** Question Revision Id */
+            question_revision_id?: string | null;
         };
         /** ScoreItemInput */
         ScoreItemInput: {

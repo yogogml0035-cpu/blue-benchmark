@@ -46,7 +46,7 @@ from app.lib.database.models import (
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0013_human_scoring"
+BUSINESS_SCHEMA_HEAD = "0014_cross_revision_scoring"
 
 
 def as_utc(value: datetime) -> datetime:
@@ -165,7 +165,11 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
         )
         required_foreign_keys = {
             "evaluation_submissions": {"fk_evaluation_submission_question_revision_workspace"},
-            "human_scores": {"fk_human_score_submission_revision", "fk_human_score_parent_submission"},
+            "human_scores": {
+                "fk_human_score_submission",
+                "fk_human_score_question_revision",
+                "fk_human_score_parent_submission",
+            },
         }
         foreign_keys_ready = all(
             names.issubset(
@@ -175,7 +179,10 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
         )
         required_indexes = {
             "evaluation_submissions": {"ix_evaluation_submission_workspace_created"},
-            "human_scores": {"ix_human_score_submission_submitted"},
+            "human_scores": {
+                "ix_human_score_submission_submitted",
+                "uq_human_score_submission_parent",
+            },
             "human_score_items": {"ix_human_score_items_score_id"},
         }
         indexes_ready = all(

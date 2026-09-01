@@ -8885,6 +8885,13 @@
             "type": "string",
             "title": "Submission Id"
           },
+          "question_revisions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/QuestionRevisionView"
+            },
+            "type": "object",
+            "title": "Question Revisions"
+          },
           "scores": {
             "items": {
               "$ref": "#/components/schemas/HumanScoreView"
@@ -9049,6 +9056,13 @@
           },
           "question_revision": {
             "$ref": "#/components/schemas/QuestionRevisionView"
+          },
+          "question_revisions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/QuestionRevisionView"
+            },
+            "type": "object",
+            "title": "Question Revisions"
           },
           "scores": {
             "items": {
@@ -10842,6 +10856,18 @@
               }
             ],
             "title": "Parent Score Id"
+          },
+          "question_revision_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Revision Id"
           }
         },
         "additionalProperties": false,

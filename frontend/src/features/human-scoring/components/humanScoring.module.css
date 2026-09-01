@@ -425,6 +425,16 @@
   line-height: 1.6;
 }
 
+.revisionHint {
+  margin: 0;
+  padding: var(--s-3);
+  background: var(--surface-2);
+  border-radius: var(--r-control);
+  color: var(--text-2);
+  font-size: var(--t-13);
+  line-height: 1.6;
+}
+
 @media (max-width: 959px) {
   .layout {
     grid-template-columns: 1fr;

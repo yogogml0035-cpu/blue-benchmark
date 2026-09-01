@@ -58,3 +58,73 @@ await submitScore(workspaceId, submissionId, { command_id, items, parent_score_i
 const snapshot = await getSubmission(workspaceId, submissionId);
 setLoad({ status: "ready", snapshot });
 ```
+
+## Scenario: Cross-revision rescore UI
+
+### 1. Scope / Trigger
+
+- Trigger: a submitted answer enters rescore mode and the teacher can choose a
+  later published revision of the same logical question.
+- Scope: the native revision selector, criterion draft reset, and historical
+  revision rendering; the submission body and score history remain read-only.
+
+### 2. Signatures
+
+- `HumanSubmissionResponse.question_revisions` is the only source for target
+  revision views; do not fetch a second hand-written revision DTO.
+- `submitScore` sends `question_revision_id` only for an explicit rescore;
+  first scoring keeps the compatibility omission.
+- `ScoreHistory` resolves each `HumanScore.question_revision_id` against the
+  response map before rendering criterion details.
+
+### 3. Contracts
+
+- The selector lists only revisions in the response's same-question map and
+  defaults to the latest score's revision.
+- Switching to a different revision creates a fresh empty local score draft;
+  it never carries criterion IDs or scores from the old revision. Switching
+  back to the latest revision may restore that latest score as the starting
+  draft.
+- The left standard column, right scoring form, title, pass threshold, and
+  history metadata all use the active revision view. Internal IDs remain hidden.
+
+### 4. Validation & Error Matrix
+
+- no alternate revision -> show a calm single-version hint, not a disabled
+  fake selector;
+- target map missing a score's revision -> do not reinterpret it using the
+  original revision; show an unreadable-revision fallback label;
+- server rejects target or parent -> keep the editable draft and surface the
+  server fault without claiming a result;
+- switching revision while busy -> selector disabled and criterion draft stable.
+
+### 5. Good/Base/Bad Cases
+
+- Good: v1 history and v2 history display their own names/maxima; selecting v1
+  from a v2 rescore clears v2-only inputs and remains usable on a narrow screen.
+- Base: only v1 exists; rescore stays available with a one-line explanation and
+  no redundant control.
+- Bad: using the original revision to label every history item or preserving
+  v2 scores after selecting v1 makes the visible evidence disagree with the
+  submitted score.
+
+### 6. Tests Required
+
+- Preview/browser: loading, submitted, history, rescore, selector options,
+  criterion reset, forbidden state, keyboard access, and 390px overflow.
+- Type/build: generated API contract, `pnpm typecheck`, and `pnpm build`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```tsx
+const criterion = originalRevision.criteria.find((item) => item.id === scoreItem.criterion_id);
+```
+
+#### Correct
+
+```tsx
+const scoreRevision = snapshot.question_revisions[score.question_revision_id];
+const criterion = scoreRevision?.criteria.find((item) => item.id === scoreItem.criterion_id);
+```

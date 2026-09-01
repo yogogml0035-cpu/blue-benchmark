@@ -107,6 +107,34 @@ def _validated_revision_view(
     )
 
 
+def _revision_views_for_submission(
+    submission: repository.SubmissionRecord,
+    original_revision: QuestionRevisionRecord,
+) -> dict[str, QuestionRevisionView]:
+    revisions = evaluation_sets_service.get_published_question_revisions_for_question(
+        submission.workspace_id,
+        original_revision.question_draft_id,
+    )
+    views = {item.id: _validated_revision_view(item) for item in revisions}
+    views.setdefault(original_revision.id, _validated_revision_view(original_revision))
+    return views
+
+
+def _score_revision(
+    workspace_id: str,
+    submission: repository.SubmissionRecord,
+    original_revision: QuestionRevisionRecord,
+    question_revision_id: str,
+) -> QuestionRevisionRecord:
+    revision = evaluation_sets_service.get_published_question_revision(
+        workspace_id,
+        question_revision_id,
+    )
+    if revision.question_draft_id != original_revision.question_draft_id:
+        raise AppError(409, "SCORE_REVISION_MISMATCH", "重评只能使用同一道逻辑题的已发布修订。")
+    return revision
+
+
 def _read_submission_text(submission: repository.SubmissionRecord) -> str:
     storage = LocalStorage()
     try:
@@ -176,9 +204,11 @@ def _submission_response(
     if revision.workspace_id != submission.workspace_id:
         raise AppError(500, "SUBMISSION_REVISION_INVALID", "待评答卷绑定的题目修订无法读取。")
     content_text = _read_submission_text(submission)
+    question_revisions = _revision_views_for_submission(submission, revision)
     return HumanSubmissionResponse(
         submission=_submission_view(submission, content_text),
         question_revision=_validated_revision_view(revision),
+        question_revisions=question_revisions,
         scores=[_score_view(item) for item in repository.list_scores(submission.id)],
     )
 
@@ -197,8 +227,13 @@ def get_score_history(
     user: UserRecord,
 ) -> HumanScoreHistoryResponse:
     submission = _authorized_submission(workspace_id, submission_id, user)
+    revision = evaluation_sets_service.get_published_question_revision(
+        workspace_id,
+        submission.question_revision_id,
+    )
     return HumanScoreHistoryResponse(
         submission_id=submission.id,
+        question_revisions=_revision_views_for_submission(submission, revision),
         scores=[_score_view(item) for item in repository.list_scores(submission.id)],
     )
 
@@ -392,7 +427,7 @@ async def create_uploaded_submission(
     )
 
 
-def _score_digest(payload: ScoreCreateRequest) -> str:
+def _score_digest(payload: ScoreCreateRequest, question_revision_id: str) -> str:
     items = [item.model_dump(mode="json") for item in payload.items]
     items.sort(key=lambda item: str(item["criterion_id"]))
     return repository.payload_hash(
@@ -400,6 +435,7 @@ def _score_digest(payload: ScoreCreateRequest) -> str:
             "items": items,
             "overall_reason": payload.overall_reason,
             "parent_score_id": payload.parent_score_id,
+            "question_revision_id": question_revision_id,
         }
     )
 
@@ -462,30 +498,43 @@ def submit_score(
     user: UserRecord,
 ) -> HumanScoreResponse:
     submission = _authorized_submission(workspace_id, submission_id, user)
-    revision = evaluation_sets_service.get_published_question_revision(
+    original_revision = evaluation_sets_service.get_published_question_revision(
         workspace_id,
         submission.question_revision_id,
     )
-    if revision.workspace_id != workspace_id:
+    if original_revision.workspace_id != workspace_id:
         raise AppError(500, "SUBMISSION_REVISION_INVALID", "待评答卷绑定的题目修订无法读取。")
     # A score is a claim about the exact bytes that were reviewed. Recheck the
     # ready marker, length and digest before accepting a new immutable result.
     _read_submission_text(submission)
+    history = repository.list_scores(submission.id)
+    latest = history[-1] if history else None
+    existing = repository.get_score_by_command(submission.id, payload.command_id)
+    target_revision_id = (
+        payload.question_revision_id
+        if payload.question_revision_id is not None
+        else existing.question_revision_id
+        if existing is not None
+        else latest.question_revision_id
+        if latest is not None
+        else submission.question_revision_id
+    )
+    revision = _score_revision(workspace_id, submission, original_revision, target_revision_id)
+    if latest is None and target_revision_id != submission.question_revision_id:
+        raise AppError(409, "SCORE_REVISION_MISMATCH", "首次评分必须使用待评结果绑定的原题目修订。")
+
     try:
         rubric = RubricContent.model_validate(revision.rubric)
         validate_public_rubric_text(rubric)
     except (TypeError, ValueError) as exc:
         raise AppError(500, "QUESTION_REVISION_INVALID", "已发布的题目修订无法读取。") from exc
 
-    digest = _score_digest(payload)
-    existing = repository.get_score_by_command(submission.id, payload.command_id)
+    digest = _score_digest(payload, target_revision_id)
     if existing is not None:
         if existing.payload_hash != digest:
             raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一份评分。")
         return HumanScoreResponse(score=_score_view(existing))
 
-    history = repository.list_scores(submission.id)
-    latest = history[-1] if history else None
     if latest is not None and payload.parent_score_id is None:
         raise AppError(409, "PARENT_SCORE_REQUIRED", "这份答卷已有评分，请从最新记录开始重新评分。")
 
@@ -493,8 +542,6 @@ def submit_score(
         parent = repository.get_score(payload.parent_score_id)
         if parent is None or parent.submission_id != submission.id:
             raise AppError(422, "INVALID_PARENT_SCORE", "重评必须基于当前答卷的历史评分。")
-        if parent.question_revision_id != submission.question_revision_id:
-            raise AppError(409, "SCORE_REVISION_MISMATCH", "历史评分绑定了不同的题目修订。")
         if latest is None or parent.id != latest.id:
             raise AppError(409, "PARENT_SCORE_STALE", "请从最新一条评分记录开始重新评分。")
 
@@ -502,7 +549,7 @@ def submit_score(
     try:
         score, duplicate = repository.add_score(
             submission_id=submission.id,
-            question_revision_id=submission.question_revision_id,
+            question_revision_id=target_revision_id,
             parent_score_id=payload.parent_score_id,
             total_score=total,
             critical_passed=critical_passed,
@@ -514,6 +561,8 @@ def submit_score(
             submitted_at=_now(),
             items=items,
         )
+    except repository.ScoreParentConflict as exc:
+        raise AppError(409, "PARENT_SCORE_STALE", "请从最新一条评分记录开始重新评分。") from exc
     except repository.RepositoryConflict as exc:
         raise AppError(409, "COMMAND_ID_REUSED", "相同命令已经用于另一份评分。") from exc
     if duplicate:

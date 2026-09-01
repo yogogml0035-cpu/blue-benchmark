@@ -88,6 +88,23 @@ def get_published_question_revision(
     return revision
 
 
+def get_published_question_revisions_for_question(
+    workspace_id: str,
+    question_draft_id: str,
+) -> list[rubric_repository.QuestionRevisionRecord]:
+    """Return immutable published revisions for one logical authored question.
+
+    Sibling features use this boundary instead of reaching into the rubric
+    repository. The caller has already authorized the workspace; every
+    returned row is still checked against it before crossing the boundary.
+    """
+
+    revisions = rubric_repository.list_revisions(question_draft_id)
+    if any(item.workspace_id != workspace_id for item in revisions):
+        raise AppError(403, "FORBIDDEN", "你无权使用这道题目修订。")
+    return revisions
+
+
 def _active_operation(draft_id: str) -> OperationJob | None:
     jobs = operation_repository.list_for_target("working_set_draft", draft_id)
     for job in jobs:

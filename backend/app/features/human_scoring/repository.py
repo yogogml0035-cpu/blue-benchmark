@@ -24,6 +24,10 @@ class RepositoryConflict(RuntimeError):
     """A command was reused with a different payload or a write raced."""
 
 
+class ScoreParentConflict(RepositoryConflict):
+    """Another immutable score already claimed this parent score."""
+
+
 @dataclass(frozen=True, slots=True)
 class SubmissionRecord:
     id: str
@@ -290,4 +294,14 @@ def add_score(
             if existing.payload_hash != digest:
                 raise RepositoryConflict("score command payload conflicts") from None
             return existing, True
+        if parent_score_id is not None:
+            with session_scope() as session:
+                claimed = session.scalar(
+                    select(HumanScoreRow).where(
+                        HumanScoreRow.submission_id == submission_id,
+                        HumanScoreRow.parent_score_id == parent_score_id,
+                    )
+                )
+            if claimed is not None:
+                raise ScoreParentConflict("score parent was already claimed") from None
         raise

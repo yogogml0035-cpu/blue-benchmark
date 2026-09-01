@@ -66,3 +66,93 @@ rubric = evaluation_sets_service.get_published_question_revision(workspace_id, r
 items, total, critical_passed, passed = validate_and_compute(rubric, payload.items)
 repository.append_score_with_items(total=total, critical_passed=critical_passed, passed=passed)
 ```
+
+## Scenario: Cross-revision rescoring
+
+### 1. Scope / Trigger
+
+- Trigger: a teacher appends a new immutable score for an existing submission
+  using a later published revision of the same logical question.
+- Scope: score target selection, immutable history readback, migration
+  constraints, and the human-scoring API; the submission body remains unchanged.
+
+### 2. Signatures
+
+- `ScoreCreateRequest.question_revision_id?: str`: optional for compatibility;
+  first scoring must resolve to the submission's original revision, while a
+  rescore may select another published revision.
+- `HumanSubmissionResponse.question_revisions: dict[str, QuestionRevisionView]`:
+  one deduplicated immutable view per published revision of the submission's
+  `question_draft_id`.
+- `HumanScore.question_revision_id`: the exact revision used for that score;
+  it is not required to equal `EvaluationSubmission.question_revision_id`.
+- Database `human_scores` has separate foreign keys to the submission and the
+  target `benchmark_question_revisions` row; same-question and workspace
+  checks remain service invariants.
+- Database index `uq_human_score_submission_parent` is unique for non-null
+  `parent_score_id`, so one parent can have only one child score even when two
+  requests race.
+
+### 3. Contracts
+
+- When `question_revision_id` is omitted, a first score uses the original
+  submission revision; a rescore uses the latest score's revision. Replaying a
+  command resolves its already-stored target revision before comparing hashes.
+- An explicit target must be published, belong to the current Workspace, and
+  share the original revision's `question_draft_id`. The target rubric alone
+  validates items, totals, critical outcomes, and reasons.
+- The score command payload hash includes the resolved target revision, item
+  set, parent score, and overall reason; the submission body is never copied.
+- Every response exposes the original revision separately and provides the
+  deduplicated revision views needed to explain each historical score.
+
+### 4. Validation & Error Matrix
+
+- first score targeting a later revision -> `409 SCORE_REVISION_MISMATCH`;
+- unknown/unpublished target -> `404 RESOURCE_NOT_FOUND`;
+- target from another Workspace -> `403 FORBIDDEN`;
+- target from another logical question -> `409 SCORE_REVISION_MISMATCH`;
+- parent not the latest score -> `409 PARENT_SCORE_STALE`;
+- same command with another resolved target or payload -> `409 COMMAND_ID_REUSED`.
+- concurrent claim of an already-used parent -> `409 PARENT_SCORE_STALE`.
+
+### 5. Good/Base/Bad Cases
+
+- Good: one immutable submission receives a first score on v1 and a parent-linked
+  score on v2; GET still returns one body and explains v1/v2 with their own
+  criterion names, maximums, anchors, and conclusions.
+- Base: an old client omits the target on rescore; the service preserves the
+  prior same-revision behavior and command replay remains idempotent.
+- Bad: a caller sends v2 criterion IDs while omitting v2, selects another
+  question's revision, or supplies an old parent; the request fails before any
+  score row is appended.
+
+### 6. Tests Required
+
+- HTTP: first-score original lock, same-question cross-revision append,
+  cross-question/workspace/unknown target rejection, old-client compatibility,
+  stale parent, idempotency, and immutable body/history readback.
+- Migration: empty database 0001→0014, legacy 0013→0014 FK conversion,
+  schema-readiness names, unique parent-claim index, and no copied submission
+  rows.
+- Frontend/browser: revision picker only lists same-question revisions,
+  selection clears incompatible criterion inputs, history shows each revision,
+  keyboard/native select works, and 390px has no horizontal overflow.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+# Every rescore is silently evaluated against the submission's first revision.
+rubric = get_published_question_revision(workspace_id, submission.question_revision_id)
+repository.add_score(question_revision_id=submission.question_revision_id, ...)
+```
+
+#### Correct
+
+```python
+target = resolve_score_revision(payload, latest_score, submission)
+rubric = get_published_question_revision(workspace_id, target.id)
+repository.add_score(question_revision_id=target.id, ...)
+```

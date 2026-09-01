@@ -45,6 +45,18 @@ test("已提交和重评历史预演不会隐藏 lineage", async ({ page }) => {
   await page.goto(`/workspaces/${workspace}/submissions/preview-submission?preview=human_history`);
   await expect(page.getByTestId("score-history")).toContainText("2 次");
   await expect(page.getByTestId("score-history")).toContainText("基于第 1 次评分");
+  await expect(page.getByTestId("score-history")).toContainText("题 v2");
+
+  await page.goto(`/workspaces/${workspace}/submissions/preview-submission?preview=human_rescore`);
+  const revisionPicker = page.getByLabel("按哪一版标准重评");
+  await expect(revisionPicker).toBeVisible();
+  await expect(revisionPicker.locator("option")).toHaveCount(2);
+  await expect(revisionPicker).toHaveValue("preview-question-revision-v2");
+  await expect(page.getByTestId("criterion-source_traceability")).toBeVisible();
+  await revisionPicker.selectOption("preview-question-revision");
+  await expect(page.getByTestId("criterion-fact_accuracy")).toBeVisible();
+  await expect(page.getByTestId("criterion-source_traceability")).toHaveCount(0);
+  await expect(page.getByLabel("待评得分").first()).toHaveValue("");
 
   await page.goto(`/workspaces/${workspace}/submissions/preview-submission?preview=forbidden`);
   await expect(page.getByText("无法访问")).toBeVisible();

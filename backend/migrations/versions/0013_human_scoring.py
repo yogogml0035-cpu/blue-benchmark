@@ -174,15 +174,28 @@ def upgrade() -> None:
         op.create_index("ix_human_scores_scored_by", "human_scores", ["scored_by"])
         op.create_index("ix_human_score_submission_submitted", "human_scores", ["submission_id", "submitted_at"])
     else:
-        _assert_existing_contract(
-            "human_scores",
-            unique_constraints={
-                "uq_human_score_command",
-                "uq_human_score_submission_identity",
-            },
-            check_constraints={"ck_human_score_status", "ck_human_score_total"},
-            foreign_keys={"fk_human_score_submission_revision", "fk_human_score_parent_submission"},
-        )
+        # 0001 creates tables from the live ORM metadata. A fresh database
+        # may therefore already carry the post-0014 split foreign keys while
+        # an upgraded database still carries the legacy composite key. Both
+        # are complete contracts here; 0014 performs the legacy conversion.
+        existing_foreign_keys = {
+            item.get("name") for item in sa.inspect(bind).get_foreign_keys("human_scores")
+        }
+        split_contract = {
+            "fk_human_score_submission",
+            "fk_human_score_question_revision",
+            "fk_human_score_parent_submission",
+        }
+        if not split_contract.issubset(existing_foreign_keys):
+            _assert_existing_contract(
+                "human_scores",
+                unique_constraints={
+                    "uq_human_score_command",
+                    "uq_human_score_submission_identity",
+                },
+                check_constraints={"ck_human_score_status", "ck_human_score_total"},
+                foreign_keys={"fk_human_score_submission_revision", "fk_human_score_parent_submission"},
+            )
 
     if "human_score_items" not in tables:
         op.create_table(
