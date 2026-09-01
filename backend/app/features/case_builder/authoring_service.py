@@ -12,6 +12,7 @@ from app.features.case_builder import ingestion_repository
 from app.features.case_builder.authoring_schemas import (
     AuthoringConversationCreateRequest,
     AuthoringConversationResponse,
+    QuestionListResponse,
     AuthoringConversationStatus,
     AuthoringConversationView,
     AuthoringEventListResponse,
@@ -22,11 +23,13 @@ from app.features.case_builder.authoring_schemas import (
     AuthoringNextAction,
     AuthoringOperationView,
     AuthoringQuestion,
+    BadSample,
     AuthoringRetryRequest,
     AuthoringContinuityResetRequest,
     BenchmarkQuestionDraftView,
     InputAnswerConfirmationRequest,
     InputAnswerPatchRequest,
+    QuestionLifecycleRequest,
     QuestionBoundaryRequest,
     QuestionDraftStatus,
     QuestionInput,
@@ -171,12 +174,15 @@ def _draft_view(
         status=QuestionDraftStatus(draft.status),
         revision=draft.revision,
         input=question_input,
+        bad_samples=[BadSample.model_validate(item) for item in draft.bad_samples],
         reference_answer_text=draft.reference_answer_text,
         reference_answer_source=draft.reference_answer_source,
         evidence_file_ids=list(draft.evidence_file_ids),
         materials=materials,
         confirmed_revision=draft.confirmed_revision,
         confirmed_at=draft.confirmed_at,
+        lifecycle_status=draft.lifecycle_status,
+        active_revision_id=draft.active_revision_id,
     )
 
 
@@ -281,6 +287,25 @@ def get_conversation(
     user: UserRecord,
 ) -> AuthoringConversationResponse:
     return _conversation_response(_authorized_conversation(workspace_id, conversation_id, user))
+
+
+def list_questions(workspace_id: str, user: UserRecord) -> QuestionListResponse:
+    workspace_service.assert_owner(workspace_id, user)
+    drafts = repository.list_drafts_for_workspace(workspace_id)
+    result: list[BenchmarkQuestionDraftView] = []
+    for draft in drafts:
+        if draft.status not in {
+            QuestionDraftStatus.input_answer_confirmed.value,
+            QuestionDraftStatus.input_answer_drafting.value,
+            QuestionDraftStatus.input_answer_review.value,
+        }:
+            continue
+        conversation = repository.get_conversation(draft.conversation_id)
+        if conversation is None:
+            continue
+        files = {item.id: item for item in _files_for_conversation(conversation)}
+        result.append(_draft_view(draft, files))
+    return QuestionListResponse(workspace_id=workspace_id, questions=result)
 
 
 def _enqueue(
@@ -532,6 +557,13 @@ def patch_input_answer(
 ) -> AuthoringConversationResponse:
     conversation, draft = _authorized_draft(workspace_id, conversation_id, draft_id, user)
     _validate_file_ids(conversation, [item.file_id for item in payload.input.materials])
+    if conversation.upload_batch_id and payload.input.materials:
+        if not ingestion_repository.sync_authoring_dispositions(
+            batch_id=conversation.upload_batch_id,
+            materials=[item.model_dump(mode="json") for item in payload.input.materials],
+            confirmed_by=user.id,
+        ):
+            raise AppError(409, "BATCH_NOT_READY", "资料批次还不能确认用途，请刷新后重试。")
     try:
         repository.update_draft_input(
             draft.id,
@@ -539,6 +571,7 @@ def patch_input_answer(
             command_id=payload.command_id,
             digest=repository.payload_hash(payload.model_dump(mode="json")),
             input_json=payload.input.model_dump(mode="json"),
+            bad_samples=[item.model_dump(mode="json") for item in payload.bad_samples],
             reference_answer_text=payload.reference_answer_text,
             source_refs=draft.source_refs,
         )
@@ -581,6 +614,59 @@ def confirm_input_answer(
         else:
             code, message = "QUESTION_NOT_READY", "当前题目还不能确认，请先完成题目边界和内容审阅。"
         raise AppError(409, code, message) from exc
+    return _conversation_response(repository.get_conversation(conversation.id) or conversation)
+
+
+def mutate_question_lifecycle(
+    workspace_id: str,
+    conversation_id: str,
+    draft_id: str,
+    payload: QuestionLifecycleRequest,
+    user: UserRecord,
+) -> AuthoringConversationResponse:
+    conversation, draft = _authorized_draft(workspace_id, conversation_id, draft_id, user)
+    digest = repository.payload_hash(payload.model_dump(mode="json"))
+    try:
+        if payload.action == "derive":
+            updated = repository.mutate_lifecycle(
+                draft.id,
+                expected_revision=payload.draft_revision,
+                command_id=payload.command_id,
+                action=payload.action,
+                digest=digest,
+            )
+        else:
+            updated = repository.prepare_lifecycle(
+                draft.id,
+                expected_revision=payload.draft_revision,
+                command_id=payload.command_id,
+                action=payload.action,
+                digest=digest,
+            )
+    except repository.StaleProjection as exc:
+        raise AppError(409, "STALE_QUESTION_DRAFT", "题目草稿已经更新，请刷新后再操作。") from exc
+    except repository.RepositoryConflict as exc:
+        text = str(exc)
+        code = "QUESTION_ALREADY_DELETED" if "already" in text else "QUESTION_LIFECYCLE_CONFLICT"
+        raise AppError(409, code, "当前题目状态不允许执行这项操作。") from exc
+    if payload.action in {"disable", "restore", "delete"}:
+        try:
+            from app.features.evaluation_sets.lifecycle_service import finalize_current_set_change
+
+            finalize_current_set_change(
+                workspace_id,
+                command_id=payload.command_id,
+                user=user,
+                transition_draft_id=draft.id,
+                transition_action=payload.action,
+            )
+            updated = repository.commit_lifecycle(draft.id, command_id=payload.command_id, digest=digest)
+        except AppError:
+            repository.abort_lifecycle(draft.id, command_id=payload.command_id)
+            raise
+        except Exception as exc:
+            repository.abort_lifecycle(draft.id, command_id=payload.command_id)
+            raise AppError(503, "LIFECYCLE_VERSION_FAILED", "题目状态已保存，但当前评测集版本还未生成，请重试。") from exc
     return _conversation_response(repository.get_conversation(conversation.id) or conversation)
 
 
@@ -693,6 +779,7 @@ class ConfirmedQuestionSource:
     title: str
     summary: str
     input: QuestionInput
+    bad_samples: list[BadSample]
     reference_answer_text: str
     evidence_file_ids: list[str]
     source_refs: list[dict[str, Any]]
@@ -716,6 +803,8 @@ def get_confirmed_question_source(
     draft = next((item for item in repository.list_drafts(conversation.id) if item.id == draft_id), None)
     if draft is None:
         raise AppError(404, "RESOURCE_NOT_FOUND", "题目草稿不存在。")
+    if draft.lifecycle_status == "deleted":
+        raise AppError(409, "QUESTION_DELETED", "这道题已经删除，只能读取历史记录。")
     if (
         draft.status != QuestionDraftStatus.input_answer_confirmed.value
         or draft.confirmed_revision is None
@@ -737,6 +826,7 @@ def get_confirmed_question_source(
         title=draft.title,
         summary=draft.summary,
         input=question_input,
+        bad_samples=[BadSample.model_validate(item) for item in draft.bad_samples],
         reference_answer_text=draft.reference_answer_text,
         evidence_file_ids=list(draft.evidence_file_ids),
         source_refs=list(draft.source_refs),

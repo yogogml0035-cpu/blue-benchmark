@@ -30,7 +30,7 @@ src/
 - `app/(app)/workspaces/page.tsx` -> `ScenarioShelf`；
 - `app/(app)/workspaces/[workspaceId]/page.tsx` -> `StudioPage`，通过 `section=current|questions|versions` 承载场景工作台；
 - `app/(app)/workspaces/[workspaceId]/upload/page.tsx` -> `UploadPage`，作为上传入口；
-- `app/(app)/workspaces/[workspaceId]/questions/[questionId]/page.tsx` -> `QuestionPage`，承载场景标准和单题判定的聚焦共创；
+- `app/(app)/workspaces/[workspaceId]/questions/[questionId]/page.tsx` -> 旧 URL 重定向到题目生命周期列表；新题目形成由 `authoring/[conversationId]` 承载；
 - `app/(app)/workspaces/[workspaceId]/versions/[versionId]/page.tsx` -> 只读版本详情和下载；
 - 旧 `/cases/new` 重定向到工作台，旧 `/cases/{caseId}` 重定向到聚焦题页。
 

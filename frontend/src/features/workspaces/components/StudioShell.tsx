@@ -4,49 +4,29 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button, ButtonLink } from "@/src/components/ui/Button";
-import { Sheet } from "@/src/components/ui/Sheet";
 import { Note } from "@/src/components/ui/Note";
+import { StatePanel } from "@/src/components/ui/StatePanel";
 import { useSession } from "@/src/features/auth/hooks/useSession";
 import { UserChip } from "@/src/features/auth/components/UserChip";
 import { DeskRail } from "@/src/components/shell/DeskRail";
 import {
   getStudioProjection,
   type StudioProjection,
-  type TaskPackageSummary,
-  type WorkingSetDraftView,
-  type DraftMemberView,
-  type PublishedQuestionRevisionSummary,
   type VersionSummary,
-  listTaskPackages,
-  listWorkspaceTaskPackages,
-  listPublishedQuestionRevisions,
   listVersions,
-  getTaskPackage,
-  createWorkingDraft,
-  getWorkingDraft,
-  mutateDraftMember,
-  mutateQuestionRevisionMember,
-  decideImpactReview,
-  requestCoverageReview,
-  confirmCoverage,
-  freezeDraft,
   updateFileDisposition,
-  confirmTaskGroups,
   retryBatchAnalysis,
   getUploadBatch,
 } from "@/src/features/workspaces/services/studioService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
 import { stamp } from "@/src/lib/format";
-import { PREVIEW_ENABLED, PreviewBar, usePreviewState, type PreviewState } from "@/src/lib/preview/preview";
+import { PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
 import { PREVIEW_STUDIO_SUCCESS } from "@/src/features/workspaces/preview/studioFixtures";
+import { listQuestions, type QuestionListResponse } from "@/src/features/case-builder/services/authoringService";
 
 import styles from "./studio.module.css";
 
 export type StudioSection = "current" | "questions" | "versions";
-
-function memberSourceId(member: DraftMemberView): string {
-  return member.task_package_id ?? member.question_revision_id ?? member.id;
-}
 
 type Load =
   | { status: "loading" }
@@ -207,7 +187,7 @@ export function StudioShell({
 }
 
 /** 场景工作台数据层：加载 StudioProjection。 */
-export function useStudioData(workspaceId: string, batchId?: string | null) {
+export function useStudioData(workspaceId: string, batchId?: string | null, enabled = true) {
   const preview = usePreviewState();
   const session = useSession();
   const reloadSession = session.reload;
@@ -250,6 +230,10 @@ export function useStudioData(workspaceId: string, batchId?: string | null) {
   }, [batchId, preview, session.status, workspaceId]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoad({ status: "ready", projection: PREVIEW_STUDIO_SUCCESS });
+      return;
+    }
     if (preview) {
       setLoad({ status: "ready", projection: PREVIEW_STUDIO_SUCCESS });
       return;
@@ -257,7 +241,7 @@ export function useStudioData(workspaceId: string, batchId?: string | null) {
     if (session.status !== "authenticated") return;
     setLoad({ status: "loading" });
     void read(false);
-  }, [preview, session.status, read]);
+  }, [enabled, preview, session.status, read]);
 
   useEffect(() => {
     if (preview || load.status !== "ready") return;
@@ -273,11 +257,11 @@ export function useStudioData(workspaceId: string, batchId?: string | null) {
 function operationLabel(kind: string): string {
   const map: Record<string, string> = {
     batch_analysis: "资料整理",
-    cocreation_start: "场景标准整理",
-    cocreation_resume: "场景标准整理",
-    cocreation_reproject: "场景标准整理",
+    cocreation_start: "题目边界整理",
+    cocreation_resume: "题目边界整理",
+    cocreation_reproject: "题目边界整理",
     coverage_review: "覆盖审查",
-    freeze_package: "版本冻结",
+    freeze_package: "历史版本形成",
   };
   return map[kind] ?? kind;
 }
@@ -437,7 +421,7 @@ function CurrentWorkspace({
   return (
     <section className="sheet sheet-pad stack">
       <h2 className="doc-title-sm">上传资料</h2>
-      <p className="secondary">上传真实交付材料，AI 会帮你分析任务边界和场景标准。</p>
+      <p className="secondary">上传真实交付材料，AI 会帮你分析可独立验收的题目边界。</p>
       <div className="row">
         <ButtonLink href={`/workspaces/${workspaceId}/upload`} variant="primary">
           上传资料
@@ -500,7 +484,7 @@ function RetryOperation({
   );
 }
 
-/** 资料已确认后的下一步：确认任务分组。 */
+/** 资料已确认后的下一步：进入题目形成。 */
 function NextStepPanel({
   workspaceId,
   projection,
@@ -514,15 +498,15 @@ function NextStepPanel({
   return (
     <section className="sheet sheet-pad stack">
       <h2 className="doc-title-sm">{projection.next_action.label}</h2>
-      <p className="secondary">资料用途已确认。去「题」确认任务分组，开始共创。</p>
+      <p className="secondary">资料用途已确认。现在可以从真实交付形成一条独立题目。</p>
       <div className="row">
         <Button
           onClick={() =>
-            router.push(`/workspaces/${workspaceId}?section=questions${projection.batch_id ? `&batch=${projection.batch_id}` : ""}`)
+            router.push(`/workspaces/${workspaceId}/authoring/new${projection.batch_id ? `?batch=${projection.batch_id}` : ""}`)
           }
           variant="primary"
         >
-          去确认任务分组
+          开始形成题目
         </Button>
         <Button onClick={onRefresh} variant="quiet">
           刷新
@@ -659,1060 +643,106 @@ function FileRoleConfirmation({
   );
 }
 
-/** 题区：任务包列表与共创状态。 */
-export function QuestionsSection({
-  workspaceId,
-  projection,
-  onRefresh,
-}: {
-  workspaceId: string;
-  projection: StudioProjection;
-  onRefresh: () => void;
-}) {
-  const [packages, setPackages] = useState<TaskPackageSummary[]>([]);
-  const [batchRevision, setBatchRevision] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<PageFault | null>(null);
-  const requestGeneration = useRef(0);
-  const operationStatus = projection.active_operation?.status ?? null;
-  const groupingSourceKey = packages.map((pkg) => `${pkg.id}:${pkg.status}:${pkg.revision}`).join("|");
+/** 题区：只展示题目生命周期，不再编排任务包或手动冻结。 */
+export function QuestionsSection({ workspaceId }: { workspaceId: string }) {
+  const preview = usePreviewState();
+  const [load, setLoad] = useState<{ status: "loading" | "ready" | "failed"; data?: QuestionListResponse }>({ status: "loading" });
 
-  const loadPackages = useCallback(() => {
-    const generation = ++requestGeneration.current;
-    setLoading(true);
-    if (!projection.batch_id) {
-      setPackages([]);
-      setBatchRevision(0);
-      setLoadError(null);
-      setLoading(false);
+  const read = useCallback(() => {
+    if (preview) {
+      setLoad({ status: "ready", data: { workspace_id: workspaceId, questions: [] } });
       return;
     }
-    setLoadError(null);
-    listTaskPackages(workspaceId, projection.batch_id)
-      .then((result) => {
-        if (generation !== requestGeneration.current) return;
-        setPackages(result.task_packages);
-        setBatchRevision(result.batch_revision);
-      })
-      .catch((cause) => {
-        if (generation === requestGeneration.current) setLoadError(toPageFault(cause));
-      })
-      .finally(() => {
-        if (generation === requestGeneration.current) setLoading(false);
-      });
-  }, [workspaceId, projection.batch_id]);
+    setLoad({ status: "loading" });
+    void listQuestions(workspaceId)
+      .then((data) => setLoad({ status: "ready", data }))
+      .catch(() => setLoad({ status: "failed" }));
+  }, [preview, workspaceId]);
 
   useEffect(() => {
-    setLoading(true);
-    loadPackages();
-  }, [loadPackages, operationStatus]);
+    read();
+  }, [read]);
 
-  if (loading) {
-    return (
-      <div className="stack-lg">
-        <h1 className="doc-title">题</h1>
-        <div className="sheet sheet-pad stack" aria-busy="true">
-          <div className="skeleton" style={{ height: 20, width: "60%" }} />
-          <div className="skeleton" style={{ height: 14, width: "80%" }} />
-        </div>
-      </div>
-    );
+  if (load.status === "loading") {
+    return <div className="stack-lg"><h1 className="doc-title">题</h1><section aria-busy="true" className="sheet sheet-pad stack"><div className="skeleton" style={{ height: 20, width: "60%" }} /><div className="skeleton" style={{ height: 72 }} /></section></div>;
   }
-
-  if (loadError) {
-    return (
-      <div className="stack-lg">
-        <h1 className="doc-title">题</h1>
-        <Note tone="fail" title="任务列表读取失败">
-          {loadError.message}
-        </Note>
-        <div className="row">
-          <Button onClick={loadPackages} variant="primary">
-            重试
-          </Button>
-        </div>
-      </div>
-    );
+  if (load.status === "failed") {
+    return <div className="stack-lg"><h1 className="doc-title">题</h1><StatePanel actions={<Button onClick={read} variant="primary">重新读取</Button>} description="题目列表暂时无法读取。" title="题目读取失败" tone="fault" /></div>;
   }
-
-  const canConfirmGrouping =
-    projection.batch_status === "ready_for_confirmation" &&
-    projection.next_action.kind === "none" &&
-    !projection.active_operation;
-
-  if (packages.length === 0) {
-    const availableFiles = (projection.files ?? []).filter((file) => !file.ignored);
-    if (projection.batch_id && availableFiles.length > 0 && canConfirmGrouping) {
-      return (
-        <div className="stack-lg">
-          <div className="stack-sm">
-            <h1 className="doc-title">题</h1>
-            <p className="secondary">
-              AI 没有生成候选任务分组。请手动新增任务并选择资料归属，系统不会替你猜测任务边界。
-            </p>
-          </div>
-          <TaskGroupConfirmation
-            batchId={projection.batch_id}
-            batchRevision={batchRevision}
-            files={availableFiles}
-            onConfirmed={() => {
-              loadPackages();
-              onRefresh();
-            }}
-            key={`${workspaceId}:${projection.batch_id}:${groupingSourceKey}`}
-            packages={[]}
-            workspaceId={workspaceId}
-          />
-        </div>
-      );
-    }
-    if (projection.active_operation) {
-      return (
-        <div className="stack-lg">
-          <h1 className="doc-title">题</h1>
-          <div className="sheet sheet-pad stack">
-            <p className="secondary">
-              {projection.active_operation.status === "queued" || projection.active_operation.status === "running"
-                ? "资料仍在整理，完成后才能确认任务分组。"
-                : "资料整理没有完成，请回到「当前」重试。"}
-            </p>
-            <div className="row">
-              <ButtonLink
-                href={`/workspaces/${workspaceId}?section=current${projection.batch_id ? `&batch=${projection.batch_id}` : ""}`}
-                variant="primary"
-              >
-                回当前查看
-              </ButtonLink>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div className="stack-lg">
-        <h1 className="doc-title">题</h1>
-        <div className="sheet sheet-pad stack">
-          <p className="secondary">
-            {availableFiles.length > 0
-              ? "当前还不能确认任务分组，请回到「当前」查看资料整理状态。"
-              : "当前批次没有可用于分组的资料，请上传新的资料后继续。"}
-          </p>
-          <div className="row">
-            <ButtonLink
-              href={availableFiles.length > 0
-                ? `/workspaces/${workspaceId}?section=current${projection.batch_id ? `&batch=${projection.batch_id}` : ""}`
-                : `/workspaces/${workspaceId}/upload`}
-              variant="primary"
-            >
-              {availableFiles.length > 0 ? "回当前查看" : "上传新的资料"}
-            </ButtonLink>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const proposed = packages.filter((pkg) => pkg.status === "proposed");
-  const confirmed = packages.filter((pkg) => pkg.status !== "proposed");
-
+  const questions = load.data?.questions ?? [];
   return (
     <div className="stack-lg">
-      <div className="stack-sm">
-        <h1 className="doc-title">题</h1>
-        <p className="secondary">
-          确认的任务会在这里形成题稿。每一道题都来自真实交付的沉淀。
-        </p>
-      </div>
-      {proposed.length > 0 && !canConfirmGrouping && (
-        <section className="sheet sheet-pad stack">
-          <p className="secondary">
-            {projection.active_operation
-              ? projection.active_operation.status === "queued" || projection.active_operation.status === "running"
-                ? "资料仍在整理，完成后才能确认任务分组。"
-                : "资料整理没有完成，请回到「当前」重试。"
-              : projection.next_action.kind === "confirm_file_roles"
-                ? "请先在「当前」确认每份资料的用途和可见范围，之后才能确认任务分组。"
-                : "当前还不能确认任务分组，请回到「当前」查看资料整理状态。"}
-          </p>
-          <div className="row">
-            <ButtonLink
-              href={`/workspaces/${workspaceId}?section=current${projection.batch_id ? `&batch=${projection.batch_id}` : ""}`}
-              variant="primary"
-            >
-              回当前查看
-            </ButtonLink>
-          </div>
-        </section>
-      )}
-      {proposed.length > 0 && projection.batch_id && canConfirmGrouping && (
-        <TaskGroupConfirmation
-          batchId={projection.batch_id}
-          batchRevision={batchRevision}
-          files={projection.files ?? []}
-          onConfirmed={() => {
-            loadPackages();
-            onRefresh();
-          }}
-          packages={proposed}
-          workspaceId={workspaceId}
-          key={`${workspaceId}:${projection.batch_id}:${groupingSourceKey}`}
-        />
-      )}
-      <div className="stack">
-        {confirmed.map((pkg) => (
-          <TaskPackageCard key={pkg.id} workspaceId={workspaceId} pkg={pkg} onRefresh={onRefresh} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** 任务分组确认：AI 提议的分组，老师确认后任务包进入已定稿流程。 */
-function TaskGroupConfirmation({
-  workspaceId,
-  batchId,
-  batchRevision,
-  files,
-  packages,
-  onConfirmed,
-}: {
-  workspaceId: string;
-  batchId: string;
-  batchRevision: number;
-  files: StudioProjection["files"];
-  packages: TaskPackageSummary[];
-  onConfirmed: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<PageFault | null>(null);
-  const [groups, setGroups] = useState(() =>
-    packages.map((pkg) => ({
-      id: pkg.id,
-      title: pkg.title,
-      fileIds: [...pkg.evidence_file_ids],
-      initializationOnly: pkg.initialization_only ?? false,
-    })),
-  );
-
-  const visibleFiles = files.filter((file) => !file.ignored);
-  const groupedFileIds = new Set(groups.flatMap((group) => group.fileIds));
-  const hasUnassignedFile = visibleFiles.some((file) => !groupedFileIds.has(file.id));
-  const hasEmptyGroup = groups.some((group) => group.fileIds.length === 0);
-  const proposedAttempts = packages.flatMap((pkg) =>
-    (pkg.attempts ?? []).map((attempt) => ({ ...attempt, sourcePackageId: pkg.id })),
-  );
-
-  function attemptsForGroup(group: (typeof groups)[number], index: number) {
-    const seen = new Set<string>();
-    return proposedAttempts.flatMap((attempt) => {
-      const evidenceFileIds = attempt.evidence_file_ids.filter((fileId) => group.fileIds.includes(fileId));
-      if (evidenceFileIds.length === 0) return [];
-      const completeAttempt = evidenceFileIds.length === attempt.evidence_file_ids.length;
-      const rawKey = completeAttempt
-        ? attempt.attempt_key
-        : `${attempt.attempt_key}-group-${index + 1}`;
-      const duplicateSuffix = `-${attempt.sourcePackageId.slice(0, 8)}`;
-      const keySuffix = seen.has(rawKey) ? duplicateSuffix : "";
-      const maxKeyBaseLength = 255 - keySuffix.length;
-      const attemptKey = `${rawKey.slice(0, maxKeyBaseLength)}${keySuffix}`;
-      if (seen.has(attemptKey)) return [];
-      seen.add(attemptKey);
-      const rawLabel = completeAttempt ? attempt.label : `${attempt.label}（任务 ${index + 1} 资料）`;
-      return [{
-        attempt_key: attemptKey,
-        label: rawLabel.slice(0, 500),
-        evidence_file_ids: evidenceFileIds,
-      }];
-    });
-  }
-
-  function moveFile(fileId: string, targetGroupId: string) {
-    setGroups((current) =>
-      current.map((group) => ({
-        ...group,
-        fileIds:
-          group.id === targetGroupId
-            ? [...group.fileIds.filter((id) => id !== fileId), fileId]
-            : group.fileIds.filter((id) => id !== fileId),
-      })),
-    );
-  }
-
-  function addGroup() {
-    setGroups((current) => [
-      ...current,
-      {
-        id: `new-group-${Date.now()}`,
-        title: `新任务 ${current.length + 1}`,
-        fileIds: [],
-        initializationOnly: false,
-      },
-    ]);
-  }
-
-  function mergeGroup(groupId: string) {
-    setGroups((current) => {
-      if (current.length <= 1) return current;
-      const removed = current.find((group) => group.id === groupId);
-      const target = current.find((group) => group.id !== groupId);
-      if (!removed || !target) return current;
-      return current
-        .filter((group) => group.id !== groupId)
-        .map((group) =>
-          group.id === target.id
-            ? { ...group, fileIds: [...group.fileIds, ...removed.fileIds] }
-            : group,
-        );
-    });
-  }
-
-  return (
-    <section className="sheet sheet-pad stack">
-      <div className="stack-sm">
-        <span className="section-label">待确认</span>
-        <h2 className="doc-title-sm">确认任务分组</h2>
-        <p className="secondary">
-          {packages.length === 0
-            ? "请手动新增任务并选择资料归属，系统不会替你猜测任务边界。"
-            : `AI 从资料中提议了 ${packages.length} 组任务。你可以拆分或合并，确认后开始逐题共创。`}
-        </p>
-      </div>
-      <div className="stack">
-        {groups.map((group, index) => (
-          <fieldset className="inset stack-sm" key={group.id} style={{ border: 0, margin: 0 }}>
-            <legend className="section-label">任务 {index + 1}</legend>
-            <label className="field">
-              <span className="field-label">任务名称</span>
-              <input
-                aria-label={`任务 ${index + 1} 名称`}
-                className="control"
-                disabled={busy}
-                maxLength={200}
-                onChange={(event) =>
-                  setGroups((current) =>
-                    current.map((item) => item.id === group.id ? { ...item, title: event.target.value } : item),
-                  )
-                }
-                value={group.title}
-              />
-            </label>
-            <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
-              {group.fileIds.length} 个资料文件
-            </p>
-            <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
-              {attemptsForGroup(group, index).length} 次尝试
-            </p>
-            {group.fileIds.map((fileId) => {
-              const file = files.find((item) => item.id === fileId);
-              return file ? (
-                <span className="secondary" key={file.id} style={{ fontSize: "var(--t-13)" }}>
-                  {file.original_name}
-                </span>
-              ) : null;
-            })}
-            {groups.length > 1 && (
-              <Button disabled={busy} onClick={() => mergeGroup(group.id)} size="sm" variant="quiet">
-                合并到其他任务
-              </Button>
-            )}
-          </fieldset>
-        ))}
-      </div>
-      <div className="inset stack-sm">
-        <span className="section-label">资料归属</span>
-        {visibleFiles.map((file) => {
-          const groupId = groups.find((group) => group.fileIds.includes(file.id))?.id ?? "";
-          return (
-            <label className="row-between" key={file.id}>
-              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{file.original_name}</span>
-              <select
-                aria-label={`${file.original_name} 归属任务`}
-                className="control"
-                disabled={busy}
-                onChange={(event) => moveFile(file.id, event.target.value)}
-                value={groupId}
-                style={{ maxWidth: 240 }}
-              >
-                <option value="">请选择任务</option>
-                {groups.map((group, index) => (
-                  <option key={group.id} value={group.id}>任务 {index + 1}</option>
-                ))}
-              </select>
-            </label>
-          );
-        })}
-      </div>
-      <Button disabled={busy} onClick={addGroup} variant="quiet">新增任务</Button>
-      {error && (
-        <Note tone="fail" title="确认失败">
-          {error.message}
-        </Note>
-      )}
-      <div className="row">
-        <Button
-          busy={busy}
-          busyLabel="正在确认…"
-          disabled={hasEmptyGroup || hasUnassignedFile || groups.some((group) => !group.title.trim())}
-          onClick={async () => {
-            setBusy(true);
-            setError(null);
-            try {
-              await confirmTaskGroups(workspaceId, batchId, {
-                commandId: `confirm-groups-${batchId}-${Date.now()}`,
-                batchRevision,
-                groups: groups.map((group, index) => ({
-                  attempts: attemptsForGroup(group, index),
-                  title: group.title.trim(),
-                  summary: "老师确认的真实任务分组。",
-                  evidence_file_ids: group.fileIds,
-                  initialization_only: group.initializationOnly,
-                })),
-              });
-              onConfirmed();
-            } catch (cause) {
-              setError(toPageFault(cause));
-            } finally {
-              setBusy(false);
-            }
-          }}
-          variant="primary"
-        >
-          确认分组
-        </Button>
-      </div>
-    </section>
-  );
-}
-
-function TaskPackageCard({
-  workspaceId,
-  pkg,
-  onRefresh,
-}: {
-  workspaceId: string;
-  pkg: TaskPackageSummary;
-  onRefresh: () => void;
-}) {
-  const router = useRouter();
-
-  return (
-    <article className="sheet sheet-pad stack">
-      <div className="spread">
-        <h2 className="doc-title-sm">{pkg.title}</h2>
-        <span className={`state ${pkg.status === "confirmed" ? "state-green" : pkg.status === "proposed" ? "state-amber" : "state-neutral"}`}>
-          <span className="dot" />
-          {pkg.status === "confirmed" ? "已定稿" : pkg.status === "proposed" ? "待确认" : "已替换"}
-        </span>
-      </div>
-      {pkg.attempts && pkg.attempts.length > 0 && (
-        <p className="secondary">
-          {pkg.attempts.length} 次尝试
-        </p>
-      )}
-      <div className="row">
-        <Button
-          onClick={() => router.push(`/workspaces/${workspaceId}/questions/${pkg.id}`)}
-          variant="primary"
-        >
-          {pkg.has_judgment_package ? "继续共创" : "开始共创"}
-        </Button>
-        <Button variant="quiet" onClick={onRefresh}>
-          刷新
-        </Button>
-      </div>
-    </article>
-  );
-}
-
-/** 版本区：下一版草稿与历史版本。 */
-export function VersionsSection({
-  workspaceId,
-  projection,
-  onRefresh,
-}: {
-  workspaceId: string;
-  projection: StudioProjection;
-  onRefresh: () => void;
-}) {
-  const [versions, setVersions] = useState<VersionSummary[]>([]);
-  const [draft, setDraft] = useState<WorkingSetDraftView | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<PageFault | null>(null);
-  const requestGeneration = useRef(0);
-
-  const load = useCallback(async () => {
-    const generation = ++requestGeneration.current;
-    setLoading(true);
-    setLoadError(null);
-    setVersions([]);
-    setDraft(null);
-    try {
-      const versionList = await listVersions(workspaceId);
-      if (generation !== requestGeneration.current) return;
-      setVersions(versionList.versions);
-      // 后端不支持按 workspace 查当前草稿；先尝试创建（幂等），失败则说明已有草稿但无法直接定位，
-      // 此时历史版本列表已足以让用户继续工作。
-      const draftResult = await createWorkingDraft(workspaceId, {
-        commandId: `draft-get-or-create-${Date.now()}`,
-      }).catch(() => null);
-      if (generation !== requestGeneration.current) return;
-      setDraft(draftResult?.draft ?? null);
-    } catch (cause) {
-      if (generation === requestGeneration.current) setLoadError(toPageFault(cause));
-    } finally {
-      if (generation === requestGeneration.current) setLoading(false);
-    }
-  }, [workspaceId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    const operation = draft?.active_operation;
-    if (!operation || (operation.status !== "queued" && operation.status !== "running")) return;
-    const timer = setTimeout(() => void load(), 1500);
-    return () => clearTimeout(timer);
-  }, [draft?.active_operation, load]);
-
-  if (loading) {
-    return (
-      <div className="stack-lg">
-        <h1 className="doc-title">版本</h1>
-        <div className="sheet sheet-pad stack" aria-busy="true">
-          <div className="skeleton" style={{ height: 20, width: "60%" }} />
-        </div>
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="stack-lg">
-        <h1 className="doc-title">版本</h1>
-        <Note tone="fail" title="版本读取失败">
-          {loadError.message}
-        </Note>
-        <div className="row">
-          <Button onClick={() => void load()} variant="primary">
-            重试
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="stack-lg">
-      <div className="stack-sm">
-        <h1 className="doc-title">版本</h1>
-        <p className="secondary">
-          下一版正在形成中，冻结后成为不可变的历史版本。
-        </p>
-      </div>
-
-      <DraftPanel
-        draft={draft}
-        onRefresh={() => {
-          void load();
-          onRefresh();
-        }}
-        workspaceId={workspaceId}
-      />
-
-      <section className="stack">
-        <div className="spread">
-          <span className="section-label">历史版本</span>
-          <span className="mono faint">{versions.length} 个</span>
-        </div>
-        {versions.length === 0 ? (
-          <div className="inset" style={{ padding: "var(--s-6)", textAlign: "center" }}>
-            <p className="secondary">还没有冻结的版本。</p>
-          </div>
-        ) : (
-          <div className="stack">
-            {versions.map((version) => (
-              <div className="sheet sheet-pad-sm row-between" key={version.id}>
-                <div className="stack-sm">
-                  <span style={{ fontWeight: 600 }}>版本 {version.version_number}</span>
-                  <span className="mono faint">{stamp(version.frozen_at)}</span>
-                </div>
-                <div className="row">
-                  <ButtonLink
-                    href={`/workspaces/${workspaceId}/versions/${version.id}`}
-                    size="sm"
-                    variant="quiet"
-                  >
-                    查看
-                  </ButtonLink>
-                  <Button
-                    onClick={() => window.open(`/api/workspaces/${workspaceId}/evaluation-sets/versions/${version.id}/download`, "_blank")}
-                    size="sm"
-                    variant="quiet"
-                  >
-                    下载
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-/** 草稿成员标签：显示任务包标题而非裸 ID。 */
-function MemberLabel({ member, workspaceId }: { member: DraftMemberView; workspaceId: string }) {
-  const [title, setTitle] = useState<string | null>(null);
-  useEffect(() => {
-    if (!member.task_package_id) {
-      setTitle(null);
-      return;
-    }
-    let active = true;
-    getTaskPackage(workspaceId, member.task_package_id)
-      .then((result) => {
-        if (active) setTitle(result.task_package.title);
-      })
-      .catch(() => {
-        if (active) setTitle(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [member.task_package_id, workspaceId]);
-  if (member.question_revision_id) {
-    return (
-      <span style={{ fontSize: "var(--t-13)" }}>
-        已发布题目修订 v{member.question_revision_number ?? member.task_package_revision}
-        {member.review_status === "review_required" && (
-          <span className="state state-amber" style={{ marginLeft: "var(--s-2)", fontSize: "var(--t-12)" }}>
-            <span className="dot" />
-            待复核
-          </span>
-        )}
-      </span>
-    );
-  }
-  return (
-    <span style={{ fontSize: "var(--t-13)" }}>
-      {title ?? `${memberSourceId(member).slice(0, 8)}…`}
-      {member.review_status === "review_required" && (
-        <span className="state state-amber" style={{ marginLeft: "var(--s-2)", fontSize: "var(--t-12)" }}>
-          <span className="dot" />
-          待复核
-        </span>
-      )}
-    </span>
-  );
-}
-
-/** 下一版工作草稿：成员管理、覆盖审查、冻结。 */
-function DraftPanel({
-  workspaceId,
-  draft,
-  onRefresh,
-}: {
-  workspaceId: string;
-  draft: WorkingSetDraftView | null;
-  onRefresh: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<PageFault | null>(null);
-  const [note, setNote] = useState("");
-  const [packages, setPackages] = useState<TaskPackageSummary[]>([]);
-  const [questionRevisions, setQuestionRevisions] = useState<PublishedQuestionRevisionSummary[]>([]);
-  const requestGeneration = useRef(0);
-
-  useEffect(() => {
-    const generation = ++requestGeneration.current;
-    if (!draft || draft.status !== "active") {
-      setPackages([]);
-      setQuestionRevisions([]);
-      return;
-    }
-    setPackages([]);
-    setQuestionRevisions([]);
-    listWorkspaceTaskPackages(workspaceId)
-      .then((result) => {
-        if (generation === requestGeneration.current) setPackages(result.task_packages);
-      })
-      .catch(() => {
-        if (generation === requestGeneration.current) setPackages([]);
-      });
-    listPublishedQuestionRevisions(workspaceId)
-      .then((result) => {
-        if (generation === requestGeneration.current) setQuestionRevisions(result.revisions ?? []);
-      })
-      .catch(() => {
-        if (generation === requestGeneration.current) setQuestionRevisions([]);
-      });
-  }, [draft?.id, draft?.revision, draft?.status, workspaceId]);
-
-  async function run(action: () => Promise<unknown>) {
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-      onRefresh();
-    } catch (cause) {
-      setError(toPageFault(cause));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!draft) {
-    return (
-      <section className="sheet sheet-pad stack">
-        <div className="spread">
-          <h2 className="doc-title-sm">下一版</h2>
-          <span className="state state-neutral">
-            <span className="dot" />
-            未开始
-          </span>
-        </div>
-        <p className="secondary">确认任务后开始组建下一版评测集。</p>
-        <div className="row">
-          <Button
-            busy={busy}
-            busyLabel="正在创建…"
-            onClick={() => run(() => createWorkingDraft(workspaceId, { commandId: `draft-${Date.now()}` }))}
-            variant="primary"
-          >
-            创建工作草稿
-          </Button>
-        </div>
-        {error && <Note tone="fail" title="创建失败">{error.message}</Note>}
-      </section>
-    );
-  }
-
-  const included = (draft.members ?? []).filter((m) => m.status === "included");
-  const includedIds = new Set(
-    included
-      .map((member) => member.task_package_id)
-      .filter((id): id is string => Boolean(id)),
-  );
-  const includedQuestionRevisionIds = new Set(
-    included
-      .map((member) => member.question_revision_id)
-      .filter((id): id is string => Boolean(id)),
-  );
-  const available = packages.filter((pkg) => pkg.status === "confirmed" && !includedIds.has(pkg.id));
-  const availableQuestionRevisions = questionRevisions.filter(
-    (revision) => !includedQuestionRevisionIds.has(revision.id),
-  );
-  const reviewRequired = included.filter((member) => member.review_status === "review_required");
-  const coverage = draft.coverage;
-  const hasCoverageWarnings = (coverage?.warnings ?? []).length > 0;
-  const coverageInProgress =
-    draft.active_operation?.kind === "coverage_review" &&
-    (draft.active_operation.status === "queued" || draft.active_operation.status === "running");
-  const freezeInProgress =
-    draft.active_operation?.kind === "freeze_package" &&
-    (draft.active_operation.status === "queued" || draft.active_operation.status === "running");
-  const discarded = draft.status === "discarded";
-
-  return (
-    <section className="sheet sheet-pad stack">
-      <div className="spread">
-        <h2 className="doc-title-sm">下一版</h2>
-        <span className={`state ${discarded ? "state-neutral" : "state-active"}`}>
-          <span className="dot" />
-          {discarded ? "已废弃" : "工作草稿"}
-        </span>
-      </div>
-
-      <div className="stack-sm">
-        <span className="section-label">已收任务</span>
-        {included.length === 0 ? (
-          <p className="secondary">还没有收进任务。去「题」完成共创后任务会自动加入。</p>
-        ) : (
-          <ul className="stack-sm">
-            {included.map((member) => (
-              <li className="row-between" key={member.id}>
-                <MemberLabel member={member} workspaceId={workspaceId} />
-                <Button
-                  busy={busy}
-                  busyLabel="移出中…"
-                  onClick={() => run(() => {
-                    if (member.question_revision_id) {
-                      if (!member.question_revision_number || !member.question_revision_hash) return Promise.resolve();
-                      return mutateQuestionRevisionMember(workspaceId, draft.id, {
-                        commandId: `remove-${draft.id}-${member.question_revision_id}-${Date.now()}`,
-                        draftRevision: draft.revision,
-                        questionRevisionId: member.question_revision_id,
-                        questionRevisionNumber: member.question_revision_number,
-                        questionRevisionHash: member.question_revision_hash,
-                        action: "remove",
-                      });
-                    }
-                    if (!member.task_package_id) return Promise.resolve();
-                    return mutateDraftMember(workspaceId, draft.id, {
-                      commandId: `remove-${draft.id}-${member.task_package_id}-${Date.now()}`,
-                      draftRevision: draft.revision,
-                      taskPackageId: member.task_package_id,
-                      taskPackageRevision: member.task_package_revision,
-                      action: "remove",
-                    });
-                  })}
-                  size="sm"
-                  variant="quiet"
-                >
-                  移出
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {draft.status === "active" && (
-        <div className="stack-sm">
-          <span className="section-label">题池</span>
-          {available.length === 0 ? (
-            <p className="secondary" style={{ fontSize: "var(--t-13)" }}>没有可加入的已定稿题。</p>
-          ) : (
-            available.map((pkg) => (
-              <div className="inset row-between" key={pkg.id} style={{ padding: "var(--s-3)" }}>
-                <div className="stack-sm">
-                  <span style={{ fontSize: "var(--t-13)", fontWeight: 600 }}>{pkg.title}</span>
-                  <span className="secondary" style={{ fontSize: "var(--t-13)" }}>
-                    {pkg.attempts?.length ?? 0} 次尝试
-                  </span>
-                </div>
-                <Button
-                  busy={busy}
-                  busyLabel="加入中…"
-                  onClick={() =>
-                    run(() =>
-                      mutateDraftMember(workspaceId, draft.id, {
-                        commandId: `include-${draft.id}-${pkg.id}-${Date.now()}`,
-                        draftRevision: draft.revision,
-                        taskPackageId: pkg.id,
-                        taskPackageRevision: pkg.revision,
-                        action: "include",
-                      }),
-                    )
-                  }
-                  size="sm"
-                  variant="secondary"
-                >
-                  加入下一版
-                </Button>
-              </div>
-            ))
-          )}
-          {availableQuestionRevisions.length > 0 && (
-            <div className="stack-sm" style={{ marginTop: "var(--s-5)" }}>
-              <span className="section-label">已发布题目修订</span>
-              {availableQuestionRevisions.map((revision) => (
-                <div className="inset row-between" key={revision.id} style={{ padding: "var(--s-3)" }}>
-                  <div className="stack-sm">
-                    <span style={{ fontSize: "var(--t-13)", fontWeight: 600 }}>{revision.title}</span>
-                    <span className="secondary" style={{ fontSize: "var(--t-13)" }}>
-                      题 v{revision.revision} · 通过线 {revision.pass_threshold}
-                    </span>
-                  </div>
-                  <Button
-                    busy={busy}
-                    busyLabel="加入中…"
-                    onClick={() => run(() => mutateQuestionRevisionMember(workspaceId, draft.id, {
-                      commandId: `include-${draft.id}-${revision.id}-${Date.now()}`,
-                      draftRevision: draft.revision,
-                      questionRevisionId: revision.id,
-                      questionRevisionNumber: revision.revision,
-                      questionRevisionHash: revision.content_sha256,
-                      action: "include",
-                    }))}
-                    size="sm"
-                    variant="secondary"
-                  >
-                    加入下一版
-                  </Button>
-                  <ButtonLink
-                    href={`/workspaces/${workspaceId}/question-revisions/${revision.id}/submissions/new`}
-                    size="sm"
-                    variant="quiet"
-                  >
-                    去人工评分
-                  </ButtonLink>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {reviewRequired.length > 0 && (
-        <section className="inset stack-sm">
-          <span className="section-label">合同影响复核</span>
-          <p className="secondary" style={{ fontSize: "var(--t-13)" }}>
-            场景标准已有新修订。请逐题确认旧判定依据是否仍适用，确认后才能继续覆盖审查。
-          </p>
-          {reviewRequired.map((member) => {
-            const taskPackageId = member.task_package_id;
-            if (!taskPackageId) return null;
+      <div className="stack-sm"><h1 className="doc-title">题</h1><p className="secondary">每道题都是一条独立的业务标准；发布后自动进入当前评测集。</p></div>
+      {questions.length === 0 ? (
+        <section className="sheet sheet-pad stack"><h2 className="doc-title-sm">还没有题</h2><p className="secondary">先从一次真实交付开始形成题目输入、标准答案和评分规则。</p><ButtonLink href={`/workspaces/${workspaceId}/authoring/new`} variant="primary">开始建题</ButtonLink></section>
+      ) : (
+        <div className="stack">
+          {questions.map((question) => {
+            const deleted = question.lifecycle_status === "deleted";
+            const disabled = question.lifecycle_status === "disabled";
             return (
-            <div className="stack-sm" key={member.id}>
-              <MemberLabel member={member} workspaceId={workspaceId} />
-              {(member.deterministic_conflicts ?? []).length > 0 && (
-                <ul className="stack-sm secondary" style={{ fontSize: "var(--t-13)" }}>
-                  {(member.deterministic_conflicts ?? []).map((conflict) => <li key={conflict}>冲突：{conflict}</li>)}
-                </ul>
-              )}
-              {(member.ai_suggestions ?? []).length > 0 && (
-                <ul className="stack-sm secondary" style={{ fontSize: "var(--t-13)" }}>
-                  {(member.ai_suggestions ?? []).map((suggestion) => <li key={suggestion}>建议：{suggestion}</li>)}
-                </ul>
-              )}
-              <Button
-                busy={busy}
-                busyLabel="复核中…"
-                disabled={!note.trim()}
-                onClick={() =>
-                  run(() =>
-                    decideImpactReview(workspaceId, draft.id, taskPackageId, {
-                      commandId: `impact-${draft.id}-${taskPackageId}-${Date.now()}`,
-                      draftRevision: draft.revision,
-                      decision: "reviewed",
-                      note: note.trim(),
-                    }),
-                  )
-                }
-                size="sm"
-                variant="secondary"
-              >
-                确认本题继续适用
-              </Button>
-            </div>
+              <article className="sheet sheet-pad stack" data-testid={`question-${question.id}`} key={question.id}>
+                <div className="row-between"><div className="stack-sm"><span className="section-label">{question.lifecycle_status === "active" ? "当前题" : disabled ? "已停用" : deleted ? "已删除" : "题稿"}</span><h2 className="doc-title-sm">{question.title}</h2></div><span className={deleted ? "state state-red" : disabled ? "state state-amber" : question.lifecycle_status === "active" ? "state state-green" : "state state-neutral"}><span className="dot" />{question.lifecycle_status === "active" ? "已发布" : disabled ? "停用" : deleted ? "删除" : "待确认"}</span></div>
+                <p className="secondary">{question.summary}</p>
+                <div className="row"><span className="mono faint">{question.bad_samples?.length ?? 0} 个坏样本</span><span className="mono faint">{question.input.materials?.length ?? 0} 份材料</span></div>
+                <div className="row"><ButtonLink href={`/workspaces/${workspaceId}/authoring/${question.conversation_id}`} variant="primary">{deleted ? "查看历史" : disabled ? "查看并恢复" : question.lifecycle_status === "active" ? "管理题目" : "继续审阅"}</ButtonLink>{question.active_revision_id && !disabled && !deleted && <ButtonLink href={`/workspaces/${workspaceId}/question-revisions/${question.active_revision_id}/submissions/new`} variant="quiet">提交待评结果</ButtonLink>}</div>
+              </article>
             );
           })}
-          <input
-            aria-label="合同影响复核说明"
-            className="control"
-            disabled={busy}
-            onChange={(event) => setNote(event.target.value)}
-            placeholder="复核说明（必填）：为什么旧判定依据仍适用"
-            value={note}
-          />
-        </section>
+        </div>
       )}
+    </div>
+  );
+}
 
-      {coverage && (
-        <div className="stack-sm">
-          <span className="section-label">覆盖审查</span>
-          <div className="inset stack-sm" style={{ padding: "var(--s-3)" }}>
-            {(coverage.warnings ?? []).length > 0 && (
-              <ul className="stack-sm">
-                {(coverage.warnings ?? []).map((w) => (
-                  <li key={w} className="secondary" style={{ fontSize: "var(--t-13)" }}>⚠ {w}</li>
-                ))}
-              </ul>
-            )}
-            {(coverage.blank_areas ?? []).length > 0 && (
-              <ul className="stack-sm">
-                {(coverage.blank_areas ?? []).map((area) => (
-                  <li key={area} className="secondary" style={{ fontSize: "var(--t-13)" }}>空白：{area}</li>
-                ))}
-              </ul>
-            )}
-            {(coverage.warnings ?? []).length === 0 && (coverage.blank_areas ?? []).length === 0 && (
-              <p className="secondary" style={{ fontSize: "var(--t-13)" }}>覆盖良好，没有发现明显缺口。</p>
-            )}
-            {hasCoverageWarnings && !coverage.confirmed_at && (
-              <div className="stack-sm" style={{ marginTop: "var(--s-2)" }}>
-                <input
-                  aria-label="覆盖风险确认说明"
-                  className="control"
-                  onChange={(event) => setNote(event.target.value)}
-                  placeholder="确认说明（必填）：为什么接受当前覆盖范围"
-                  value={note}
-                />
-                <Button
-                  busy={busy}
-                  disabled={!note.trim()}
-                  onClick={() =>
-                    run(() =>
-                      confirmCoverage(workspaceId, draft.id, {
-                        commandId: `cov-confirm-${draft.id}-${Date.now()}`,
-                        draftRevision: draft.revision,
-                        confirmed: true,
-                        note: note.trim(),
-                      })
-                    )
-                  }
-                  variant="secondary"
-                >
-                  确认覆盖范围
-                </Button>
-              </div>
-            )}
-            {!hasCoverageWarnings && (
-              <p className="state state-green" style={{ fontSize: "var(--t-12)" }}>
-                <span className="dot" />
-                没有需要额外确认的覆盖风险
-              </p>
-            )}
-            {hasCoverageWarnings && coverage.confirmed_at && (
-              <p className="state state-green" style={{ fontSize: "var(--t-12)" }}>
-                <span className="dot" />
-                覆盖范围已确认
-              </p>
-            )}
+/** 新主流程的版本区：只读历史，发布动作已经自动进入当前评测集。 */
+export function AutomaticVersionsSection({ workspaceId }: { workspaceId: string }) {
+  const preview = usePreviewState();
+  const [versions, setVersions] = useState<VersionSummary[]>([]);
+  const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
+
+  const load = useCallback(() => {
+    if (preview) {
+      setVersions([]);
+      setState("ready");
+      return;
+    }
+    setState("loading");
+    void listVersions(workspaceId)
+      .then((result) => {
+        setVersions(result.versions);
+        setState("ready");
+      })
+      .catch(() => setState("failed"));
+  }, [preview, workspaceId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (state === "loading") {
+    return <div className="stack-lg"><h1 className="doc-title">版本</h1><section aria-busy="true" className="sheet sheet-pad stack"><div className="skeleton" style={{ height: 20, width: "60%" }} /></section></div>;
+  }
+  if (state === "failed") {
+    return <div className="stack-lg"><h1 className="doc-title">版本</h1><StatePanel actions={<Button onClick={load} variant="primary">重新读取</Button>} description="历史版本暂时无法读取。" title="版本读取失败" tone="fault" /></div>;
+  }
+  return (
+    <div className="stack-lg">
+      <div className="stack-sm">
+        <h1 className="doc-title">版本</h1>
+        <p className="secondary">每次发布、停用或恢复都会自动留下不可变历史；这里不再编排下一版。</p>
+      </div>
+      <section className="stack" aria-label="历史版本">
+        <div className="spread"><span className="section-label">不可变历史</span><span className="mono faint">{versions.length} 个</span></div>
+        {versions.length === 0 ? (
+          <div className="inset" style={{ padding: "var(--s-6)", textAlign: "center" }}><p className="secondary">发布第一道题后，这里会出现版本历史。</p></div>
+        ) : versions.map((version) => (
+          <div className="sheet sheet-pad-sm row-between" key={version.id}>
+            <div className="stack-sm"><span style={{ fontWeight: 600 }}>版本 {version.version_number}</span><span className="secondary">自动形成 · {stamp(version.frozen_at)}</span></div>
+            <div className="row"><ButtonLink href={`/workspaces/${workspaceId}/versions/${version.id}`} size="sm" variant="quiet">查看</ButtonLink><Button onClick={() => window.open(`/api/workspaces/${workspaceId}/evaluation-sets/versions/${version.id}/download`, "_blank")} size="sm" variant="quiet">下载</Button></div>
           </div>
-        </div>
-      )}
-
-      {error && <Note tone="fail" title="操作失败">{error.message}</Note>}
-
-      {!discarded && (
-        <div className="row">
-          {!coverage && (
-            <Button
-              busy={busy}
-              busyLabel="正在审查…"
-              disabled={included.length === 0 || reviewRequired.length > 0 || coverageInProgress}
-              onClick={() =>
-                run(() =>
-                  requestCoverageReview(workspaceId, draft.id, {
-                    commandId: `coverage-${draft.id}-${Date.now()}`,
-                    draftRevision: draft.revision,
-                  })
-                )
-              }
-              variant="secondary"
-            >
-              开始覆盖审查
-            </Button>
-          )}
-          {coverage && (!hasCoverageWarnings || coverage.confirmed_at) && (
-            <Button
-              busy={busy}
-              busyLabel="正在冻结…"
-              disabled={freezeInProgress}
-              onClick={() =>
-                run(() =>
-                  freezeDraft(workspaceId, draft.id, {
-                    commandId: `freeze-${draft.id}-${Date.now()}`,
-                    draftRevision: draft.revision,
-                  })
-                )
-              }
-              variant="primary"
-            >
-              冻结版本
-            </Button>
-          )}
-        </div>
-      )}
-      {draft.active_operation && (
-        <p className="secondary" aria-live="polite" style={{ fontSize: "var(--t-13)" }}>
-          {operationLabel(draft.active_operation.kind)} 正在处理中…
-        </p>
-      )}
-    </section>
+        ))}
+      </section>
+    </div>
   );
 }

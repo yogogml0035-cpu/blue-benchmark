@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator
 
-from app.features.case_builder.authoring_schemas import QuestionInput
+from app.features.case_builder.authoring_schemas import BadSample, QuestionInput
 from app.features.evaluation_sets.rubric_schemas import RubricCriterion
 
 
@@ -122,6 +122,7 @@ class QuestionRevisionView(BaseModel):
     title: str
     summary: str
     question_input: QuestionInput
+    bad_samples: list[BadSample] = Field(default_factory=list)
     reference_answer_text: str
     criteria: list[RubricCriterion]
     pass_threshold: int = Field(ge=0, le=100)

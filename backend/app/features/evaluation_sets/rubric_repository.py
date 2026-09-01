@@ -59,10 +59,12 @@ class QuestionRevisionRecord:
     source_question_hash: str
     contract_revision_id: str | None
     question_snapshot: dict[str, Any]
+    bad_samples: list[dict[str, Any]]
     reference_answer_text: str
     rubric: dict[str, Any]
     pass_threshold: int
     content_sha256: str
+    publication_status: str
     published_by: str
     published_at: datetime
     created_at: datetime
@@ -109,10 +111,12 @@ def _revision(row: BenchmarkQuestionRevisionRow) -> QuestionRevisionRecord:
         source_question_hash=row.source_question_hash,
         contract_revision_id=row.contract_revision_id,
         question_snapshot=dict(row.question_snapshot_json or {}),
+        bad_samples=[dict(item) for item in (row.bad_samples_json or []) if isinstance(item, dict)],
         reference_answer_text=row.reference_answer_text,
         rubric=dict(row.rubric_json or {}),
         pass_threshold=row.pass_threshold,
         content_sha256=row.content_sha256,
+        publication_status=row.publication_status,
         published_by=row.published_by,
         published_at=as_utc(row.published_at),
         created_at=as_utc(row.created_at),
@@ -186,7 +190,10 @@ def list_revisions(question_draft_id: str) -> list[QuestionRevisionRecord]:
     with session_scope() as session:
         rows = session.scalars(
             select(BenchmarkQuestionRevisionRow)
-            .where(BenchmarkQuestionRevisionRow.question_draft_id == question_draft_id)
+            .where(
+                BenchmarkQuestionRevisionRow.question_draft_id == question_draft_id,
+                BenchmarkQuestionRevisionRow.publication_status == "published",
+            )
             .order_by(BenchmarkQuestionRevisionRow.revision_number.desc())
         ).all()
         return [_revision(row) for row in rows]
@@ -196,7 +203,10 @@ def list_published_revisions(workspace_id: str) -> list[QuestionRevisionRecord]:
     with session_scope() as session:
         rows = session.scalars(
             select(BenchmarkQuestionRevisionRow)
-            .where(BenchmarkQuestionRevisionRow.workspace_id == workspace_id)
+            .where(
+                BenchmarkQuestionRevisionRow.workspace_id == workspace_id,
+                BenchmarkQuestionRevisionRow.publication_status == "published",
+            )
             .order_by(
                 BenchmarkQuestionRevisionRow.published_at.desc(),
                 BenchmarkQuestionRevisionRow.id.desc(),
@@ -205,10 +215,53 @@ def list_published_revisions(workspace_id: str) -> list[QuestionRevisionRecord]:
         return [_revision(row) for row in rows]
 
 
+def list_current_active_revisions(workspace_id: str) -> list[QuestionRevisionRecord]:
+    with session_scope() as session:
+        rows = session.scalars(
+            select(BenchmarkQuestionRevisionRow)
+            .join(BenchmarkQuestionDraftRow, BenchmarkQuestionDraftRow.id == BenchmarkQuestionRevisionRow.question_draft_id)
+            .where(
+                BenchmarkQuestionRevisionRow.workspace_id == workspace_id,
+                BenchmarkQuestionRevisionRow.publication_status == "published",
+                BenchmarkQuestionDraftRow.lifecycle_status == "active",
+                BenchmarkQuestionDraftRow.active_revision_id == BenchmarkQuestionRevisionRow.id,
+            )
+            .order_by(BenchmarkQuestionRevisionRow.id)
+        ).all()
+        return [_revision(row) for row in rows]
+
+
 def get_revision(revision_id: str) -> QuestionRevisionRecord | None:
+    with session_scope() as session:
+        row = session.scalar(
+            select(BenchmarkQuestionRevisionRow).where(
+                BenchmarkQuestionRevisionRow.id == revision_id,
+                BenchmarkQuestionRevisionRow.publication_status == "published",
+            )
+        )
+        return _revision(row) if row else None
+
+
+def get_revision_any(revision_id: str) -> QuestionRevisionRecord | None:
+    """Read a staged revision for the publish finalizer only."""
+
     with session_scope() as session:
         row = session.get(BenchmarkQuestionRevisionRow, revision_id)
         return _revision(row) if row else None
+
+
+def mark_revision_published(revision_id: str) -> QuestionRevisionRecord:
+    with session_scope() as session:
+        row = session.scalar(
+            select(BenchmarkQuestionRevisionRow)
+            .where(BenchmarkQuestionRevisionRow.id == revision_id)
+            .with_for_update()
+        )
+        if row is None:
+            raise KeyError(revision_id)
+        row.publication_status = "published"
+        session.flush()
+        return _revision(row)
 
 
 def create_or_reset(
@@ -412,6 +465,8 @@ def publish_rubric(
     command_id: str,
     digest: str,
     question_snapshot: dict[str, Any],
+    bad_samples: list[dict[str, Any]],
+    publication_status: str = "published",
     reference_answer_text: str,
     published_by: str,
     pass_threshold: int,
@@ -480,10 +535,12 @@ def publish_rubric(
             source_question_hash=source_question_hash,
             contract_revision_id=contract_revision_id,
             question_snapshot_json=dict(question_snapshot),
+            bad_samples_json=[dict(item) for item in bad_samples],
             reference_answer_text=reference_answer_text,
             rubric_json=dict(row.rubric_json),
             pass_threshold=pass_threshold,
             content_sha256=content_digest,
+            publication_status=publication_status,
             published_by=published_by,
             published_at=timestamp,
             created_at=timestamp,

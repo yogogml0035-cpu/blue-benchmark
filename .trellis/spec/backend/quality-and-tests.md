@@ -77,3 +77,12 @@ make test
 - [ ] 真实 runner 在共享隔离业务库中核验本轮 operation 的私有 Worker 运行标记为 `production`；API health 或 `AI_RUNTIME_MODE` 不能替代实际 Worker 证明，标记不得进入业务 API。
 - [ ] pnpm v11 的 `allowBuilds` 必须在 `frontend/pnpm-workspace.yaml` 明确列出需要执行的依赖脚本；`make test` 与 `make build` 都要在该配置下通过。
 - [ ] 前端上传 command 在同一表单重试时稳定；静默轮询遇到失权/资源消失要清空旧快照，旧路由的迟到响应不能覆盖新资源；`projection_pending` 必须有重投影入口。
+
+### Migration gotcha: PostgreSQL dependencies
+
+- PostgreSQL migrations that change a table with inbound foreign keys must use
+  direct `ADD COLUMN`/`ALTER COLUMN` or explicitly drop dependent foreign keys
+  first. `batch_alter_table(recreate="always")` can try to drop a primary or
+  unique index while another FK still depends on it; SQLite passing does not
+  prove the PostgreSQL path. Always run `make db-migrate` and `make db-check`
+  against the configured PostgreSQL before claiming the schema is ready.

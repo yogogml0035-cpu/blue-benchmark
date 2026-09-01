@@ -2752,6 +2752,69 @@
         }
       }
     },
+    "/api/workspaces/{workspace_id}/questions": {
+      "get": {
+        "tags": [
+          "authoring"
+        ],
+        "summary": "List Questions",
+        "operationId": "list_questions_api_workspaces__workspace_id__questions_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspaces/{workspace_id}/authoring-conversations/{conversation_id}/messages": {
       "post": {
         "tags": [
@@ -3202,6 +3265,119 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/InputAnswerConfirmationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringConversationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/authoring-conversations/{conversation_id}/question-drafts/{draft_id}/lifecycle": {
+      "post": {
+        "tags": [
+          "authoring"
+        ],
+        "summary": "Mutate Question Lifecycle",
+        "operationId": "mutate_question_lifecycle_api_workspaces__workspace_id__authoring_conversations__conversation_id__question_drafts__draft_id__lifecycle_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionLifecycleRequest"
               }
             }
           }
@@ -5076,6 +5252,232 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RubricDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/authoring/question-drafts/{question_draft_id}/rubric/start": {
+      "post": {
+        "tags": [
+          "rubric-authoring"
+        ],
+        "summary": "Confirm And Start Rubric",
+        "operationId": "confirm_and_start_rubric_api_workspaces__workspace_id__authoring_question_drafts__question_draft_id__rubric_start_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "question_draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Question Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RubricGenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RubricDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/authoring/question-drafts/{question_draft_id}/rubric/publish": {
+      "post": {
+        "tags": [
+          "rubric-authoring"
+        ],
+        "summary": "Confirm And Publish Automatic",
+        "operationId": "confirm_and_publish_automatic_api_workspaces__workspace_id__authoring_question_drafts__question_draft_id__rubric_publish_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "question_draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Question Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RubricPublishRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7055,6 +7457,54 @@
         ],
         "title": "AuthoringRetryRequest"
       },
+      "BadSample": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "source_ref": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Source Ref"
+          },
+          "content_text": {
+            "type": "string",
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Content Text"
+          },
+          "teacher_feedback_texts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Teacher Feedback Texts"
+          },
+          "reason_summary": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason Summary"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "source_ref",
+          "content_text",
+          "teacher_feedback_texts",
+          "reason_summary"
+        ],
+        "title": "BadSample",
+        "description": "A teacher-confirmed bad result from a real Agent execution."
+      },
       "BatchImpactReviewRequest": {
         "properties": {
           "command_id": {
@@ -7117,6 +7567,13 @@
           },
           "input": {
             "$ref": "#/components/schemas/QuestionInput"
+          },
+          "bad_samples": {
+            "items": {
+              "$ref": "#/components/schemas/BadSample"
+            },
+            "type": "array",
+            "title": "Bad Samples"
           },
           "reference_answer_text": {
             "anyOf": [
@@ -7181,6 +7638,40 @@
               }
             ],
             "title": "Confirmed At"
+          },
+          "lifecycle_status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "disabled",
+              "deleted"
+            ],
+            "title": "Lifecycle Status",
+            "default": "draft"
+          },
+          "active_revision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Revision Id"
+          },
+          "current_revision_number": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Revision Number"
           }
         },
         "additionalProperties": false,
@@ -9181,6 +9672,14 @@
               }
             ],
             "title": "Reference Answer Text"
+          },
+          "bad_samples": {
+            "items": {
+              "$ref": "#/components/schemas/BadSample"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Bad Samples"
           }
         },
         "additionalProperties": false,
@@ -9879,6 +10378,59 @@
         ],
         "title": "QuestionInput"
       },
+      "QuestionLifecycleRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
+          "draft_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Draft Revision"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "derive",
+              "disable",
+              "restore",
+              "delete"
+            ],
+            "title": "Action"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "command_id",
+          "draft_revision",
+          "action"
+        ],
+        "title": "QuestionLifecycleRequest"
+      },
+      "QuestionListResponse": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkQuestionDraftView"
+            },
+            "type": "array",
+            "title": "Questions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id"
+        ],
+        "title": "QuestionListResponse"
+      },
       "QuestionMaterialInput": {
         "properties": {
           "file_id": {
@@ -10055,6 +10607,13 @@
           },
           "question_input": {
             "$ref": "#/components/schemas/QuestionInput"
+          },
+          "bad_samples": {
+            "items": {
+              "$ref": "#/components/schemas/BadSample"
+            },
+            "type": "array",
+            "title": "Bad Samples"
           },
           "reference_answer_text": {
             "type": "string",
@@ -10400,6 +10959,13 @@
           },
           "question_input": {
             "$ref": "#/components/schemas/QuestionInput"
+          },
+          "bad_samples": {
+            "items": {
+              "$ref": "#/components/schemas/BadSample"
+            },
+            "type": "array",
+            "title": "Bad Samples"
           },
           "reference_answer_text": {
             "type": "string",

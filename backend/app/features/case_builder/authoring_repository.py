@@ -85,6 +85,11 @@ class QuestionDraftRecord:
     status: str
     revision: int
     input: dict[str, Any]
+    bad_samples: list[dict[str, Any]]
+    lifecycle_status: str
+    active_revision_id: str | None
+    lifecycle_receipts: dict[str, Any]
+    lifecycle_pending: dict[str, Any] | None
     reference_answer_text: str | None
     reference_answer_source: str | None
     evidence_file_ids: list[str]
@@ -166,6 +171,11 @@ def _draft(row: BenchmarkQuestionDraftRow) -> QuestionDraftRecord:
         status=row.status,
         revision=row.revision,
         input=dict(row.input_json or {}),
+        bad_samples=[dict(item) for item in (row.bad_samples_json or []) if isinstance(item, dict)],
+        lifecycle_status=row.lifecycle_status,
+        active_revision_id=row.active_revision_id,
+        lifecycle_receipts=dict(row.lifecycle_receipts_json or {}),
+        lifecycle_pending=dict(row.lifecycle_pending_json) if row.lifecycle_pending_json else None,
         reference_answer_text=row.reference_answer_text,
         reference_answer_source=row.reference_answer_source,
         evidence_file_ids=list(row.evidence_file_ids_json or []),
@@ -337,6 +347,196 @@ def list_drafts(conversation_id: str, *, include_discarded: bool = True) -> list
             statement.order_by(BenchmarkQuestionDraftRow.created_at, BenchmarkQuestionDraftRow.id)
         ).all()
         return [_draft(row) for row in rows]
+
+
+def get_draft(draft_id: str) -> QuestionDraftRecord | None:
+    with session_scope() as session:
+        row = session.get(BenchmarkQuestionDraftRow, draft_id)
+        return _draft(row) if row else None
+
+
+def list_drafts_for_workspace(workspace_id: str) -> list[QuestionDraftRecord]:
+    with session_scope() as session:
+        rows = session.scalars(
+            select(BenchmarkQuestionDraftRow)
+            .join(AuthoringConversationRow, AuthoringConversationRow.id == BenchmarkQuestionDraftRow.conversation_id)
+            .where(
+                AuthoringConversationRow.workspace_id == workspace_id,
+                BenchmarkQuestionDraftRow.status != QuestionDraftStatus.discarded.value,
+            )
+            .order_by(BenchmarkQuestionDraftRow.updated_at.desc(), BenchmarkQuestionDraftRow.id)
+        ).all()
+        return [_draft(row) for row in rows]
+
+
+def prepare_lifecycle(
+    draft_id: str,
+    *,
+    expected_revision: int,
+    command_id: str,
+    action: str,
+    digest: str,
+) -> QuestionDraftRecord:
+    with session_scope() as session:
+        row = session.scalar(
+            select(BenchmarkQuestionDraftRow).where(BenchmarkQuestionDraftRow.id == draft_id).with_for_update()
+        )
+        if row is None:
+            raise KeyError(draft_id)
+        receipts = dict(row.lifecycle_receipts_json or {})
+        previous = receipts.get(command_id)
+        if previous is not None:
+            if previous.get("payload_hash") != digest:
+                raise RepositoryConflict("lifecycle command payload conflicts")
+            return _draft(row)
+        pending = row.lifecycle_pending_json or {}
+        if pending:
+            if pending.get("command_id") == command_id and pending.get("payload_hash") == digest:
+                return _draft(row)
+            raise RepositoryConflict("another lifecycle transition is pending")
+        if row.revision != expected_revision:
+            raise StaleProjection("question draft revision changed")
+        if action == "disable" and row.lifecycle_status != "active":
+            raise RepositoryConflict("only an active question can be disabled")
+        if action == "restore" and row.lifecycle_status != "disabled":
+            raise RepositoryConflict("only a disabled question can be restored")
+        if action == "delete" and row.lifecycle_status == "deleted":
+            raise RepositoryConflict("question is already deleted")
+        if action not in {"disable", "restore", "delete"}:
+            raise ValueError("unsupported pending lifecycle action")
+        row.lifecycle_pending_json = {
+            "command_id": command_id,
+            "payload_hash": digest,
+            "action": action,
+            "expected_revision": expected_revision,
+        }
+        session.flush()
+        return _draft(row)
+
+
+def commit_lifecycle(draft_id: str, *, command_id: str, digest: str) -> QuestionDraftRecord:
+    with session_scope() as session:
+        row = session.scalar(
+            select(BenchmarkQuestionDraftRow).where(BenchmarkQuestionDraftRow.id == draft_id).with_for_update()
+        )
+        if row is None:
+            raise KeyError(draft_id)
+        receipts = dict(row.lifecycle_receipts_json or {})
+        previous = receipts.get(command_id)
+        if previous is not None:
+            if previous.get("payload_hash") != digest:
+                raise RepositoryConflict("lifecycle command payload conflicts")
+            return _draft(row)
+        pending = row.lifecycle_pending_json or {}
+        if pending.get("command_id") != command_id or pending.get("payload_hash") != digest:
+            raise RepositoryConflict("lifecycle transition is not pending")
+        action = str(pending.get("action"))
+        row.lifecycle_status = {"disable": "disabled", "restore": "active", "delete": "deleted"}[action]
+        row.lifecycle_pending_json = None
+        receipts[command_id] = {"payload_hash": digest, "action": action}
+        row.lifecycle_receipts_json = receipts
+        row.updated_at = now()
+        session.flush()
+        return _draft(row)
+
+
+def abort_lifecycle(draft_id: str, *, command_id: str) -> None:
+    with session_scope() as session:
+        row = session.scalar(
+            select(BenchmarkQuestionDraftRow).where(BenchmarkQuestionDraftRow.id == draft_id).with_for_update()
+        )
+        if row is None:
+            return
+        pending = row.lifecycle_pending_json or {}
+        if pending.get("command_id") == command_id:
+            row.lifecycle_pending_json = None
+            row.updated_at = now()
+            session.flush()
+
+
+def mutate_lifecycle(
+    draft_id: str,
+    *,
+    expected_revision: int,
+    command_id: str,
+    action: str,
+    digest: str,
+) -> QuestionDraftRecord:
+    timestamp = now()
+    with session_scope() as session:
+        row = session.scalar(
+            select(BenchmarkQuestionDraftRow).where(BenchmarkQuestionDraftRow.id == draft_id).with_for_update()
+        )
+        if row is None:
+            raise KeyError(draft_id)
+        receipts = dict(row.lifecycle_receipts_json or {})
+        previous = receipts.get(command_id)
+        if previous is not None:
+            if previous.get("payload_hash") != digest:
+                raise RepositoryConflict("lifecycle command payload conflicts")
+            return _draft(row)
+        if row.revision != expected_revision:
+            raise StaleProjection("question draft revision changed")
+        if action == "derive":
+            if row.lifecycle_status != "active" or not row.active_revision_id:
+                raise RepositoryConflict("only an active question can derive a next revision")
+            row.status = QuestionDraftStatus.input_answer_drafting.value
+            row.confirmed_revision = None
+            row.confirmed_hash = None
+            row.confirmed_by = None
+            row.confirmed_at = None
+            row.last_confirmation_command_id = None
+            row.revision += 1
+        elif action == "disable":
+            if row.lifecycle_status != "active":
+                raise RepositoryConflict("only an active question can be disabled")
+            row.lifecycle_status = "disabled"
+        elif action == "restore":
+            if row.lifecycle_status != "disabled":
+                raise RepositoryConflict("only a disabled question can be restored")
+            row.lifecycle_status = "active"
+        elif action == "delete":
+            if row.lifecycle_status == "deleted":
+                raise RepositoryConflict("question is already deleted")
+            row.lifecycle_status = "deleted"
+        else:
+            raise ValueError("unsupported question lifecycle action")
+        receipts[command_id] = {"payload_hash": digest, "action": action}
+        row.lifecycle_receipts_json = receipts
+        row.updated_at = timestamp
+        session.flush()
+        return _draft(row)
+
+
+def set_active_revision(
+    draft_id: str,
+    *,
+    revision_id: str,
+    command_id: str,
+    digest: str,
+) -> QuestionDraftRecord:
+    timestamp = now()
+    with session_scope() as session:
+        row = session.scalar(
+            select(BenchmarkQuestionDraftRow).where(BenchmarkQuestionDraftRow.id == draft_id).with_for_update()
+        )
+        if row is None:
+            raise KeyError(draft_id)
+        receipts = dict(row.lifecycle_receipts_json or {})
+        previous = receipts.get(command_id)
+        if previous is not None:
+            if previous.get("payload_hash") != digest:
+                raise RepositoryConflict("lifecycle command payload conflicts")
+            return _draft(row)
+        if row.lifecycle_status == "deleted":
+            raise RepositoryConflict("deleted question cannot be published")
+        row.lifecycle_status = "active"
+        row.active_revision_id = revision_id
+        receipts[command_id] = {"payload_hash": digest, "action": "publish", "revision_id": revision_id}
+        row.lifecycle_receipts_json = receipts
+        row.updated_at = timestamp
+        session.flush()
+        return _draft(row)
 
 
 def list_events(conversation_id: str, after: int = 0, limit: int = 100) -> list[SafeStreamEventRecord]:
@@ -737,6 +937,11 @@ def mutate_boundaries(
                 status=QuestionDraftStatus.candidate.value,
                 revision=0,
                 input_json=merged_input,
+                bad_samples_json=[],
+                lifecycle_status="draft",
+                active_revision_id=None,
+                lifecycle_receipts_json={},
+                lifecycle_pending_json=None,
                 # Answers are question-specific.  A merge changes the
                 # question boundary, so even a single inherited answer must
                 # be reviewed again instead of being silently reassigned.
@@ -785,6 +990,11 @@ def mutate_boundaries(
                         status=QuestionDraftStatus.candidate.value,
                         revision=0,
                         input_json=input_json,
+                        bad_samples_json=[],
+                        lifecycle_status="draft",
+                        active_revision_id=None,
+                        lifecycle_receipts_json={},
+                        lifecycle_pending_json=None,
                         reference_answer_text=None,
                         reference_answer_source=None,
                         evidence_file_ids_json=list(group.get("evidence_file_ids") or []),
@@ -840,6 +1050,7 @@ def update_draft_input(
     command_id: str,
     digest: str,
     input_json: dict[str, Any],
+    bad_samples: list[dict[str, Any]],
     reference_answer_text: str | None,
     source_refs: list[dict[str, Any]],
 ) -> QuestionDraftRecord:
@@ -861,12 +1072,15 @@ def update_draft_input(
             return _draft(draft)
         if conversation.status == AuthoringConversationStatus.processing.value:
             raise RepositoryConflict("authoring conversation already has an active operation")
+        if draft.lifecycle_status == "deleted":
+            raise RepositoryConflict("deleted question cannot be edited")
         if draft.status in {QuestionDraftStatus.discarded.value, QuestionDraftStatus.candidate.value}:
             raise RepositoryConflict("confirm the question boundary before editing the question")
         if draft.revision != expected_revision:
             raise StaleProjection("question draft revision changed")
         materials = input_json.get("materials") or []
         draft.input_json = dict(input_json)
+        draft.bad_samples_json = [dict(item) for item in bad_samples]
         draft.evidence_file_ids_json = [
             str(item["file_id"])
             for item in materials
@@ -958,6 +1172,7 @@ def confirm_draft(
             {
                 "input": draft.input_json,
                 "reference_answer_text": draft.reference_answer_text,
+                "bad_samples": draft.bad_samples_json or [],
                 "source_refs": draft.source_refs_json or [],
             }
         )
@@ -1288,6 +1503,11 @@ def commit_worker_projection(
                     status=str(spec.get("status", QuestionDraftStatus.candidate.value)),
                     revision=0,
                     input_json=dict(spec["input"]),
+                    bad_samples_json=list(spec.get("bad_samples", [])),
+                    lifecycle_status=str(spec.get("lifecycle_status", "draft")),
+                    active_revision_id=spec.get("active_revision_id"),
+                    lifecycle_receipts_json=dict(spec.get("lifecycle_receipts", {})),
+                    lifecycle_pending_json=spec.get("lifecycle_pending"),
                     reference_answer_text=spec.get("reference_answer_text"),
                     reference_answer_source=spec.get("reference_answer_source"),
                     evidence_file_ids_json=list(spec.get("evidence_file_ids", [])),
@@ -1304,6 +1524,14 @@ def commit_worker_projection(
                 row.title = str(spec.get("title", row.title))
                 row.summary = str(spec.get("summary", row.summary))
                 row.input_json = dict(spec.get("input", row.input_json or {}))
+                if "bad_samples" in spec:
+                    row.bad_samples_json = list(spec.get("bad_samples") or [])
+                if "lifecycle_status" in spec:
+                    row.lifecycle_status = str(spec["lifecycle_status"])
+                if "active_revision_id" in spec:
+                    row.active_revision_id = spec.get("active_revision_id")
+                if "lifecycle_pending" in spec:
+                    row.lifecycle_pending_json = spec.get("lifecycle_pending")
                 row.evidence_file_ids_json = list(spec.get("evidence_file_ids", row.evidence_file_ids_json or []))
                 if "reference_answer_text" in spec:
                     row.reference_answer_text = spec.get("reference_answer_text")

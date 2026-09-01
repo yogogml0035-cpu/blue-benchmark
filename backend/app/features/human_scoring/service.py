@@ -10,7 +10,7 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.features.auth.repository import UserRecord
-from app.features.case_builder.authoring_schemas import QuestionInput
+from app.features.case_builder.authoring_schemas import BadSample, QuestionInput
 from app.features.evaluation_sets import service as evaluation_sets_service
 from app.features.evaluation_sets.rubric_schemas import (
     CriticalMode,
@@ -51,7 +51,9 @@ def _authorized_revision(
     user: UserRecord,
 ) -> QuestionRevisionRecord:
     workspace_service.assert_owner(workspace_id, user)
-    return evaluation_sets_service.get_published_question_revision(workspace_id, question_revision_id)
+    revision = evaluation_sets_service.get_published_question_revision(workspace_id, question_revision_id)
+    evaluation_sets_service.assert_accepts_evaluation_write(workspace_id, revision.question_draft_id, "提交待评结果")
+    return revision
 
 
 def _authorized_submission(
@@ -101,6 +103,7 @@ def _validated_revision_view(
         title=title,
         summary=summary,
         question_input=question_input,
+        bad_samples=[BadSample.model_validate(item) for item in revision.bad_samples],
         reference_answer_text=revision.reference_answer_text,
         criteria=rubric.criteria,
         pass_threshold=revision.pass_threshold,
@@ -504,6 +507,7 @@ def submit_score(
     )
     if original_revision.workspace_id != workspace_id:
         raise AppError(500, "SUBMISSION_REVISION_INVALID", "待评答卷绑定的题目修订无法读取。")
+    evaluation_sets_service.assert_accepts_evaluation_write(workspace_id, original_revision.question_draft_id, "追加评分")
     # A score is a claim about the exact bytes that were reviewed. Recheck the
     # ready marker, length and digest before accepting a new immutable result.
     _read_submission_text(submission)

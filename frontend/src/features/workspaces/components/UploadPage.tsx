@@ -199,7 +199,7 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
         <div className="stack-sm">
           <h1 className="doc-title">上传资料</h1>
           <p className="secondary">
-            上传真实交付材料，AI 会帮你分析任务边界和场景标准。
+            上传真实交付材料，AI 会帮你分析可独立验收的题目边界。
           </p>
         </div>
 

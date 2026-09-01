@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.features.case_builder.authoring_schemas import AuthoringQuestion, QuestionInput
+from app.features.case_builder.authoring_schemas import AuthoringQuestion, BadSample, QuestionInput
 
 
 class RubricDraftStatus(StrEnum):
@@ -204,6 +204,7 @@ class RubricDraftView(BaseModel):
     status: RubricDraftStatus
     revision: int = Field(ge=0)
     question_input: QuestionInput
+    bad_samples: list[BadSample] = Field(default_factory=list)
     reference_answer_text: str
     rubric: RubricContent | None = None
     reference_total_score: int | None = Field(default=None, ge=0, le=100)

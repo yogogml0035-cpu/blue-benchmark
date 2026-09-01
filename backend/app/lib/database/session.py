@@ -46,7 +46,7 @@ from app.lib.database.models import (
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0014_cross_revision_scoring"
+BUSINESS_SCHEMA_HEAD = "0015_question_lifecycle"
 
 
 def as_utc(value: datetime) -> datetime:
@@ -116,9 +116,9 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             "authoring_conversations": {"id", "workspace_id", "status", "revision", "active_operation_id", "source_file_ids_json"},
             "authoring_messages": {"id", "conversation_id", "sequence", "role", "content_text"},
             "safe_stream_events": {"id", "conversation_id", "sequence", "kind", "payload_json"},
-            "benchmark_question_drafts": {"id", "conversation_id", "status", "revision", "input_json", "question_checkpoint_id", "question_question_count", "question_input_revision", "question_prompt_sequence"},
+            "benchmark_question_drafts": {"id", "conversation_id", "status", "revision", "input_json", "bad_samples_json", "lifecycle_status", "active_revision_id", "lifecycle_receipts_json", "lifecycle_pending_json", "question_checkpoint_id", "question_question_count", "question_input_revision", "question_prompt_sequence"},
             "benchmark_rubric_drafts": {"id", "workspace_id", "question_draft_id", "status", "revision", "source_question_revision", "source_question_hash", "rubric_json"},
-            "benchmark_question_revisions": {"id", "workspace_id", "question_draft_id", "revision_number", "source_question_revision", "contract_revision_id", "question_snapshot_json", "rubric_json", "content_sha256"},
+            "benchmark_question_revisions": {"id", "workspace_id", "question_draft_id", "revision_number", "source_question_revision", "contract_revision_id", "question_snapshot_json", "bad_samples_json", "rubric_json", "content_sha256", "publication_status"},
             "evaluation_submissions": {"id", "workspace_id", "question_revision_id", "content_storage_key", "source", "original_name", "media_type", "size_bytes", "sha256", "command_id", "payload_hash", "submitted_by", "submitted_at"},
             "human_scores": {"id", "submission_id", "question_revision_id", "parent_score_id", "status", "total_score", "critical_passed", "passed", "overall_reason", "command_id", "payload_hash", "scored_by", "submitted_at"},
             "human_score_items": {"id", "score_id", "criterion_id", "score", "reason", "hard_fail_triggered", "critical_passed", "created_at"},

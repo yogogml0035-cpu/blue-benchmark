@@ -112,8 +112,8 @@ class EvaluationSetVersionRecord:
     id: str
     workspace_id: str
     version_number: int
-    draft_id: str
-    contract_revision_id: str
+    draft_id: str | None
+    contract_revision_id: str | None
     schema_version: str
     freeze_command_id: str
     manifest_key: str
@@ -1013,3 +1013,78 @@ def latest_version_number(workspace_id: str) -> int:
     with session_scope() as session:
         value = session.scalar(select(EvaluationSetVersionRow.version_number).where(EvaluationSetVersionRow.workspace_id == workspace_id).order_by(EvaluationSetVersionRow.version_number.desc()).limit(1))
         return int(value or 0)
+
+
+def create_automatic_version_if_current(
+    workspace_id: str,
+    *,
+    version_id: str,
+    expected_latest_number: int,
+    version_number: int,
+    command_id: str,
+    schema_version: str,
+    keys: dict[str, str],
+    hashes: dict[str, str],
+    overall_sha256: str,
+    frozen_by: str,
+    frozen_at: datetime,
+) -> EvaluationSetVersionRecord:
+    """Append one immutable auto-maintained current-set version with CAS."""
+
+    timestamp = _now()
+    try:
+        with session_scope() as session:
+            workspace = session.scalar(
+                select(WorkspaceRow).where(WorkspaceRow.id == workspace_id).with_for_update()
+            )
+            if workspace is None:
+                raise KeyError(workspace_id)
+            existing = session.scalar(
+                select(EvaluationSetVersionRow).where(
+                    EvaluationSetVersionRow.workspace_id == workspace_id,
+                    EvaluationSetVersionRow.freeze_command_id == command_id,
+                )
+            )
+            if existing is not None:
+                return _version(existing)
+            latest = int(
+                session.scalar(
+                    select(func.max(EvaluationSetVersionRow.version_number)).where(
+                        EvaluationSetVersionRow.workspace_id == workspace_id
+                    )
+                )
+                or 0
+            )
+            if latest != expected_latest_number or version_number != latest + 1:
+                raise StaleDraft("automatic evaluation-set version advanced")
+            row = EvaluationSetVersionRow(
+                id=version_id,
+                workspace_id=workspace_id,
+                version_number=version_number,
+                draft_id=None,
+                contract_revision_id=None,
+                schema_version=schema_version,
+                freeze_command_id=command_id,
+                manifest_key=keys["manifest"],
+                runtime_key=keys["runtime"],
+                judge_key=keys["judge"],
+                provenance_key=keys["provenance"],
+                package_key=keys["package"],
+                manifest_sha256=hashes["manifest"],
+                runtime_sha256=hashes["runtime"],
+                judge_sha256=hashes["judge"],
+                provenance_sha256=hashes["provenance"],
+                overall_sha256=overall_sha256,
+                risk_confirmation_json={"automatic": True},
+                frozen_by=frozen_by,
+                frozen_at=frozen_at,
+                created_at=timestamp,
+            )
+            session.add(row)
+            session.flush()
+            return _version(row)
+    except IntegrityError:
+        existing = get_version_by_freeze_command(workspace_id, command_id)
+        if existing is not None:
+            return existing
+        raise RepositoryConflict("automatic evaluation-set version was updated concurrently") from None

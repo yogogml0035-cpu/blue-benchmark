@@ -12,7 +12,7 @@ import {
   StudioSection,
   StudioShell,
   useStudioData,
-  VersionsSection,
+  AutomaticVersionsSection,
 } from "@/src/features/workspaces/components/StudioShell";
 import { PREVIEW_WORKSPACES } from "@/src/features/workspaces/preview/fixtures";
 import { toPageFault, type PageFault } from "@/src/lib/api/pageFault";
@@ -25,7 +25,7 @@ export function StudioPage({ workspaceId }: { workspaceId: string }) {
     : "current";
 
   const batchId = searchParams.get("batch");
-  const { load, read, refreshing, preview, session } = useStudioData(workspaceId, batchId);
+  const { load, read, refreshing, preview, session } = useStudioData(workspaceId, batchId, section === "current");
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
 
   useEffect(() => {
@@ -110,17 +110,11 @@ export function StudioPage({ workspaceId }: { workspaceId: string }) {
       )}
       {section === "questions" && (
         <QuestionsSection
-          onRefresh={() => void read(true)}
-          projection={projection}
           workspaceId={workspaceId}
         />
       )}
       {section === "versions" && (
-        <VersionsSection
-          onRefresh={() => void read(true)}
-          projection={projection}
-          workspaceId={workspaceId}
-        />
+        <AutomaticVersionsSection workspaceId={workspaceId} />
       )}
     </StudioShell>
   );

@@ -73,6 +73,12 @@ test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
   const candidates = boundaries.locator('input[type="checkbox"]');
   await expect(candidates.first()).toBeVisible();
   expect(await candidates.count()).toBeGreaterThan(0);
+  // This lifecycle gate follows one teacher-selected question end to end;
+  // the backend still supports 0..N candidates, while the parent E2E covers
+  // the multi-question branch separately.
+  for (let index = 1; index < await candidates.count(); index += 1) {
+    if (await candidates.nth(index).isChecked()) await candidates.nth(index).uncheck();
+  }
 
   // A normal teacher correction is a second real AI turn. It must not change
   // the candidate boundary until the teacher explicitly confirms it.
@@ -85,13 +91,38 @@ test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
   const boundaryResponse = page.waitForResponse((response) => response.url().includes("/question-boundaries") && response.status() === 200);
   await boundaries.getByRole("button", { name: "确认选中题目" }).click();
   await boundaryResponse;
+  // Keep one selected question for this end-to-end gate; explicitly discard
+  // other AI candidates so the conversation can advance to the selected draft.
+  await page.waitForTimeout(1_000);
+  if (await boundaries.isVisible().catch(() => false)) {
+    const remaining = boundaries.locator('input[type="checkbox"]');
+    if (await remaining.count() > 0) {
+      const discardResponse = page.waitForResponse((response) => response.url().includes("/question-boundaries") && response.status() === 200);
+      await boundaries.getByRole("button", { name: "舍弃选中" }).click();
+      await page.getByRole("button", { name: "确认舍弃", exact: true }).click();
+      await discardResponse;
+    }
+  }
 
   const authoringDeadline = Date.now() + 840_000;
   while (Date.now() < authoringDeadline) {
+    if (page.url().includes("/rubric")) break;
     const status = await page.getByTestId("authoring-status").innerText();
     if (status.includes("已确认")) break;
     if (status.includes("整理失败") || status.includes("等待恢复") || status.includes("重建连续性")) {
       throw new Error(`真实 AI 建题流程进入不可继续状态：${status}`);
+    }
+    const pendingBoundaries = page.getByTestId("authoring-boundaries");
+    if (await pendingBoundaries.isVisible().catch(() => false)) {
+      const pendingCandidates = pendingBoundaries.locator('input[type="checkbox"]');
+      if (await pendingCandidates.count() > 0) {
+        const discardResponse = page.waitForResponse((response) => response.url().includes("/question-boundaries") && response.status() === 200);
+        await pendingBoundaries.getByRole("button", { name: "舍弃选中" }).click();
+        await page.getByRole("button", { name: "确认舍弃", exact: true }).click();
+        await discardResponse;
+        await page.waitForTimeout(500);
+        continue;
+      }
     }
 
     const standardAnswer = page.getByRole("textbox", { name: "老师标准答案" });
@@ -132,14 +163,17 @@ test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
         await page.waitForTimeout(1_000);
         continue;
       }
+      const confirm = review.getByRole("button", { name: "确认题目并生成打分规则" });
+      if (await confirm.count() > 0 && await confirm.isEnabled()) {
+        await confirm.click();
+        await page.waitForTimeout(500);
+        continue;
+      }
       const roles = review.locator("select");
       for (let index = 0; index < await roles.count(); index += 1) {
         await roles.nth(index).selectOption("fact");
       }
       await save.click();
-      const confirm = review.getByRole("button", { name: "确认题目输入" });
-      await expect(confirm).toBeEnabled();
-      await confirm.click();
       await page.waitForTimeout(500);
       continue;
     }
@@ -147,14 +181,8 @@ test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
     await page.waitForTimeout(1_000);
   }
 
-  await expect(page.getByTestId("authoring-status")).toHaveText("已确认", { timeout: 60_000 });
-  await page.reload();
-  await expect(page.getByTestId("authoring-status")).toHaveText("已确认", { timeout: 30_000 });
-
-  // The second-stage rubric flow is also a real Provider/Worker path.  The
-  // page owns its own GET polling, so this assertion covers recovery from the
-  // initial 202 rather than relying on a preview fixture.
-  await page.getByRole("link", { name: "进入规则审阅" }).click();
+  // The second-stage rubric flow is entered by the single
+  // “确认题目并生成打分规则” action and owns its own GET polling.
   await expect(page).toHaveURL(/\/authoring\/[0-9a-f-]+\/rubric$/);
   await expect(page.getByTestId("rubric-page")).toBeVisible();
   const generateRubric = page.getByRole("button", { name: "生成打分规则" });
@@ -178,12 +206,10 @@ test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
   }
   await expect(referencePass).toBeVisible();
 
-  await page.getByRole("button", { name: "确认打分规则" }).click();
-  await page.getByRole("button", { name: "确认规则", exact: true }).click();
-  await expect(page.getByTestId("rubric-status")).toHaveText("待发布", { timeout: 30_000 });
-  await page.getByRole("button", { name: "发布为题目修订" }).click();
-  await page.getByRole("button", { name: "确认发布", exact: true }).click();
+  await page.getByRole("button", { name: "确认规则并发布到评测集" }).click();
+  await page.getByRole("button", { name: "确认规则并发布", exact: true }).click();
   await expect(page.getByTestId("rubric-status")).toHaveText("已发布", { timeout: 30_000 });
+  await expect(page.getByText("已进入当前评测集")).toBeVisible();
   await expect(page.getByText("已发布修订")).toBeVisible();
 
   // Human scoring is intentionally not an AI operation. The answer itself is

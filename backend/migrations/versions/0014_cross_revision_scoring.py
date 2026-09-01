@@ -42,20 +42,52 @@ def upgrade() -> None:
         return
     names = _foreign_key_names("human_scores")
     if "fk_human_score_submission_revision" in names:
-        with op.batch_alter_table("human_scores", recreate="always") as batch:
-            batch.drop_constraint("fk_human_score_submission_revision", type_="foreignkey")
-            batch.create_foreign_key(
+        if bind.dialect.name == "sqlite":
+            with op.batch_alter_table("human_scores", recreate="always") as batch:
+                batch.drop_constraint("fk_human_score_submission_revision", type_="foreignkey")
+                batch.create_foreign_key(
+                    "fk_human_score_submission",
+                    "evaluation_submissions",
+                    ["submission_id"],
+                    ["id"],
+                    ondelete="CASCADE",
+                )
+                batch.create_foreign_key(
+                    "fk_human_score_question_revision",
+                    "benchmark_question_revisions",
+                    ["question_revision_id"],
+                    ["id"],
+                    ondelete="CASCADE",
+                )
+        else:
+            # PostgreSQL parent FKs depend on the composite unique index used
+            # by the legacy submission/revision FK. Drop the dependent parent
+            # FK first; batch recreation tries to drop the unique constraint
+            # before the dependent FK and fails with 2BP01.
+            op.drop_constraint("fk_human_score_parent_submission", "human_scores", type_="foreignkey")
+            op.drop_constraint("fk_human_score_submission_revision", "human_scores", type_="foreignkey")
+            op.create_foreign_key(
                 "fk_human_score_submission",
+                "human_scores",
                 "evaluation_submissions",
                 ["submission_id"],
                 ["id"],
                 ondelete="CASCADE",
             )
-            batch.create_foreign_key(
+            op.create_foreign_key(
                 "fk_human_score_question_revision",
+                "human_scores",
                 "benchmark_question_revisions",
                 ["question_revision_id"],
                 ["id"],
+                ondelete="CASCADE",
+            )
+            op.create_foreign_key(
+                "fk_human_score_parent_submission",
+                "human_scores",
+                "human_scores",
+                ["parent_score_id", "submission_id"],
+                ["id", "submission_id"],
                 ondelete="CASCADE",
             )
     else:
@@ -76,14 +108,35 @@ def downgrade() -> None:
     names = _foreign_key_names("human_scores")
     if "fk_human_score_submission" not in names:
         return
-    with op.batch_alter_table("human_scores", recreate="always") as batch:
-        batch.drop_constraint("fk_human_score_submission", type_="foreignkey")
-        batch.drop_constraint("fk_human_score_question_revision", type_="foreignkey")
-        batch.create_foreign_key(
+    if bind.dialect.name == "sqlite":
+        with op.batch_alter_table("human_scores", recreate="always") as batch:
+            batch.drop_constraint("fk_human_score_submission", type_="foreignkey")
+            batch.drop_constraint("fk_human_score_question_revision", type_="foreignkey")
+            batch.create_foreign_key(
+                "fk_human_score_submission_revision",
+                "evaluation_submissions",
+                ["submission_id", "question_revision_id"],
+                ["id", "question_revision_id"],
+                ondelete="CASCADE",
+            )
+    else:
+        op.drop_constraint("fk_human_score_parent_submission", "human_scores", type_="foreignkey")
+        op.drop_constraint("fk_human_score_submission", "human_scores", type_="foreignkey")
+        op.drop_constraint("fk_human_score_question_revision", "human_scores", type_="foreignkey")
+        op.create_foreign_key(
             "fk_human_score_submission_revision",
+            "human_scores",
             "evaluation_submissions",
             ["submission_id", "question_revision_id"],
             ["id", "question_revision_id"],
+            ondelete="CASCADE",
+        )
+        op.create_foreign_key(
+            "fk_human_score_parent_submission",
+            "human_scores",
+            "human_scores",
+            ["parent_score_id", "submission_id"],
+            ["id", "submission_id"],
             ondelete="CASCADE",
         )
     if "uq_human_score_submission_parent" in _index_names("human_scores"):

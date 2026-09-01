@@ -204,6 +204,7 @@ _RUNTIME_FORBIDDEN_KEYS = frozenset(
         "source_refs",
         "score",
         "passed",
+        "bad_samples",
     }
 )
 
@@ -242,7 +243,7 @@ def build_question_revision_package(
     workspace_id: str,
     version_number: int,
     contract_revision: int,
-    contract_revision_id: str,
+    contract_revision_id: str | None,
     contract: dict[str, Any],
     coverage: dict[str, Any],
     tasks: list[QuestionRevisionPackageTask],
@@ -250,8 +251,9 @@ def build_question_revision_package(
     frozen_at: datetime,
     risk_confirmation: dict[str, Any],
     storage: LocalStorage | None = None,
+    allow_empty: bool = False,
 ) -> QuestionRevisionPackageArtifacts:
-    if not tasks:
+    if not tasks and not allow_empty:
         raise QuestionRevisionPackageError("at least one task is required")
     local_storage = storage or LocalStorage()
     runtime = _runtime_partition(tasks, local_storage)
@@ -273,7 +275,7 @@ def build_question_revision_package(
             {
                 "task_id": task.task_id,
                 "revision": task.revision,
-                "contract_revision_id": contract_revision_id,
+                **({"contract_revision_id": contract_revision_id} if contract_revision_id else {}),
                 **({"question_revision_id": task.question_revision_id} if task.question_revision_id else {}),
                 **({"content_sha256": task.content_sha256} if task.content_sha256 else {}),
             }

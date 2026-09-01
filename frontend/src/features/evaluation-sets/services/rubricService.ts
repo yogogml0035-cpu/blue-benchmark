@@ -28,6 +28,17 @@ export function startRubric(
   });
 }
 
+export function confirmAndStartRubric(
+  workspaceId: string,
+  questionDraftId: string,
+  input: Schemas["RubricGenerateRequest"],
+) {
+  return apiFetch<RubricDraftResponse>(`${base(workspaceId)}/question-drafts/${questionDraftId}/rubric/start`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export function patchRubric(workspaceId: string, rubricId: string, input: Schemas["RubricPatchRequest"]) {
   return apiFetch<RubricDraftResponse>(`${base(workspaceId)}/rubrics/${rubricId}`, {
     method: "PATCH",
@@ -47,6 +58,17 @@ export function publishRubric(workspaceId: string, rubricId: string, input: Sche
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export function confirmAndPublishAutomatic(
+  workspaceId: string,
+  questionDraftId: string,
+  input: Schemas["RubricPublishRequest"],
+) {
+  return apiFetch<RubricDraftResponse>(
+    `${base(workspaceId)}/question-drafts/${questionDraftId}/rubric/publish`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
 }
 
 export function listRubricRevisions(workspaceId: string, questionDraftId: string) {

@@ -4,7 +4,7 @@
 
 共享控件保持小而明确，Props 使用本地 `type` 或内联对象类型。包装原生元素时继承原生属性，而不是重新声明一套事件和可访问性字段；参考 `components/ui/Button.tsx::ButtonProps` 和 `AutoTextarea.tsx`。
 
-业务页面由小组件组合，而不是一个文件重复所有细节：`StudioShell` 组合当前、题、版本三个区；`QuestionPage` 组合共创状态、逐轮更新、标准与依据 sheet；旧 Case Builder 组件只服务兼容入口。
+业务页面由小组件组合，而不是一个文件重复所有细节：`StudioShell` 组合当前、题、版本三个区；`AuthoringConversationPage` 组合建题快照、题目输入、坏样本和组合确认动作；版本页只读历史，不再承载组集/冻结编辑器。
 
 对互斥的有限变体使用字面量联合和穷举 `Record`，例如 Button 的 `Variant` / `Size`、Note 的 `Tone`、`caseState.ts::STATE_META`。不要靠自由字符串拼接新增不可检查的样式变体。
 

@@ -45,6 +45,35 @@ def start_rubric(
     return service.start_rubric(workspace_id, question_draft_id, payload, user)
 
 
+@router.post(
+    "/question-drafts/{question_draft_id}/rubric/start",
+    response_model=RubricDraftResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses=common_errors,
+)
+def confirm_and_start_rubric(
+    payload: RubricGenerateRequest,
+    workspace_id: str = Path(min_length=1),
+    question_draft_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> RubricDraftResponse:
+    return service.confirm_and_start_rubric(workspace_id, question_draft_id, payload, user)
+
+
+@router.post(
+    "/question-drafts/{question_draft_id}/rubric/publish",
+    response_model=RubricDraftResponse,
+    responses=common_errors,
+)
+def confirm_and_publish_automatic(
+    payload: RubricPublishRequest,
+    workspace_id: str = Path(min_length=1),
+    question_draft_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> RubricDraftResponse:
+    return service.confirm_and_publish_automatic(workspace_id, question_draft_id, payload, user)
+
+
 @router.get(
     "/rubrics/{rubric_id}",
     response_model=RubricDraftResponse,

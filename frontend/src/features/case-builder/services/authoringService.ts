@@ -5,11 +5,13 @@ type Schemas = components["schemas"];
 
 export type AuthoringConversation = Schemas["AuthoringConversationView"];
 export type AuthoringConversationResponse = Schemas["AuthoringConversationResponse"];
+export type QuestionListResponse = Schemas["QuestionListResponse"];
 export type AuthoringConversationCreateRequest = Schemas["AuthoringConversationCreateRequest"];
 export type AuthoringMessageRequest = Schemas["AuthoringMessageRequest"];
 export type QuestionBoundaryRequest = Schemas["QuestionBoundaryRequest"];
 export type InputAnswerPatchRequest = Schemas["InputAnswerPatchRequest"];
 export type InputAnswerConfirmationRequest = Schemas["InputAnswerConfirmationRequest"];
+export type QuestionLifecycleRequest = Schemas["QuestionLifecycleRequest"];
 export type AuthoringRetryRequest = Schemas["AuthoringRetryRequest"];
 export type AuthoringContinuityResetRequest = Schemas["AuthoringContinuityResetRequest"];
 // SSE has no JSON response schema in OpenAPI, so keep its small allowlist at
@@ -59,6 +61,10 @@ export function getAuthoringConversation(workspaceId: string, conversationId: st
   return apiFetch<AuthoringConversationResponse>(`${base(workspaceId)}/${conversationId}`);
 }
 
+export function listQuestions(workspaceId: string) {
+  return apiFetch<QuestionListResponse>(`/api/workspaces/${workspaceId}/questions`);
+}
+
 export function postAuthoringMessage(
   workspaceId: string,
   conversationId: string,
@@ -101,6 +107,18 @@ export function confirmQuestionInputAnswer(
 ) {
   return apiFetch<AuthoringConversationResponse>(
     `${base(workspaceId)}/${conversationId}/question-drafts/${draftId}/input-answer-confirmation`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function mutateQuestionLifecycle(
+  workspaceId: string,
+  conversationId: string,
+  draftId: string,
+  input: QuestionLifecycleRequest,
+) {
+  return apiFetch<AuthoringConversationResponse>(
+    `${base(workspaceId)}/${conversationId}/question-drafts/${draftId}/lifecycle`,
     { method: "POST", body: JSON.stringify(input) },
   );
 }

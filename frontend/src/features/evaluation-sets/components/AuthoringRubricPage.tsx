@@ -18,12 +18,10 @@ import {
   type AuthoringConversation,
 } from "@/src/features/case-builder/services/authoringService";
 import {
-  confirmRubric,
-  deriveRubricDraft,
+  confirmAndPublishAutomatic,
   getRubricForQuestion,
   listRubricRevisions,
   patchRubric,
-  publishRubric,
   startRubric,
   type RubricContent,
   type RubricCriterion,
@@ -40,7 +38,7 @@ import {
 import styles from "./rubric.module.css";
 
 type QuestionDraft = NonNullable<AuthoringConversation["question_drafts"]>[number];
-type QuestionChoice = Pick<QuestionDraft, "id" | "title" | "input" | "reference_answer_text" | "confirmed_revision">;
+type QuestionChoice = Pick<QuestionDraft, "id" | "title" | "input" | "bad_samples" | "reference_answer_text" | "confirmed_revision" | "lifecycle_status">;
 
 type ConversationLoad =
   | { status: "loading" }
@@ -53,7 +51,7 @@ type RubricLoad =
   | { status: "ready"; rubric: RubricDraft }
   | { status: "failed"; fault: PageFault };
 
-type BusyAction = "start" | "save" | "confirm" | "publish" | "derive" | null;
+type BusyAction = "start" | "save" | "publish" | null;
 
 function isRubricProcessing(status: RubricDraft["status"]): boolean {
   return status === "queued" || status === "processing";
@@ -105,8 +103,10 @@ function previewQuestion(): QuestionChoice {
       prohibited: ["无来源推断"],
       background: "这是开发态规则审阅预演。",
     },
+    bad_samples: [],
     reference_answer_text: "老师明确认可的参考结果。",
     confirmed_revision: 1,
+    lifecycle_status: "draft",
   };
 }
 
@@ -322,13 +322,11 @@ function RubricEditor({
   draft,
   busy,
   onSave,
-  onConfirmRequest,
   onPublishRequest,
 }: {
   draft: RubricDraft;
   busy: BusyAction;
   onSave: (content: RubricContent) => void;
-  onConfirmRequest: () => void;
   onPublishRequest: () => void;
 }) {
   const [content, setContent] = useState<RubricContent | null>(draft.rubric ?? null);
@@ -392,8 +390,7 @@ function RubricEditor({
         </div>
         <div className={styles.actions}>
           {!readOnly && <Button busy={busy === "save"} busyLabel="正在保存…" disabled={busy !== null} onClick={() => onSave(content)} variant="secondary">保存修改</Button>}
-          {draft.status === "review_ready" && <Button busy={busy === "confirm"} busyLabel="正在确认…" disabled={busy !== null || !outcome.passed} onClick={onConfirmRequest} size="lg" variant="primary">确认打分规则</Button>}
-          {draft.status === "confirmed" && <Button busy={busy === "publish"} busyLabel="正在发布…" disabled={busy !== null || !outcome.passed} onClick={onPublishRequest} size="lg" variant="primary">发布为题目修订</Button>}
+          {(draft.status === "review_ready" || draft.status === "confirmed") && <Button busy={busy === "publish"} busyLabel="正在发布…" disabled={busy !== null || !outcome.passed} onClick={onPublishRequest} size="lg" variant="primary">确认规则并发布到评测集</Button>}
         </div>
       </div>
     </section>
@@ -402,12 +399,8 @@ function RubricEditor({
 
 function RevisionHistory({
   history,
-  busy,
-  onDerive,
 }: {
   history: RubricRevisionListResponse | null;
-  busy: boolean;
-  onDerive: (revisionId: string) => void;
 }) {
   const revisions = history?.revisions ?? [];
   if (revisions.length === 0) return null;
@@ -421,7 +414,7 @@ function RevisionHistory({
         {revisions.map((revision) => (
           <div className={styles.historyItem} key={revision.id}>
             <span><strong>题 v{revision.revision}</strong><span className="secondary"> · 通过线 {revision.pass_threshold}</span></span>
-            <Button disabled={busy} onClick={() => onDerive(revision.id)} size="sm" variant="quiet">从此修订派生</Button>
+            <span className="state state-neutral"><span className="dot" />只读历史</span>
           </div>
         ))}
       </div>
@@ -452,7 +445,7 @@ export function AuthoringRubricPage({
   const [history, setHistory] = useState<RubricRevisionListResponse | null>(null);
   const [busy, setBusy] = useState<BusyAction>(null);
   const [fault, setFault] = useState<PageFault | null>(null);
-  const [confirmAction, setConfirmAction] = useState<"confirm" | "publish" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"publish" | null>(null);
   const generation = useRef(0);
 
   const previewDraft = preview ? previewRubric(preview) : null;
@@ -461,7 +454,7 @@ export function AuthoringRubricPage({
   const questions = useMemo<QuestionChoice[]>(() => liveConversation
     ? (liveConversation.question_drafts ?? [])
       .filter((draft) => draft.status === "input_answer_confirmed" && draft.reference_answer_text && draft.confirmed_revision !== null)
-      .map((draft) => ({ id: draft.id, title: draft.title, input: draft.input, reference_answer_text: draft.reference_answer_text, confirmed_revision: draft.confirmed_revision }))
+      .map((draft) => ({ id: draft.id, title: draft.title, input: draft.input, bad_samples: draft.bad_samples, reference_answer_text: draft.reference_answer_text, confirmed_revision: draft.confirmed_revision, lifecycle_status: draft.lifecycle_status }))
     : [], [liveConversation]);
   const selectedQuestion = preview ? previewQuestionChoice : questions.find((question) => question.id === selectedQuestionId) ?? questions[0] ?? null;
   const liveRubric = rubricLoad.status === "ready" ? rubricLoad.rubric : null;
@@ -603,27 +596,12 @@ export function AuthoringRubricPage({
     }
   }
 
-  async function handleConfirm() {
-    if (!liveRubric || busy || preview) return;
-    setBusy("confirm");
-    setFault(null);
-    try {
-      const result = await confirmRubric(workspaceId, liveRubric.id, { command_id: commandId("rubric-confirm"), rubric_revision: liveRubric.revision });
-      setRubricLoad({ status: "ready", rubric: result.rubric });
-      setConfirmAction(null);
-    } catch (cause: unknown) {
-      handleError(cause);
-    } finally {
-      setBusy(null);
-    }
-  }
-
   async function handlePublish() {
-    if (!liveRubric || busy || preview) return;
+    if (!liveRubric || !selectedQuestion || busy || preview) return;
     setBusy("publish");
     setFault(null);
     try {
-      const result = await publishRubric(workspaceId, liveRubric.id, { command_id: commandId("rubric-publish"), rubric_revision: liveRubric.revision });
+      const result = await confirmAndPublishAutomatic(workspaceId, selectedQuestion.id, { command_id: commandId("rubric-publish"), rubric_revision: liveRubric.revision });
       setRubricLoad({ status: "ready", rubric: result.rubric });
       if (selectedQuestion) void listRubricRevisions(workspaceId, selectedQuestion.id).then(setHistory).catch(() => undefined);
       setConfirmAction(null);
@@ -634,19 +612,6 @@ export function AuthoringRubricPage({
     }
   }
 
-  async function handleDerive(revisionId: string) {
-    if (!selectedQuestion || busy || preview) return;
-    setBusy("derive");
-    setFault(null);
-    try {
-      const result = await deriveRubricDraft(workspaceId, selectedQuestion.id, revisionId, { command_id: commandId("rubric-derive") });
-      setRubricLoad({ status: "ready", rubric: result.rubric });
-    } catch (cause: unknown) {
-      handleError(cause);
-    } finally {
-      setBusy(null);
-    }
-  }
 
   const rail = (
     <DeskRail
@@ -712,6 +677,7 @@ export function AuthoringRubricPage({
                 {(selectedQuestion.input.must_include ?? []).length > 0 && <div className={styles.contextBlock}><span className="section-label">必须包含</span><p className={styles.contextText}>{(selectedQuestion.input.must_include ?? []).join("\n")}</p></div>}
                 {(selectedQuestion.input.prohibited ?? []).length > 0 && <div className={styles.contextBlock}><span className="section-label">禁止内容</span><p className={styles.contextText}>{(selectedQuestion.input.prohibited ?? []).join("\n")}</p></div>}
                 <details><summary className="section-label">查看标准答案</summary><p className={`${styles.contextText} doc-body`} style={{ marginTop: "var(--s-3)" }}>{selectedQuestion.reference_answer_text}</p></details>
+                {(selectedQuestion.bad_samples ?? []).length > 0 && <details><summary className="section-label">查看老师确认的坏样本（{selectedQuestion.bad_samples?.length}）</summary><div className="stack" style={{ marginTop: "var(--s-3)" }}>{selectedQuestion.bad_samples?.map((sample) => <div className="inset stack-sm" key={sample.id}><span className="section-label">否定原因</span><p className={styles.contextText}>{sample.reason_summary}</p><span className="section-label">老师原话</span><p className={styles.contextText}>{sample.teacher_feedback_texts.join("\n")}</p></div>)}</div></details>}
               </section>
             )}
           </section>
@@ -725,9 +691,9 @@ export function AuthoringRubricPage({
               ) : previewDraft.status === "waiting_for_teacher" ? (
                 <section className="sheet sheet-pad stack"><span className="state state-amber"><span className="dot" />需要补充</span><h2 className="doc-title-sm">{previewDraft.pending_question?.text}</h2><p className="secondary">{previewDraft.pending_question?.reason}</p></section>
               ) : previewDraft.status === "failed" ? (
-                <><Note tone="fail" title="规则整理失败">已确认的题目内容仍然保留，可以重试。</Note><RubricEditor draft={previewDraft} busy={null} onConfirmRequest={() => undefined} onPublishRequest={() => undefined} onSave={() => undefined} /></>
+                <><Note tone="fail" title="规则整理失败">已确认的题目内容仍然保留，可以重试。</Note><RubricEditor draft={previewDraft} busy={null} onPublishRequest={() => undefined} onSave={() => undefined} /></>
               ) : (
-                <RubricEditor draft={previewDraft} busy={null} onConfirmRequest={() => undefined} onPublishRequest={() => undefined} onSave={() => undefined} />
+                <RubricEditor draft={previewDraft} busy={null} onPublishRequest={() => undefined} onSave={() => undefined} />
               )
             ) : rubricLoad.status === "loading" ? (
               <section aria-busy="true" className="sheet sheet-pad stack-lg"><SkeletonLine height={20} width="35%" /><SkeletonLine height={100} /><SkeletonLine height={180} /></section>
@@ -747,9 +713,9 @@ export function AuthoringRubricPage({
                 {liveRubric.status === "projection_pending" && <section className="sheet sheet-pad stack"><span className="state state-amber"><span className="dot" />等待恢复</span><h2 className="doc-title-sm">规则已经生成，正在恢复业务快照</h2><p className="secondary">不会重新调用 AI；恢复动作只会提交已保存的规则结果。</p><Button busy={busy === "start"} busyLabel="正在恢复…" onClick={() => void handleStart()} variant="primary">恢复规则快照</Button></section>}
                 {liveRubric.status === "failed" && <section className="sheet sheet-pad stack"><Note tone="fail" title="规则整理失败">已确认的题目内容不会丢失，可以重新生成。</Note><Button busy={busy === "start"} busyLabel="正在重试…" onClick={() => void handleStart()} variant="primary">重新生成规则</Button></section>}
                 {liveRubric.status === "waiting_for_teacher" && liveRubric.pending_question && <section className="sheet sheet-pad stack"><span className="state state-amber"><span className="dot" />需要补充</span><h2 className="doc-title-sm">{liveRubric.pending_question.text}</h2><p className="secondary">{liveRubric.pending_question.reason}</p></section>}
-                {liveRubric.rubric && <RubricEditor draft={liveRubric} busy={busy} onConfirmRequest={() => setConfirmAction("confirm")} onPublishRequest={() => setConfirmAction("publish")} onSave={(content) => void handleSave(content)} />}
-                {liveRubric.status === "published" && <section className={`${styles.nextStep} sheet sheet-pad stack`} data-testid="rubric-published-next-step"><span className="section-label">下一步</span><h2 className="doc-title-sm">这道题已经可以加入版本</h2><p className="secondary">发布快照不会再被当前草稿修改；在版本组集中选择它，才能进入下一版冻结流程。</p><div className="row"><ButtonLink href={`/workspaces/${workspaceId}?section=versions`} variant="primary">去版本组集</ButtonLink><ButtonLink href={`/workspaces/${workspaceId}/question-revisions/${liveRubric.published_revision_id}/submissions/new`} variant="quiet">提交待评答卷</ButtonLink></div></section>}
-                <RevisionHistory busy={busy !== null} history={history} onDerive={(revisionId) => void handleDerive(revisionId)} />
+                {liveRubric.rubric && <RubricEditor draft={liveRubric} busy={busy} onPublishRequest={() => setConfirmAction("publish")} onSave={(content) => void handleSave(content)} />}
+                {liveRubric.status === "published" && <section className={`${styles.nextStep} sheet sheet-pad stack`} data-testid="rubric-published-next-step"><span className="section-label">已完成</span><h2 className="doc-title-sm">已进入当前评测集</h2><p className="secondary">这道题已经进入当前正式评测集，并自动留下不可变历史版本。修改时会先形成下一修订。</p><div className="row"><ButtonLink href={`/workspaces/${workspaceId}?section=questions`} variant="primary">查看题目</ButtonLink><ButtonLink href={`/workspaces/${workspaceId}/question-revisions/${liveRubric.published_revision_id}/submissions/new`} variant="quiet">提交待评答卷</ButtonLink></div></section>}
+                <RevisionHistory history={history} />
               </>
             ) : null}
           </section>
@@ -757,11 +723,11 @@ export function AuthoringRubricPage({
         {confirmAction && (
           <ConfirmSheet
             busy={busy === confirmAction}
-            confirmLabel={confirmAction === "confirm" ? "确认规则" : "确认发布"}
-            description={confirmAction === "confirm" ? "确认后规则进入发布前状态；你仍可以在发布前检查全部评分项。" : "发布会生成一份不可变题目修订，之后的评分只会绑定这份快照。修改规则需要派生新修订。"}
+            confirmLabel="确认规则并发布"
+            description="发布后立即进入当前评测集，并留下不可变历史版本；以后修改会形成下一修订，不会覆盖当前题。"
             onCancel={() => setConfirmAction(null)}
-            onConfirm={() => void (confirmAction === "confirm" ? handleConfirm() : handlePublish())}
-            title={confirmAction === "confirm" ? "确认这套打分规则" : "确认发布题目修订"}
+            onConfirm={() => void handlePublish()}
+            title="确认规则并发布到评测集"
           />
         )}
       </main>

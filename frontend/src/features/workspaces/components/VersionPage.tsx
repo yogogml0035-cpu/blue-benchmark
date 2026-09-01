@@ -152,11 +152,11 @@ export function VersionPage({
             <h1 className="doc-title">版本 {version.version_number}</h1>
             <span className="state state-green">
               <span className="dot" />
-              已冻结
+              不可变
             </span>
           </div>
           <p className="secondary">
-            冻结于 {stamp(version.frozen_at)} · 不可修改
+            形成于 {stamp(version.frozen_at)} · 不可修改
           </p>
         </div>
 
@@ -184,14 +184,14 @@ export function VersionPage({
               <span className="mono">{version.version_number}</span>
             </div>
             <div className="row-between">
-              <span className="secondary">冻结时间</span>
+              <span className="secondary">形成时间</span>
               <span className="mono">{stamp(version.frozen_at)}</span>
             </div>
             <div className="row-between">
               <span className="secondary">状态</span>
               <span className="state state-green">
                 <span className="dot" />
-                已冻结
+                不可变
               </span>
             </div>
           </div>

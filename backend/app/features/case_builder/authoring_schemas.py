@@ -103,8 +103,7 @@ class QuestionInput(BaseModel):
 
     @model_validator(mode="after")
     def normalize_text(self) -> "QuestionInput":
-        self.task_instruction = self.task_instruction.strip()
-        if not self.task_instruction:
+        if not self.task_instruction.strip():
             raise ValueError("task_instruction must not be blank")
         self.must_include = [item.strip() for item in self.must_include if item.strip()]
         self.prohibited = [item.strip() for item in self.prohibited if item.strip()]
@@ -113,6 +112,42 @@ class QuestionInput(BaseModel):
         file_ids = [item.file_id for item in self.materials]
         if len(file_ids) != len(set(file_ids)):
             raise ValueError("question materials must reference unique files")
+        return self
+
+
+class BadSample(BaseModel):
+    """A teacher-confirmed bad result from a real Agent execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=64)
+    source_ref: str = Field(min_length=1, max_length=500)
+    content_text: str = Field(min_length=1, max_length=50_000)
+    teacher_feedback_texts: list[str] = Field(min_length=1, max_length=20)
+    reason_summary: str = Field(min_length=1, max_length=2_000)
+
+    @model_validator(mode="after")
+    def validate_public_evidence(self) -> "BadSample":
+        values = [self.source_ref, self.content_text, self.reason_summary, *self.teacher_feedback_texts]
+        forbidden = (
+            "system_prompt", "private_reasoning", "tool_result", "tool_args", "thread_id",
+            "checkpoint", "storage_key", "api_key", "access token", "password", "绝对路径",
+            "系统提示", "私有推理", "工具调用", "存储键", "凭证",
+        )
+        for value in values:
+            folded = value.casefold()
+            if (
+                not value.strip()
+                or value.startswith(("/", "\\"))
+                or "file://" in folded
+                or any(marker in folded for marker in ("/users/", "/home/", "/private/", "c:\\"))
+            ):
+                raise ValueError("bad sample contains an invalid public text value")
+            if any(term in value.casefold() for term in forbidden):
+                raise ValueError("bad sample contains private or internal trace text")
+        if any(not item.strip() for item in self.teacher_feedback_texts):
+            raise ValueError("teacher_feedback_texts must not be blank")
+        self.reason_summary = self.reason_summary.strip()
         return self
 
 
@@ -148,7 +183,7 @@ class AuthoringConversationCreateRequest(BaseModel):
         for field_name in ("task_instruction", "message", "reference_answer_text"):
             value = getattr(self, field_name)
             if value is not None:
-                setattr(self, field_name, value.strip() or None)
+                setattr(self, field_name, value if value.strip() else None)
         self.source_file_ids = [item.strip() for item in self.source_file_ids]
         if any(not item for item in self.source_file_ids):
             raise ValueError("source_file_ids must not contain blanks")
@@ -249,6 +284,7 @@ class InputAnswerPatchRequest(BaseModel):
     draft_revision: int = Field(ge=0)
     input: QuestionInput
     reference_answer_text: str | None = Field(default=None, max_length=50_000)
+    bad_samples: list[BadSample] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
     def normalize_input(self) -> "InputAnswerPatchRequest":
@@ -256,7 +292,10 @@ class InputAnswerPatchRequest(BaseModel):
         if not self.command_id:
             raise ValueError("command_id must not be blank")
         if self.reference_answer_text is not None:
-            self.reference_answer_text = self.reference_answer_text.strip() or None
+            self.reference_answer_text = self.reference_answer_text if self.reference_answer_text.strip() else None
+        sample_ids = [item.id for item in self.bad_samples]
+        if len(sample_ids) != len(set(sample_ids)):
+            raise ValueError("bad sample IDs must be unique")
         return self
 
 
@@ -265,6 +304,22 @@ class InputAnswerConfirmationRequest(BaseModel):
 
     command_id: str = Field(min_length=1, max_length=255)
     draft_revision: int = Field(ge=0)
+
+    @field_validator("command_id")
+    @classmethod
+    def normalize_command_id(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("command_id must not be blank")
+        return value
+
+
+class QuestionLifecycleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: str = Field(min_length=1, max_length=255)
+    draft_revision: int = Field(ge=0)
+    action: Literal["derive", "disable", "restore", "delete"]
 
     @field_validator("command_id")
     @classmethod
@@ -333,12 +388,16 @@ class BenchmarkQuestionDraftView(BaseModel):
     status: QuestionDraftStatus
     revision: int = Field(ge=0)
     input: QuestionInput
+    bad_samples: list[BadSample] = Field(default_factory=list)
     reference_answer_text: str | None = None
     reference_answer_source: Literal["teacher_message", "teacher_input"] | None = None
     evidence_file_ids: list[str] = Field(default_factory=list)
     materials: list[QuestionMaterialView] = Field(default_factory=list)
     confirmed_revision: int | None = Field(default=None, ge=0)
     confirmed_at: datetime | None = None
+    lifecycle_status: Literal["draft", "active", "disabled", "deleted"] = "draft"
+    active_revision_id: str | None = None
+    current_revision_number: int | None = Field(default=None, ge=1)
 
 
 class AuthoringConversationView(BaseModel):
@@ -364,6 +423,11 @@ class AuthoringConversationView(BaseModel):
 
 class AuthoringConversationResponse(BaseModel):
     conversation: AuthoringConversationView
+
+
+class QuestionListResponse(BaseModel):
+    workspace_id: str
+    questions: list[BenchmarkQuestionDraftView] = Field(default_factory=list)
 
 
 class AuthoringEventView(BaseModel):

@@ -6,7 +6,7 @@ import { VersionPage } from "@/src/features/workspaces/components/VersionPage";
 
 export const metadata: Metadata = {
   title: "历史版本 · 评测集平台",
-  description: "查看不可变的冻结版本与下载完整包。",
+  description: "查看不可变历史版本与下载完整包。",
 };
 
 export default async function WorkspaceVersionPage({

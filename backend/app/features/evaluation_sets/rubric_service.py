@@ -188,6 +188,7 @@ def _question_snapshot(
         "title": source.title,
         "summary": source.summary,
         "input": source.input.model_dump(mode="json"),
+        "bad_samples": [item.model_dump(mode="json") for item in source.bad_samples],
         "evidence_file_ids": list(source.evidence_file_ids),
         "source_refs": refs,
         "evidence_files": _question_evidence_snapshot(
@@ -202,6 +203,8 @@ def _question_snapshot(
 def get_question_revision_for_version(
     workspace_id: str,
     revision_id: str,
+    *,
+    allow_staged: bool = False,
 ) -> QuestionRevisionPackageTask:
     """Project one published question revision into the v2 package boundary.
 
@@ -211,7 +214,7 @@ def get_question_revision_for_version(
     changing the task's evidence boundary.
     """
 
-    revision = repository.get_revision(revision_id)
+    revision = repository.get_revision_any(revision_id) if allow_staged else repository.get_revision(revision_id)
     if revision is None:
         raise AppError(404, "RESOURCE_NOT_FOUND", "已发布的题目修订不存在。")
     if revision.workspace_id != workspace_id:
@@ -322,6 +325,7 @@ def get_question_revision_for_version(
         judge={
             "question_input": question_input.model_dump(mode="json"),
             "reference_answer_text": revision.reference_answer_text,
+            "bad_samples": list(revision.bad_samples),
             "rubric": rubric.model_dump(mode="json"),
             "pass_threshold": revision.pass_threshold,
         },
@@ -331,6 +335,7 @@ def get_question_revision_for_version(
             "contract_revision_id": revision.contract_revision_id,
             "published_by": revision.published_by,
             "published_at": revision.published_at.isoformat(),
+            "bad_samples": list(revision.bad_samples),
             "source_refs": source_refs,
         },
     )
@@ -391,6 +396,13 @@ def _view(record: repository.RubricDraftRecord, source: authoring_service.Confir
     else:
         next_action = "none"
     revisions = repository.list_revisions(record.question_draft_id)
+    if status == RubricDraftStatus.published.value and not revisions:
+        # The rubric row may have been recorded before package finalization;
+        # keep the business UI in publish/retry state until a visible
+        # immutable revision exists.
+        status = RubricDraftStatus.confirmed.value
+        next_action = "publish"
+        blocking.append("当前评测集版本尚未形成，可以重试发布。")
     return RubricDraftResponse(
         rubric=RubricDraftView(
             id=record.id,
@@ -401,6 +413,7 @@ def _view(record: repository.RubricDraftRecord, source: authoring_service.Confir
             status=RubricDraftStatus(status),
             revision=record.revision,
             question_input=source.input,
+            bad_samples=list(source.bad_samples),
             reference_answer_text=source.reference_answer_text,
             rubric=content,
             reference_total_score=outcome.total if outcome else None,
@@ -438,6 +451,7 @@ def _not_started_view(
             status=RubricDraftStatus.not_started,
             revision=0,
             question_input=source.input,
+            bad_samples=list(source.bad_samples),
             reference_answer_text=source.reference_answer_text,
             rubric=None,
             blocking_issues=[],
@@ -519,6 +533,47 @@ def start_rubric(
     return _view(record, source)
 
 
+def confirm_and_start_rubric(
+    workspace_id: str,
+    question_draft_id: str,
+    payload: RubricGenerateRequest,
+    user: UserRecord,
+) -> RubricDraftResponse:
+    """Confirm the question snapshot and enqueue rubric generation as one UI action."""
+
+    workspace_service.assert_owner(workspace_id, user)
+    draft = authoring_service.repository.get_draft(question_draft_id)
+    if draft is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "题目草稿不存在。")
+    if draft.lifecycle_status == "deleted":
+        raise AppError(409, "QUESTION_DELETED", "删除的题目不能生成新规则。")
+    confirmed_revision = draft.confirmed_revision
+    if draft.status != authoring_service.QuestionDraftStatus.input_answer_confirmed.value:
+        if payload.question_revision != draft.revision:
+            raise AppError(409, "STALE_QUESTION_DRAFT", "题目草稿已经更新，请重新读取后确认。")
+        try:
+            draft = authoring_service.repository.confirm_draft(
+                question_draft_id,
+                expected_revision=draft.revision,
+                command_id=f"{payload.command_id}:confirm-question",
+                confirmed_by=user.id,
+                digest=authoring_service.repository.payload_hash({"command_id": payload.command_id, "draft_revision": payload.question_revision, "action": "confirm-question"}),
+            )
+        except authoring_service.repository.StaleProjection as exc:
+            raise AppError(409, "STALE_QUESTION_DRAFT", "题目草稿已经更新，请重新读取后确认。") from exc
+        except authoring_service.repository.RepositoryConflict as exc:
+            raise AppError(409, "QUESTION_NOT_READY", "当前题目还不能确认，请补齐资料角色和标准答案。") from exc
+        confirmed_revision = draft.confirmed_revision
+    if confirmed_revision is None:
+        raise AppError(409, "QUESTION_NOT_CONFIRMED", "请先确认题目输入和标准答案。")
+    return start_rubric(
+        workspace_id,
+        question_draft_id,
+        RubricGenerateRequest(command_id=payload.command_id, question_revision=confirmed_revision),
+        user,
+    )
+
+
 def patch_rubric(
     workspace_id: str,
     rubric_id: str,
@@ -598,6 +653,7 @@ def publish_rubric(
             command_id=payload.command_id,
             digest=repository.payload_hash(payload.model_dump(mode="json")),
             question_snapshot=_question_snapshot(source, require_evidence_present=True),
+            bad_samples=[item.model_dump(mode="json") for item in source.bad_samples],
             reference_answer_text=source.reference_answer_text,
             published_by=user.id,
             pass_threshold=content.pass_threshold,
@@ -607,6 +663,89 @@ def publish_rubric(
         raise AppError(409, "STALE_RUBRIC", "打分规则或上游题目已经更新，请重新读取。") from exc
     except repository.RepositoryConflict as exc:
         raise AppError(409, "RUBRIC_NOT_READY", "当前打分规则尚未完成确认或发布冲突。") from exc
+    return _view(changed, source)
+
+
+def confirm_and_publish_automatic(
+    workspace_id: str,
+    question_draft_id: str,
+    payload: RubricPublishRequest,
+    user: UserRecord,
+) -> RubricDraftResponse:
+    """Confirm the current rubric and publish it directly into the current set."""
+
+    workspace_service.assert_owner(workspace_id, user)
+    source = _source(workspace_id, question_draft_id)
+    draft = authoring_service.get_confirmed_question_source(workspace_id, question_draft_id)
+    if draft is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "题目草稿不存在。")
+    record = repository.get_by_question(question_draft_id)
+    if record is None:
+        raise AppError(409, "RUBRIC_NOT_READY", "请先生成完整的打分规则。")
+    publish_digest = repository.payload_hash(payload.model_dump(mode="json"))
+    receipt = record.command_receipts.get(payload.command_id)
+    if receipt is not None and receipt.get("payload_hash") != publish_digest:
+        raise AppError(409, "COMMAND_ID_REUSED", "相同发布命令已经用于另一份规则内容。")
+    if receipt is None and payload.rubric_revision != record.revision:
+        raise AppError(409, "STALE_RUBRIC", "打分规则已经更新，请重新读取后再发布。")
+    content = _rubric_content(record)
+    if content is None or not _reference_outcome(content).passed:
+        raise AppError(409, "REFERENCE_RUBRIC_FAILED", "标准答案按当前规则未通过，不能发布。")
+    question_draft = authoring_service.repository.get_draft(question_draft_id)
+    if question_draft is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "题目草稿不存在。")
+    if question_draft.lifecycle_status in {"disabled", "deleted"}:
+        raise AppError(409, "QUESTION_NOT_ACTIVE", "停用或删除的题目不能发布。")
+    if record.status == RubricDraftStatus.review_ready.value:
+        try:
+            record = repository.confirm_rubric(
+                record.id,
+                expected_revision=record.revision,
+                source_question_revision=source.confirmed_revision,
+                source_question_hash=source.confirmed_hash,
+                command_id=f"{payload.command_id}:confirm",
+                digest=repository.payload_hash({"command_id": payload.command_id, "rubric_revision": payload.rubric_revision, "action": "confirm"}),
+                confirmed_by=user.id,
+            )
+        except repository.StaleRubric as exc:
+            raise AppError(409, "STALE_RUBRIC", "打分规则或上游题目已经更新，请重新读取。") from exc
+        except repository.RepositoryConflict as exc:
+            raise AppError(409, "RUBRIC_NOT_READY", "当前打分规则还不能确认。") from exc
+    if record.status not in {RubricDraftStatus.confirmed.value, RubricDraftStatus.published.value}:
+        raise AppError(409, "RUBRIC_NOT_READY", "当前打分规则还不能发布。")
+    try:
+        changed, revision = repository.publish_rubric(
+            record.id,
+            expected_revision=record.revision,
+            source_question_revision=source.confirmed_revision,
+            source_question_hash=source.confirmed_hash,
+            command_id=payload.command_id,
+            digest=publish_digest,
+            question_snapshot=_question_snapshot(source, require_evidence_present=True),
+            bad_samples=[item.model_dump(mode="json") for item in source.bad_samples],
+            reference_answer_text=source.reference_answer_text,
+            published_by=user.id,
+            pass_threshold=content.pass_threshold,
+            contract_revision_id=None,
+            publication_status="staged",
+        )
+    except repository.StaleRubric as exc:
+        raise AppError(409, "STALE_RUBRIC", "打分规则或上游题目已经更新，请重新读取。") from exc
+    except repository.RepositoryConflict as exc:
+        raise AppError(409, "RUBRIC_NOT_READY", "当前打分规则尚未完成发布或发生并发冲突。") from exc
+    try:
+        from app.features.evaluation_sets.lifecycle_service import finalize_question_publish
+
+        finalize_question_publish(
+            workspace_id,
+            revision.id,
+            command_id=payload.command_id,
+            user=user,
+        )
+    except AppError:
+        raise
+    except Exception as exc:
+        raise AppError(503, "PUBLISH_PACKAGE_FAILED", "评测集版本暂时未能生成，题目仍可继续审阅，请重试发布。") from exc
     return _view(changed, source)
 
 
@@ -714,6 +853,7 @@ def process_rubric(job: OperationJob) -> dict[str, Any]:
         {
             "question": _question_snapshot(source),
             "reference_answer_text": source.reference_answer_text,
+            "bad_samples": [item.model_dump(mode="json") for item in source.bad_samples],
         },
     )
     if not isinstance(result, AgentRunResult) or not isinstance(result.result, RubricContent):

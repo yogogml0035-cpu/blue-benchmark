@@ -14,9 +14,9 @@ import { StatePanel } from "@/src/components/ui/StatePanel";
 import { UserChip } from "@/src/features/auth/components/UserChip";
 import { useSession } from "@/src/features/auth/hooks/useSession";
 import {
-  confirmQuestionInputAnswer,
   getAuthoringConversation,
   mutateQuestionBoundaries,
+  mutateQuestionLifecycle,
   patchQuestionInputAnswer,
   postAuthoringMessage,
   readAuthoringEvents,
@@ -25,6 +25,7 @@ import {
   type AuthoringConversation,
   type AuthoringStreamEvent,
 } from "@/src/features/case-builder/services/authoringService";
+import { confirmAndStartRubric } from "@/src/features/evaluation-sets/services/rubricService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
 import { PreviewBar, useAuthoringPreviewState } from "@/src/lib/preview/preview";
 import type { components } from "@/src/lib/api/generated";
@@ -46,6 +47,13 @@ type DraftForm = {
   prohibited: string;
   background: string;
   referenceAnswer: string;
+  badSamples: Array<{
+    id: string;
+    sourceRef: string;
+    contentText: string;
+    teacherFeedback: string;
+    reasonSummary: string;
+  }>;
   materials: Array<{
     fileId: string;
     fileName: string;
@@ -119,12 +127,16 @@ function previewConversation(
       prohibited: ["无来源推断"],
       background: "这是开发态的会话状态预演。",
     },
+    bad_samples: [],
     reference_answer_text: state === "empty" || state === "question" ? null : "老师明确认可的参考结果。",
     reference_answer_source: state === "empty" || state === "question" ? null : "teacher_input",
     evidence_file_ids: [],
     materials: [],
     confirmed_revision: state === "success" ? 1 : null,
     confirmed_at: state === "success" ? now : null,
+    lifecycle_status: "draft",
+    active_revision_id: null,
+    current_revision_number: null,
   };
   return {
     id: "preview-conversation",
@@ -192,6 +204,13 @@ function draftFormFrom(draft: QuestionDraft): DraftForm {
     prohibited: (draft.input.prohibited ?? []).join("\n"),
     background: draft.input.background ?? "",
     referenceAnswer: draft.reference_answer_text ?? "",
+    badSamples: (draft.bad_samples ?? []).map((sample) => ({
+      id: sample.id,
+      sourceRef: sample.source_ref,
+      contentText: sample.content_text,
+      teacherFeedback: sample.teacher_feedback_texts.join("\n"),
+      reasonSummary: sample.reason_summary,
+    })),
     materials: (draft.materials ?? []).map((item) => ({
       fileId: item.file_id,
       fileName: item.file_name ?? "资料文件",
@@ -227,6 +246,7 @@ export function AuthoringConversationPage({
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
   const [draftForm, setDraftForm] = useState<DraftForm | null>(null);
   const [showSources, setShowSources] = useState(false);
+  const [lifecycleConfirm, setLifecycleConfirm] = useState<"disable" | "delete" | null>(null);
   const [streamEvents, setStreamEvents] = useState<AuthoringStreamEvent[]>([]);
   const generation = useRef(0);
   const routeGeneration = useRef(0);
@@ -475,7 +495,7 @@ export function AuthoringConversationPage({
     const requestRouteGeneration = routeGeneration.current;
     const draftInput = {
       input: {
-        task_instruction: draftForm.taskInstruction.trim(),
+        task_instruction: draftForm.taskInstruction,
         materials: draftForm.materials.map((item) => ({
           file_id: item.fileId,
           role: item.role,
@@ -486,7 +506,14 @@ export function AuthoringConversationPage({
         prohibited: lines(draftForm.prohibited),
         background: draftForm.background.trim() || null,
       },
-      reference_answer_text: draftForm.referenceAnswer.trim() || null,
+      reference_answer_text: draftForm.referenceAnswer || null,
+      bad_samples: draftForm.badSamples.map((sample) => ({
+        id: sample.id,
+        source_ref: sample.sourceRef,
+        content_text: sample.contentText,
+        teacher_feedback_texts: sample.teacherFeedback.split(/\r?\n/).filter((item) => item.trim()),
+        reason_summary: sample.reasonSummary.trim(),
+      })),
     };
     const stable = stableCommand("draft-input", { draftId: selectedDraft.id, ...draftInput });
     setBusy("draft");
@@ -517,18 +544,35 @@ export function AuthoringConversationPage({
     setBusy("confirm");
     setFault(null);
     try {
-      const result = await confirmQuestionInputAnswer(workspaceId, conversationId, selectedDraft.id, {
+      await confirmAndStartRubric(workspaceId, selectedDraft.id, {
         command_id: stable.id,
-        draft_revision: selectedDraft.revision,
+        question_revision: selectedDraft.revision,
       });
       if (requestRouteGeneration !== routeGeneration.current) return;
-      updateConversation(result.conversation, requestRouteGeneration);
       clearStableCommand("draft-confirm", stable.fingerprint);
+      router.push(`/workspaces/${workspaceId}/authoring/${conversationId}/rubric`);
+    } catch (cause: unknown) {
+      handleCommandError(cause, requestRouteGeneration);
+    } finally {
+      if (requestRouteGeneration === routeGeneration.current) setBusy(null);
+    }
+  }
+
+  async function changeLifecycle(action: "derive" | "disable" | "restore" | "delete") {
+    if (!conversation || !selectedDraft || busy) return;
+    const requestRouteGeneration = routeGeneration.current;
+    const input = {
+      command_id: commandId(`question-${action}`),
+      draft_revision: selectedDraft.revision,
+      action,
+    } as const;
+    setBusy(`lifecycle-${action}`);
+    setFault(null);
+    try {
+      const result = await mutateQuestionLifecycle(workspaceId, conversationId, selectedDraft.id, input);
       if (requestRouteGeneration !== routeGeneration.current) return;
-      const nextDraft = (result.conversation.question_drafts ?? []).find(
-        (item) => item.status !== "discarded" && item.status !== "input_answer_confirmed",
-      );
-      setSelectedDraftId(nextDraft?.id ?? null);
+      updateConversation(result.conversation, requestRouteGeneration);
+      setLifecycleConfirm(null);
     } catch (cause: unknown) {
       handleCommandError(cause, requestRouteGeneration);
     } finally {
@@ -785,11 +829,31 @@ export function AuthoringConversationPage({
             )}
             {conversation.next_action === "none" && currentStatus !== "confirmed" && <p className="secondary">当前没有需要你处理的动作。</p>}
             {currentStatus === "confirmed" && (
-              <section className="sheet sheet-pad stack">
-                <span className="state state-green"><span className="dot" />题目输入与标准答案已确认</span>
-                <p className="secondary">题目内容已冻结为规则生成的上游；下一步由你审阅评分项和通过条件。</p>
-                <ButtonLink href={`/workspaces/${workspaceId}/authoring/${conversationId}/rubric`} variant="primary">进入规则审阅</ButtonLink>
-              </section>
+              selectedDraft?.lifecycle_status === "deleted" ? (
+                <section className="sheet sheet-pad stack">
+                  <span className="state state-red"><span className="dot" />已删除</span>
+                  <p className="secondary">这道题不可恢复；历史版本、已有待评结果和评分仍可回查。</p>
+                </section>
+              ) : selectedDraft?.lifecycle_status === "disabled" ? (
+                <section className="sheet sheet-pad stack">
+                  <span className="state state-amber"><span className="dot" />已停用</span>
+                  <p className="secondary">停用后不再接受新的待评结果或评分；恢复后会重新进入当前评测集。</p>
+                  <div className="row">
+                    <Button busy={busy === "lifecycle-restore"} busyLabel="正在恢复…" disabled={busy !== null} onClick={() => void changeLifecycle("restore")} variant="primary">恢复题目</Button>
+                  </div>
+                </section>
+              ) : (
+                <section className="sheet sheet-pad stack">
+                  <span className="state state-green"><span className="dot" />已进入当前评测集</span>
+                  <p className="secondary">发布会自动留下不可变历史版本；以后修改会先形成下一修订，不会覆盖当前题。</p>
+                  <div className="row">
+                    <ButtonLink href={`/workspaces/${workspaceId}/authoring/${conversationId}/rubric`} variant="primary">查看评分规则</ButtonLink>
+                    <Button busy={busy === "lifecycle-derive"} busyLabel="正在准备…" disabled={busy !== null} onClick={() => void changeLifecycle("derive")} variant="secondary">修改题目</Button>
+                    <Button disabled={busy !== null} onClick={() => setLifecycleConfirm("disable")} variant="quiet">停用</Button>
+                    <Button disabled={busy !== null} onClick={() => setLifecycleConfirm("delete")} variant="quiet">删除</Button>
+                  </div>
+                </section>
+              )
             )}
           </section>
         </div>
@@ -855,6 +919,16 @@ export function AuthoringConversationPage({
               </div>
             </div>
           </Sheet>
+        )}
+        {lifecycleConfirm && (
+          <ConfirmSheet
+            busy={busy === `lifecycle-${lifecycleConfirm}`}
+            confirmLabel={lifecycleConfirm === "disable" ? "停用题目" : "删除题目"}
+            description={lifecycleConfirm === "disable" ? "停用会从当前评测集移除题目，但保留历史并允许之后恢复。" : "删除不可恢复；历史版本、已有待评结果和评分仍会保留，但题目以后不能恢复或新增评分。"}
+            onCancel={() => setLifecycleConfirm(null)}
+            onConfirm={() => void changeLifecycle(lifecycleConfirm)}
+            title={lifecycleConfirm === "disable" ? "确认停用题目" : "确认删除题目"}
+          />
         )}
       </main>
     </>
@@ -1141,10 +1215,59 @@ function DraftReview({
       <Field hint="只接受老师终版或明确认可稿" htmlFor="draft-reference" label="单一标准答案">
         <AutoTextarea className="control" disabled={busy} id="draft-reference" minRows={5} onChange={(event) => set("referenceAnswer", event.target.value)} value={form.referenceAnswer} />
       </Field>
+      <section aria-label="老师明确否定的坏样本" className="inset stack">
+        <div className="row-between">
+          <div className="stack-sm">
+            <span className="section-label">坏样本（可选）</span>
+            <span className="secondary">只记录真实执行中老师明确否定的结果；每份都要保留原话和确认原因。</span>
+          </div>
+          <Button
+            disabled={busy || processing}
+            onClick={() => set("badSamples", [...form.badSamples, { id: `bad-${Date.now()}`, sourceRef: "", contentText: "", teacherFeedback: "", reasonSummary: "" }])}
+            size="sm"
+            type="button"
+            variant="quiet"
+          >
+            添加坏样本
+          </Button>
+        </div>
+        {form.badSamples.length === 0 ? (
+          <p className="secondary">暂时没有老师确认的坏样本。</p>
+        ) : (
+          form.badSamples.map((sample, index) => (
+            <div className="stack" key={sample.id}>
+              <div className="row-between">
+                <strong>坏样本 {index + 1}</strong>
+                <Button
+                  disabled={busy || processing}
+                  onClick={() => set("badSamples", form.badSamples.filter((item) => item.id !== sample.id))}
+                  size="sm"
+                  type="button"
+                  variant="quiet"
+                >
+                  移除
+                </Button>
+              </div>
+              <Field htmlFor={`bad-source-${sample.id}`} label="真实执行来源">
+                <input className="control" disabled={busy || processing} id={`bad-source-${sample.id}`} onChange={(event) => set("badSamples", form.badSamples.map((item) => item.id === sample.id ? { ...item, sourceRef: event.target.value } : item))} placeholder="例如：真实执行 · 第 1 次结果" value={sample.sourceRef} />
+              </Field>
+              <Field htmlFor={`bad-content-${sample.id}`} label="老师看到的结果原文">
+                <AutoTextarea className="control" disabled={busy || processing} id={`bad-content-${sample.id}`} minRows={4} onChange={(event) => set("badSamples", form.badSamples.map((item) => item.id === sample.id ? { ...item, contentText: event.target.value } : item))} value={sample.contentText} />
+              </Field>
+              <Field hint="每行一条原话" htmlFor={`bad-feedback-${sample.id}`} label="老师否定原话">
+                <AutoTextarea className="control" disabled={busy || processing} id={`bad-feedback-${sample.id}`} minRows={2} onChange={(event) => set("badSamples", form.badSamples.map((item) => item.id === sample.id ? { ...item, teacherFeedback: event.target.value } : item))} value={sample.teacherFeedback} />
+              </Field>
+              <Field htmlFor={`bad-reason-${sample.id}`} label="确认的原因摘要">
+                <AutoTextarea className="control" disabled={busy || processing} id={`bad-reason-${sample.id}`} minRows={2} onChange={(event) => set("badSamples", form.badSamples.map((item) => item.id === sample.id ? { ...item, reasonSummary: event.target.value } : item))} value={sample.reasonSummary} />
+              </Field>
+            </div>
+          ))
+        )}
+      </section>
       {hasUnconfirmed && <Note tone="amber" title="还有资料没有确认">请为每份资料选择角色；不确定的资料不要直接确认题目。</Note>}
       <div className="row">
         <Button busy={busy} busyLabel="正在保存…" disabled={processing} onClick={onSave} variant="secondary">保存修改</Button>
-        <Button busy={busy} busyLabel="正在确认…" disabled={processing || !form.referenceAnswer.trim() || hasUnconfirmed} onClick={onConfirm} size="lg" variant="primary">确认题目输入</Button>
+        <Button busy={busy} busyLabel="正在确认并生成规则…" disabled={processing || !form.referenceAnswer.trim() || hasUnconfirmed} onClick={onConfirm} size="lg" variant="primary">确认题目并生成打分规则</Button>
       </div>
     </section>
   );

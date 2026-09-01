@@ -81,3 +81,95 @@ create_version_if_current(draft_revision, hashes=artifacts.hashes)
 ```
 
 历史读取只跟随已生成的 Manifest/分区/ZIP keys；业务表的后续编辑不能改变已冻结版本。
+
+## Scenario: Automatic authored-question lifecycle
+
+### 1. Scope / Trigger
+
+- Trigger: a confirmed text-only question enters rubric generation and becomes
+  the current evaluation set without a Working Set draft or manual freeze.
+- Scope: question lifecycle, bad-sample evidence, automatic v2 package creation,
+  disable/restore/delete, and write gates for submissions/scores.
+
+### 2. Signatures
+
+- `GET /api/workspaces/{workspace_id}/questions` returns question drafts with
+  `lifecycle_status`, `active_revision_id`, materials and bad samples.
+- `POST .../question-drafts/{draft_id}/rubric/start` accepts the draft revision
+  and combines question confirmation with rubric OperationJob creation.
+- `POST .../question-drafts/{draft_id}/rubric/publish` accepts the rubric
+  revision and combines rubric confirmation, immutable revision creation,
+  automatic package creation and current-set version append.
+- `POST .../authoring-conversations/{conversation_id}/question-drafts/{draft_id}/lifecycle`
+  accepts `derive|disable|restore|delete`, `command_id` and draft CAS revision.
+- `benchmark_question_drafts` owns lifecycle status, active revision, bad
+  samples and pending transition; `benchmark_question_revisions` owns
+  immutable bad-sample snapshots and publication status.
+
+### 3. Contracts
+
+- A question is `draft | active | disabled | deleted`. Only an active question
+  can derive a next revision; disabled can restore; deleted is a tombstone.
+- Bad samples must have a real execution source reference, visible result text,
+  teacher feedback verbatim and a confirmed reason summary. Internal traces,
+  credentials, host paths and private reasoning fail validation.
+- `bad_samples` is never copied into v2 runtime. It is included only in judge
+  and provenance; runtime input contains the explicit QuestionInput allowlist.
+- Automatic publish stages a revision, writes ready Manifest/runtime/judge/
+  provenance/ZIP, appends the next version with Workspace CAS, then marks the
+  revision published and active. A retry of the same command is idempotent.
+- Disable/restore/delete prepares a pending transition, builds the desired
+  current-set package, appends the version, then commits visible state. Failure
+  clears pending state and leaves current state unchanged.
+
+### 4. Validation & Error Matrix
+
+- missing/invalid bad-sample source, feedback or reason -> `422 VALIDATION_ERROR`;
+- disabled/deleted publish -> `409 QUESTION_NOT_ACTIVE`;
+- stale draft/lifecycle command -> `409 STALE_QUESTION_DRAFT` or
+  `409 COMMAND_ID_REUSED`;
+- version package/file visibility/hash failure -> `409 QUESTION_REVISION_NOT_READY`
+  or sanitized `503 PUBLISH_PACKAGE_FAILED`;
+- disabled/deleted new submission, first score or rescore ->
+  `409 QUESTION_NOT_ACTIVE`;
+- concurrent Workspace version CAS -> `409` without duplicate version number.
+
+### 5. Good/Base/Bad Cases
+
+- Good: publishing one confirmed question creates v1 with a runtime-only input;
+  disabling creates v2 without the question; restoring creates v3; deleting
+  creates an empty v4 while old revision/submission history remains readable.
+- Base: rubric generation fails; the confirmed question remains editable and
+  only rubric retry is offered.
+- Bad: a staged revision appears in published lists, a bad sample enters
+  runtime, or a storage failure leaves a disabled question with no current-set
+  version; all must fail closed.
+
+### 6. Tests Required
+
+- Schema/migration: PostgreSQL direct DDL and SQLite batch paths, 0013→0015,
+  empty-set package, old v1/v2 reader/hash stability.
+- API: no contract prerequisite, bad-sample leakage/validation, combined command
+  idempotency, lifecycle CAS, permissions, write gates and historical reads.
+- Package: runtime allowlist, judge/provenance bad samples, ready/hash/ZIP
+  consistency, storage failure cleanup and version CAS concurrency.
+- Real acceptance: production Provider/Worker, `/Users/hsikey/BenchMark/EvalData`,
+  browser combined actions, and one complete lifecycle sequence.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+draft.lifecycle_status = "disabled"
+build_version_from_live_rows()
+```
+
+#### Correct
+
+```python
+prepare_pending_transition(draft, action)
+artifacts = build_from_explicit_active_revision_snapshots()
+create_automatic_version_if_current(artifacts.hashes)
+commit_pending_transition(draft)
+```

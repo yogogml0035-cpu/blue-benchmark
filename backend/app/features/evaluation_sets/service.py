@@ -9,6 +9,7 @@ from zipfile import BadZipFile, ZipFile
 
 from app.features.auth.repository import UserRecord
 from app.features.case_builder import cocreation_service as case_service
+from app.features.case_builder import authoring_service
 from app.features.case_builder.cocreation_schemas import CoverageReview, EvaluationTaskSnapshot
 from app.features.evaluation_sets import repository
 from app.features.evaluation_sets import rubric_repository, rubric_service
@@ -103,6 +104,23 @@ def get_published_question_revisions_for_question(
     if any(item.workspace_id != workspace_id for item in revisions):
         raise AppError(403, "FORBIDDEN", "你无权使用这道题目修订。")
     return revisions
+
+
+def assert_accepts_evaluation_write(
+    workspace_id: str,
+    question_draft_id: str,
+    action: str,
+) -> None:
+    """Guard new submissions/scores without affecting historical reads."""
+
+    draft = authoring_service.repository.get_draft(question_draft_id)
+    if draft is None:
+        raise AppError(404, "RESOURCE_NOT_FOUND", "题目草稿不存在。")
+    conversation = authoring_service.repository.get_conversation_by_draft(question_draft_id)
+    if conversation is None or conversation.workspace_id != workspace_id:
+        raise AppError(403, "FORBIDDEN", "你无权使用这道题。")
+    if draft.lifecycle_status in {"disabled", "deleted"}:
+        raise AppError(409, "QUESTION_NOT_ACTIVE", f"当前题目已{('删除' if draft.lifecycle_status == 'deleted' else '停用')}，不能执行{action}。")
 
 
 def _active_operation(draft_id: str) -> OperationJob | None:
@@ -807,7 +825,9 @@ def _verified_manifest(version: repository.EvaluationSetVersionRecord) -> tuple[
             or manifest.get("schema_version") != version.schema_version
         ):
             raise VersionPackageError("manifest identity does not match the version record")
-        if not isinstance(manifest.get("tasks"), list) or not manifest["tasks"]:
+        if not isinstance(manifest.get("tasks"), list) or (
+            not manifest["tasks"] and manifest.get("schema_version") != QUESTION_REVISION_PACKAGE_SCHEMA_VERSION
+        ):
             raise VersionPackageError("manifest task list is invalid")
         partition_keys = {
             "runtime": (version.runtime_key, version.runtime_sha256),

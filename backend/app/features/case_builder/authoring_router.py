@@ -13,12 +13,14 @@ from app.features.case_builder import authoring_service as service
 from app.features.case_builder.authoring_schemas import (
     AuthoringConversationCreateRequest,
     AuthoringConversationResponse,
+    QuestionListResponse,
     AuthoringContinuityResetRequest,
     AuthoringEventListResponse,
     AuthoringMessageRequest,
     AuthoringRetryRequest,
     InputAnswerConfirmationRequest,
     InputAnswerPatchRequest,
+    QuestionLifecycleRequest,
     QuestionBoundaryRequest,
 )
 from app.lib.schemas import ErrorResponse
@@ -59,6 +61,18 @@ def get_conversation(
     user: UserRecord = Depends(auth_service.require_current_user),
 ) -> AuthoringConversationResponse:
     return service.get_conversation(workspace_id, conversation_id, user)
+
+
+@router.get(
+    "/questions",
+    response_model=QuestionListResponse,
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+)
+def list_questions(
+    workspace_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> QuestionListResponse:
+    return service.list_questions(workspace_id, user)
 
 
 @router.post(
@@ -160,6 +174,21 @@ def confirm_input_answer(
     user: UserRecord = Depends(auth_service.require_current_user),
 ) -> AuthoringConversationResponse:
     return service.confirm_input_answer(workspace_id, conversation_id, draft_id, payload, user)
+
+
+@router.post(
+    "/authoring-conversations/{conversation_id}/question-drafts/{draft_id}/lifecycle",
+    response_model=AuthoringConversationResponse,
+    responses=common_errors,
+)
+def mutate_question_lifecycle(
+    payload: QuestionLifecycleRequest,
+    workspace_id: str = Path(min_length=1),
+    conversation_id: str = Path(min_length=1),
+    draft_id: str = Path(min_length=1),
+    user: UserRecord = Depends(auth_service.require_current_user),
+) -> AuthoringConversationResponse:
+    return service.mutate_question_lifecycle(workspace_id, conversation_id, draft_id, payload, user)
 
 
 @router.post(

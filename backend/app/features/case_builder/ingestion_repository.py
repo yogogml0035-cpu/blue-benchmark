@@ -223,6 +223,62 @@ def update_disposition(
         return True
 
 
+def sync_authoring_dispositions(
+    *,
+    batch_id: str,
+    materials: list[dict[str, object]],
+    confirmed_by: str,
+) -> bool:
+    """Project teacher-confirmed authoring roles to runtime file visibility."""
+
+    with session_scope() as session:
+        batch = session.scalar(select(UploadBatchRow).where(UploadBatchRow.id == batch_id).with_for_update())
+        if batch is None:
+            return False
+        if batch.status != "ready_for_confirmation":
+            return False
+        file_ids = [str(item.get("file_id") or "") for item in materials]
+        if not file_ids or len(file_ids) != len(set(file_ids)):
+            return False
+        rows = session.scalars(
+            select(EvidenceFileRow).where(
+                EvidenceFileRow.upload_batch_id == batch_id,
+                EvidenceFileRow.id.in_(file_ids),
+            )
+        ).all()
+        if len(rows) != len(file_ids):
+            return False
+        dispositions = {
+            item.evidence_file_id: item
+            for item in session.scalars(
+                select(FileDispositionRow).where(FileDispositionRow.evidence_file_id.in_(file_ids))
+            ).all()
+        }
+        if len(dispositions) != len(file_ids):
+            return False
+        timestamp = datetime.now(timezone.utc)
+        for item in materials:
+            file_id = str(item.get("file_id") or "")
+            disposition = dispositions[file_id]
+            role = str(item.get("role") or "unconfirmed")
+            if role == "ignored":
+                disposition.role = "unknown"
+                disposition.ignored = True
+                disposition.visibility = "unconfirmed"
+            else:
+                disposition.role = "runtime"
+                disposition.ignored = False
+                disposition.visibility = "runtime"
+                disposition.required = role in {"brief", "fact"}
+            disposition.rationale = str(item.get("rationale") or "老师在题目输入中确认资料用途。")[:2_000]
+            disposition.confirmed_by = confirmed_by
+            disposition.confirmed_at = timestamp
+        batch.revision += 1
+        batch.updated_at = timestamp
+        session.flush()
+        return True
+
+
 def delete_batch(batch_id: str) -> None:
     with session_scope() as session:
         session.execute(delete(UploadBatchRow).where(UploadBatchRow.id == batch_id))

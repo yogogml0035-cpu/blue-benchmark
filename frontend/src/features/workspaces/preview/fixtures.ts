@@ -17,7 +17,7 @@ export const PREVIEW_WORKSPACES: Workspace[] = [
   {
     id: "1b7e4d52-3f88-4b2c-8d19-6a4c7e2b9f02",
     name: "媒体名单与 RSVP 衍生表",
-    description: "依据冻结原始数据核验人员、数量、航班、酒店，重点是重复与遗漏。",
+    description: "依据原始资料核验人员、数量、航班、酒店，重点是重复与遗漏。",
     visibility: "private",
     owner_user_id: "9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
     created_at: "2026-08-25T09:42:00Z",
