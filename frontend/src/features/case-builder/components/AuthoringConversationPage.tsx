@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { DeskRail } from "@/src/components/shell/DeskRail";
+import { PageShell } from "@/src/components/shell/PageShell";
 import { AutoTextarea } from "@/src/components/ui/AutoTextarea";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
 import { Field } from "@/src/components/ui/Field";
@@ -27,7 +27,7 @@ import {
 } from "@/src/features/case-builder/services/authoringService";
 import { confirmAndStartRubric } from "@/src/features/evaluation-sets/services/rubricService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
-import { PreviewBar, useAuthoringPreviewState } from "@/src/lib/preview/preview";
+import { useAuthoringPreviewState } from "@/src/lib/preview/preview";
 import type { components } from "@/src/lib/api/generated";
 
 import styles from "./authoring.module.css";
@@ -240,6 +240,22 @@ function draftFormFrom(draft: QuestionDraft): DraftForm {
 function lines(value: string) {
   return value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
 }
+
+const CONVERSATION_PREVIEW_STATES = [
+  "loading",
+  "empty",
+  "question",
+  "review",
+  "success",
+  "processing",
+  "failed",
+  "projection_pending",
+  "continuity_reset",
+  "error",
+  "unauthorized",
+  "forbidden",
+  "not_found",
+] as const;
 
 export function AuthoringConversationPage({
   workspaceId,
@@ -645,96 +661,71 @@ export function AuthoringConversationPage({
     }
   }
 
-  const rail = (
-    <DeskRail
-      crumbs={[
-        { label: "场景", href: "/workspaces" },
-        { label: !preview && session.status !== "authenticated" ? "建题会话" : conversation?.title ?? "建题会话" },
-      ]}
-      right={<UserChip previewName={preview ? "teacher-a" : undefined} session={session} />}
-    />
-  );
-  const previewBar = <PreviewBar states={["loading", "empty", "question", "review", "success", "processing", "failed", "projection_pending", "continuity_reset", "error", "unauthorized", "forbidden", "not_found"]} />;
+  const userChip = <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />;
+  const crumbs = [
+    { label: "场景", href: "/workspaces" },
+    { label: !preview && session.status !== "authenticated" ? "建题会话" : conversation?.title ?? "建题会话" },
+  ];
 
   if (preview === "unauthorized" || (!preview && session.status === "anonymous")) {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid">
-          <StatePanel actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>} description="登录后才能查看这条建题会话。" title="需要登录" tone="locked" />
-        </main>
-      </>
+      <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={CONVERSATION_PREVIEW_STATES} right={userChip}>
+        <StatePanel actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>} description="登录后才能查看这条建题会话。" title="需要登录" tone="locked" />
+      </PageShell>
     );
   }
 
   if (!preview && session.status === "loading") {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page authoring-page stack-lg">
-          <SkeletonLine height={28} width="42%" />
-          <section aria-busy="true" className="sheet sheet-pad stack-lg">
-            <SkeletonLine height={18} width="65%" />
-            <SkeletonLine height={96} />
-            <SkeletonLine height={76} />
-          </section>
-        </main>
-      </>
+      <PageShell crumbs={crumbs} mainClassName={`${styles.page} page-max stack-lg`} previewStates={CONVERSATION_PREVIEW_STATES} right={userChip}>
+        <SkeletonLine height={28} width="42%" />
+        <section aria-busy="true" className="sheet sheet-pad stack-lg">
+          <SkeletonLine height={18} width="65%" />
+          <SkeletonLine height={96} />
+          <SkeletonLine height={76} />
+        </section>
+      </PageShell>
     );
   }
 
   if (!preview && session.status === "failed") {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid">
-          <StatePanel
-            actions={<Button onClick={reloadSession} variant="primary">重新验证登录</Button>}
-            code={session.fault.code}
-            description={session.fault.message}
-            title="登录状态读取失败"
-            tone="fault"
-          />
-        </main>
-      </>
+      <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={CONVERSATION_PREVIEW_STATES} right={userChip}>
+        <StatePanel
+          actions={<Button onClick={reloadSession} variant="primary">重新验证登录</Button>}
+          code={session.fault.code}
+          description={session.fault.message}
+          title="登录状态读取失败"
+          tone="fault"
+        />
+      </PageShell>
     );
   }
 
   if (load.status === "failed") {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid">
-          <StatePanel
-            actions={<Button onClick={() => void read(false)} variant="primary">重新读取</Button>}
-            code={load.fault.code}
-            description={load.fault.message}
-            title="建题会话读取失败"
-            tone="fault"
-          />
-        </main>
-      </>
+      <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={CONVERSATION_PREVIEW_STATES} right={userChip}>
+        <StatePanel
+          actions={<Button onClick={() => void read(false)} variant="primary">重新读取</Button>}
+          code={load.fault.code}
+          description={load.fault.message}
+          title="建题会话读取失败"
+          tone="fault"
+        />
+      </PageShell>
     );
   }
 
   if (load.status === "loading" || !conversation) {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page authoring-page stack-lg">
-          <SkeletonLine height={28} width="42%" />
-          <section aria-busy="true" className="sheet sheet-pad stack-lg">
-            <SkeletonLine height={18} width="65%" />
-            <SkeletonLine height={96} />
-            <SkeletonLine height={76} />
-          </section>
-        </main>
-      </>
+      <PageShell crumbs={crumbs} mainClassName={`${styles.page} page-max stack-lg`} previewStates={CONVERSATION_PREVIEW_STATES} right={userChip}>
+        <SkeletonLine height={28} width="42%" />
+        <section aria-busy="true" className="sheet sheet-pad stack-lg">
+          <SkeletonLine height={18} width="65%" />
+          <SkeletonLine height={96} />
+          <SkeletonLine height={76} />
+        </section>
+      </PageShell>
     );
   }
 
@@ -744,10 +735,8 @@ export function AuthoringConversationPage({
   const lastEventLabel = typeof lastEventValue === "string" ? lastEventValue : null;
 
   return (
-    <>
-      {rail}
-      {previewBar}
-      <main className={`${styles.page} page stack-lg`} data-testid="authoring-conversation">
+    <PageShell crumbs={crumbs} mainClassName={`${styles.page} page-max`} previewStates={CONVERSATION_PREVIEW_STATES} right={userChip}>
+      <div className="stack-lg" data-testid="authoring-conversation">
         <header className={styles.header}>
           <div className="stack-sm">
             <span className="section-label">建题会话</span>
@@ -796,6 +785,55 @@ export function AuthoringConversationPage({
                 <p className="secondary">为什么问：{conversation.pending_question.reason}</p>
               </section>
             )}
+            <form className={styles.composer} onSubmit={submitMessage}>
+              <div className={styles.composerMeta}>
+                <span className="section-label">{standardAnswerMode ? "补充标准答案" : "继续这条会话"}</span>
+                {processing && <span className="secondary">可先编辑草稿，等本轮完成后再发送</span>}
+              </div>
+              {attachmentOptions.length > 0 && (
+                <fieldset className={styles.attachmentPicker} data-testid="authoring-attachment-picker">
+                  <legend className="section-label">本轮资料（可选）</legend>
+                  <div className={styles.attachmentOptions}>
+                    {attachmentOptions.map((attachment) => (
+                      <label className={styles.attachmentOption} key={attachment.id}>
+                        <input
+                          checked={selectedAttachmentIds.includes(attachment.id)}
+                          disabled={busy === "message"}
+                          onChange={() => setSelectedAttachmentIds((current) => current.includes(attachment.id) ? current.filter((id) => id !== attachment.id) : [...current, attachment.id])}
+                          type="checkbox"
+                        />
+                        <span>{attachment.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+              <AutoTextarea
+                aria-label={standardAnswerMode ? "老师标准答案" : "给 AI 的消息"}
+                className="control"
+                disabled={busy === "message"}
+                maxLength={50_000}
+                minRows={3}
+                onChange={(event) => setComposer(event.target.value)}
+                placeholder={standardAnswerMode ? "粘贴老师终版，或写清楚你明确认可的参考结果。" : "补充事实、纠正边界，或告诉 AI 下一步该厘清什么。"}
+                value={composer}
+              />
+              <div className="row-between">
+                <span className="secondary" style={{ fontSize: "var(--t-13)" }}>
+                  {processing ? "本轮处理中，发送按钮暂时关闭。" : standardAnswerMode ? "只有老师终版或明确认可稿会成为标准答案。" : "消息会先保存，再进入下一轮整理。"}
+                </span>
+                <Button
+                  busy={busy === "message"}
+                  busyLabel="正在提交…"
+                  data-testid="authoring-send"
+                  disabled={!composer.trim() || processing}
+                  type="submit"
+                  variant="primary"
+                >
+                  {standardAnswerMode ? "提交标准答案" : "发送并继续"}
+                </Button>
+              </div>
+            </form>
           </section>
 
           <section className={styles.nextAction} aria-label="当前下一步">
@@ -878,56 +916,6 @@ export function AuthoringConversationPage({
           </section>
         </div>
 
-        <form className={styles.composer} onSubmit={submitMessage}>
-          <div className={styles.composerMeta}>
-            <span className="section-label">{standardAnswerMode ? "补充标准答案" : "继续这条会话"}</span>
-            {processing && <span className="secondary">可先编辑草稿，等本轮完成后再发送</span>}
-          </div>
-          {attachmentOptions.length > 0 && (
-            <fieldset className={styles.attachmentPicker} data-testid="authoring-attachment-picker">
-              <legend className="section-label">本轮资料（可选）</legend>
-              <div className={styles.attachmentOptions}>
-                {attachmentOptions.map((attachment) => (
-                  <label className={styles.attachmentOption} key={attachment.id}>
-                    <input
-                      checked={selectedAttachmentIds.includes(attachment.id)}
-                      disabled={busy === "message"}
-                      onChange={() => setSelectedAttachmentIds((current) => current.includes(attachment.id) ? current.filter((id) => id !== attachment.id) : [...current, attachment.id])}
-                      type="checkbox"
-                    />
-                    <span>{attachment.name}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          )}
-          <AutoTextarea
-            aria-label={standardAnswerMode ? "老师标准答案" : "给 AI 的消息"}
-            className="control"
-            disabled={busy === "message"}
-            maxLength={50_000}
-            minRows={3}
-            onChange={(event) => setComposer(event.target.value)}
-            placeholder={standardAnswerMode ? "粘贴老师终版，或写清楚你明确认可的参考结果。" : "补充事实、纠正边界，或告诉 AI 下一步该厘清什么。"}
-            value={composer}
-          />
-          <div className="row-between">
-            <span className="secondary" style={{ fontSize: "var(--t-13)" }}>
-              {processing ? "本轮处理中，发送按钮暂时关闭。" : standardAnswerMode ? "只有老师终版或明确认可稿会成为标准答案。" : "消息会先保存，再进入下一轮整理。"}
-            </span>
-            <Button
-              busy={busy === "message"}
-              busyLabel="正在提交…"
-              data-testid="authoring-send"
-              disabled={!composer.trim() || processing}
-              type="submit"
-              variant="primary"
-            >
-              {standardAnswerMode ? "提交标准答案" : "发送并继续"}
-            </Button>
-          </div>
-        </form>
-
         {showSources && (
           <Sheet onClose={() => setShowSources(false)} title="资料范围">
             <div className="stack-lg">
@@ -950,8 +938,8 @@ export function AuthoringConversationPage({
             title={lifecycleConfirm === "disable" ? "确认停用题目" : "确认删除题目"}
           />
         )}
-      </main>
-    </>
+      </div>
+    </PageShell>
   );
 }
 
@@ -1069,7 +1057,7 @@ function BoundaryPanel({
           <div className="stack-sm">
             {(splitDraft.materials ?? []).map((material) => (
               <label className="row-between" key={material.file_id}>
-                <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{material.file_name ?? "资料文件"}</span>
+                <span style={{ minWidth: 0, overflowWrap: "break-word" }}>{material.file_name ?? "资料文件"}</span>
                 <select
                   aria-label={`${material.file_name ?? material.file_id} 拆分归属`}
                   className="control"
@@ -1185,10 +1173,7 @@ function DraftReview({
           <div className="stack">
             {form.materials.map((material, index) => (
               <div className={styles.materialRow} key={material.fileId}>
-                <div className="stack-sm" style={{ minWidth: 0 }}>
-                  <strong style={{ overflowWrap: "anywhere" }}>{material.fileName}</strong>
-                  <span className="mono faint">优先级 {material.priority}</span>
-                </div>
+                <strong className={styles.materialName} title={material.fileName}>{material.fileName}</strong>
                 <div className={styles.materialControls}>
                   <select
                     aria-label={`${material.fileName} 资料角色`}

@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
-import { DeskRail } from "@/src/components/shell/DeskRail";
+import { PageShell } from "@/src/components/shell/PageShell";
 import { AutoTextarea } from "@/src/components/ui/AutoTextarea";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
 import { Field } from "@/src/components/ui/Field";
@@ -16,13 +16,15 @@ import { getUploadBatch } from "@/src/features/workspaces/services/studioService
 import type { UploadBatch } from "@/src/features/workspaces/services/studioService";
 import { createAuthoringConversation } from "@/src/features/case-builder/services/authoringService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
-import { PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
+import { usePreviewState } from "@/src/lib/preview/preview";
 
 import styles from "./authoring.module.css";
 
 function commandId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+const NEW_PREVIEW_STATES = ["loading", "success", "error", "unauthorized"] as const;
 
 export function AuthoringNewPage({ workspaceId }: { workspaceId: string }) {
   const router = useRouter();
@@ -125,95 +127,68 @@ export function AuthoringNewPage({ workspaceId }: { workspaceId: string }) {
     }
   }
 
-  const rail = (
-    <DeskRail
-      crumbs={[
-        { label: "场景", href: "/workspaces" },
-        { label: "开始建题" },
-      ]}
-      right={<UserChip previewName={preview ? "teacher-a" : undefined} session={session} />}
-    />
-  );
-  const previewBar = <PreviewBar states={["loading", "success", "error", "unauthorized"]} />;
+  const railRight = <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />;
+  const crumbs = [{ label: "场景", href: "/workspaces" }, { label: "开始建题" }];
 
   if (!preview && session.status === "loading") {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid stack-lg">
-          <SkeletonLine height={28} width="42%" />
-          <section aria-busy="true" className="sheet sheet-pad stack-lg">
-            <SkeletonLine height={18} width="65%" />
-            <SkeletonLine height={42} />
-            <SkeletonLine height={120} />
-          </section>
-        </main>
-      </>
+      <PageShell crumbs={crumbs} mainClassName="page-mid stack-lg" previewStates={NEW_PREVIEW_STATES} right={railRight}>
+        <SkeletonLine height={28} width="42%" />
+        <section aria-busy="true" className="sheet sheet-pad stack-lg">
+          <SkeletonLine height={18} width="65%" />
+          <SkeletonLine height={42} />
+          <SkeletonLine height={120} />
+        </section>
+      </PageShell>
     );
   }
 
   if (!preview && session.status === "failed") {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid">
-          <StatePanel
-            actions={<Button onClick={reloadSession} variant="primary">重新验证登录</Button>}
-            code={session.fault.code}
-            description={session.fault.message}
-            title="登录状态读取失败"
-            tone="fault"
-          />
-        </main>
-      </>
+      <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={NEW_PREVIEW_STATES} right={railRight}>
+        <StatePanel
+          actions={<Button onClick={reloadSession} variant="primary">重新验证登录</Button>}
+          code={session.fault.code}
+          description={session.fault.message}
+          title="登录状态读取失败"
+          tone="fault"
+        />
+      </PageShell>
     );
   }
 
   if (preview === "unauthorized" || (!preview && session.status === "anonymous")) {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid">
-          <StatePanel
-            actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>}
-            description="登录后才能开始建题。"
-            title="需要登录"
-            tone="locked"
-          />
-        </main>
-      </>
+      <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={NEW_PREVIEW_STATES} right={railRight}>
+        <StatePanel
+          actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>}
+          description="登录后才能开始建题。"
+          title="需要登录"
+          tone="locked"
+        />
+      </PageShell>
     );
   }
 
   if (batchFault) {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid">
-          <StatePanel
-            actions={<ButtonLink href={`/workspaces/${workspaceId}`} variant="primary">回到工作台</ButtonLink>}
-            code={batchFault.code}
-            description={batchFault.message}
-            title="资料批次读取失败"
-            tone="fault"
-          />
-        </main>
-      </>
+      <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={NEW_PREVIEW_STATES} right={railRight}>
+        <StatePanel
+          actions={<ButtonLink href={`/workspaces/${workspaceId}`} variant="primary">回到工作台</ButtonLink>}
+          code={batchFault.code}
+          description={batchFault.message}
+          title="资料批次读取失败"
+          tone="fault"
+        />
+      </PageShell>
     );
   }
 
   const loadingBatch = Boolean(batchId && !preview && session.status === "authenticated" && !batch);
 
   return (
-    <>
-      {rail}
-      {previewBar}
-      <main className="page page-mid stack-lg">
-        <header className={`${styles.intro} stack-sm`}>
+    <PageShell crumbs={crumbs} mainClassName="page-mid stack-lg" previewStates={NEW_PREVIEW_STATES} right={railRight}>
+      <header className={`${styles.intro} stack-sm`}>
           <span className="section-label">形成一条题</span>
           <h1 className="doc-title">从真实交付开始</h1>
           <p className="secondary">
@@ -228,7 +203,7 @@ export function AuthoringNewPage({ workspaceId }: { workspaceId: string }) {
             <SkeletonLine height={120} />
           </section>
         ) : (
-          <form className="sheet sheet-pad stack-lg" onSubmit={submit}>
+          <form className={`sheet sheet-pad stack-lg ${styles.createForm}`} onSubmit={submit}>
             {batch && (
               <div className="inset stack-sm" data-testid="authoring-source-summary">
                 <span className="section-label">已绑定资料</span>
@@ -309,8 +284,7 @@ export function AuthoringNewPage({ workspaceId }: { workspaceId: string }) {
           <span className="section-label">这条会话会做什么</span>
           <p className="secondary">AI 只整理候选，不替你确认任务、标准答案或发布结果。</p>
           <p className="secondary">刷新或断线后，页面以服务端已保存的会话快照继续。</p>
-        </aside>
-      </main>
-    </>
+      </aside>
+    </PageShell>
   );
 }
