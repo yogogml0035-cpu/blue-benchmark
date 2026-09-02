@@ -4,9 +4,9 @@
 
 共享控件保持小而明确，Props 使用本地 `type` 或内联对象类型。包装原生元素时继承原生属性，而不是重新声明一套事件和可访问性字段；参考 `components/ui/Button.tsx::ButtonProps` 和 `AutoTextarea.tsx`。
 
-业务页面由小组件组合，而不是一个文件重复所有细节：`StudioShell` 组合当前、题、版本三个区；`AuthoringConversationPage` 组合建题快照、题目输入、坏样本和组合确认动作；版本页只读历史，不再承载组集/冻结编辑器。
+业务页面由小组件组合，而不是一个文件重复所有细节：`StudioShell` 组合当前、题、版本三个区；`AuthoringConversationPage` 组合建题快照、题目输入、坏样本和组合确认动作；`AuthoringRubricPage` 和 `HumanScoringPage` 分别承担规则审阅与单份答卷评分；版本页只读历史，不再承载组集/冻结编辑器。
 
-对互斥的有限变体使用字面量联合和穷举 `Record`，例如 Button 的 `Variant` / `Size`、Note 的 `Tone`、`caseState.ts::STATE_META`。不要靠自由字符串拼接新增不可检查的样式变体。
+对互斥的有限变体使用字面量联合和穷举 `Record`，例如 Button 的 `Variant` / `Size`、Note 的 `Tone`、`AuthoringConversationPage.tsx::STATUS_CLASS`。不要靠自由字符串拼接新增不可检查的样式变体。
 
 ## 浮层（Sheet）
 
@@ -20,7 +20,7 @@ Sheet 的样式在 `globals.css` 的 `.sheet-overlay` / `.sheet-panel` / `.sheet
 
 ## 异步交互
 
-- 提交函数先清空本次错误并设置 `busy`，用 `try/catch/finally` 收口；参考 `ScenarioShelf::submit` 和 `CaseUpload::submit`。
+- 提交函数先清空本次错误并设置 `busy`，用 `try/catch/finally` 收口；参考 `ScenarioShelf::submit` 和 `UploadPage::submit`。
 - 提交中的按钮通过 `busy` / `disabled` 禁止重复操作，Button 可用 `busyLabel` 给出动作反馈。
 - 受保护页面在 `useSession` 仍为 `loading` 时只显示骨架，不闪现私有内容。
 - 页面级失败使用 `StatePanel` 提供原因和唯一下一步；局部命令失败使用 `Note` 或字段错误，不把所有错误堆到页面顶部。

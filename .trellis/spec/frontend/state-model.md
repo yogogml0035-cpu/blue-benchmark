@@ -10,7 +10,7 @@
 | 服务端资源快照 | 页面级 Client Component | `ScenarioShelf` 的 Workspace 列表、`StudioPage` 的 `StudioProjection`、`AuthoringConversationPage` 的 `AuthoringConversation` |
 | 表单/交互瞬时状态 | 所属组件 | 输入值、`busy`、任务分组、抽屉/标准展开状态 |
 | URL 状态 | Next Router / Search Params | Workspace/Task/Version ID、工作台 section、`returnTo`、开发 `preview` |
-| 领域状态展示语义 | `case-builder/lib/caseState.ts` | Case 状态名称、语义色、下一步、进度轨迹 |
+| 领域状态展示语义 | 各自 Feature 组件的穷举映射 | 建题会话、rubric 和人工评分分别只展示自己的服务端状态 |
 
 不要把这些状态合并成一个通用 store。当前单用户、服务端快照驱动的工作台不需要跨页面客户端缓存。
 
@@ -41,7 +41,7 @@ type Load =
 
 ## 集中派生状态
 
-Case 状态展示和允许的下一步集中在 `caseState.ts::STATE_META`，进度条由 `trackFor` 派生。新增或改名状态时更新这个穷举映射，不要在多个组件散落 `if (state === ...)` 的不同文案和语义色。
+建题会话、rubric 和人工评分的状态展示分别由对应 Feature 组件的穷举映射负责；新增或改名状态时更新服务端合同、该 Feature 的文案和错误视图，不要重新引入旧案例编辑器的共享状态映射。
 
 草稿是否走过提问可由服务端返回的 `teacher_answer` 证据派生，参考 `hasTeacherAnswer`；不要只依赖刷新即丢失的 `answered` 本地标记。
 

@@ -254,14 +254,13 @@ AI 推断的候选条款
 
 | 组件 | 职责 |
 |---|---|
-| `DraftEditor.tsx` | **聚焦阅读器**：分节、刻度、定稿卡、完整度 gating；生产不提供 JSON 编辑 |
-| `DraftView.tsx` | 节的正文渲染（读/改同构），被 DraftEditor 与已确认快照共用 |
-| `SectionPager`（在 DraftEditor 内） | 刻度条与键盘接线 |
-| `ConfirmedCard.tsx` | 已定稿的题卡收尾：签名行 + 版本，不陈列契约字段 |
-| `ProgressTrack.tsx` | 案例状态的进度提示（单卡时收缩为安静的当前步提示） |
-| `QuestionCard.tsx` | 追问卡（§10），形制不变 |
+| `StudioShell.tsx` | 场景工作台的三段文字导航、当前主流程和版本/题区容器 |
+| `AuthoringConversationPage.tsx` | 建题会话、题目边界、题目输入/标准答案和生命周期动作 |
+| `AuthoringRubricPage.tsx` | 评分规则逐项审阅、确认并发布 |
+| `HumanScoringPage.tsx` | 单份待评答卷的人工评分、重评和历史 |
+| `AgentConnectionPanel.tsx` | 场景级本地 Agent 连接设置；只在当前主流程之后出现 |
 
-route family：`/workspaces` = 场景列表 · `/workspaces/{id}` = 场景工作台 · 聚焦题详情 · 只读版本详情。旧 cases 路由只做重定向，不保留第二套编辑页。
+route family：`/workspaces` = 场景列表 · `/workspaces/{id}` = 场景工作台 · 建题会话/规则审阅 · 只读版本详情 · 人工评分。当前路由族不保留旧编辑器入口。
 
 第一阶段建题会话实际入口：`/workspaces/{id}/authoring/new`（手动或绑定上传批次）与 `/workspaces/{id}/authoring/{conversationId}`（transcript、候选题轨、题目输入和标准答案确认）。旧工作台仍保留资料/版本兼容链路，不能把它的轮询状态冒充为新会话事实。题目边界确认后，每道题使用独立的题级安全追问；处理中仍显示本地可编辑草稿，但保存/确认动作关闭，完成后再由服务端快照恢复。
 

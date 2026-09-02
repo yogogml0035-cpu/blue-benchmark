@@ -26,8 +26,9 @@
 
   /* ---- 唯一强调色：主操作与当前步 ---- */
   --accent: #0071e3;
-  --accent-deep: #0060c9;
   --accent-tint: rgb(0 113 227 / 10%);
+  --action: #1d1d1f;
+  --action-hover: #2f2f32;
 
   /* ---- 语义色：只表达状态 ---- */
   --amber: #b25000; /* 需要补充 / 证据缺口 */
@@ -332,7 +333,7 @@ hr.hair {
   align-items: center;
   justify-content: center;
   gap: var(--s-2);
-  min-height: 34px;
+  min-height: 36px;
   padding: 0 var(--s-4);
   border: 1px solid transparent;
   border-radius: var(--r-control);
@@ -355,7 +356,7 @@ hr.hair {
 }
 
 .btn-lg {
-  min-height: 40px;
+  min-height: 42px;
   padding: 0 var(--s-5);
   font-size: var(--t-15);
 }
@@ -365,12 +366,12 @@ hr.hair {
 }
 
 .btn-primary {
-  background: var(--accent);
+  background: var(--action);
   color: #ffffff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-deep);
+  background: var(--action-hover);
 }
 
 .btn-secondary {

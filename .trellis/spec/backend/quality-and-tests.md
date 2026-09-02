@@ -75,6 +75,7 @@ make test
 - [ ] 新 authored question revision 加入 Working Set 时必须校验发布内容 hash、资料元数据/ready marker 和当前合同；含 authored member 的 mixed package 使用 v2，v1 builder/reader 不得改变。
 - [ ] 真实 runner 必须显式传 `--samples-dir`，每轮命令使用全局唯一 nonce，只输出阶段/计数/错误类型；禁止把 `EvalData`、凭证、正文或 raw model output 写入 Git。
 - [ ] 真实 runner 在共享隔离业务库中核验本轮 operation 的私有 Worker 运行标记为 `production`；API health 或 `AI_RUNTIME_MODE` 不能替代实际 Worker 证明，标记不得进入业务 API。
+- [ ] 运行本地 HTTP 验收脚本时，`httpx.Client` 对 loopback API 使用 `trust_env=False`，避免开发机系统代理把健康的 `127.0.0.1` 请求变成无正文 502；该设置不改变真实 Provider 调用。
 - [ ] pnpm v11 的 `allowBuilds` 必须在 `frontend/pnpm-workspace.yaml` 明确列出需要执行的依赖脚本；`make test` 与 `make build` 都要在该配置下通过。
 - [ ] 前端上传 command 在同一表单重试时稳定；静默轮询遇到失权/资源消失要清空旧快照，旧路由的迟到响应不能覆盖新资源；`projection_pending` 必须有重投影入口。
 

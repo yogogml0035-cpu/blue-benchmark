@@ -24,7 +24,8 @@
     "08-31-benchmark-human-scoring",
     "09-01-benchmark-cross-revision-rescoring",
     "09-01-benchmark-question-lifecycle-simplification",
-    "09-01-benchmark-external-authoring-api"
+    "09-01-benchmark-external-authoring-api",
+    "09-02-frontend-interaction-ui-hardening"
   ],
   "parent": null,
   "relatedFiles": [],

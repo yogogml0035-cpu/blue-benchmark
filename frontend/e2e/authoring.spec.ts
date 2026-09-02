@@ -28,6 +28,7 @@ test.skip(process.env.E2E_REAL_AI !== "1", "需要 E2E_REAL_AI=1 才执行真实
 test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
   const consoleErrors: string[] = [];
   const scoreRequestBodies: Record<string, unknown>[] = [];
+  const rubricStartRequests: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error" && !message.text().includes("401")) {
       consoleErrors.push(message.text());
@@ -35,6 +36,7 @@ test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
   });
   page.on("pageerror", (error) => consoleErrors.push(error.message));
   page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().endsWith("/rubric/start")) rubricStartRequests.push(request.url());
     if (request.method() !== "POST" || !request.url().includes("/submissions/") || !request.url().endsWith("/scores")) return;
     const body = request.postData();
     if (body) scoreRequestBodies.push(JSON.parse(body) as Record<string, unknown>);
@@ -211,6 +213,7 @@ test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
   await expect(page.getByTestId("rubric-status")).toHaveText("已发布", { timeout: 30_000 });
   await expect(page.getByText("已进入当前评测集")).toBeVisible();
   await expect(page.getByText("已发布修订")).toBeVisible();
+  expect(rubricStartRequests.length).toBe(1);
 
   // Human scoring is intentionally not an AI operation. The answer itself is
   // still a real EvalData file, and the page must bind it to the exact

@@ -33,7 +33,7 @@ type ListState =
 export function ScenarioShelf() {
   const router = useRouter();
   const preview = usePreviewState();
-  const session = useSession();
+  const session = useSession({ skip: Boolean(preview) });
 
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [composerOpen, setComposerOpen] = useState(false);

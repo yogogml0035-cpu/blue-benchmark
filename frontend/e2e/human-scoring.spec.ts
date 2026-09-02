@@ -5,10 +5,14 @@ const revision = "preview-question-revision";
 
 test("人工评分入口和评分草稿预演保持可操作", async ({ page }) => {
   const consoleErrors: string[] = [];
+  const businessRequests: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error" && !message.text().includes("401")) consoleErrors.push(message.text());
   });
   page.on("pageerror", (error) => consoleErrors.push(error.message));
+  page.on("request", (request) => {
+    if (request.url().includes("/api/")) businessRequests.push(request.url());
+  });
 
   await page.goto(`/workspaces/${workspace}/question-revisions/${revision}/submissions/new?preview=loading`);
   await expect(page.locator('main[aria-busy="true"]')).toBeVisible();
@@ -33,6 +37,7 @@ test("人工评分入口和评分草稿预演保持可操作", async ({ page }) 
   await page.setViewportSize({ width: 390, height: 844 });
   const widths = await page.evaluate(() => ({ body: document.body.scrollWidth, viewport: window.innerWidth }));
   expect(widths.body).toBeLessThanOrEqual(widths.viewport);
+  expect(businessRequests).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
 

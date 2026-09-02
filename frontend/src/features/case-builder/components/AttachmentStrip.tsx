@@ -2,7 +2,7 @@ import { bytes } from "@/src/lib/format";
 import type { components } from "@/src/lib/api/generated";
 import type { ReactNode } from "react";
 
-import styles from "./caseDetail.module.css";
+import styles from "./attachment.module.css";
 
 type Attachment = components["schemas"]["Attachment"];
 

@@ -29,7 +29,7 @@ function extensionOf(name: string) {
 export function UploadPage({ workspaceId }: { workspaceId: string }) {
   const router = useRouter();
   const preview = usePreviewState();
-  const session = useSession();
+  const session = useSession({ skip: Boolean(preview) });
 
   const [title, setTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");

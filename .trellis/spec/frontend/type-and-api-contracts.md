@@ -29,7 +29,7 @@ export type Case = components["schemas"]["Case"];
 
 当前前端没有 Zod/Yup 等运行时校验库。请求输入由控件和后端 Pydantic 共同约束，响应失败经 `ApiError` 处理。不要把 TypeScript 类型当作服务端信任边界，也不要为了单个表单引入第二套 Schema 系统。
 
-捕获的异常使用 `unknown`，通过 `cause instanceof ApiError` 或 `toPageFault(cause)` 收窄。有限枚举映射使用 `Record<Union, ...>`，这样后端生成类型新增状态时 `pnpm typecheck` 会暴露未同步分支；参考 `caseState.ts::STATE_META` 和 `DraftView.tsx::KIND_LABEL`。
+捕获的异常使用 `unknown`，通过 `cause instanceof ApiError` 或 `toPageFault(cause)` 收窄。有限枚举映射使用 `Record<Union, ...>`，这样后端生成类型新增状态时 `pnpm typecheck` 会暴露未同步分支；参考 `AuthoringConversationPage.tsx::STATUS_LABEL` 和 `AuthoringConversationPage.tsx::ROLE_LABEL`。
 
 ## 合同变更顺序
 

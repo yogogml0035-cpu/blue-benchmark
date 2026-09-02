@@ -20,8 +20,10 @@
 }
 
 .sideNavItem {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
+  min-height: 40px;
   padding: 8px 12px;
   border: 0;
   border-radius: var(--r-control);
@@ -30,6 +32,7 @@
   font-weight: 550;
   color: var(--text-2);
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out);
 }
@@ -37,6 +40,7 @@
 .sideNavItem:hover {
   background: rgb(0 0 0 / 4%);
   color: var(--text);
+  text-decoration: none;
 }
 
 .sideNavItem[data-active="true"] {
@@ -60,8 +64,8 @@
 }
 
 .agentConnection {
-  border-color: rgb(0 113 227 / 18%);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -20px rgb(0 113 227 / 35%);
+  border-color: var(--hair);
+  box-shadow: var(--lift);
 }
 
 .agentConnectionDetails {
@@ -73,6 +77,10 @@
 }
 
 .mobileNav {
+  display: none;
+}
+
+.mobileNavTrigger {
   display: none;
 }
 
@@ -101,9 +109,14 @@
     top: 53px;
     left: 0;
     right: 0;
+    bottom: 0;
     z-index: 30;
     background: rgb(0 0 0 / 20%);
     backdrop-filter: blur(8px);
+  }
+
+  .mobileNavTrigger {
+    display: inline-flex;
   }
 
   .mobileNavPanel {
@@ -115,7 +128,11 @@
   }
 
   .mobileNavItem {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex: 1;
+    min-height: 44px;
     padding: 8px 12px;
     border: 0;
     border-radius: var(--r-chip);
@@ -124,10 +141,15 @@
     font-weight: 550;
     color: var(--text-2);
     cursor: pointer;
+    text-decoration: none;
   }
 
   .mobileNavItem[data-active="true"] {
     background: var(--surface-2);
     color: var(--text);
+  }
+
+  .mobileNavItem:hover {
+    text-decoration: none;
   }
 }

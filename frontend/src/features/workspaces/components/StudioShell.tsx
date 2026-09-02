@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button, ButtonLink } from "@/src/components/ui/Button";
 import { Note } from "@/src/components/ui/Note";
 import { StatePanel } from "@/src/components/ui/StatePanel";
-import { useSession } from "@/src/features/auth/hooks/useSession";
+import { useSession, type SessionResult } from "@/src/features/auth/hooks/useSession";
 import { UserChip } from "@/src/features/auth/components/UserChip";
 import { DeskRail } from "@/src/components/shell/DeskRail";
 import {
@@ -45,6 +46,7 @@ const SECTION_ORDER: StudioSection[] = ["current", "questions", "versions"];
 export function StudioShell({
   workspaceId,
   workspaceName,
+  session,
   section,
   children,
   batchId,
@@ -53,6 +55,7 @@ export function StudioShell({
 }: {
   workspaceId: string;
   workspaceName?: string | null;
+  session: SessionResult;
   section: StudioSection;
   children: ReactNode;
   batchId?: string | null;
@@ -61,10 +64,10 @@ export function StudioShell({
 }) {
   const router = useRouter();
   const preview = usePreviewState();
-  const session = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const firstMenuItemRef = useRef<HTMLButtonElement>(null);
+  const mobileNavRef = useRef<HTMLDivElement>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
   const returnTo = `/workspaces/${workspaceId}`;
 
   useEffect(() => {
@@ -74,14 +77,39 @@ export function StudioShell({
 
   useEffect(() => {
     if (!menuOpen) return;
-    firstMenuItemRef.current?.focus();
+    const panel = mobileNavRef.current;
+    const layout = layoutRef.current;
+    const previousOverflow = document.body.style.overflow;
+    if (layout) layout.inert = true;
+    document.body.style.overflow = "hidden";
+    const focusables = panel?.querySelectorAll<HTMLElement>(
+      'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ) ?? [];
+    const first = focusables[0] ?? panel;
+    const last = focusables[focusables.length - 1] ?? panel;
+    first?.focus();
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      setMenuOpen(false);
-      menuButtonRef.current?.focus();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMenuOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || focusables.length === 0) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
     }
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      if (layout) layout.inert = false;
+      document.body.style.overflow = previousOverflow;
+      menuButtonRef.current?.focus();
+    };
   }, [menuOpen]);
 
   const rail = (
@@ -95,7 +123,7 @@ export function StudioShell({
           <Button
             aria-label="切换工作区导航"
             aria-expanded={menuOpen}
-            className="btn-quiet btn-sm"
+            className={`${styles.mobileNavTrigger} btn-quiet btn-sm`}
             onClick={() => setMenuOpen((open) => !open)}
             buttonRef={menuButtonRef}
             variant="quiet"
@@ -126,43 +154,45 @@ export function StudioShell({
         ]}
       />
       {menuOpen && (
-        <div aria-modal="true" className={styles.mobileNav} role="dialog" aria-label="场景导航">
+        <div
+          aria-modal="true"
+          className={styles.mobileNav}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setMenuOpen(false);
+          }}
+          ref={mobileNavRef}
+          role="dialog"
+          aria-label="场景导航"
+        >
           <div className={styles.mobileNavPanel}>
-            {SECTION_ORDER.map((key, index) => (
-              <button
+            {SECTION_ORDER.map((key) => (
+              <Link
                 aria-current={section === key ? "page" : undefined}
                 className={styles.mobileNavItem}
                 data-active={section === key}
+                href={`/workspaces/${workspaceId}?section=${key}${batchId ? `&batch=${batchId}` : ""}`}
                 key={key}
-                onClick={() => {
-                  setMenuOpen(false);
-                  router.push(`/workspaces/${workspaceId}?section=${key}${batchId ? `&batch=${batchId}` : ""}`);
-                }}
-                ref={index === 0 ? firstMenuItemRef : undefined}
-                type="button"
+                onClick={() => setMenuOpen(false)}
               >
                 {SECTION_LABEL[key]}
-              </button>
+              </Link>
             ))}
           </div>
         </div>
       )}
-      <div className={styles.layout}>
+      <div className={styles.layout} ref={layoutRef}>
         <aside className={styles.sideNav}>
           <nav aria-label="场景工作台">
             {SECTION_ORDER.map((key) => (
-              <button
+              <Link
                 aria-current={section === key ? "page" : undefined}
                 className={styles.sideNavItem}
                 data-active={section === key}
+                href={`/workspaces/${workspaceId}?section=${key}${batchId ? `&batch=${batchId}` : ""}`}
                 key={key}
-                onClick={() =>
-                  router.push(`/workspaces/${workspaceId}?section=${key}${batchId ? `&batch=${batchId}` : ""}`)
-                }
-                type="button"
               >
                 {SECTION_LABEL[key]}
-              </button>
+              </Link>
             ))}
           </nav>
           {onRefresh && (
@@ -180,7 +210,6 @@ export function StudioShell({
           )}
         </aside>
         <main className={styles.canvas}>
-          {section === "current" && <AgentConnectionPanel workspaceId={workspaceId} />}
           {children}
         </main>
       </div>
@@ -191,7 +220,7 @@ export function StudioShell({
 /** 场景工作台数据层：加载 StudioProjection。 */
 export function useStudioData(workspaceId: string, batchId?: string | null, enabled = true) {
   const preview = usePreviewState();
-  const session = useSession();
+  const session = useSession({ skip: Boolean(preview) });
   const reloadSession = session.reload;
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [refreshing, setRefreshing] = useState(false);
@@ -237,7 +266,19 @@ export function useStudioData(workspaceId: string, batchId?: string | null, enab
       return;
     }
     if (preview) {
-      setLoad({ status: "ready", projection: PREVIEW_STUDIO_SUCCESS });
+      if (preview === "loading") {
+        setLoad({ status: "loading" });
+      } else if (preview === "error") {
+        setLoad({ status: "failed", fault: { kind: "failed", code: "PREVIEW_ERROR", message: "开发态预演错误。" } });
+      } else if (preview === "unauthorized") {
+        setLoad({ status: "failed", fault: { kind: "unauthorized", code: "AUTH_REQUIRED", message: "请先登录。" } });
+      } else if (preview === "forbidden") {
+        setLoad({ status: "failed", fault: { kind: "forbidden", code: "FORBIDDEN", message: "你无权访问这个场景。" } });
+      } else if (preview === "not_found") {
+        setLoad({ status: "failed", fault: { kind: "not_found", code: "RESOURCE_NOT_FOUND", message: "场景不存在。" } });
+      } else {
+        setLoad({ status: "ready", projection: PREVIEW_STUDIO_SUCCESS });
+      }
       return;
     }
     if (session.status !== "authenticated") return;
@@ -295,11 +336,13 @@ function ReceiptNote({ receipt }: { receipt: StudioProjection["latest_receipt"] 
 export function CurrentSection({
   workspaceId,
   projection,
+  session,
   onRefresh,
   refreshing,
 }: {
   workspaceId: string;
   projection: StudioProjection;
+  session: SessionResult;
   onRefresh: () => void;
   refreshing: boolean;
 }) {
@@ -312,6 +355,7 @@ export function CurrentSection({
         </p>
       </div>
       <CurrentWorkspace workspaceId={workspaceId} projection={projection} onRefresh={onRefresh} refreshing={refreshing} />
+      <AgentConnectionPanel session={session} workspaceId={workspaceId} />
     </div>
   );
 }

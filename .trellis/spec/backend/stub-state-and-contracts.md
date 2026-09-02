@@ -51,7 +51,7 @@ waiting_for_confirmation -> confirmed
 - 确认必须校验当前 `draft_revision`、完整性和证据 `source_id`；相同确认重试返回同一候选快照。
 - `confirmed` 只表示候选案例已确认，不表示已加入评测集或触发评测。
 
-新增状态时要同时检查 Schema、Service 冲突映射、API 测试、OpenAPI、前端 `caseState.ts` 和预演 fixtures，不能只改枚举。
+新增状态时要同时检查 Schema、Service 冲突映射、API 测试、OpenAPI、对应前端 Feature 的状态映射和预演 fixtures，不能只改枚举。
 
 ## 认证与归属顺序
 

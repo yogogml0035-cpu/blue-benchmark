@@ -151,8 +151,8 @@ export function SubmissionEntryPage({
   questionRevisionId: string;
 }) {
   const router = useRouter();
-  const session = useSession();
   const preview = useHumanScoringPreviewState();
+  const session = useSession({ skip: Boolean(preview) });
   const returnTo = `/workspaces/${workspaceId}/question-revisions/${questionRevisionId}/submissions/new`;
   const [mode, setMode] = useState<EntryMode>("paste");
   const [content, setContent] = useState("");
@@ -596,8 +596,8 @@ export function HumanScoringPage({
   submissionId: string;
 }) {
   const router = useRouter();
-  const session = useSession();
   const preview = useHumanScoringPreviewState();
+  const session = useSession({ skip: Boolean(preview) });
   const returnTo = `/workspaces/${workspaceId}/submissions/${submissionId}`;
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [draft, setDraft] = useState<ScoreDraft>({});

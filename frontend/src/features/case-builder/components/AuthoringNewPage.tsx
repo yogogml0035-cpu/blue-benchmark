@@ -28,7 +28,7 @@ export function AuthoringNewPage({ workspaceId }: { workspaceId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preview = usePreviewState();
-  const session = useSession();
+  const session = useSession({ skip: Boolean(preview) });
   const reloadSession = session.reload;
   const batchId = searchParams.get("batch");
   const returnTo = `/workspaces/${workspaceId}/authoring/new${batchId ? `?batch=${encodeURIComponent(batchId)}` : ""}`;

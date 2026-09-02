@@ -10,7 +10,7 @@
 | 页面级 401/403/404/409 分流 | `frontend/src/lib/api/pageFault.ts` |
 | User / Workspace / M0 资料、题、草稿、版本 DTO | `frontend/src/lib/api/generated.ts` |
 | 认证会话读取 | `frontend/src/features/auth/hooks/useSession.ts` |
-| 兼容 Case 状态名称、语义色、下一步、进度 | `frontend/src/features/case-builder/lib/caseState.ts` |
+| 建题、rubric、人工评分状态展示 | 对应 Feature 组件中的服务端状态穷举映射 |
 | Button、Field、Note、StatePanel、Skeleton | `frontend/src/components/ui/` |
 | 后端业务错误与错误响应 | `backend/app/lib/errors.py`、`backend/app/lib/schemas.py` |
 | Workspace 归属校验 | `backend/app/features/workspaces/service.py::assert_owner` |

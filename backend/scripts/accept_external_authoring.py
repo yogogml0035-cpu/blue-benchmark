@@ -48,7 +48,9 @@ def main() -> int:
     username = f"external-e2e-{suffix}"
     password = "password123"
 
-    with httpx.Client(base_url=args.base_url.rstrip("/"), timeout=30.0) as client:
+    # This script is a local API acceptance client; system proxy settings must
+    # not intercept loopback traffic and turn a healthy request into a 502.
+    with httpx.Client(base_url=args.base_url.rstrip("/"), timeout=30.0, trust_env=False) as client:
         stage("register")
         response = client.post(
             "/api/auth/register",

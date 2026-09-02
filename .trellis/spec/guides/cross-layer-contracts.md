@@ -25,7 +25,7 @@
 - 机器可读 HTTP 合同：FastAPI 导出的 `backend/openapi.json`；
 - 前端 DTO：生成的 `frontend/src/lib/api/generated.ts`；
 - 前端传输和错误：`api/client.ts`、`api/pageFault.ts`；
-- 前端 Case 展示语义：`case-builder/lib/caseState.ts`；
+- 前端建题、rubric 和评分展示语义：对应 Feature 组件的服务端状态穷举映射；
 - 当前可运行边界和人工验收：`README.md`、`Makefile`、Alembic migrations 和 `backend/app/lib/database/session.py`。
 
 `docs/` 下的设计合同可以约束未来方向，但其中尚未出现在依赖清单、源码和测试里的能力必须标注为计划，不能覆盖当前源码事实。

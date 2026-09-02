@@ -34,7 +34,7 @@ export function VersionPage({
 }) {
   const router = useRouter();
   const preview = usePreviewState();
-  const session = useSession();
+  const session = useSession({ skip: Boolean(preview) });
 
   const [load, setLoad] = useState<Load>({ status: "loading" });
 

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 import { ConfirmSheet, Sheet } from "@/src/components/ui/Sheet";
 import { Note } from "@/src/components/ui/Note";
-import { useSession } from "@/src/features/auth/hooks/useSession";
+import type { SessionResult } from "@/src/features/auth/hooks/useSession";
 import {
   createAuthoringConnection,
   getAuthoringConnection,
@@ -37,9 +37,8 @@ const STATUS_LABEL: Record<Connection["status"], string> = {
   revoked: "已撤销",
 };
 
-export function AgentConnectionPanel({ workspaceId }: { workspaceId: string }) {
+export function AgentConnectionPanel({ workspaceId, session }: { workspaceId: string; session: SessionResult }) {
   const preview = usePreviewState();
-  const session = useSession();
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [busy, setBusy] = useState<"create" | "revoke" | null>(null);
   const [fault, setFault] = useState<PageFault | null>(null);

@@ -252,7 +252,7 @@ export function AuthoringConversationPage({
 }) {
   const router = useRouter();
   const preview = useAuthoringPreviewState();
-  const session = useSession();
+  const session = useSession({ skip: Boolean(preview) });
   const reloadSession = session.reload;
   const returnTo = `/workspaces/${workspaceId}/authoring/${conversationId}${draftId ? `?draft=${encodeURIComponent(draftId)}` : ""}`;
   const [load, setLoad] = useState<Load>({ status: "loading" });
@@ -571,11 +571,9 @@ export function AuthoringConversationPage({
         question_revision: selectedDraft.revision,
       });
       if (requestRouteGeneration !== routeGeneration.current) return;
-      clearStableCommand("draft-confirm", stable.fingerprint);
       router.push(`/workspaces/${workspaceId}/authoring/${conversationId}/rubric?started=1`);
     } catch (cause: unknown) {
       handleCommandError(cause, requestRouteGeneration);
-    } finally {
       if (requestRouteGeneration === routeGeneration.current) setBusy(null);
     }
   }

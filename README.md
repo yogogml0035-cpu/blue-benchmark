@@ -94,7 +94,7 @@ make openapi
 - `/workspaces/{workspace_id}/authoring/new`：绑定上传批次或直接手动输入；
 - `/workspaces/{workspace_id}/authoring/{conversation_id}`：正文式会话记录、候选题轨、边界确认、资料角色、题目输入和标准答案确认。
 
-会话的公开快照来自 FastAPI，安全事件通过有限 SSE 窗口增量读取；SSE 断线不会取消后台 Worker，刷新后仍以 GET 快照恢复。AI 候选不会自动成为标准答案，未经过老师确认的题目不能进入规则阶段。旧题稿路径只做重定向，不再维护第二套编辑器。
+会话的公开快照来自 FastAPI，安全事件通过有限 SSE 窗口增量读取；SSE 断线不会取消后台 Worker，刷新后仍以 GET 快照恢复。AI 候选不会自动成为标准答案，未经过老师确认的题目不能进入规则阶段。建题、规则审阅和人工评分只走当前路由族，不维护旧编辑器入口。
 
 前端真实 AI 浏览器验收是显式命令，默认不会在 CI 中运行：
 

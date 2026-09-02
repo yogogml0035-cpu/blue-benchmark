@@ -284,7 +284,14 @@ def run(args: argparse.Namespace) -> None:
             raise RunnerFailure("zip_member_set")
     base_url = args.base_url.rstrip("/")
     run_nonce = uuid4().hex[:10]
-    with httpx.Client(base_url=base_url, timeout=httpx.Timeout(180.0, connect=10.0)) as client:
+    # This runner targets a local API.  Do not send loopback traffic through a
+    # developer machine's system proxy; that can turn a healthy local request
+    # into an opaque 502 before the real Provider path even starts.
+    with httpx.Client(
+        base_url=base_url,
+        timeout=httpx.Timeout(180.0, connect=10.0),
+        trust_env=False,
+    ) as client:
         suffix = uuid4().hex[:10]
         username = f"real-ai-{suffix}"
         _request(

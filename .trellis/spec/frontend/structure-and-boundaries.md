@@ -13,7 +13,7 @@ src/
 ├── features/
 │   ├── auth/{components,hooks,services}/
 │   ├── workspaces/{components,preview,services}/
-│   └── case-builder/{components,lib,preview,services}/
+│   └── case-builder/{components,preview,services}/
 └── lib/
     ├── api/{client,generated,pageFault}.ts
     ├── preview/preview.tsx
@@ -30,9 +30,9 @@ src/
 - `app/(app)/workspaces/page.tsx` -> `ScenarioShelf`；
 - `app/(app)/workspaces/[workspaceId]/page.tsx` -> `StudioPage`，通过 `section=current|questions|versions` 承载场景工作台；
 - `app/(app)/workspaces/[workspaceId]/upload/page.tsx` -> `UploadPage`，作为上传入口；
-- `app/(app)/workspaces/[workspaceId]/questions/[questionId]/page.tsx` -> 旧 URL 重定向到题目生命周期列表；新题目形成由 `authoring/[conversationId]` 承载；
+- 新题目形成由 `app/(app)/workspaces/[workspaceId]/authoring/[conversationId]/page.tsx` 承载；
 - `app/(app)/workspaces/[workspaceId]/versions/[versionId]/page.tsx` -> 只读版本详情和下载；
-- 旧 `/cases/new` 重定向到工作台，旧 `/cases/{caseId}` 重定向到聚焦题页。
+- 当前前端不保留旧 `/cases` 或旧题目编辑入口。
 
 页面文件默认是 Server Component。需要事件、Effect、浏览器导航或本地状态的实现放入 Feature Client Component，并在文件首行写 `"use client"`。不要把整个路由树无差别改成 Client Component。
 
@@ -41,7 +41,7 @@ src/
 - `components/`：页面级业务 UI 和 Feature 内可复用视图；
 - `services/`：该 Feature 唯一 HTTP 调用入口，只调用 `src/lib/api/client.ts::apiFetch`；
 - `hooks/`：确实被复用或承担明确边界的状态逻辑，当前只有认证会话 `useSession`；
-- `lib/`：Feature 自有的纯状态/展示映射，当前 `case-builder/lib/caseState.ts` 集中 Case 状态语义；
+- `lib/`：仅在 Feature 有稳定且局部的纯展示逻辑时使用；当前建题状态映射由 `AuthoringConversationPage.tsx` 自己穷举，避免保留旧案例编辑器的第二套语义；
 - `preview/`：仅开发构建使用、且由 OpenAPI 生成类型约束的预演 fixture。
 
 不要从一个 Feature 的组件深层导入另一个 Feature 的内部组件或局部状态。已存在的跨 Feature 使用是显式业务依赖，例如 Workspace / Case 页面使用认证的 `useSession` 与 `UserChip`。

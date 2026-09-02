@@ -11,16 +11,32 @@ export type Session =
   | { status: "anonymous"; fault: PageFault }
   | { status: "failed"; fault: PageFault };
 
+export type SessionResult = Session & { reload: () => void };
+
+const PREVIEW_SESSION: Session = {
+  status: "anonymous",
+  fault: {
+    kind: "unauthorized",
+    code: "PREVIEW_SESSION_SKIPPED",
+    message: "开发预演不读取真实会话。",
+  },
+};
+
 /**
  * 受保护页面在 GET /api/auth/me 完成前只能显示加载态，不能先闪现私有内容，
  * 所以会话读取独立成一个钩子，由页面据此决定渲染骨架、未授权还是内容。
  */
-export function useSession(): Session & { reload: () => void } {
+export function useSession({ skip = false }: { skip?: boolean } = {}): SessionResult {
   const [session, setSession] = useState<Session>({ status: "loading" });
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     let active = true;
+    if (skip) {
+      return () => {
+        active = false;
+      };
+    }
     setSession({ status: "loading" });
     getCurrentUser()
       .then((result) => {
@@ -38,8 +54,8 @@ export function useSession(): Session & { reload: () => void } {
     return () => {
       active = false;
     };
-  }, [nonce]);
+  }, [nonce, skip]);
 
   const reload = useCallback(() => setNonce((value) => value + 1), []);
-  return { ...session, reload };
+  return { ...(skip ? PREVIEW_SESSION : session), reload };
 }

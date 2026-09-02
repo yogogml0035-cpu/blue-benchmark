@@ -52,6 +52,7 @@ export function StudioPage({ workspaceId }: { workspaceId: string }) {
     return (
       <StudioShell
         section={section}
+        session={session}
         workspaceId={workspaceId}
         workspaceName={workspace?.name}
       >
@@ -71,6 +72,7 @@ export function StudioPage({ workspaceId }: { workspaceId: string }) {
     return (
       <StudioShell
         section={section}
+        session={session}
         workspaceId={workspaceId}
         workspaceName={workspace?.name}
       >
@@ -97,6 +99,7 @@ export function StudioPage({ workspaceId }: { workspaceId: string }) {
       busy={refreshing}
       onRefresh={() => void read(true)}
       section={section}
+      session={session}
       workspaceId={workspaceId}
       workspaceName={workspace?.name}
     >
@@ -105,6 +108,7 @@ export function StudioPage({ workspaceId }: { workspaceId: string }) {
           onRefresh={() => void read(true)}
           projection={projection}
           refreshing={refreshing}
+          session={session}
           workspaceId={workspaceId}
         />
       )}

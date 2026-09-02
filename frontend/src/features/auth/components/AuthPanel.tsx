@@ -33,7 +33,7 @@ export function AuthPanel() {
   const router = useRouter();
   const params = useSearchParams();
   const preview = usePreviewState();
-  const session = useSession();
+  const session = useSession({ skip: Boolean(preview) });
 
   const [mode, setMode] = useState<Mode>("login");
   const [identifier, setIdentifier] = useState("");

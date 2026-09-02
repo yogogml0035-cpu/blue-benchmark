@@ -231,7 +231,7 @@ function CriterionEditor({
     <article className={styles.criterion}>
       <div className={styles.criterionHeader}>
         <div className="stack-sm">
-          <span className={styles.criterionNumber}>评分项 {String(index + 1).padStart(2, "0")} · {criterion.id}</span>
+          <span className={styles.criterionNumber}>评分项 {String(index + 1).padStart(2, "0")}</span>
           <strong>{criterion.name || "未命名评分项"}</strong>
         </div>
         <span className="mono faint">满分 {criterion.max_score}</span>
@@ -438,7 +438,7 @@ export function AuthoringRubricPage({
 }) {
   const router = useRouter();
   const preview = useRubricPreviewState();
-  const session = useSession();
+  const session = useSession({ skip: Boolean(preview) });
   const reloadSession = session.reload;
   const returnTo = `/workspaces/${workspaceId}/authoring/${conversationId}/rubric`;
   const [conversationLoad, setConversationLoad] = useState<ConversationLoad>({ status: "loading" });
