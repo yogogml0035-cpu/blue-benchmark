@@ -32,7 +32,7 @@ def login(payload: LoginRequest, request: Request, response: Response) -> UserRe
     return UserResponse(user=service.login(payload, response))
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, responses={403: {"model": ErrorResponse}})
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, responses={401: {"model": ErrorResponse}})
 def logout(request: Request, response: Response) -> None:
     service.logout(request, response)
 

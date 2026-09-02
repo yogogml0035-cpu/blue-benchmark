@@ -3,13 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
-import hashlib
-import json
 from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import or_, select, update
-from sqlalchemy.exc import IntegrityError
 
 from app.lib.database import as_utc, session_scope
 from app.lib.database.models import AgentRunAttemptRow, OperationJobRow
@@ -22,25 +19,9 @@ class OperationJobStatus(StrEnum):
     succeeded = "succeeded"
     failed = "failed"
     superseded = "superseded"
-    projection_pending = "projection_pending"
 
 
-class OperationCommandConflict(RuntimeError):
-    """A command id was already used for another operation kind."""
-
-
-OPERATION_KINDS = (
-    "batch_analysis",
-    "cocreation_start",
-    "cocreation_resume",
-    "cocreation_reproject",
-    "authoring_process",
-    "authoring_reproject",
-    "rubric_process",
-    "rubric_reproject",
-    "coverage_review",
-    "freeze_package",
-)
+OPERATION_KINDS = ("rubric_generation",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +32,6 @@ class OperationJob:
     target_id: str
     command_id: str
     business_revision: int
-    accepted_checkpoint_id: str | None
     status: OperationJobStatus
     attempts: int
     max_attempts: int
@@ -78,7 +58,6 @@ def _to_record(row: OperationJobRow) -> OperationJob:
         target_id=row.target_id,
         command_id=row.command_id,
         business_revision=row.business_revision,
-        accepted_checkpoint_id=row.accepted_checkpoint_id,
         status=OperationJobStatus(row.status),
         attempts=row.attempts,
         max_attempts=row.max_attempts,
@@ -94,13 +73,6 @@ def _to_record(row: OperationJobRow) -> OperationJob:
     )
 
 
-def _result_hash(result: dict[str, Any] | None) -> str | None:
-    if result is None:
-        return None
-    encoded = json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
 def _current_attempt(session, row: OperationJobRow) -> AgentRunAttemptRow | None:
     return session.scalar(
         select(AgentRunAttemptRow).where(
@@ -108,60 +80,6 @@ def _current_attempt(session, row: OperationJobRow) -> AgentRunAttemptRow | None
             AgentRunAttemptRow.attempt_number == row.attempts,
         )
     )
-
-
-def create_or_get(
-    *,
-    kind: str,
-    target_type: str,
-    target_id: str,
-    command_id: str,
-    business_revision: int = 0,
-    accepted_checkpoint_id: str | None = None,
-    max_attempts: int | None = None,
-) -> OperationJob:
-    if kind not in OPERATION_KINDS:
-        raise ValueError(f"unsupported operation kind: {kind}")
-    if not command_id.strip():
-        raise ValueError("command_id is required")
-    if max_attempts is not None and max_attempts < 1:
-        raise ValueError("max_attempts must be positive")
-    now = _utc_now()
-    row = OperationJobRow(
-        id=str(uuid4()),
-        kind=kind,
-        target_type=target_type,
-        target_id=target_id,
-        command_id=command_id,
-        business_revision=business_revision,
-        accepted_checkpoint_id=accepted_checkpoint_id,
-        status=OperationJobStatus.queued.value,
-        attempts=0,
-        max_attempts=(max_attempts if max_attempts is not None else settings.operation_max_attempts),
-        available_at=now,
-        created_at=now,
-        updated_at=now,
-    )
-    try:
-        with session_scope() as session:
-            session.add(row)
-            session.flush()
-            return _to_record(row)
-    except IntegrityError:
-        with session_scope() as session:
-            existing = session.scalar(
-                select(OperationJobRow).where(
-                    OperationJobRow.target_type == target_type,
-                    OperationJobRow.target_id == target_id,
-                    OperationJobRow.business_revision == business_revision,
-                    OperationJobRow.command_id == command_id,
-                )
-            )
-            if existing is None:
-                raise
-            if existing.kind != kind:
-                raise OperationCommandConflict("command id already used for another operation kind")
-            return _to_record(existing)
 
 
 def get(job_id: str) -> OperationJob | None:
@@ -244,7 +162,6 @@ def claim_next(worker_id: str, lease_seconds: int | None = None) -> OperationJob
                     target_type=row.target_type,
                     target_id=row.target_id,
                     attempt_number=row.attempts,
-                    base_checkpoint_id=row.accepted_checkpoint_id,
                     status="running",
                     created_at=now,
                 )
@@ -254,41 +171,14 @@ def claim_next(worker_id: str, lease_seconds: int | None = None) -> OperationJob
     return None
 
 
-def complete(
-    job_id: str,
-    worker_id: str,
-    result: dict[str, Any] | None = None,
-) -> OperationJob:
-    now = _utc_now()
-    with session_scope() as session:
-        row = session.get(OperationJobRow, job_id)
-        if row is None:
-            raise KeyError(job_id)
-        if row.status != OperationJobStatus.running.value or row.worker_id != worker_id:
-            raise ValueError("operation is not owned by this worker")
-        row.status = OperationJobStatus.succeeded.value
-        row.result_json = result
-        row.lease_until = None
-        row.worker_id = None
-        row.finished_at = now
-        row.updated_at = now
-        attempt = _current_attempt(session, row)
-        if attempt is not None:
-            attempt.status = "succeeded"
-            attempt.result_hash = _result_hash(result)
-        session.flush()
-        return _to_record(row)
-
-
 def complete_if_current(
     job_id: str,
     worker_id: str,
     *,
     current_revision: int,
-    current_accepted_checkpoint_id: str | None,
     result: dict[str, Any] | None = None,
 ) -> OperationJob:
-    """Commit only when the business projection still matches the job base."""
+    """Commit only when the business revision still matches the job base."""
 
     now = _utc_now()
     with session_scope() as session:
@@ -297,10 +187,7 @@ def complete_if_current(
             raise KeyError(job_id)
         if row.status != OperationJobStatus.running.value or row.worker_id != worker_id:
             raise ValueError("operation is not owned by this worker")
-        if (
-            row.business_revision != current_revision
-            or row.accepted_checkpoint_id != current_accepted_checkpoint_id
-        ):
+        if row.business_revision != current_revision:
             row.status = OperationJobStatus.superseded.value
             row.last_error_json = {"code": "SUPERSEDED", "message": "业务版本已经更新。"}
             row.lease_until = None
@@ -321,62 +208,6 @@ def complete_if_current(
         attempt = _current_attempt(session, row)
         if attempt is not None:
             attempt.status = "succeeded"
-            attempt.result_hash = _result_hash(result)
-        session.flush()
-        return _to_record(row)
-
-
-def mark_projection_pending(
-    job_id: str,
-    worker_id: str,
-    *,
-    produced_checkpoint_id: str | None = None,
-    result_hash: str | None = None,
-    runtime_mode: str | None = None,
-) -> OperationJob:
-    now = _utc_now()
-    with session_scope() as session:
-        row = session.get(OperationJobRow, job_id)
-        if row is None:
-            raise KeyError(job_id)
-        if row.status != OperationJobStatus.running.value or row.worker_id != worker_id:
-            raise ValueError("operation is not owned by this worker")
-        row.status = OperationJobStatus.projection_pending.value
-        if runtime_mode is not None:
-            result_payload = dict(row.result_json or {})
-            result_payload["__worker_runtime_mode"] = runtime_mode
-            row.result_json = result_payload
-        row.lease_until = None
-        row.worker_id = None
-        row.updated_at = now
-        attempt = _current_attempt(session, row)
-        if attempt is not None:
-            attempt.status = "projection_pending"
-            if produced_checkpoint_id:
-                attempt.produced_checkpoint_id = produced_checkpoint_id
-            if result_hash:
-                attempt.result_hash = result_hash
-        session.flush()
-        return _to_record(row)
-
-
-def save_result(job_id: str, worker_id: str, result: dict[str, Any]) -> OperationJob:
-    """Persist an internal result while the current Worker still owns a job.
-
-    Authoring uses this only for a projection-pending handoff.  The payload is
-    never returned by an API; it lets a later reproject operation commit an
-    already-produced business result without calling the model again.
-    """
-
-    now = _utc_now()
-    with session_scope() as session:
-        row = session.get(OperationJobRow, job_id, with_for_update=True)
-        if row is None:
-            raise KeyError(job_id)
-        if row.status != OperationJobStatus.running.value or row.worker_id != worker_id:
-            raise ValueError("operation is not owned by this worker")
-        row.result_json = dict(result)
-        row.updated_at = now
         session.flush()
         return _to_record(row)
 
@@ -429,25 +260,6 @@ def fail(
         return _to_record(row)
 
 
-def retry_failed(job_id: str) -> OperationJob:
-    """Requeue a failed operation without creating a second command record."""
-
-    now = _utc_now()
-    with session_scope() as session:
-        row = session.get(OperationJobRow, job_id)
-        if row is None:
-            raise KeyError(job_id)
-        if row.status != OperationJobStatus.failed.value or row.attempts >= row.max_attempts:
-            return _to_record(row)
-        row.status = OperationJobStatus.queued.value
-        row.available_at = now
-        row.last_error_json = None
-        row.finished_at = None
-        row.updated_at = now
-        session.flush()
-        return _to_record(row)
-
-
 def supersede(job_id: str, worker_id: str, reason: str) -> OperationJob:
     now = _utc_now()
     with session_scope() as session:
@@ -469,9 +281,16 @@ def supersede(job_id: str, worker_id: str, reason: str) -> OperationJob:
         return _to_record(row)
 
 
-def release_expired() -> int:
+def release_expired() -> tuple[int, list[OperationJob]]:
+    """Requeue or fail lease-expired jobs.
+
+    Returns the count and the jobs that transitioned to terminal ``failed``;
+    the worker projects those failures onto their business targets.
+    """
+
     now = _utc_now()
     released = 0
+    terminal: list[OperationJob] = []
     with session_scope() as session:
         rows = session.scalars(
             select(OperationJobRow).where(
@@ -493,5 +312,6 @@ def release_expired() -> int:
                 attempt.status = "lease_expired" if row.status == OperationJobStatus.queued.value else "failed"
             if row.status == OperationJobStatus.failed.value:
                 row.finished_at = now
+                terminal.append(_to_record(row))
             released += 1
-    return released
+    return released, terminal

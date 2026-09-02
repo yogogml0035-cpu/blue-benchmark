@@ -10,45 +10,19 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.lib.database.models import (
     AgentRunAttemptRow,
-    AuthoringConnectionRow,
-    AuthoringConversationRow,
-    AuthoringExternalCommandRow,
-    AuthoringMessageRow,
-    BenchmarkQuestionDraftRow,
-    BenchmarkQuestionRevisionRow,
     Base,
-    CaseRow,
-    CoCreationSessionRow,
-    CoCreationTurnRow,
-    ContractImpactReviewRow,
-    CoverageSnapshotRow,
-    EvaluationSetVersionRow,
-    EvaluationSubmissionRow,
-    EvidenceFileRow,
-    FileDispositionRow,
-    HumanScoreItemRow,
-    HumanScoreRow,
+    BatchUploadCommandRow,
+    EvalQuestionRow,
     OperationJobRow,
-    QuestionRevisionRow,
+    SceneCredentialRow,
+    SceneRow,
     SessionRow,
-    SafeStreamEventRow,
-    RubricDraftRow,
-    ScenarioContractRevisionRow,
-    SkillRunEvidenceRow,
-    StandardPromotionProposalRow,
-    TaskPackageRow,
-    TeacherFeedbackRow,
-    UploadBatchRow,
     UserRow,
-    WorkingSetCommandRow,
-    WorkingSetDraftRow,
-    WorkingSetMemberRow,
-    WorkspaceRow,
 )
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0017_external_input_metadata"
+BUSINESS_SCHEMA_HEAD = "0018_m0_question_library"
 
 
 def as_utc(value: datetime) -> datetime:
@@ -102,54 +76,38 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
         if revisions != [BUSINESS_SCHEMA_HEAD]:
             return False
         required_columns = {
-            "users": {"id", "username", "password_hash"},
-            "workspaces": {"id", "owner_user_id", "updated_at"},
-            "upload_batches": {"id", "workspace_id", "command_id", "revision"},
-            "evidence_files": {"id", "upload_batch_id", "workspace_id", "storage_key", "sha256", "external_metadata_json"},
-            "authoring_connections": {"id", "workspace_id", "user_id", "scope_json", "code_hash", "token_hash", "revoked_at", "active_request_count"},
-            "authoring_external_commands": {"id", "connection_id", "command_id", "payload_hash", "status", "conversation_id", "draft_id"},
-            "operation_jobs": {"id", "kind", "command_id", "status", "lease_until"},
-            "task_packages": {"id", "upload_batch_id", "analysis_json", "judgment_package_json"},
-            "co_creation_sessions": {"id", "task_package_id", "command_id", "kind", "projection_json"},
-            "co_creation_turns": {"id", "session_id", "question_id", "answer_command_id"},
-            "scenario_contract_revisions": {"id", "workspace_id", "revision", "contract_json"},
-            "working_set_drafts": {"id", "workspace_id", "active_key", "revision", "freeze_intent_json"},
-            "working_set_members": {"id", "draft_id", "task_package_id", "question_revision_id", "question_revision_number", "question_revision_hash", "review_status"},
-            "contract_impact_reviews": {"id", "draft_id", "task_package_id", "status"},
-            "coverage_snapshots": {"id", "draft_id", "snapshot_json", "risk_confirmed"},
-            "evaluation_set_versions": {"id", "workspace_id", "version_number", "overall_sha256"},
-            "authoring_conversations": {"id", "workspace_id", "status", "revision", "active_operation_id", "source_file_ids_json"},
-            "authoring_messages": {"id", "conversation_id", "sequence", "role", "content_text"},
-            "safe_stream_events": {"id", "conversation_id", "sequence", "kind", "payload_json"},
-            "benchmark_question_drafts": {"id", "conversation_id", "status", "revision", "input_json", "bad_samples_json", "lifecycle_status", "active_revision_id", "lifecycle_receipts_json", "lifecycle_pending_json", "question_checkpoint_id", "question_question_count", "question_input_revision", "question_prompt_sequence"},
-            "benchmark_rubric_drafts": {"id", "workspace_id", "question_draft_id", "status", "revision", "source_question_revision", "source_question_hash", "rubric_json"},
-            "benchmark_question_revisions": {"id", "workspace_id", "question_draft_id", "revision_number", "source_question_revision", "contract_revision_id", "question_snapshot_json", "bad_samples_json", "rubric_json", "content_sha256", "publication_status"},
-            "evaluation_submissions": {"id", "workspace_id", "question_revision_id", "content_storage_key", "source", "original_name", "media_type", "size_bytes", "sha256", "command_id", "payload_hash", "submitted_by", "submitted_at"},
-            "human_scores": {"id", "submission_id", "question_revision_id", "parent_score_id", "status", "total_score", "critical_passed", "passed", "overall_reason", "command_id", "payload_hash", "scored_by", "submitted_at"},
-            "human_score_items": {"id", "score_id", "criterion_id", "score", "reason", "hard_fail_triggered", "critical_passed", "created_at"},
+            "users": {"id", "username", "password_hash", "admin_slot"},
+            "scenes": {"id", "name", "created_at", "updated_at"},
+            "scene_credentials": {"id", "scene_id", "token_hash", "revoked_at", "last_used_at"},
+            "eval_questions": {
+                "id",
+                "scene_id",
+                "client_case_id",
+                "title",
+                "task_prompt",
+                "reference_examples_json",
+                "bad_cases_json",
+                "reference_answer",
+                "memory_materials_json",
+                "criteria_json",
+                "status",
+                "content_revision",
+                "active_operation_id",
+                "last_error_json",
+                "published_at",
+            },
+            "batch_upload_commands": {"id", "scene_id", "command_id", "payload_hash", "status", "result_json"},
+            "operation_jobs": {"id", "kind", "command_id", "status", "lease_until", "business_revision"},
         }
         columns_ready = all(
             columns.issubset({item["name"] for item in inspect(connection).get_columns(table)})
             for table, columns in required_columns.items()
         )
         required_unique_constraints = {
-            "authoring_connections": {
-                "uq_authoring_connection_code_hash",
-                "uq_authoring_connection_token_hash",
-            },
-            "benchmark_question_revisions": {
-                "uq_benchmark_question_revision_workspace_identity",
-            },
-            "evaluation_submissions": {
-                "uq_evaluation_submission_command",
-                "uq_evaluation_submission_storage_key",
-                "uq_evaluation_submission_revision_identity",
-            },
-            "human_scores": {
-                "uq_human_score_command",
-                "uq_human_score_submission_identity",
-            },
-            "human_score_items": {"uq_human_score_item_criterion"},
+            "scenes": {"uq_scene_name"},
+            "scene_credentials": {"uq_scene_credential_token_hash"},
+            "eval_questions": {"uq_eval_question_scene_client_case"},
+            "batch_upload_commands": {"uq_batch_upload_command"},
         }
         unique_ready = all(
             names.issubset(
@@ -158,13 +116,7 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             for table, names in required_unique_constraints.items()
         )
         required_check_constraints = {
-            "evaluation_submissions": {
-                "ck_evaluation_submission_source",
-                "ck_evaluation_submission_size",
-                "ck_evaluation_submission_sha256",
-            },
-            "human_scores": {"ck_human_score_status", "ck_human_score_total"},
-            "human_score_items": {"ck_human_score_item_score"},
+            "batch_upload_commands": {"ck_batch_upload_command_status"},
         }
         checks_ready = all(
             names.issubset(
@@ -172,28 +124,10 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             )
             for table, names in required_check_constraints.items()
         )
-        required_foreign_keys = {
-            "evaluation_submissions": {"fk_evaluation_submission_question_revision_workspace"},
-            "human_scores": {
-                "fk_human_score_submission",
-                "fk_human_score_question_revision",
-                "fk_human_score_parent_submission",
-            },
-        }
-        foreign_keys_ready = all(
-            names.issubset(
-                {item.get("name") for item in inspect(connection).get_foreign_keys(table)}
-            )
-            for table, names in required_foreign_keys.items()
-        )
         required_indexes = {
-            "authoring_connections": {"uq_authoring_connection_active_workspace"},
-            "evaluation_submissions": {"ix_evaluation_submission_workspace_created"},
-            "human_scores": {
-                "ix_human_score_submission_submitted",
-                "uq_human_score_submission_parent",
-            },
-            "human_score_items": {"ix_human_score_items_score_id"},
+            "scene_credentials": {"ix_scene_credential_active"},
+            "eval_questions": {"ix_eval_question_status"},
+            "operation_jobs": {"ix_operation_claim"},
         }
         indexes_ready = all(
             names.issubset(
@@ -201,7 +135,7 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             )
             for table, names in required_indexes.items()
         )
-        return columns_ready and unique_ready and checks_ready and foreign_keys_ready and indexes_ready
+        return columns_ready and unique_ready and checks_ready and indexes_ready
 
 
 def create_schema_for_tests(database_engine: Engine = engine) -> None:
@@ -231,37 +165,11 @@ def clear_business_data() -> None:
     create_schema_for_tests()
     tables = [
         AgentRunAttemptRow,
-        AuthoringExternalCommandRow,
-        AuthoringConnectionRow,
-        SafeStreamEventRow,
-        AuthoringMessageRow,
-        HumanScoreItemRow,
-        HumanScoreRow,
-        EvaluationSubmissionRow,
-        RubricDraftRow,
         OperationJobRow,
-        StandardPromotionProposalRow,
-        TeacherFeedbackRow,
-        QuestionRevisionRow,
-        CoCreationTurnRow,
-        CoCreationSessionRow,
-        EvaluationSetVersionRow,
-        CoverageSnapshotRow,
-        ContractImpactReviewRow,
-        WorkingSetCommandRow,
-        WorkingSetMemberRow,
-        BenchmarkQuestionRevisionRow,
-        BenchmarkQuestionDraftRow,
-        AuthoringConversationRow,
-        WorkingSetDraftRow,
-        SkillRunEvidenceRow,
-        TaskPackageRow,
-        ScenarioContractRevisionRow,
-        FileDispositionRow,
-        EvidenceFileRow,
-        UploadBatchRow,
-        CaseRow,
-        WorkspaceRow,
+        BatchUploadCommandRow,
+        EvalQuestionRow,
+        SceneCredentialRow,
+        SceneRow,
         SessionRow,
         UserRow,
     ]

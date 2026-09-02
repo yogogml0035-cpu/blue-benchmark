@@ -1,57 +1,66 @@
-"""Run a minimal, real-provider ToolStrategy smoke without printing model data."""
+"""Smoke-test the configured AI provider through the rubric generation contract.
+
+Prints only structural facts (counts, scores, latency); never material bodies.
+"""
 
 from __future__ import annotations
 
+import argparse
 import sys
+import time
 
-from app.features.case_builder.cocreation_schemas import CoverageReview
-from app.lib.ai_runtime.adapters import DeepAgentsCoverageReviewer
-from app.lib.ai_runtime.model import ModelConfigurationError, build_runtime_model
-from app.lib.ai_runtime.profile import GRAPH_SCHEMA_VERSION, get_ai_profile
-from app.lib.ai_runtime.context import AgentRunContext
-from app.lib.settings import settings
+from app.lib.ai_runtime.adapters import (
+    RubricGenerationFailure,
+    RubricGenerationInput,
+    production_adapters,
+)
+from app.lib.ai_runtime.model import build_runtime_model, runtime_model_identity
+
+
+_SAMPLE = RubricGenerationInput(
+    task_prompt="请把提供的新闻素材改写成一段正式新闻稿，保持事实准确。",
+    reference_examples=[
+        {"source_name": "新闻素材", "content_text": "某品牌发布新一代车型，续航提升明显。"}
+    ],
+    bad_cases=[
+        {
+            "content_text": "这车真牛，快买！",
+            "teacher_feedback_texts": ["语气太随意，不像新闻稿。"],
+            "reason_summary": "语体不符合新闻稿规范。",
+        }
+    ],
+    reference_answer="某品牌今日发布新一代车型，官方称续航里程较上一代显著提升。",
+    memory_materials=[
+        {"source_label": "业务记忆", "content_text": "新闻稿需使用客观陈述语气。"}
+    ],
+)
 
 
 def main() -> int:
-    try:
-        if settings.ai_runtime_mode != "production":
-            raise ModelConfigurationError("AI_RUNTIME_MODE=production is required for ai-smoke")
-        model, identity = build_runtime_model()
-        reviewer = DeepAgentsCoverageReviewer(model=model, model_spec=identity.registration_key)
-        context = AgentRunContext(
-            user_id="provider-smoke",
-            workspace_id="provider-smoke",
-            target_type="coverage",
-            target_id="provider-smoke",
-            thread_key="provider-smoke",
-            business_revision=0,
-            evidence_file_ids=(),
-            evidence_scope="/evidence/none",
-            ai_profile_version=get_ai_profile().version,
-            graph_schema_version=GRAPH_SCHEMA_VERSION,
-        )
-        result = reviewer.review(
-            context,
-            {
-                "capabilities": ["tool-calling"],
-                "dimensions": ["structured-output"],
-                "failure_modes": [],
-            },
-        )
-        if not isinstance(result.result, CoverageReview):
-            raise RuntimeError("unexpected structured output")
-    except Exception as exc:  # noqa: BLE001 - CLI output must stay secret-safe.
-        provider = getattr(settings, "ai_provider", "configured") or "configured"
-        model = getattr(settings, "ai_model", "configured") or "configured"
-        print(
-            f"AI_PROVIDER_SMOKE=FAIL provider={provider} model={model} error={type(exc).__name__}",
-            file=sys.stderr,
-        )
-        return 1
+    parser = argparse.ArgumentParser(description="Rubric generation provider smoke test")
+    parser.add_argument("--attempts", type=int, default=1)
+    args = parser.parse_args()
 
-    print(f"AI_PROVIDER_SMOKE=PASS provider={identity.provider} model={identity.model}")
+    identity = runtime_model_identity()
+    print(f"AI_SMOKE_PROVIDER={identity.provider} model={identity.model}")
+    model, _ = build_runtime_model()
+    generator = production_adapters(model=model).rubric_generator
+
+    for attempt in range(1, args.attempts + 1):
+        started = time.monotonic()
+        try:
+            result = generator.generate(_SAMPLE)
+        except RubricGenerationFailure as exc:
+            print(f"AI_SMOKE=FAIL attempt={attempt} code={exc.code} message={exc.message}")
+            return 1
+        elapsed = time.monotonic() - started
+        scores = ",".join(str(item.pass_score) for item in result.criteria)
+        print(
+            f"AI_SMOKE=OK attempt={attempt} criteria={len(result.criteria)} "
+            f"pass_scores=[{scores}] elapsed_seconds={elapsed:.1f}"
+        )
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

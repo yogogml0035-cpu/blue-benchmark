@@ -54,17 +54,13 @@ def _set_session(response: Response, user: repository.UserRecord) -> None:
         settings.session_cookie_name,
         token,
         httponly=True,
-        samesite="lax",
+        samesite="strict",
         secure=settings.session_cookie_secure,
         path="/",
     )
 
 
 def register(payload: RegisterRequest, response: Response) -> User:
-    if repository.find_by_username(payload.username):
-        raise AppError(409, "USERNAME_TAKEN", "用户名已被使用。")
-    if payload.email and repository.find_by_email(str(payload.email)):
-        raise AppError(409, "EMAIL_TAKEN", "邮箱已被使用。")
     user = repository.UserRecord(
         id=str(uuid4()),
         username=payload.username,
@@ -72,7 +68,10 @@ def register(payload: RegisterRequest, response: Response) -> User:
         password_hash=_hash_password(payload.password),
         created_at=datetime.now(timezone.utc),
     )
-    repository.add_user(user)
+    # The admin_slot unique constraint makes the single-admin rule atomic:
+    # the first writer wins, any concurrent second registration is rejected.
+    if not repository.add_first_user(user):
+        raise AppError(409, "ADMIN_EXISTS", "平台只允许一个管理员账号。")
     _set_session(response, user)
     return to_user(user)
 
@@ -88,6 +87,9 @@ def login(payload: LoginRequest, response: Response) -> User:
 
 
 def logout(request: Request, response: Response) -> None:
+    # Require the caller to actually own a live session; an anonymous visitor
+    # must not be able to force-logout the admin by replaying a cookie.
+    require_current_user(request)
     repository.revoke_session(request.cookies.get(settings.session_cookie_name))
     response.delete_cookie(settings.session_cookie_name, path="/")
 

@@ -33,15 +33,49 @@ def _token_hash(token: str) -> str:
 def find_by_username(username: str) -> UserRecord | None:
     normalized = username.casefold()
     with session_scope() as session:
-        row = session.scalar(select(UserRow).where(UserRow.username.ilike(normalized)))
+        rows = session.scalars(select(UserRow)).all()
+        row = next((item for item in rows if item.username.casefold() == normalized), None)
         return _to_record(row) if row else None
 
 
 def find_by_email(email: str) -> UserRecord | None:
     normalized = email.casefold()
     with session_scope() as session:
-        row = session.scalar(select(UserRow).where(UserRow.email.ilike(normalized)))
+        rows = session.scalars(select(UserRow)).all()
+        row = next(
+            (item for item in rows if item.email and item.email.casefold() == normalized),
+            None,
+        )
         return _to_record(row) if row else None
+
+
+def add_first_user(user: UserRecord) -> bool:
+    """Insert the single admin atomically.
+
+    The ``admin_slot`` unique constraint rejects any concurrent second
+    registration at the database level, so this returns False instead of
+    persisting a second admin.
+    """
+
+    from sqlalchemy.exc import IntegrityError
+
+    with session_scope() as session:
+        session.add(
+            UserRow(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                password_hash=user.password_hash,
+                admin_slot="primary",
+                created_at=user.created_at,
+            )
+        )
+        try:
+            session.flush()
+            return True
+        except IntegrityError:
+            session.rollback()
+            return False
 
 
 def add_user(user: UserRecord) -> None:
@@ -55,6 +89,13 @@ def add_user(user: UserRecord) -> None:
                 created_at=user.created_at,
             )
         )
+
+
+def count_users() -> int:
+    from sqlalchemy import func
+
+    with session_scope() as session:
+        return session.scalar(select(func.count(UserRow.id))) or 0
 
 
 def get_user(user_id: str) -> UserRecord | None:

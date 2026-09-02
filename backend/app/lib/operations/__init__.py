@@ -8,9 +8,7 @@ from app.lib.operations.repository import (
     OperationJobStatus,
     OPERATION_KINDS,
     claim_next,
-    complete,
     complete_if_current,
-    create_or_get,
     fail,
     get,
     list_for_target,
@@ -21,10 +19,10 @@ from app.lib.operations.repository import (
 from app.lib.operations import attempts
 
 if TYPE_CHECKING:
-    from app.lib.operations.worker import OperationWorker, ProjectionPendingOperation, fake_worker
+    from app.lib.operations.worker import OperationWorker, fake_worker
 
 
-_LAZY_WORKER_EXPORTS = frozenset({"OperationWorker", "ProjectionPendingOperation", "fake_worker"})
+_LAZY_WORKER_EXPORTS = frozenset({"OperationWorker", "fake_worker"})
 
 
 def __getattr__(name: str):
@@ -40,9 +38,7 @@ __all__ = [
     "OperationJobStatus",
     "OPERATION_KINDS",
     "claim_next",
-    "complete",
     "complete_if_current",
-    "create_or_get",
     "fail",
     "get",
     "list_for_target",
@@ -50,7 +46,6 @@ __all__ = [
     "renew",
     "supersede",
     "OperationWorker",
-    "ProjectionPendingOperation",
     "fake_worker",
     "attempts",
 ]

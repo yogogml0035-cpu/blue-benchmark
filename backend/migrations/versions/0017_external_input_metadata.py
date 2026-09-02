@@ -1,10 +1,15 @@
-"""Ensure evidence rows carry external text-input provenance metadata."""
+"""External input metadata.
+
+Revision ID: 0017_external_input_metadata
+Revises: 0016_external_authoring
+
+Superseded by the destructive M0 reset (0018_m0_question_library). The legacy
+business schema this step built no longer exists in code or contract; the step
+is kept as a revision marker only so databases stamped at intermediate heads
+still converge through ``alembic upgrade head``.
+"""
 
 from typing import Sequence, Union
-
-import sqlalchemy as sa
-from alembic import op
-
 
 revision: str = "0017_external_input_metadata"
 down_revision: Union[str, None] = "0016_external_authoring"
@@ -13,19 +18,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    if "evidence_files" not in inspector.get_table_names():
-        return
-    columns = {item["name"] for item in inspector.get_columns("evidence_files")}
-    if "external_metadata_json" in columns:
-        return
-    if bind.dialect.name == "sqlite":
-        with op.batch_alter_table("evidence_files", recreate="always") as batch:
-            batch.add_column(sa.Column("external_metadata_json", sa.JSON(), nullable=True))
-    else:
-        op.add_column("evidence_files", sa.Column("external_metadata_json", sa.JSON(), nullable=True))
+    pass
 
 
 def downgrade() -> None:
-    return
+    pass
