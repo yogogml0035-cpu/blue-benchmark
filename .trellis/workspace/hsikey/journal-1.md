@@ -492,3 +492,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 22: 新增 ai-eval-push 上传 Skill 与外部连接状态端点
+<!-- trellis-session: v=2 fp=78f9bce75c903d83 -->
+
+**Date**: 2026-09-03
+**Task**: 新增 ai-eval-push 上传 Skill 与外部连接状态端点
+**Branch**: `main`
+
+### Summary
+
+子任务3：新增 skills/ai-eval-push/（SKILL.md 工作流 + 标准库客户端 + API 合同 reference + 隔离测试）；后端新增外部连接状态端点；服务端补齐反馈单项长度上限；对抗审查加固客户端（跨主机重定向剥离凭证、连接响应白名单、scheme 校验、未知字段/命令长度/空白原因拒绝）；EvalData 真实 API 验收通过（多题识别→整批上传→真实 AI 生成→逐题回读）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5c5a3d4` | feat(skill): 新增 ai-eval-push 上传 Skill 与外部连接状态端点 |
+
+### Status
+
+[OK] **Completed**
