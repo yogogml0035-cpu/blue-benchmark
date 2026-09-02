@@ -6,9 +6,25 @@ from fastapi import APIRouter, Depends
 
 from app.features.question_library import service
 from app.features.question_library.schemas import BatchUploadRequest, BatchUploadResponse
-from app.features.scenes.service import ScenePrincipal, require_scene_principal
+from app.features.scenes.schemas import SceneConnectionStatusView
+from app.features.scenes.service import (
+    ScenePrincipal,
+    connection_status,
+    require_scene_principal,
+)
 
 router = APIRouter(prefix="/external", tags=["external-intake"])
+
+
+@router.get(
+    "/connection",
+    response_model=SceneConnectionStatusView,
+    responses={401: {"description": "凭证缺失或无效"}},
+)
+def get_connection_status(
+    principal: ScenePrincipal = Depends(require_scene_principal),
+) -> SceneConnectionStatusView:
+    return connection_status(principal)
 
 
 @router.post(

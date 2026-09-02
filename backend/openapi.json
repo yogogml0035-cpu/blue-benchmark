@@ -943,6 +943,35 @@
         }
       }
     },
+    "/api/external/connection": {
+      "get": {
+        "tags": [
+          "external-intake"
+        ],
+        "summary": "Get Connection Status",
+        "operationId": "get_connection_status_api_external_connection_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneConnectionStatusView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证缺失或无效"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/external/question-batches": {
       "post": {
         "tags": [
@@ -1001,7 +1030,9 @@
           },
           "teacher_feedback_texts": {
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 5000,
+              "minLength": 1
             },
             "type": "array",
             "maxItems": 20,
@@ -2025,6 +2056,60 @@
           "password"
         ],
         "title": "RegisterRequest"
+      },
+      "SceneConnectionStatusView": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "connected",
+            "title": "Status"
+          },
+          "scene_id": {
+            "type": "string",
+            "title": "Scene Id"
+          },
+          "scene_name": {
+            "type": "string",
+            "title": "Scene Name"
+          },
+          "credential_id": {
+            "type": "string",
+            "title": "Credential Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "scene_id",
+          "scene_name",
+          "credential_id",
+          "label",
+          "last_used_at"
+        ],
+        "title": "SceneConnectionStatusView",
+        "description": "What a scene credential holder may learn about its own connection.\n\nNever includes the token, token hash, or any other scene's data."
       },
       "SceneCreateRequest": {
         "properties": {

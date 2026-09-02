@@ -52,6 +52,20 @@ class SceneCredentialIssueRequest(BaseModel):
     label: str | None = Field(default=None, max_length=CREDENTIAL_LABEL_MAX_LENGTH)
 
 
+class SceneConnectionStatusView(BaseModel):
+    """What a scene credential holder may learn about its own connection.
+
+    Never includes the token, token hash, or any other scene's data.
+    """
+
+    status: Literal["connected"]
+    scene_id: str
+    scene_name: str
+    credential_id: str
+    label: str | None
+    last_used_at: str | None
+
+
 class SceneCredentialIssuedView(BaseModel):
     """Returned exactly once at issue/rotate time; plaintext is never stored."""
 

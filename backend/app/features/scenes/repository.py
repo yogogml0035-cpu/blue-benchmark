@@ -141,6 +141,11 @@ def get_credential_by_hash(session: Session, hashed: str) -> SceneCredentialReco
     return _credential_record(row) if row else None
 
 
+def get_credential_by_id(session: Session, credential_id: str) -> SceneCredentialRecord | None:
+    row = session.get(SceneCredentialRow, credential_id)
+    return _credential_record(row) if row else None
+
+
 def mark_credential_used(session: Session, credential_id: str, now: datetime) -> None:
     row = session.get(SceneCredentialRow, credential_id)
     if row:

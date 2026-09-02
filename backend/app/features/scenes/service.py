@@ -12,6 +12,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.features.scenes import repository
 from app.features.scenes.schemas import (
     CREDENTIAL_LABEL_MAX_LENGTH,
+    SceneConnectionStatusView,
     SceneCredentialIssuedView,
     SceneCredentialStatusView,
     SceneCreateRequest,
@@ -190,3 +191,21 @@ def require_scene_principal(
             raise AppError(401, "CREDENTIAL_INVALID", "场景上传凭证无效或已被撤销。")
         repository.mark_credential_used(session, record.id, datetime.now(timezone.utc))
     return ScenePrincipal(credential_id=record.id, scene_id=record.scene_id)
+
+
+def connection_status(principal: ScenePrincipal) -> SceneConnectionStatusView:
+    """Return the credential holder's own connection state (no secrets)."""
+
+    with session_scope() as session:
+        scene = repository.get_scene(session, principal.scene_id)
+        if scene is None:  # pragma: no cover - scene outlives its credentials
+            raise AppError(404, "RESOURCE_NOT_FOUND", "场景不存在。")
+        credential = repository.get_credential_by_id(session, principal.credential_id)
+    return SceneConnectionStatusView(
+        status="connected",
+        scene_id=scene.id,
+        scene_name=scene.name,
+        credential_id=principal.credential_id,
+        label=credential.label if credential else None,
+        last_used_at=_iso(credential.last_used_at) if credential else None,
+    )

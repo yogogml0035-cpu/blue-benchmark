@@ -84,6 +84,24 @@ POST /api/external/question-batches
 
 请求体为 `{ "schema_version": "1.0", "command_id": ..., "cases": [ ... ] }`，每题含 `client_case_id`、`title`、`task_prompt`、`reference_examples[]`、`bad_cases[]`、`reference_answer`、`memory_materials[]`。整批全成全败；相同 `command_id + 相同 payload` 幂等重放，变更 payload 返回冲突。场景由凭证决定，payload 不接受 `scene_id`。上传成功后每题自动排队生成评分维度。
 
+凭证可用 `GET /api/external/connection` 查询自身连接状态（返回绑定场景与凭证 ID，绝不返回 token）。
+
+## 题目上传 Skill
+
+`skills/ai-eval-push/` 提供场景绑定的上传 Skill：本地 Agent 从当前可见上下文识别 `0..N` 道题并整理六类材料，老师整批预览确认后，用场景凭证调用上述批量接口。Skill 只负责识别、整理、确认与上传，不读取/管理已上传题目、不生成规则、不发布。
+
+```bash
+python skills/ai-eval-push/scripts/push_eval_cases.py connection
+python skills/ai-eval-push/scripts/push_eval_cases.py validate --batch-file batch.json
+python skills/ai-eval-push/scripts/push_eval_cases.py push --batch-file batch.json
+```
+
+Skill 客户端测试（隔离 HTTP + 秘密/路径泄漏回归）：
+
+```bash
+cd backend && uv run pytest ../skills/ai-eval-push/tests/ -q
+```
+
 ## 合同与自动化验证
 
 后端测试使用每次全新的临时 SQLite，覆盖批量收题原子性/幂等/隔离、评分维度生成与重试、发布与状态机、迁移（旧 head 升级 + fresh DB + downgrade）、OpenAPI 合同，以及一轮对抗审查后的安全/并发加固回归。
@@ -114,5 +132,5 @@ cd backend && uv run python -m scripts.accept_real_ai_rubric
 ## 目录边界
 
 - `backend/`：FastAPI 应用、迁移、脚本、测试。
-- `skills/`：题目上传 Skill（见相应任务）。
+- `skills/ai-eval-push/`：题目上传 Skill（`SKILL.md` + 标准库客户端脚本 + API 合同 reference + 隔离测试）。
 - 前端、Next.js、Playwright、TypeScript DTO 生成均已移除，不再作为运行或验收依赖。

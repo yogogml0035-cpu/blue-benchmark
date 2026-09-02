@@ -115,3 +115,29 @@ def test_credential_label_length_is_enforced() -> None:
             json={"label": "x" * 201},
         )
         assert response.status_code == 422, response.text
+
+
+def test_external_connection_status_reports_scene_without_token() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        helpers.register_admin(client)
+        scene = helpers.create_scene(client, name="连接场景")
+        credential = helpers.issue_credential(client, scene["id"], label="ci")
+        headers = {"Authorization": f"Bearer {credential['token']}"}
+
+        response = client.get("/api/external/connection", headers=headers)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["status"] == "connected"
+        assert body["scene_id"] == scene["id"]
+        assert body["scene_name"] == "连接场景"
+        assert body["label"] == "ci"
+        # The token (and its hash) must never be echoed.
+        assert credential["token"] not in response.text
+        assert "token" not in body
+
+        # An invalid token is rejected.
+        bad = client.get(
+            "/api/external/connection", headers={"Authorization": "Bearer sep_wrong"}
+        )
+        assert bad.status_code == 401

@@ -7,7 +7,7 @@ import json
 import re
 import unicodedata
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -84,7 +84,9 @@ class BadCaseIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     content_text: str = Field(min_length=1, max_length=200_000)
-    teacher_feedback_texts: list[str] = Field(min_length=1, max_length=20)
+    teacher_feedback_texts: list[Annotated[str, Field(min_length=1, max_length=5_000)]] = Field(
+        min_length=1, max_length=20
+    )
     reason_summary: str | None = Field(default=None, max_length=5_000)
 
     @field_validator("content_text", "reason_summary")
