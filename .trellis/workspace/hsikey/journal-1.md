@@ -448,3 +448,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 20: 重建统一题库后端（六类材料+两字段评分）
+<!-- trellis-session: v=2 fp=8eb38e17a396a898 -->
+
+**Date**: 2026-09-03
+**Task**: 重建统一题库后端（六类材料+两字段评分）
+**Branch**: `main`
+
+### Summary
+
+子任务1：以六类材料当前题目模型与 criterion+pass_score 两字段评分替换后端领域合同；实现场景凭证批量收题（事务全成全败、命令幂等、凭证隔离）、评分维度自动生成（Worker 租约/重试、revision CAS、原子提交防覆盖）与破坏式迁移 0018；删除旧建题/共创/Working Set/版本包/人工评分全链；经两轮多智能体对抗审查修复并发、安全与状态机漏洞；52 测试 + 真实 AI 验收通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `75adc14` | feat(backend): 重建统一题库后端并删除旧建题评分链 |
+
+### Status
+
+[OK] **Completed**

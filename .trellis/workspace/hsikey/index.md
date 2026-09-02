@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 19
-- **Last Active**: 2026-09-02
+- **Total Sessions**: 20
+- **Last Active**: 2026-09-03
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~450 | Active |
+| `journal-1.md` | ~472 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 20 | 2026-09-03 | 重建统一题库后端（六类材料+两字段评分） | `75adc14` | `main` |
 | 19 | 2026-09-02 | 前端桌面化重构：全站宽度体系与建题会话双栏 | `f70aed0`, `c98dda2`, `3f58cf0` | `main` |
 | 18 | 2026-09-02 | 完成前端工作台重构与真实 AI 全链路验收 | `2d1db72`, `adebe52` | `main` |
 | 17 | 2026-09-02 | 补充绝对草稿链接并完成 ai-eval-push 本地验收 | `109e134` | `main` |
