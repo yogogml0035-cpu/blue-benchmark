@@ -1,8 +1,8 @@
 {
   "id": "m0-six-material-rubric-backend",
   "name": "m0-six-material-rubric-backend",
-  "title": "M0 六类材料与三字段评分后端",
-  "description": "重构当前题库记录、批量 API 与 AI 输出，支持六类材料、三字段维度和逐项 10 分制及格语义",
+  "title": "M0 六类材料与两字段评分后端",
+  "description": "重构当前题库记录、批量 API 与 AI 输出，支持六类材料、两字段维度和逐项 10 分制及格语义",
   "status": "planning",
   "dev_type": null,
   "scope": null,

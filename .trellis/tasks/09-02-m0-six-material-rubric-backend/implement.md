@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 建立当前题目聚合、六类材料、三字段维度、状态和内部 revision 数据模型。
+- [ ] 建立当前题目聚合、六类材料、两字段维度、状态和内部 revision 数据模型。
 - [ ] 实现原子批量收题、场景凭证隔离、命令幂等与统一题库查询 API。
 - [ ] 新增 Alembic migration，并补 upgrade/fresh DB 验证。
 - [ ] 替换 Rubric schema、AI DTO、Fake/production adapter 与 Prompt。

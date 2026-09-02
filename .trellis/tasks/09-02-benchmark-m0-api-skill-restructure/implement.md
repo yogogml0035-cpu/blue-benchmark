@@ -4,7 +4,7 @@
 
 - [ ] 建立单一当前题目模型，保存 `title`、六类材料、当前评分维度、场景归属和生成/发布状态。
 - [ ] 实现 `0..N` 道题的原子批量收题、场景凭证隔离、`command_id`/`client_case_id` 幂等合同。
-- [ ] 将评分维度替换为 `name + description + pass_score`，固定 10 分并预留逐项必须及格语义。
+- [ ] 将评分维度替换为 `criterion + pass_score`，固定 10 分并预留逐项必须及格语义；校验 criterion 必须可执行而非孤立标签。
 - [ ] 实现上传后自动生成、逐题失败/重试，以及“保存并重新生成”的 revision/CAS 防并发流程。
 - [ ] 更新 AI adapter、Prompt、Fake fixture 与生产结构化输出，只使用六类材料生成维度。
 - [ ] 以破坏式 Alembic migration 删除旧业务表并创建新题库结构；不迁移旧业务数据。
