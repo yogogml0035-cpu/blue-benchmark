@@ -9,7 +9,7 @@
 5. [x] 每轮代码修改后运行 `git diff --check`、预演 Playwright、`pnpm typecheck`；完成后运行 `make test`、`make build`。
 6. [x] 对抗审查：权限/预演越界、Session 重复读取、迟到响应、busy/重复提交、loading/error 私有内容、390px/200% zoom、旧引用和内部标识泄漏；发现问题直接修正并回归。
 7. [x] 启动隔离真实 API/Worker，使用 `/Users/hsikey/BenchMark/EvalData` 跑真实 Provider 浏览器 E2E、`ai-smoke` 和完整链路；本地 HTTP runner 直连 loopback，不把预演或历史报告当作真实证据。
-8. [ ] 在任务分支通过 `trellis-check` 对应的质量门后提交；切换 `main` fast-forward 合并，重新跑完整质量门和真实 E2E，确认旧分支无未合并提交后安全删除。
+8. [x] 在任务分支通过 `trellis-check` 对应的质量门后提交；切换 `main` fast-forward 合并，重新跑完整质量门和真实 E2E，确认旧分支无未合并提交后安全删除。
 
 ## Validation commands
 
