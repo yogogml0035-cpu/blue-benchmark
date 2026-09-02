@@ -424,3 +424,27 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 19: 前端桌面化重构：全站宽度体系与建题会话双栏
+<!-- trellis-session: v=2 fp=7d1060928c20356f -->
+
+**Date**: 2026-09-02
+**Task**: 前端桌面化重构：全站宽度体系与建题会话双栏
+**Branch**: `main`
+
+### Summary
+
+定位竖屏观感根因（760px 居中页 + 300px 右栏塞长表单），重定全局宽度档 480/1040/1280/1440，新增 PageShell 统一 8 处重复壳层，建题会话改 460px 双栏并修复资料行一字一行与 composer 遮挡；修复坏 token --text-1/--t-17；工作台画布 720→1120、场景列表 1280 卡片网格、人工评分 entry 1040；sticky 侧栏加视口内滚动兜底。质量门：typecheck/build/make test/contract-check 全过，Playwright 3 passed（真实 AI 2 例按设计跳过），preview 13 项目检 0 横向溢出。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f70aed0` | feat(frontend): 桌面化宽度体系与 PageShell 壳层 |
+| `c98dda2` | feat(frontend): 建题会话页双栏工作面 |
+| `3f58cf0` | docs(spec): 记录桌面化版面体系与 PageShell 壳层约定 |
+
+### Status
+
+[OK] **Completed**
