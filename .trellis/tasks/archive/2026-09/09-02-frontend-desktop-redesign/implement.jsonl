@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/frontend/components-and-styling.md", "reason": "样式体系与组件约定：globals.css 唯一 token 源、CSS Modules、Sheet 复用、可访问性门禁"}
+{"file": ".trellis/spec/frontend/structure-and-boundaries.md", "reason": "目录与分层约定：page.tsx 薄壳、feature 组件、services 唯一 HTTP 路径"}
+{"file": ".trellis/spec/frontend/quality-and-verification.md", "reason": "质量门禁：typecheck/build/contract-check、preview 不打真实 API、44px 命中区"}
+{"file": ".trellis/spec/frontend/human-scoring.md", "reason": "人工评分页硬布局合同：DOM 顺序、400px 评分栏、390px 不溢出"}
