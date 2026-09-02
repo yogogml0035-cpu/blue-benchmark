@@ -1,29 +1,45 @@
 # Technical Design
 
-## Data model
+## Current-record model
 
-`BenchmarkQuestionDraftRow` 增加 `memory_materials_json`；`BenchmarkQuestionRevisionRow.question_snapshot_json` 包含已确认记忆材料。采用 JSON 列保持与输入文件和坏样本相同的聚合边界，不新建无独立生命周期的表。
+重建一个以“当前题目”为核心的领域模型。每道题保留稳定服务端 ID、辅助 `title`、六类材料、场景归属、当前评分维度、生成状态、发布状态和内部 `content_revision`。`content_revision` 只用于 CAS、防止旧任务覆盖新内容，不形成用户可见版本历史。
 
-记忆材料 DTO：`id`、`source_label`、`content_text`、可选 `summary`。服务端校验唯一 ID、非空 UTF-8、长度、禁止路径/凭证/内部字段。
+建议以题目聚合保存当前内容：题目正文与标准答案使用文本列；参考样例、Bad case/反馈和记忆材料使用受严格 Schema 约束的 JSON 聚合。它们没有跨题独立生命周期，因此不建立共享可变业务记录。
 
-## Rubric replacement
+## Six-material contract
 
-`RubricCriterion` 仅保留稳定 `id`、`name`、`description`、`pass_score`。`MAX_CRITERION_SCORE=10` 是后端常量。`RubricContent` 只持有非空 criteria，不再持有全局 `pass_threshold`。
+- `task_prompt`：老师实际输入的任务要求。
+- `reference_examples[]`：稳定客户端 ID、可选安全来源名称、老师确认的题目相关整理文本。
+- `bad_cases[]`：坏结果正文，以及与该结果绑定的老师反馈原话和确认后的原因整理。
+- `reference_answer`：老师认可的标准答案。
+- `memory_materials[]`：稳定客户端 ID、可选安全来源标签、未经摘要或改写的原始记忆正文。由本地 Agent 从本次任务实际加载的记忆中筛选相关、安全片段，不绑定业务 Skill。
 
-删除所有旧字段验证与兼容读取。已存在的草稿、发布修订和人工评分使用旧 JSON 时不做透明兼容；迁移清空这些开发期表中的旧业务数据，同时保留账号、场景和外部连接。
+不建立独立“原始资料”字段，不保存原文件、绝对路径、聊天全文、系统提示、私有推理、工具轨迹、凭证或其他用户内容。题目合同不保存业务 Skill 身份字段。服务端不尝试重新判断业务相关性，但必须拒绝明显凭证、绝对路径和受限内部字段。
 
-## Scoring
+## Batch authoring and idempotency
 
-评分项保留 `criterion_id`、`score`、可选理由。每项范围 `0..10`。`passed = all(score >= pass_score)`；展示总分为 `round(sum(score) / (len(criteria) * 10) * 100)`。低于本项门槛时要求理由。
+场景凭证决定 `scene_id`，请求只携带批次 `command_id` 与 `cases[]`。每题使用稳定 `client_case_id`。服务端先验证全部题目、权限、配额和内容边界，再在一个业务事务中创建所有当前题目、评分维度生成任务和幂等回执。
 
-## Publication and packages
+相同连接、相同 `command_id`、相同 payload 返回原结果；同命令不同 payload 返回冲突。事务提交后，Worker 逐题处理 AI 任务；单题生成失败只改变该题状态，可幂等重试，不回滚已成功入库的整批题目。
 
-发布快照保存三字段 rubric 与六类材料。`judge.json` 包含标准答案、记忆材料和 rubric；`runtime.json` 不包含标准答案、记忆、坏样本或规则，避免把判断依据泄漏给未来被测 Agent。历史包 hash 和不可变读仍沿用现有机制。
+## Rubric generation
 
-## AI boundary
+每个评分维度只包含稳定内部 ID、`name`、`description`、`pass_score`。固定满分为 10，`pass_score` 必须是 `0..10` 整数。未来评分采用逐项 AND：任一维度低于自身门槛，整题不通过；M0 只保存合同，不实现评分执行。
 
-Rubric Adapter 的输入模型增加记忆材料，输出结构替换为三字段。Prompt 要求维度说明可执行、基于已确认材料、不得使用标准答案字面相似度。所有输出仍经 Pydantic 和公共文本安全校验。
+AI Adapter 只读取当前题目的六类材料，返回严格结构化的 `1..N` 个维度。`description` 必须写明判断对象、合格表现和主要问题，拒绝空泛或不安全文本。场景名称、title 和内部状态不参与生成。
 
-## Migration and rollback
+## Edit, generation, and publication state
 
-新增 Alembic revision 增加草稿记忆列并清理旧 rubric/revision/score/version 相关开发数据，避免旧 JSON 与新代码混读。回滚恢复列和旧表数据结构，但被清理的开发数据不承诺恢复；实施前不触碰生产数据。
+新题创建后进入 `generating`；成功后为 `pending_review`，失败为 `generation_failed`。管理员可以增删改维度并发布。
+
+材料修改只有“保存并重新生成”：事务内覆盖当前材料、递增 `content_revision`、使旧维度失效并创建新任务。Worker 最终写入必须校验题目 revision 与任务所有权，旧任务不得覆盖新材料。修改已发布题目后直接回到待处理；不保留历史版本、旧发布内容、发布快照或派生草稿。
+
+## Destructive migration
+
+新增破坏式 Alembic migration，删除旧手动建题、文件 ingestion、task package/co-creation、Working Set/coverage/version package、submission/human scoring 专属表与合同，并创建新题库结构。不迁移旧业务数据，不双写，不兼容旧 JSON 或旧 API。
+
+迁移必须同时验证旧 head 升级和 fresh DB 建库。downgrade 只要求恢复 schema 可执行性，不承诺恢复已删除业务数据。
+
+## Verification
+
+覆盖六类材料校验、场景权限、批量原子性、幂等冲突、生成失败/重试、revision 竞态、泄漏拒绝、三字段结构、逐项及格语义、直接覆盖发布内容、旧路由消失、旧 head 升级和 fresh DB。

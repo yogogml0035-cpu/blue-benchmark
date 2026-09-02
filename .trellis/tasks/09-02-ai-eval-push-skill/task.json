@@ -2,7 +2,7 @@
   "id": "ai-eval-push-skill",
   "name": "ai-eval-push-skill",
   "title": "构建场景绑定的评测用例上传 Skill",
-  "description": "在仓库 skills 目录实现读取私密场景凭证、整理六类材料、确认预览并调用真实接口上传草稿的 Skill",
+  "description": "在仓库 skills 目录实现读取私密场景凭证、整理六类材料、确认整批预览并调用真实接口上传待处理题目的 Skill",
   "status": "planning",
   "dev_type": null,
   "scope": null,
