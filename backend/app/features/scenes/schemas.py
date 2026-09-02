@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# Shared bound for the credential label, enforced by the service so both the
+# HTTP route and the admin CLI apply the same limit.
+CREDENTIAL_LABEL_MAX_LENGTH = 200
 
 
 class SceneCreateRequest(BaseModel):
@@ -12,6 +16,21 @@ class SceneCreateRequest(BaseModel):
 
     name: str = Field(min_length=1, max_length=100)
     description: str | None = Field(default=None, max_length=1_000)
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("场景名称不能为空白。")
+        return stripped
+
+    @field_validator("description")
+    @classmethod
+    def _description_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
 
 
 class SceneView(BaseModel):
@@ -30,7 +49,7 @@ class SceneListResponse(BaseModel):
 class SceneCredentialIssueRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    label: str | None = Field(default=None, max_length=200)
+    label: str | None = Field(default=None, max_length=CREDENTIAL_LABEL_MAX_LENGTH)
 
 
 class SceneCredentialIssuedView(BaseModel):

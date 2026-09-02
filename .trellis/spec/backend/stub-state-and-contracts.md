@@ -2,328 +2,87 @@
 
 ## 先确认当前实现边界
 
-当前后端使用 SQLAlchemy 业务数据库和 Alembic 迁移；旧 `/cases` 仍保留兼容 Stub 闭环，M0 完整任务包已经有受限 Deep Agents port、显式 Fake 适配器、共创业务投影、评测集版本包和加密 PostgreSQL Checkpointer 工厂。默认 CI 不调用真实 provider；常驻 Worker 默认使用显式 Provider 配置的真实 adapter，真实 provider smoke 仍由独立 Spike/部署配置验证。规范以源码、测试和迁移为准；规划文档中尚未落地的能力不能当作当前事实。
+当前后端是统一的评测题库：业务数据库（SQLAlchemy + Alembic）保存题目六类材料、两字段评分维度、场景与凭证、批量收题回执和评分生成任务；单消费者 Worker 负责评分维度生成。没有前端、没有文件上传解析、没有 Checkpointer。规范以源码、测试和迁移为准；规划文档中尚未落地的能力不能当作当前事实。
 
 | 已实现事实 | 尚未实现、需另立任务的计划 |
 |---|---|
-| `auth`、`workspaces`、`case_builder`、`evaluation_sets` Repository 使用业务数据库表 | 生产认证体系和多租户权限 |
-| Session Cookie 只把 SHA-256 token hash 存入数据库 | 更完整的 Session 过期、撤销和轮换策略 |
-| 旧 `/cases` 入口保留 TXT/Markdown Stub 闭环 | 旧入口向完整任务包迁移 |
-| `/upload-batches` 接受多文件和 ZIP，原文件以服务端存储键保存 | 生产对象存储、OCR 和更多媒体解析 |
-| `_run_stub_generation` 和内容标记驱动固定分支仍服务旧 `/cases`；M0 自动化测试/显式 Fake Worker 使用 Fake adapter，常驻 Worker 默认走显式 Provider 配置的真实 adapter | 目标模型的真实 tool-calling 能力仍需按部署端点单独 smoke 验收 |
-| 确认后生成数据库中的 `candidate_case` JSON 快照；M0 另有 TaskPackage、WorkingSetDraft 和不可变 EvaluationSetVersion | M2 评测执行和报告 |
-| `OperationJob` 负责持久化排队、租约、重试和幂等，Fake Worker 可执行 M0 batch/co-creation 操作 | M2 评测执行和报告 |
+| `auth`、`scenes`、`question_library` 使用业务数据库表 | 新前端、评测执行与自动评分 |
+| 单管理员（`admin_slot` 唯一约束原子生效），业务老师不建账号 | 多管理员、细粒度角色 |
+| 场景凭证只存 SHA-256 hash，签发/轮换只回显一次明文 | 凭证过期时间、作用域细分 |
+| 批量收题整批全成全败 + `command_id + payload_hash` 幂等 | 跨场景移动/复制题目 |
+| 评分维度只有 `criterion + pass_score`，固定 10 分逐项及格 | 实际评分执行与提交 |
+| `OperationJob` 负责生成任务排队、租约、重试与幂等 | 其他异步任务类型 |
 
-数据库重启或 Python 进程重启不会清空业务记录；只有测试中的清理 fixture 会显式清空测试数据库。默认真实样本 runner 使用临时 SQLite/存储，避免污染开发数据。不要把业务数据库记录与 Checkpointer 执行状态混为同一事实源。
+数据库重启不会清空业务记录；只有测试中的清理逻辑会清空测试数据库。不要把业务数据库记录与 Worker 的瞬态租约/租期当作同一事实源。
 
 ## 业务数据所有权
 
 每个 Repository 只拥有自己的 Record 到数据库行的映射和读写函数：
 
 - `auth/repository.py`：`UserRecord`、`users`、`sessions` 表；
-- `workspaces/repository.py`：`WorkspaceRecord`、`workspaces` 表；
-- `case_builder/repository.py`：`CaseRecord`、`cases` 表；
-- `case_builder/ingestion_repository.py`：`UploadBatchRecord`、`EvidenceFileRecord`、文件用途确认表。
+- `scenes/repository.py`：`SceneRecord`、`SceneCredentialRecord`、`scenes`、`scene_credentials` 表；
+- `question_library/repository.py`：`QuestionRecord`、`CommandReceipt`、`eval_questions`、`batch_upload_commands` 表。
 
-Record 是内部可变状态，Pydantic Schema 是外部合同。Service 必须显式投影，例如 `workspaces/service.py::to_workspace` 和 `case_builder/service.py::_detail`；不要直接序列化 Record 的全部字段。
+Record 是内部状态（`@dataclass(frozen=True)`），Pydantic Schema 是外部合同。Service 必须显式投影，例如 `question_library/service.py::_detail_response`；不要直接序列化 Record 的全部字段。
 
-测试通过各 Repository 的 `reset()` 清空业务测试数据库；`backend/tests/conftest.py` 为每个 pytest 进程提供独立 SQLite 文件，避免并行测试互相清空数据。新增 Repository 时必须纳入 `clear_business_data()` 的依赖逆序清理。
+测试通过 `clear_business_data()` 清空业务测试数据库；`backend/tests/conftest.py` 为每个 pytest 进程提供独立 SQLite 文件。新增表时必须纳入 `clear_business_data()` 的依赖逆序清理与 `check_schema_ready()` 的合同。
 
-## Case Builder 状态机
+## 题目状态机
 
-对外状态唯一来源是 `case_builder/schemas.py::CaseState`。状态转换由 `case_builder/service.py` 集中执行：
+对外状态唯一来源是 `question_library/schemas.py::QuestionStatus`。状态转换由 `question_library/service.py` 与 `rubric_generation.py` 集中执行：
 
 ```text
-上传 -> ready_for_ai | parse_failed
-ready_for_ai -> generating -> waiting_for_input | waiting_for_confirmation | ai_failed
-waiting_for_input -> generating -> waiting_for_confirmation
-ai_failed -> generating -> waiting_for_confirmation
-waiting_for_confirmation -> confirmed
+批量收题 -> generating
+generating -> pending_review | generation_failed
+generation_failed -> generating（retry）
+pending_review -> published（publish）
+任意状态 -> generating（save-and-regenerate，published 回到待处理）
 ```
 
 保持以下已实现合同：
 
-- 空白或无法 UTF-8 解码的内容进入 `parse_failed`，不得进入 Stub 生成。
-- `[stub:ai_failed]` 第一次生成进入可重试的 `ai_failed`；再次生成进入待确认。
-- `[stub:waiting_for_confirmation]` 与 `[stub:success]` 直接进入待确认；普通输入先进入一次提问。
-- `generating` 的重复生成只返回当前快照；不允许状态组合返回 `409 AppError`。
-- 同一问题的相同答案重试返回当前快照，不同答案返回 `QUESTION_ALREADY_ANSWERED`。
-- 确认必须校验当前 `draft_revision`、完整性和证据 `source_id`；相同确认重试返回同一候选快照。
-- `confirmed` 只表示候选案例已确认，不表示已加入评测集或触发评测。
+- 批量收题成功后每题立即排队生成；生成失败保留题目并支持重试，不回滚同批其他题。
+- “保存并重新生成”是唯一材料编辑动作：覆盖材料、`content_revision` 递增、旧维度立即失效并重新排队；已发布题目被编辑后回到待处理，不保留历史版本。
+- 仅改 `title` 不触碰六类材料，也不触发重新生成。
+- `generating` 中的题目禁止改维度、发布、删除。
+- 发布要求存在非空评分维度。
 
-新增状态时要同时检查 Schema、Service 冲突映射、API 测试、OpenAPI、对应前端 Feature 的状态映射和预演 fixtures，不能只改枚举。
+新增状态时要同时检查 Schema、Service、`next_action` 映射、API 测试和 OpenAPI，不能只改枚举。
+
+## 评分维度合同
+
+每个维度只有 `criterion` 与 `pass_score`（0..10 整数），固定满分 10 分，逐项必须及格，任意一项不及格整题不通过（`rubric_rules.evaluate_question_pass`）。`criterion` 必须写明判断对象、合格表现和主要问题；孤立标签（“准确性”“创新性”等，含标点/括号包裹与列表组合）与过短文本被拒绝。管理员增删改维度与 AI 生成共用同一可执行性/隐私校验。
+
+## 批量收题与幂等
+
+`POST /api/external/question-batches` 由场景凭证（Bearer）鉴权，场景归属只来自凭证，payload 不接受 `scene_id`。整批在一个事务内创建题目、生成任务与回执：
+
+- 相同 `command_id + 相同 payload`：返回原结果（幂等重放）。
+- 相同 `command_id + 不同 payload`：`409 COMMAND_ID_REUSED`。
+- 任一题校验或写入失败：整批回滚，无半批数据。
+- 服务端对题目、材料、标题与 `client_case_id` 做隐私兜底（凭证、主机路径、系统控制内容），绕过手段（零宽字符、全角同形、Unicode 归一化）必须先归一化再扫描。
 
 ## 认证与归属顺序
 
-业务 Router 用 `Depends(auth_service.require_current_user)` 先解析当前用户。访问 Case 时，Service 先调用 `workspace_service.assert_owner`，再检查 Case 是否属于 URL 中的 Workspace。保持 `401`（未登录）、`403`（已登录但越权）、`404`（授权范围内不存在）的语义，不要为了“防枚举”私自合并现有合同。
+- 管理员路由用 `Depends(auth_service.require_current_user)` 解析会话；单管理员由数据库唯一约束原子保证。
+- 外部收题用 `scenes.service.require_scene_principal` 解析凭证，返回 `ScenePrincipal(scene_id, credential_id)`；凭证只能“查询连接状态 + 批量上传”，不能读取/修改/删除/发布题目。
+- 保持 `401`（未登录/凭证无效）、`403`（越权）、`404`（授权范围内不存在）、`409`（状态/版本/幂等冲突）的语义。
 
-密码只以 PBKDF2 哈希存入内部 Record，响应模型永不包含密码或哈希。Session Cookie 由 `auth/service.py::_set_session` 统一设置为 `HttpOnly`、`SameSite=Lax`，`Secure` 取自 Settings。
+密码只以 PBKDF2 哈希存入内部 Record；Session Cookie 为 `HttpOnly`、`SameSite=Strict`、`Secure` 默认开启；场景凭证只存 hash，明文只在签发/轮换时返回一次。
 
-## 上传边界
+## Worker 与评分维度生成
 
-旧 `case_builder/service.py::create_case` 继续只接受 TXT/Markdown 并保存兼容 Stub 案例；M0 完整资料入口是 `case_builder/ingestion_service.py::create_upload_batch`，由 `/api/workspaces/{workspace_id}/upload-batches` 提供。入口支持 `.md/.txt/.json/.jsonl/.zip`、多文件、ZIP 展开、服务端生成存储键、SHA-256、media type、解析状态和 canonical view 元数据。
+`app/lib/operations` 的 `OperationJob` 负责生成任务排队、租约、重试与幂等：
 
-安全解包必须先校验每个 ZIP 条目的 POSIX/Windows 路径，再跳过安全目录；拒绝绝对路径、`..`、空路径段、重复名称、符号链接、特殊文件、损坏压缩包、嵌套层级、文件数、单文件大小、展开总量和异常压缩比。原文件先写入 `staging/<batch>/<file>`，发布到 `evidence/<batch>/<file>` 时同时写 ready marker；数据库写入失败必须清理已发布和 staged 对象。
+- 任务由 `target_type + target_id + business_revision + command_id` 唯一幂等；claim 创建对应 `AgentRunAttempt`。
+- Worker 通过 `worker_process_lock` 保证同一业务库单消费者；心跳续租容忍瞬时失败，持续失败才放弃。
+- 评分维度提交必须原子：`rubric_generation.commit_generation_result` 在同一事务内校验“任务仍归当前 Worker 且业务版本一致”与“题目仍指向该任务且 `content_revision` 一致”，同时写入维度与任务终态，防止旧任务/重复执行覆盖新材料或管理员编辑。
+- 材料被编辑后旧任务在提交时被 fencing 判为 `superseded`，不得覆盖新版本。
+- lease 过期导致的终态失败必须把题目投影为 `generation_failed`，不能留下永久 `generating`。
 
-上传成功只创建 `UploadBatch`、`EvidenceFile`、默认未确认的 `FileDisposition` 和 `batch_analysis` `OperationJob`，返回 `202` 及 `UploadBatchResponse`。`GET /upload-batches/{batch_id}` 和 `GET /upload-batches/studio` 只读取业务投影，不创建任务、不续租、不推进状态。重复 `command_id` 在同一 workspace 返回原批次，不读取或覆盖第二份资料。
+## 不要这样做
 
-文件一旦被已确认 `TaskPackage` 引用，role/visibility 不能再原地修改，返回 `409 FILE_DISPOSITION_LOCKED`；需要更换资料边界时重新上传批次，避免 TaskPackage revision 与版本可见性静默分离。
-
-HTTP 只返回服务端生成的业务 ID、哈希和文件摘要，不返回宿主绝对路径、存储键、解析正文、凭证、token、thread 或 Checkpoint 字段。不要把前端的扩展名检查当作安全边界。
-
-## Scenario: M0 任务分组与 Deep Agent 共创
-
-### 1. Scope / Trigger
-
-- Trigger: 多文件任务包需要经过老师确认的分组、场景标准、单题判定依据和可恢复的多轮共创。
-- 业务事实保存在 `case_builder` 业务表；`app/lib/ai_runtime` 只提供受限 Agent adapter，不能成为确认或权限事实源。
-
-### 2. Signatures
-
-- `GET /api/workspaces/{workspace_id}/upload-batches/{batch_id}/task-packages`：读取候选分组。
-- `GET /api/workspaces/{workspace_id}/task-packages`：读取当前 workspace（场景）内全部已确认题，供下一版本题池跨上传批次组集。
-- `POST /api/workspaces/{workspace_id}/upload-batches/{batch_id}/task-groups/confirmation`：JSON `command_id`、`batch_revision`、`groups[]`，确认后创建 `TaskPackage`。
-- `POST /api/workspaces/{workspace_id}/task-packages/{task_package_id}/co-creation`：JSON `command_id`、`kind`、`task_package_revision`，返回 `202`。
-- `POST /api/workspaces/{workspace_id}/co-creation/{session_id}/answers`：JSON `command_id`、`question_id`、`answer`、`business_revision`，返回 `202`。
-- `POST /api/workspaces/{workspace_id}/co-creation/{session_id}/contract-confirmation` / `judgment-confirmation`：老师显式确认。
-- `POST /api/workspaces/{workspace_id}/task-packages/{task_package_id}/feedback` 与 `/standard-promotions/{proposal_id}/decision`：批注默认仅作为本题形成记录；只有老师明确批准提案，才创建新的已确认场景合同，并传播到已确认任务触发复核。
-- `task_packages` 保存分组、attempt、合同引用、题稿和判定依据；`co_creation_sessions` 保存 `stable_thread_key`、`accepted_checkpoint_id`、业务 revision、Profile/Graph 版本和投影；`scenario_contract_revisions` 保存不可静默覆盖的合同修订。
-
-### 3. Contracts
-
-- 三个命名 Agent：`batch_analyzer` 只读当前批次，`standard_cocreator` 使用一个 stable thread，`coverage_reviewer` 只接收结构化快照；不启用 subagent、Store/Memory 或写文件工具。
-- 生产 Profile 固定 `ToolStrategy`、非流式、模型/工具调用上限和 `m0-deep-agents-0.7.11-tool-strategy-v2`；`FilesystemMiddleware` 必须允许 `/evidence` 目录列举和当前 `/evidence/<file>`，其他 read deny、所有 write deny。模型产生的虚拟路径只可规范化为当前 scope 中的裸 file ID，未知 ID、文件名和 storage key 仍拒绝。Profile 变化时旧 session 必须做兼容性检查，不能静默切换图。
-- `AgentRunContext` 每次 start/resume 都重新传入身份、workspace、target、business revision、evidence scope 和 Profile/Graph 版本；这些值不能写入 Checkpoint state。
-- HTTP 的 `CoCreationSessionView` 只返回业务问题、答案、delta、合同/判定投影和 `next_action`，不返回 `stable_thread_key`、`accepted_checkpoint_id`、interrupt envelope、raw message 或 private reasoning。
-- `ReadOnlyEvidenceBackend.read` 的 `offset` 为 0-based，`ReadResult.start_line/end_line` 为 1-based；Backend/解析器仍必须支持分页到 EOF并校验尾部事实，但真实 Agent 首轮使用确定性、受限的 head/tail evidence capsule，不能把数百 KB 原文一次送入模型；需要精确定位时才窄范围读取。模型 EvidenceRef 由 Adapter/Service 回查 canonical view。
-- EvidenceBackend 和 EvidenceRef 回查都校验 ready marker、文件大小和 SHA-256；line quote 必须出现在 canonical line range，JSON pointer/event locator 必须存在于真实内容。TaskPackage HTTP DTO 只投影 attempt 的安全字段，不投影任意 metadata。
-- Agent 虚拟 scope 提供只含文件 ID、名称、行数和 hash 的 `/evidence/manifest.json`；Checkpoint 缺失/不兼容时业务快照返回 `next_action=continuity_reset`，不能伪装成普通重试。
-- CI 和本地验收默认使用 Fake adapter；常驻 Worker 由 `AI_RUNTIME_MODE=production`（默认）和显式 `AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY`、可选 `AI_BASE_URL` 构造真实 ChatOpenAI/ChatAnthropic。生产 Checkpointer 由显式 `setup_checkpointer`/同步 `open_postgres_checkpointer`（异步调用方仍可用 `open_async_postgres_checkpointer`）使用独立 `CHECKPOINT_DATABASE_URL` 和 `LANGGRAPH_AES_KEY`（或等价显式键）配置，不能在 HTTP 请求中 setup。Worker 只做 schema readiness 检查，配置、连接或 schema 错误必须在 claim 前 fail-closed；`make checkpoint-setup` 只负责 Checkpointer schema setup，不代表 Provider smoke 已通过。
-
-### 4. Validation & Error Matrix
-
-- 未确认文件用途/visibility -> `409 FILE_ROLES_NOT_CONFIRMED`；未确认任务分组 -> `409 TASK_NOT_CONFIRMED`；未确认场景标准就启动单题共创 -> `409 CONTRACT_NOT_CONFIRMED`。
-- unknown、重复或跨批次文件 -> `422 INVALID_TASK_GROUPING`；超出当前 canonical line range、JSON pointer 或 evidence scope -> Agent attempt fail-closed。
-- 陈旧 batch/task/session/question/revision -> `409`；相同 command 和相同 payload 返回原投影，不同 payload 或跨 operation kind 复用 -> `409 COMMAND_ID_REUSED` 或对应状态冲突。Operation lease reclaim 后，旧 attempt 不能提交批次分析结果。
-- batch analyzer 的 group 引用必须同时满足“属于本批次”和“属于该 group 的文件”，不能把跨 group 引用自动加入当前 group；终态/已分组批次不接受迟到分析结果。
-- Agent 产生零/多问题、非 `ask_teacher`、非 `respond`、`invalid_tool_calls`、越权工具或缺少结构化结果 -> attempt 失败，不能部分确认业务事实。
-- Checkpoint 缺失/不兼容 -> fail-closed 并记录 continuity reset；produced Checkpoint 已存在但业务提交失败 -> `projection_pending`，只能无模型重投影。
-- 老师回答命令的全局唯一键被其他 session 占用 -> `409 COMMAND_ID_REUSED`，不得误报为 `QUESTION_NOT_PENDING`；测试 runner 每次运行必须生成 nonce。
-
-### 5. Good/Base/Bad Cases
-
-- Good: 310 行 JSONL 的尾部反馈通过显式分页被引用，老师确认分组后同一 stable thread 一问一答，刷新/重启仍从 accepted pointer 继续。
-- Base: 一批包含 Brief、运行记录和多个 Skill 结果；Agent 建议一组任务和多个 attempts，老师确认角色、visibility、合并或拆分后才创建正式 `TaskPackage`。
-- Bad: 模型返回宿主绝对路径、读取其他任务文件、把参考答案放进 runtime、同时提出两个问题、或 Checkpoint latest 覆盖业务 accepted pointer；全部拒绝或隔离为失败。
-
-### 6. Tests Required
-
-- API：分组前用途阻塞、分组确认/合并/拆分、同命令幂等、不同 payload 冲突、跨用户 `403`、合同确认前禁止单题共创、合同升级后旧判定依据失效。
-- Runtime：read-only scope、写/改/删拒绝、100 行截断后的 EOF、line/JSON/event locator 回查、工具面和 HITL envelope fail-closed。
-- Recovery：稳定 thread 多轮、stale revision、并发 resume 单胜者、Checkpoint ahead/business behind 的 `projection_pending` 重投影、缺失 Checkpoint continuity reset、删除 Checkpoint 后业务投影仍可读。
-- 迁移/合同：Alembic `0003 -> head`、schema readiness、`make openapi` 后 `frontend/src/lib/api/generated.ts` 与后端一致。
-
-### 7. Wrong vs Correct
-
-#### Wrong
-
-```python
-latest = checkpointer.get_latest(thread_key)
-session.accepted_checkpoint_id = latest.id
-```
-
-#### Correct
-
-```python
-checkpoint_id = session.accepted_checkpoint_id
-result = cocreator.resume(context, kind, checkpoint_id, saved_answer)
-repository.commit_agent_result(expected_checkpoint_id=checkpoint_id, result=result)
-```
-
-只有业务事务 CAS 成功后，produced Checkpoint 才成为新的 accepted pointer。
-
-## Scenario: 生产 AI Worker 与 Provider 接线
-
-### 1. Scope / Trigger
-
-- Trigger: 常驻 `make worker` 必须执行真实 AI，并能按环境切换 OpenAI 兼容协议或 Anthropic 协议；不能沿用模块级 Fake 或异步 Checkpointer 接到同步 Graph。
-
-### 2. Signatures
-
-- `build_runtime_model(settings) -> (BaseChatModel, RuntimeModelIdentity)`：唯一模型构造入口。
-- `production_worker() -> Iterator[OperationWorker]`：持有同步 Checkpointer 连接直到 Worker 退出。
-- `open_postgres_checkpointer(database_url, encryption_key, require_schema=True)`：返回加密 `PostgresSaver` context。
-- `AI_PROVIDER= openai | anthropic`、`AI_MODEL`、`AI_API_KEY`、可选 `AI_BASE_URL`、`AI_RUNTIME_MODE=production | fake`。
-
-### 3. Contracts
-
-- `openai` 使用 `ChatOpenAI`、显式 Chat Completions（`use_responses_api=False`）和官方/自定义 `base_url`；`anthropic` 使用 `ChatAnthropic` 和官方/自定义 Messages API URL。
-- `AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY` 缺失或不受支持，Base URL 含非 HTTP(S)/userinfo/query/fragment，或 API key 仍是示例占位符 -> production Worker 在 claim 前退出。
-- `AI_REQUEST_TIMEOUT_SECONDS` 必须为有限正数（当前默认 180 秒）；请求 timeout 只限制单次模型请求，OperationWorker 使用已有 `renew()` 心跳保持长任务 lease，最终 complete/fail 仍做 ownership check。
-- `AI_MAX_COCREATION_QUESTIONS` 必须为正整数（当前默认 12）；预算内每轮最多一个 `ask_teacher` interrupt，预算到达后使用同一 adapter 的完成式结构化 envelope，再执行严格 `CoCreationAgentResult` 校验，老师仍需确认。
-- Checkpointer 使用独立 PostgreSQL 数据库、16/24/32 字节 `LANGGRAPH_AES_KEY`；Worker 只检查表和最新迁移，不自动 `setup()`。加密 `JsonPlusSerializer` 必须显式 allowlist 应用 Pydantic 类型（至少 `CoCreationAgentResult`），并在 `LANGGRAPH_STRICT_MSGPACK=true` 下读回验证。
-- Provider、模型或端点变化必须改变 `AIProfile.version` 指纹；不包含 API key。
-
-### 4. Validation & Error Matrix
-
-- `AI_RUNTIME_MODE=fake` 或 `--fake` -> 仅显式本地/测试 Fake；默认/`production` -> 必须真实模型和 Checkpointer。
-- Checkpointer URL 非 PostgreSQL、与业务库同 host/port/database、连接失败、表缺失或 migration version 落后 -> `CheckpointError`，不领取 OperationJob。
-- Provider SDK 缺失 -> `ModelConfigurationError`；模型响应 `invalid_tool_calls`、ToolStrategy 无结构化结果仍由 Adapter fail-closed，不回退自由文本。
-
-### 5. Good/Base/Bad Cases
-
-- Good: 设置 `AI_PROVIDER=openai` + 兼容端点，`make ai-smoke` 返回 `AI_PROVIDER_SMOKE=PASS`，Worker 在同一 PostgresSaver context 中处理任务。
-- Base: 仅运行 API 或缺少 `.env` 真实模型配置，API 可启动但 Worker 明确提示配置错误；业务任务不被 claim。
-- Bad: 通过 `OPENAI_BASE_URL` ambient env、旧 `AI_MODEL_SPEC`、Fake 默认对象或 Checkpointer latest 偷换运行时；必须拒绝或保持旧 accepted pointer。
-
-### 6. Tests Required
-
-- 模型工厂：两 Provider、官方/自定义 URL、空/非法/占位 Key、ambient URL 隔离、指纹变化；断言客户端类型、模型、`streaming=False`、无 `temperature`。
-- Worker/Checkpointer：模型 -> DB -> adapters -> claim 顺序；加密 saver、`row_factory=dict_row`、迁移版本 readiness、连接关闭、错库拒绝；断言失败时 `claim_next` 未调用。
-- CLI/smoke：FAIL 输出只含 Provider/模型/错误类型；不含 API key、URL 密码、模型正文或 private reasoning。
-- 真实 E2E：显式样本目录、真实 Provider + PostgreSQL + Checkpointer + 单 Worker；断言 request timeout、lease renewal、HITL mapping、completion fallback、任务/版本/下载包和 runtime 隔离。
-
-### 7. Wrong vs Correct
-
-#### Wrong
-
-```python
-worker = default_worker()  # module-level Fake adapters
-worker.run_forever()
-```
-
-#### Correct
-
-```python
-with production_worker() as worker:  # validates model + opens PostgresSaver first
-    worker.run_forever()
-```
-
-#### HITL 与完成式 fallback
-
-```python
-# 工具层字段与业务投影字段不同，必须显式映射。
-question = CoCreationQuestion.model_validate({
-    "id": args["question_id"],
-    "text": args["question"],
-    "reason": args["reason"],
-    "gap_type": args["gap_type"],
-    "evidence_refs": args.get("evidence_refs", []),
-})
-
-# LangChain HumanInTheLoopMiddleware 的 respond 决策使用 message。
-Command(resume={"decisions": [{"type": "respond", "message": answer}]})
-```
-
-达到提问预算后，按当前共创 kind 只请求一个 completion wire schema（合同或判定依据），再由应用归一化并严格校验业务 Schema。fallback 只允许 source-only refs；未知 source、非法 locator 或不完整结构仍失败；不能把 fallback 写成已确认标准。
-
-## Scenario: 共创合同继承与 Worker 单消费者
-
-### 1. Scope / Trigger
-
-- Trigger: 场景标准确认后进入题级判定依据共创，或本地出现 Fake/Production Worker 混合消费同一业务队列。
-
-### 2. Signatures
-
-- StandardCoCreator.start/resume/reproject(..., shared_contract: dict[str, Any] | None = None)：题级共创必须接收已确认场景合同。
-- cocreation_service._shared_contract_for_session(session, package)：校验合同状态与 session/TaskPackage 版本，并返回经过 Pydantic 校验的合同快照。
-- worker_process_lock(database_engine: Engine | None = None)：长驻 Worker 的数据库级进程互斥；OperationWorker.run_once() 仍是测试和显式一次性调用的低层原语。
-
-### 3. Contracts
-
-- task_judgment 的 start、resume、reproject 都使用当前 TaskPackage.contract_revision_id 对应的 confirmed 合同；合同 ID 不一致时旧操作只能 supersede，不得调用模型或覆盖新分支。
-- DeepAgent 的题级 prompt 明确“场景标准已确认，本轮只补充本题判定依据”；合同作为受限业务数据传入，不进入 HTTP DTO、版本 runtime 分区或日志。
-- PostgreSQL 使用业务数据库连接上的 session-level advisory lock；SQLite 开发环境使用同库文件的 fcntl 锁。run_forever() 和 Worker CLI --once 必须在 claim 前取得锁。
-- 同一业务数据库只允许一个长驻 Worker，不区分 Fake 或 Production；AI_RUNTIME_MODE=fake 只能用于自动化测试和显式本地运行，不能与生产 Worker 并存。
-
-### 4. Validation & Error Matrix
-
-- 合同缺失或未确认 -> 共创操作失败，不调用 DeepAgent。
-- session 合同 ID 与当前 TaskPackage 不一致 -> SupersededOperation，OperationJob 标记 superseded，accepted Checkpoint 不变。
-- 第二个长驻 Worker 无法取得锁 -> WorkerAlreadyRunning，不调用 claim_next。
-- 合同/教师回答中的文本不能绕过现有 EvidenceBackend allowlist、canonical locator 校验或 runtime/judge/provenance 分区边界。
-
-### 5. Good/Base/Bad Cases
-
-- Good: 合同确认后题级首问针对本题特有判定依据，题级完成结果继承合同硬门禁，重复 start/answer 仍幂等。
-- Base: Worker 崩溃后依靠 OperationJob lease reclaim 恢复；锁随数据库连接/进程退出释放，不改变 accepted pointer。
-- Bad: 题级重新询问共享任务边界、Fake Worker 抢到生产操作、旧合同迟到结果覆盖新合同、或把 shared contract 写入公开响应；全部拒绝或隔离。
-
-### 6. Tests Required
-
-- 共创 API：场景合同确认 -> 题级 start，断言题级问题不是场景 scope 问题，题级 hard gates 与合同一致。
-- Adapter：无合同的题级 start/resume/reproject 失败；真实 Graph system prompt 包含 confirmed contract，而场景阶段不包含。
-- Worker：SQLite 和 PostgreSQL 锁的第二持有者失败；run_forever 在 claim_next 前失败；既有 handler 异常/lease/complete 语义不回退。
-- Recovery/security：旧合同、重复 command、Checkpoint reproject、跨 workspace 证据、版本三分区和公开 DTO 无新增泄漏。
-
-### 7. Wrong vs Correct
-
-#### Wrong
-
-    # 只把同一批文件交给新的题级 session，要求模型重新猜共享标准。
-    adapter.start(context, CoCreationKind.task_judgment)
-
-#### Correct
-
-    contract = _shared_contract_for_session(session, package)
-    adapter.start(context, CoCreationKind.task_judgment, contract)
-
-## Scenario: M0 业务持久化与安全上传
-
-### 1. Scope / Trigger
-
-- Trigger: auth、workspace、case 状态改为数据库权威，并新增多文件/ZIP 资料批次和后台操作合同。
-
-### 2. Signatures
-
-- `POST /api/workspaces/{workspace_id}/upload-batches`：multipart `title`、可选 `task_description`、`files[]`、可选 `command_id`；返回 `202 UploadBatchResponse`。
-- `GET /api/workspaces/{workspace_id}/upload-batches/{batch_id}`：返回当前 `UploadBatchResponse`。
-- `GET /api/workspaces/{workspace_id}/upload-batches/studio?batch_id=...`：返回 `StudioProjection`。
-- `POST /api/workspaces/{workspace_id}/upload-batches/{batch_id}/retry`：JSON `command_id`、`batch_revision`；返回 `202 UploadBatchResponse`。
-- 业务数据库表至少包括 `users`、`sessions`、`workspaces`、`cases`、`upload_batches`、`evidence_files`、`file_dispositions`、`operation_jobs`、`agent_run_attempts`。
-
-### 3. Contracts
-
-- 环境键：`DATABASE_URL`、`CHECKPOINT_DATABASE_URL`、`LANGGRAPH_AES_KEY`（或 `CHECKPOINT_ENCRYPTION_KEY`）、`STORAGE_ROOT`、`UPLOAD_MAX_BYTES`、`UPLOAD_MAX_FILES`、`UPLOAD_MAX_TOTAL_BYTES`、`ARCHIVE_MAX_MEMBERS`、`ARCHIVE_MAX_UNCOMPRESSED_BYTES`、`ARCHIVE_MAX_DEPTH`、`ARCHIVE_MAX_RATIO`；Settings 从仓库根 `.env` 读取，`STORAGE_ROOT` 相对值也以仓库根为基准。
-- `StudioProjection.next_action` 是带 `kind` 的联合模型；前端只消费业务阶段，不推导 Worker/Agent 状态。
-- `OperationJob` 由 `target_type + target_id + business_revision + command_id` 唯一幂等；claim 创建对应 `AgentRunAttempt`，结果投影需通过 revision/accepted pointer CAS。
-
-### 4. Validation & Error Matrix
-
-- 未登录/越权 -> `401/403`；授权范围内不存在 -> `404`。
-- 未支持扩展名 -> `415 UNSUPPORTED_FILE_TYPE`。
-- 文件、总上传、ZIP 展开或条目数量超限 -> `413` 对应限制错误。
-- 路径穿越、特殊文件、损坏或过深 ZIP -> `422` 安全错误。
-- 陈旧批次 revision、无可重试操作或错误状态 -> `409`。
-- 业务 schema 未迁移到 Alembic head -> startup/schema check fail closed，不自动建生产表。
-
-### 5. Good/Base/Bad Cases
-
-- Good: 多份可读取资料返回 `202`，文件摘要带 hash/解析状态，Worker 完成后投影变为 `confirm_file_roles`。
-- Base: ZIP 内含可读 Markdown 和不支持扩展名；两者都保存，后者标为 `unsupported` 并进入阻塞提示。
-- Bad: `../x.md`、绝对路径、symlink、损坏 ZIP、重复命令覆盖旧批次或把参考资料放进 runtime 响应。
-
-### 6. Tests Required
-
-- API：上传 `202`、跨用户 `403`、纯读轮询、重复 `command_id`、重试命令和文件用途 revision 冲突。
-- 安全：路径穿越、目录项、符号链接/特殊文件、损坏 ZIP、嵌套、zip bomb/压缩比、文件数/大小/展开量和部分不支持文件。
-- Operation：六种 kind 的幂等、lease reclaim、并发 claim 单胜者、自动 Attempt、retryable/failed、projection_pending、CAS superseded。
-- 持久化：新 Python 进程读取 user/workspace/upload batch；PostgreSQL 17 migration、schema check 和 API smoke。
-
-### 7. Wrong vs Correct
-
-#### Wrong
-
-```python
-path = storage_root / upload.filename
-path.write_bytes(await upload.read())
-```
-
-#### Correct
-
-```python
-staged = storage.stage_bytes(batch_id, file_id, content)
-storage.publish(staged.key, f"evidence/{batch_id}/{file_id}")
-```
-
-用户文件名只保留为展示元数据，存储路径始终由服务端生成并经过 namespace 校验。
+- 不要把题目材料、评分维度或状态写进 Worker 元数据、日志或错误消息正文。
+- 不要把评分生成失败映射成 500；应返回可重试的业务失败状态。
+- 不要让场景凭证或管理员会话互相顶替；两类主体的授权路径必须分离。
+- 不要在响应中返回明文凭证、`token_hash`、宿主机路径或材料原文之外的内部字段。

@@ -94,3 +94,24 @@ def test_scene_listing_counts_questions() -> None:
         entry = next(item for item in listing["items"] if item["id"] == scene["id"])
         assert entry["question_count"] == 1
         assert entry["active_credential_count"] == 1
+
+
+def test_blank_scene_name_is_rejected() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        helpers.register_admin(client)
+        for blank in ["", "   ", "\t\n"]:
+            response = client.post("/api/scenes", json={"name": blank})
+            assert response.status_code == 422, response.text
+
+
+def test_credential_label_length_is_enforced() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        helpers.register_admin(client)
+        scene = helpers.create_scene(client)
+        response = client.post(
+            f"/api/scenes/{scene['id']}/credentials",
+            json={"label": "x" * 201},
+        )
+        assert response.status_code == 422, response.text

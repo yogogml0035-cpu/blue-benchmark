@@ -14,39 +14,37 @@
 }
 ```
 
-合同定义见 `app/lib/schemas.py::ErrorResponse`，转换入口见 `app/lib/errors.py::error_response`。`code` 用于前端分流，`message` 用于用户提示，`details` 只放必要、可公开的结构化信息，例如上传大小限制。
+合同定义见 `app/lib/schemas.py::ErrorResponse`，转换入口见 `app/lib/errors.py::error_response`。`code` 用于调用方分流，`message` 用于提示，`details` 只放必要、可公开的结构化信息，例如批量收题的逐题问题清单。
 
 ## 在哪里产生错误
 
-- Pydantic / FastAPI 负责字段类型、长度、路径和表单边界；`validation_error_handler` 将其统一成 `422 VALIDATION_ERROR`，并在 `details.fields` 返回字段位置和消息。
-- Service 负责业务冲突、授权、状态转换和组合校验，抛出明确状态码与机器码。参考 `workspaces/service.py::assert_owner`、`case_builder/service.py::generate_draft`、`_validate_confirmation`。
+- Pydantic / FastAPI 负责字段类型、长度、路径和请求体边界；`validation_error_handler` 将其统一成 `422 VALIDATION_ERROR`，并在 `details.fields` 返回字段位置和消息。
+- Service 负责业务冲突、授权、状态转换和组合校验，抛出明确状态码与机器码。参考 `question_library/service.py::publish`、`scenes/service.py::revoke_credential`。
 - Repository 负责业务数据库 Row/Record 读写，不负责把“未找到”映射成 HTTP；测试通过独立 SQLite 文件隔离数据。
 - Router 在装饰器 `responses` 中声明实际可能返回的 `ErrorResponse`，使 OpenAPI 能生成合同；不要在 Router 捕获后重新包装同一种错误。
 
 ## 业务失败与系统失败
 
-解析失败和 Stub AI 失败是 Case 资源的可恢复业务状态，通过 `CaseDetail.case.state` 与 `builder.last_error` 返回，不伪装成 500：
+评分维度生成失败是题目的可恢复业务状态，通过 `QuestionDetailResponse.status` 与 `last_error` 返回，不伪装成 500：
 
-- 解析失败：`stage=parse`、`retryable=false`；
-- AI 失败：`stage=ai`、`retryable=true`。
+- 生成失败：`status=generation_failed`、`last_error.code` 为 `AI_CALL_FAILED`/`AI_OUTPUT_INVALID` 等，可重试。
 
-只有无法归类的异常才进入 `app/main.py::unexpected_error_handler`，对外固定返回经过清洗的 `500 INTERNAL_ERROR`。不得在响应中包含堆栈、内部 Record、Cookie、密码哈希、绝对路径或未来模型原始错误。
+只有无法归类的异常才进入 `app/main.py::unexpected_error_handler`，对外固定返回经过清洗的 `500 INTERNAL_ERROR`。不得在响应中包含堆栈、内部 Record、Cookie、密码哈希、明文凭证、绝对路径或模型原始错误。
 
 ## 状态码语义
 
-- `401`：没有有效 Session；
-- `403`：已登录但资源不属于当前用户，或非安全请求的 Origin 不允许；
+- `401`：没有有效管理员会话，或场景凭证缺失/无效/已撤销；
+- `403`：已登录但越权；
 - `404`：当前授权范围内资源不存在；
-- `409`：当前业务状态不允许动作、问题/草稿陈旧或重复提交冲突；
-- `413` / `415`：上传大小或类型被入口拒绝；
-- `422`：字段或组合内容无效；
+- `409`：当前业务状态不允许动作、内容版本陈旧或命令/凭证冲突；
+- `422`：字段或组合内容无效（含隐私兜底拒绝、空泛评分标准）；
 - `500`：未预期错误，且响应必须清洗。
 
-M0 共创新增的业务码包括 `FILE_ROLES_NOT_CONFIRMED`、`FILE_DISPOSITION_LOCKED`、`INVALID_TASK_GROUPING`、`TASK_NOT_CONFIRMED`、`CONTRACT_NOT_CONFIRMED`、`STALE_COCREATION`、`COMMAND_ID_REUSED`、`RETRY_NOT_AVAILABLE`；它们仍遵守 `409`（状态/revision/幂等冲突）或 `422`（输入/证据结构无效）的语义。
+M0 业务码包括 `COMMAND_ID_REUSED`、`COMMAND_IN_PROGRESS`、`CASE_ALREADY_EXISTS`、`BATCH_CASE_INVALID`、`PRIVATE_CONTENT_REJECTED`、`CRITERION_TOO_VAGUE`、`STALE_REVISION`、`RUBRIC_GENERATING`、`GENERATION_FAILED`、`CRITERIA_MISSING`、`RETRY_NOT_AVAILABLE`、`NO_MATERIAL_CHANGE`、`ADMIN_EXISTS`、`SCENE_NAME_EXISTS`、`CREDENTIAL_ALREADY_REVOKED`；它们遵守 `409`（状态/版本/幂等冲突）或 `422`（输入/材料/标准无效）的语义。
 
-后台 Agent 错误不把 provider 原始消息返回给浏览器：结构化输出无效、工具越权、证据 locator 越界或 Checkpoint 不兼容只进入 OperationJob 的清洗错误和业务 `failed`/`projection_pending`/`continuity_reset` 状态。`CoCreationSessionView` 不包含 `thread_id`、`checkpoint_id`、interrupt、raw message 或凭证。answer command 已被其他 session 占用时必须返回清洗后的 `409 COMMAND_ID_REUSED`，不得映射成 `QUESTION_NOT_PENDING`；模型 quote 不匹配时只可在 source/locator 已确定性验证的情况下丢弃 quote，不得把 quote 当作事实。
+评分维度生成的后台错误不把 provider 原始消息返回给调用方：模型调用失败、结构化输出无效或提交被 fencing 拒绝，只进入 `OperationJob` 的清洗错误和题目 `generation_failed`/`superseded` 状态。
 
-新增错误码时同步检查后端 Router `responses`、`backend/openapi.json`、前端 `ApiError` / `toPageFault` 以及对应状态测试。
+新增错误码时同步检查后端 Router `responses`、`backend/openapi.json` 以及对应状态测试。
 
 ## 当前没有日志规范
 

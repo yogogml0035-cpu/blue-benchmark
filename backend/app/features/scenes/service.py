@@ -11,6 +11,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.features.scenes import repository
 from app.features.scenes.schemas import (
+    CREDENTIAL_LABEL_MAX_LENGTH,
     SceneCredentialIssuedView,
     SceneCredentialStatusView,
     SceneCreateRequest,
@@ -101,7 +102,19 @@ def get_scene_or_404(scene_id: str) -> SceneStatusResponse:
     )
 
 
+def _validate_label(label: str | None) -> str | None:
+    if label is None:
+        return None
+    stripped = label.strip()
+    if not stripped:
+        return None
+    if len(stripped) > CREDENTIAL_LABEL_MAX_LENGTH:
+        raise AppError(422, "VALIDATION_ERROR", "凭证标签过长。")
+    return stripped
+
+
 def issue_credential(scene_id: str, label: str | None) -> SceneCredentialIssuedView:
+    label = _validate_label(label)
     now = datetime.now(timezone.utc)
     plaintext = f"sep_{secrets.token_urlsafe(36)}"
     hashed = repository.token_hash(plaintext)
@@ -122,6 +135,7 @@ def issue_credential(scene_id: str, label: str | None) -> SceneCredentialIssuedV
 def rotate_credentials(scene_id: str, label: str | None) -> SceneCredentialIssuedView:
     """Revoke every active credential of the scene, then issue one replacement."""
 
+    label = _validate_label(label)
     now = datetime.now(timezone.utc)
     plaintext = f"sep_{secrets.token_urlsafe(36)}"
     hashed = repository.token_hash(plaintext)

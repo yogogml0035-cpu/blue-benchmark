@@ -8,29 +8,29 @@
 
 ```bash
 cd backend && uv run pytest -q
-make test
+make test      # pytest + OpenAPI 漂移检查
+make build     # 后端编译/导入验证
 ```
 
-`make test` 还会运行前端 TypeScript 检查。只改后端合同后仍应执行跨层 OpenAPI 检查，见 `../guides/cross-layer-contracts.md`。
+`make test` 与 `make contract-check` 只运行后端检查（仓库已无前端）。OpenAPI 合同变更见 `../guides/cross-layer-contracts.md`。
 
 ## 测试模式
 
-`backend/tests/test_api.py` 和 `backend/tests/test_persistence_ingestion.py` 使用 FastAPI `TestClient` 做 HTTP 合同级测试，而不是绕过 Router 直接调用 Service：
+`backend/tests/` 使用 FastAPI `TestClient` 做 HTTP 合同级测试，而不是绕过 Router 直接调用 Service：
 
-- `reset_repositories` / `reset_database` 是 `autouse` fixture，每个测试前清空业务测试数据库；
-- `client` fixture 创建同一 FastAPI 应用的客户端；
-- `register`、`create_workspace`、`upload_case` 是闭环准备助手；
-- 第二个 `TestClient` 表示另一个独立 Cookie 会话，用于越权验证。
+- `conftest.py` 为每个 pytest 进程提供独立临时 SQLite；
+- `tests/helpers.py` 提供 `register_admin`、`create_scene`、`issue_credential`、`upload_batch`、`make_case`、`run_worker_until_idle` 等闭环准备助手；
+- 需要独立会话/凭证隔离验证时，使用第二个 `TestClient`。
 
 当前覆盖基线：
 
-1. 健康检查报告 `business database`，OpenAPI 含关键 Case 与 UploadBatch 合同；
-2. 默认上传 -> 提问 -> 草稿 -> 确认闭环，以及确认幂等；
-3. `parse_failed`、一次性 `ai_failed` 与重试；
-4. Workspace 和 Case 的跨账号 `403`；
-5. 数据库新进程读取、Alembic migration/schema readiness、服务端存储键和 ready marker；
-6. 多文件/ZIP 安全边界、批次 `202`、纯读投影、command 幂等、用途 revision 冲突和 OperationJob lease/CAS/Attempt。
-7. M0 TaskPackage 分组、受限 AI runtime、EvidenceRef canonical 回查、共创 stable thread、accepted Checkpoint CAS、projection_pending 重投影和跨层真实/合成验收。
+1. 批量收题的原子性（全成全败）、命令幂等（同 payload 重放）、变更 payload 冲突、跨场景隔离；
+2. 六类材料边界与隐私兜底（凭证/主机路径/Unicode 绕过）；
+3. 评分维度生成（成功、失败、重试、模糊输出拒绝、同命令复活不污染队列）；
+4. 状态机与发布门禁、`save-and-regenerate` 作废旧维度、`title` 改名不触发重新生成；
+5. 两字段维度合同与逐项及格语义；
+6. 迁移（旧 head 升级、fresh DB、downgrade）与 OpenAPI 合同；
+7. 并发/安全加固回归（条件 UPDATE 单写者、单管理员原子性、已发布维度守卫、登出鉴权等）。
 
 修改这些合同必须扩展相同层级的 API 测试。新增错误分支至少断言 HTTP 状态、机器码或业务状态，并确认失败没有推进不允许的状态。
 
@@ -39,45 +39,29 @@ make test
 - 使用现代类型标注（`str | None`、`dict[str, T]`、`list[T]`），保持 Pydantic Schema 和 Record 字段明确。
 - 时间统一使用 `datetime.now(timezone.utc)`，不要生成无时区时间。
 - 入口字符串按现有 Schema / Service 显式 `strip()`；不要在多个层重复各自定义不同的归一规则。
-- ID 由服务端 `uuid4()` 生成；客户端输入不得成为内部 ID 或路径。
+- 内部 ID 由服务端 `uuid4()` 生成；客户端输入（`client_case_id`、`command_id`）只作为业务键，不得成为内部主键或路径。
 - 业务转换函数返回 Pydantic 响应模型，不返回随意拼接的字典。
-- 密码比较使用恒定时间比较；不得弱化现有哈希或在测试输出密码哈希。
+- 密码与凭证比较使用恒定时间/哈希比较；不得在测试或响应输出密码哈希或明文凭证。
 
 ## Review 清单
 
 - [ ] 代码仍遵守 Router -> Service -> Repository 和跨 Feature Service 边界。
-- [ ] 业务数据库与未来 Checkpointer 执行状态没有混写。
-- [ ] 新字段/状态/错误已同步 Schema、OpenAPI、前端生成类型和相关测试。
-- [ ] 授权顺序和跨账号隔离没有回退。
-- [ ] 重试路径保持幂等，失败不会产生半完成快照。
-- [ ] 文件先 staging，再发布 ready marker；数据库失败清理已发布和 staged 对象。
-- [ ] 响应没有暴露内部状态或敏感信息。
-- [ ] 新增 Agent 只通过 `ReadOnlyEvidenceBackend` 读取虚拟 scope；工具 allowlist、权限 deny、HITL 单问题和 `invalid_tool_calls` 负例均有测试。
-- [ ] 共创答案先保存业务 Turn，再由 OperationJob resume；重复命令不重复模型调用，Checkpoint latest 不得替代 accepted pointer。
-- [ ] `make openapi` 只生成后端 OpenAPI 与前端类型，CI/显式 Fake 与常驻生产 Worker 都不打印业务正文、Checkpoint、凭证或 private reasoning。
-- [ ] `make contract-check` 能在不改写生成文件的情况下发现后端 OpenAPI 或前端生成类型漂移；显式真实样本 runner 使用临时数据库/存储并只输出阶段标记。
-- [ ] 版本 API/download 读取前校验 Manifest 身份、三分区 hash、ready marker 和 ZIP 条目内容；历史派生不能绕过同一完整性检查。
-- [ ] 并发同命令/同草稿写入有 row lock 或唯一约束兜底，错误 payload 返回 409，不以 500 暴露竞态。
-- [ ] OperationJob 的相同 target/revision/command 若跨 `kind` 必须显式冲突，不能返回另一种 operation；批次分析提交同时校验 operation attempt CAS 和批次仍处于分析态。
-- [ ] batch analyzer 的 `evidence_refs` 既要属于整批 scope，也要属于各自 group 的 `evidence_file_ids`；迟到或跨组结果不能替换已发布提案。
+- [ ] 新字段/状态/错误已同步 Schema、OpenAPI 和相关测试。
+- [ ] 管理员会话与场景凭证的授权顺序和隔离没有回退。
+- [ ] 重试路径保持幂等，失败不会产生半批数据或孤立生成任务。
+- [ ] 并发同命令/同题目写入有条件 UPDATE 或唯一约束兜底，错误返回 409/422，不以 500 暴露竞态。
+- [ ] 评分维度提交原子（业务写入 + 任务终态同事务），旧任务被 fencing 判为 `superseded`，不覆盖新材料。
+- [ ] 响应没有暴露明文凭证、`token_hash`、宿主机路径或材料原文之外的内部字段。
+- [ ] 评分生成失败投影为 `generation_failed`，不留下永久 `generating`。
 - [ ] `cd backend && uv run pytest -q` 通过；跨层变更还通过 `make test`。
 
-## 真实 AI / Checkpointer 回归门
+## 真实 AI 回归门
 
-- [ ] `make ai-smoke` 只证明当前 Provider 的一次结构化调用；不能外推文件工具、HITL 或业务 E2E。
-- [ ] 真实 Worker 必须在同一隔离 PostgreSQL 业务库/Checkpointer 库上运行；先迁移业务 schema，再显式 `make checkpoint-setup`，失败不 claim。
+- [ ] `make ai-smoke` 只证明当前 Provider 的一次结构化调用；不能外推业务 E2E。
+- [ ] 真实 Worker 必须在隔离业务库上运行；先 `make db-migrate`，配置/连接失败在 claim 前退出。
 - [ ] 真实模型请求有有限 timeout，长处理期间能续租，重启/lease reclaim 不产生第二个业务结果。
-- [ ] `standard_cocreator` 的 `question_id/question -> id/text`、`respond.message`、`context=context` 和 accepted Checkpoint 指针有生产 adapter 回归；completion fallback 按当前 kind 使用单一 wire schema，再进入严格业务 Schema。
-- [ ] Checkpoint serializer 显式 allowlist 应用类型，并在 `LANGGRAPH_STRICT_MSGPACK=true` 下执行 read/delete；删除 completed thread 后业务资产仍可读。
-- [ ] 新增题级 Agent 的 Pydantic 类型、嵌套资料角色枚举和证据 locator 必须加入 Checkpoint serializer allowlist；仅默认宽松模式无警告不算通过，必须用 `LANGGRAPH_STRICT_MSGPACK=true` 启动并回读。
-- [ ] authoring projection 写入失败时只允许重试已保存的内部 projection payload；`authoring_reproject` 不得重新调用 analyzer/question Agent，缺少 payload 时必须显式失败。
-- [ ] rubric 生成的结构化输出和中文/泄漏校验最多做一次受限修复；`rubric_reproject` 只读取同一题目修订、同一业务 revision 的已保存 projection，不能因旧 job 的 terminal 状态遮蔽当前快照。
-- [ ] 新 authored question revision 加入 Working Set 时必须校验发布内容 hash、资料元数据/ready marker 和当前合同；含 authored member 的 mixed package 使用 v2，v1 builder/reader 不得改变。
-- [ ] 真实 runner 必须显式传 `--samples-dir`，每轮命令使用全局唯一 nonce，只输出阶段/计数/错误类型；禁止把 `EvalData`、凭证、正文或 raw model output 写入 Git。
-- [ ] 真实 runner 在共享隔离业务库中核验本轮 operation 的私有 Worker 运行标记为 `production`；API health 或 `AI_RUNTIME_MODE` 不能替代实际 Worker 证明，标记不得进入业务 API。
-- [ ] 运行本地 HTTP 验收脚本时，`httpx.Client` 对 loopback API 使用 `trust_env=False`，避免开发机系统代理把健康的 `127.0.0.1` 请求变成无正文 502；该设置不改变真实 Provider 调用。
-- [ ] pnpm v11 的 `allowBuilds` 必须在 `frontend/pnpm-workspace.yaml` 明确列出需要执行的依赖脚本；`make test` 与 `make build` 都要在该配置下通过。
-- [ ] 前端上传 command 在同一表单重试时稳定；静默轮询遇到失权/资源消失要清空旧快照，旧路由的迟到响应不能覆盖新资源；`projection_pending` 必须有重投影入口。
+- [ ] 真实端到端用 `scripts/accept_real_ai_rubric.py`，只输出阶段/计数/错误码；禁止把 `EvalData`、凭证、正文或 raw model output 写入 Git。
+- [ ] 真实验收必须核验生成由 `production` Worker 完成；API health 或 `AI_RUNTIME_MODE` 不能替代实际 Worker 证明。
 
 ### Migration gotcha: PostgreSQL dependencies
 

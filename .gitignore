@@ -4,17 +4,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
-node_modules/
-.next/
-*.tsbuildinfo
-storage/uploads/
-storage/evidence/
-storage/versions/
-storage/staging/
-storage/submissions/
-storage/skill-eval.db
+# Local runtime data: business SQLite database and any generated artifacts.
+storage/
 backend/storage/
 .local-samples/
-.playwright-cli/
-frontend/playwright-report/
-frontend/test-results/

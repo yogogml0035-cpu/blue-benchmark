@@ -1,5 +1,11 @@
 # 服务器部署与发布方案
 
+> ⚠️ 过时提醒（2026-09-03）：本任务写于前端移除之前。仓库现已收敛为纯后端工程：
+> Next.js 前端、文件上传/证据/版本包存储、Checkpointer 数据库均已删除（见任务
+> `09-02-remove-frontend-backend-only`）。下方 “Confirmed Repository Facts” 中关于
+> 前端、Checkpointer 和本地文件存储的条目不再成立；继续本规划前必须先按当前后端
+> 边界（API + Worker + PostgreSQL + OpenAPI + 管理员 CLI）重新核对事实。
+
 ## Goal
 
 为当前 Skill Eval Platform 形成一套适合初学者理解和维护、可按常规主流方式部署到服务器并供目标用户使用的正式方案。方案必须以当前源码的真实运行边界为基础，区分 Docker、服务器部署和 CI/CD 的职责，并在需求对齐后给出可实施、可验证、可备份和可回滚的项目修改计划。
