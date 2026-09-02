@@ -8,6 +8,24 @@
 
 对互斥的有限变体使用字面量联合和穷举 `Record`，例如 Button 的 `Variant` / `Size`、Note 的 `Tone`、`AuthoringConversationPage.tsx::STATUS_CLASS`。不要靠自由字符串拼接新增不可检查的样式变体。
 
+## 版面宽度与页面壳
+
+全站是桌面宽版工作台，版面宽度只用 `globals.css` 里这一套档位，不要在 Feature 里另立 max-width：
+
+- `.page-narrow` 480px：登录页；
+- `.page-mid` 1040px：表单页、详情页（上传、版本、新建题）；
+- `.page-wide` 1280px：列表页（场景卡片网格）、评分规则页；
+- `.page-max` 1440px：会话/工作面双栏布局（建题会话）。
+
+页面壳统一用 `components/shell/PageShell.tsx`：入参 `crumbs` / `right` / `previewStates` / `mainClassName`，渲染 DeskRail + PreviewBar + `<main class="page …">`。除登录页外所有页面复用；`previewStates` 用页面内模块级 `as const` 数组声明。工作台这类自带全宽布局（侧栏 + 画布）的页面传 `chromeOnly`，只复用顶栏与预演条，自管 `<main>`。新增页面不要再手拼 `{rail}{previewBar}<main>` 三件套。
+
+双栏工作面的约定（参考 `authoring.module.css` / `rubric.module.css`）：
+
+- 断点 ≥1024px（或 960px）才开双栏，窄屏回落单列；
+- sticky 侧栏必须加 `max-height: calc(100dvh - 92px); overflow-y: auto` 兜底——比视口高的长表单钉住后底部仍可滚动到，否则内容永远不可达；
+- 长表单里的文件名行用「两段式」：名称独占一行 `nowrap + ellipsis`，控件（下拉/数字）在第二行；禁止 `overflow-wrap: anywhere` 当截断用，窄栏里会一字一行；
+- 会话输入卡（composer）sticky 在所属列内部，不允许跨列骑压。
+
 ## 浮层（Sheet）
 
 `components/ui/Sheet.tsx` 提供三个原语：
@@ -47,7 +65,9 @@ Sheet 的样式在 `globals.css` 的 `.sheet-overlay` / `.sheet-panel` / `.sheet
 
 - `workspaces/components/ScenarioShelf.module.css`；
 - `workspaces/components/studio.module.css`（场景工作台三导航、侧栏、移动端抽屉）；
-- `case-builder/components/caseDetail.module.css`。
+- `case-builder/components/authoring.module.css`（建题会话双栏、资料行、composer）；
+- `evaluation-sets/components/rubric.module.css`；
+- `human-scoring/components/humanScoring.module.css`。
 
 标准与依据 sheet 中的键值分区使用 `globals.css` 的 `.kv-block` / `.kv-label` / `.kv-items`，只用留白和发丝线，不引入卡片阴影。
 
