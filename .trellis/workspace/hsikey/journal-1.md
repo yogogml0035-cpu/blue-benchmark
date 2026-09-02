@@ -514,3 +514,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 23: Benchmark M0 后端接口与上传 Skill 重构（父任务完成）
+<!-- trellis-session: v=2 fp=aebe82bb0282a65f -->
+
+**Date**: 2026-09-03
+**Task**: Benchmark M0 后端接口与上传 Skill 重构（父任务完成）
+**Branch**: `main`
+
+### Summary
+
+父任务完成：三个子任务串行交付并全部合并回 main。子任务1 重建统一题库后端（六类材料当前题目模型、场景凭证原子批量收题、两字段评分维度自动生成、破坏式迁移 0018），删除旧建题/共创/Working Set/版本包/人工评分全链；子任务2 删除 Next.js 前端与 Node 依赖，收敛为纯后端工程并新增管理员 CLI；子任务3 新增 skills/ai-eval-push 上传 Skill 与外部连接状态端点。每个子任务经多轮多智能体对抗式审查（并发/安全/合同）并修复；测试走真实 AI 执行，EvalData 真实 API 验收通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `950ce36` | docs(task): 完成 Benchmark M0 后端接口与上传 Skill 重构最终验收 |
+
+### Status
+
+[OK] **Completed**

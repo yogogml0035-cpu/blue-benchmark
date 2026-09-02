@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 22
+- **Total Sessions**: 23
 - **Last Active**: 2026-09-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~516 | Active |
+| `journal-1.md` | ~538 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 23 | 2026-09-03 | Benchmark M0 后端接口与上传 Skill 重构（父任务完成） | `950ce36` | `main` |
 | 22 | 2026-09-03 | 新增 ai-eval-push 上传 Skill 与外部连接状态端点 | `5c5a3d4` | `main` |
 | 21 | 2026-09-03 | 收敛为纯后端工程并新增管理员 CLI | `b70f83d` | `main` |
 | 20 | 2026-09-03 | 重建统一题库后端（六类材料+两字段评分） | `75adc14` | `main` |
