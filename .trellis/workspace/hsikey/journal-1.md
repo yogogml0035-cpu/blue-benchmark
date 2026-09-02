@@ -401,3 +401,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 18: 完成前端工作台重构与真实 AI 全链路验收
+<!-- trellis-session: v=2 fp=58b12aab970f9a31 -->
+
+**Date**: 2026-09-02
+**Task**: 完成前端工作台重构与真实 AI 全链路验收
+**Branch**: `main`
+
+### Summary
+
+在当前 main 完成前端交互/UI 硬化：预演不再读取真实 Session，工作台主流程先于 Agent 连接，主动作统一 --action，移动导航改为可访问链接并加入焦点循环，rubric 隐藏内部评分项 ID，删除旧前端 Case Builder/旧路由兼容入口；本地验收脚本直连 loopback 避免系统代理 502。使用 /Users/hsikey/BenchMark/EvalData 完成真实 Provider/生产 Worker smoke、真实 HTTP 生命周期 runner、真实浏览器 5 项全套 E2E；make test/build、任务校验和对抗审查通过。修复并验证 ai-eval-push 实际源码路径、全局 symlink、私有 GitHub main 与本地提交一致。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2d1db72` | feat: harden frontend authoring workflow |
+| `adebe52` | test: guard real authoring state polling |
+
+### Status
+
+[OK] **Completed**
