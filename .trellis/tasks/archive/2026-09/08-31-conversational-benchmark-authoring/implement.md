@@ -48,7 +48,7 @@ Task：`09-01-benchmark-external-authoring-api`
 
 ## 4. ai-eval-push Handoff
 
-目标：`/Users/hsikey/BenchMark/BenchMark/ai-eval-push`
+目标：`/Users/hsikey/Company/ai-eval-push`
 
 - 平台 API 合并后，在目标目录初始化独立 Git 与 Trellis 规划；目录当前为空，不覆盖任何已有文件。
 - Skill 名称和仓库名称严格使用 `ai-eval-push`，不擅自追加 `-skill`。
@@ -81,7 +81,14 @@ git diff --check
 - [x] 版本包检查：旧 v1/v2 hash/bytes 不变；新 runtime 不含标准答案、坏样本、rubric、评分或凭证。
 - [x] 权限、并发、幂等、恢复、泄漏、迁移、删除、存储和 Git 凭证做最终对抗审查并修正。
 - [x] README、`.trellis/spec/` 和 `.interface-design/system.md` 与最终源码事实一致。
-- [ ] `ai-eval-push` 全局安装与私有远端均由实际路径、调用和远端 URL 验证（本地安装、调用和私有仓库创建已完成；GitHub push 因 github.com:443 网络不可达，尚未完成远端 branch 验证）。
+- [x] `ai-eval-push` 全局安装与私有远端均由实际路径、调用和远端 URL 验证（`CHECK_PIPELINE=PASS`、`EVAL_VALIDATE=VALID`，两个全局入口指向 `/Users/hsikey/Company/ai-eval-push`，本地提交与私有 GitHub `main` 一致）。
+
+## 6. Final main evidence
+
+- [x] 前端交互/UI 子任务 `09-02-frontend-interaction-ui-hardening` 已完成分支开发、两次提交、main 合并、main 复验、归档和安全删支。
+- [x] 当前 main 通过 `make test`（后端 183 项、前端类型、OpenAPI 合同）、`make build`、`git diff --check` 和 `make ai-smoke`。
+- [x] 当前 main 使用 `/Users/hsikey/BenchMark/EvalData` 通过真实 Provider/Worker HTTP runner 和完整真实浏览器套件：5 项浏览器测试全部通过，包含真实 AI 建题、rubric、人工评分、外部收题和预演边界。
+- [x] 对抗审查覆盖预演越界、Session 重复读取、导航竞态/409、桌面隐藏导航、移动焦点循环、320/390px 溢出、内部 ID 泄漏、旧前端入口和 dead code；发现的问题均已修正并回归。
 
 ## Risky Boundaries
 
