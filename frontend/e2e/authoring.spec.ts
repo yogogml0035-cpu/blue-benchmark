@@ -161,6 +161,10 @@ test("真实 AI 可从 EvalData 形成并确认多道题", async ({ page }) => {
       // turn is still running, but deliberately disables persistence actions.
       // Wait for the authoritative snapshot before editing or confirming.
       const save = review.getByRole("button", { name: "保存修改" });
+      if (await save.count() === 0) {
+        await page.waitForTimeout(1_000);
+        continue;
+      }
       if (await save.isDisabled()) {
         await page.waitForTimeout(1_000);
         continue;
