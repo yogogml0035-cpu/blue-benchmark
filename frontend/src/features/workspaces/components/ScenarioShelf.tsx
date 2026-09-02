@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 
-import { DeskRail } from "@/src/components/shell/DeskRail";
+import { PageShell } from "@/src/components/shell/PageShell";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
 import { Field } from "@/src/components/ui/Field";
 import { Note } from "@/src/components/ui/Note";
@@ -21,7 +21,7 @@ import {
 } from "@/src/features/workspaces/services/workspaceService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
 import { stamp } from "@/src/lib/format";
-import { PREVIEW_ENABLED, PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
+import { PREVIEW_ENABLED, usePreviewState } from "@/src/lib/preview/preview";
 
 import styles from "./ScenarioShelf.module.css";
 
@@ -29,6 +29,8 @@ type ListState =
   | { status: "loading" }
   | { status: "ready"; items: Workspace[] }
   | { status: "failed"; fault: PageFault };
+
+const SHELF_PREVIEW_STATES = ["loading", "empty", "success", "error", "unauthorized"] as const;
 
 export function ScenarioShelf() {
   const router = useRouter();
@@ -94,43 +96,34 @@ export function ScenarioShelf() {
     }
   }
 
-  const rail = (
-    <DeskRail
-      right={
-        authenticated || preview ? (
-          <>
-            <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />
-            <Button
-              onClick={async () => {
-                await logout().catch(() => undefined);
-                router.replace("/login");
-              }}
-              size="sm"
-              variant="quiet"
-            >
-              退出
-            </Button>
-          </>
-        ) : undefined
-      }
-    />
-  );
+  const railRight =
+    authenticated || preview ? (
+      <>
+        <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />
+        <Button
+          onClick={async () => {
+            await logout().catch(() => undefined);
+            router.replace("/login");
+          }}
+          size="sm"
+          variant="quiet"
+        >
+          退出
+        </Button>
+      </>
+    ) : undefined;
 
   if (unauthorized) {
     return (
-      <>
-        {rail}
-        <PreviewBar states={["loading", "empty", "success", "error", "unauthorized"]} />
-        <main className="page page-mid">
-          <StatePanel
-            actions={<ButtonLink href={loginHref("/workspaces")} variant="primary">去登录</ButtonLink>}
-            code="401 · AUTH_REQUIRED"
-            description="登录后查看你的场景。"
-            title="需要登录才能查看场景"
-            tone="locked"
-          />
-        </main>
-      </>
+      <PageShell mainClassName="page-mid" previewStates={SHELF_PREVIEW_STATES} right={railRight}>
+        <StatePanel
+          actions={<ButtonLink href={loginHref("/workspaces")} variant="primary">去登录</ButtonLink>}
+          code="401 · AUTH_REQUIRED"
+          description="登录后查看你的场景。"
+          title="需要登录才能查看场景"
+          tone="locked"
+        />
+      </PageShell>
     );
   }
 
@@ -145,23 +138,19 @@ export function ScenarioShelf() {
 
   if (failure) {
     return (
-      <>
-        {rail}
-        <PreviewBar states={["loading", "empty", "success", "error", "unauthorized"]} />
-        <main className="page page-mid">
-          <StatePanel
-            actions={
-              <Button onClick={() => session.reload()} variant="primary">
-                重新读取
-              </Button>
-            }
-            code={failure.code}
-            description={failure.message}
-            title="场景列表读取失败"
-            tone="fault"
-          />
-        </main>
-      </>
+      <PageShell mainClassName="page-mid" previewStates={SHELF_PREVIEW_STATES} right={railRight}>
+        <StatePanel
+          actions={
+            <Button onClick={() => session.reload()} variant="primary">
+              重新读取
+            </Button>
+          }
+          code={failure.code}
+          description={failure.message}
+          title="场景列表读取失败"
+          tone="fault"
+        />
+      </PageShell>
     );
   }
 
@@ -182,12 +171,9 @@ export function ScenarioShelf() {
   const composerVisible = empty || composerOpen;
 
   return (
-    <>
-      {rail}
-      <PreviewBar states={["loading", "empty", "success", "error", "unauthorized"]} />
-      <main className="page page-mid stack-lg">
-        <div className="row-between">
-          <h1 className="doc-title">场景</h1>
+    <PageShell mainClassName="page-wide stack-lg" previewStates={SHELF_PREVIEW_STATES} right={railRight}>
+      <div className="row-between">
+        <h1 className="doc-title">场景</h1>
           {!empty && !loading && (
             <Button
               onClick={() => setComposerOpen((open) => !open)}
@@ -323,7 +309,6 @@ export function ScenarioShelf() {
             </div>
           )}
         </section>
-      </main>
-    </>
+    </PageShell>
   );
 }

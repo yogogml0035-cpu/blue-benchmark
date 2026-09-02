@@ -4,7 +4,9 @@
    中性灰骨架 + 唯一强调色（苹果蓝），语义色只表达状态。
    深度策略只有一种：灰阶与发丝线分层，卡片允许一层极浅影。
    详情页的「待你定稿」状态用聚焦阅读：一屏一节，刻度 + 定稿卡收尾。
-   颜色/字体/圆角的具体值以 .interface-design/system.md 为准，本文件只是执行。
+   颜色/字体/圆角/版面宽度的值以 .trellis/spec/frontend/ 为准，本文件只是执行。
+   版面：桌面宽版工作台。page-narrow 480（登录）· page-mid 1040 · page-wide 1280 ·
+   page-max 1440（会话/工作面双栏布局）。
    ========================================================================== */
 
 :root {
@@ -240,11 +242,16 @@ a:hover {
 }
 
 .page-mid {
-  max-width: 880px;
+  max-width: 1040px;
 }
 
 .page-wide {
-  max-width: 1080px;
+  max-width: 1280px;
+}
+
+/* 会话/工作面双栏布局的整页容器：跟随视口，只在超宽屏收口 */
+.page-max {
+  max-width: 1440px;
 }
 
 .stack {
@@ -876,7 +883,7 @@ textarea.control-auto {
   gap: var(--s-1);
   font-size: var(--t-13);
   line-height: 1.6;
-  color: var(--text-1);
+  color: var(--text);
 }
 
 .kv-items li {

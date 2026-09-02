@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { DeskRail } from "@/src/components/shell/DeskRail";
+import { PageShell } from "@/src/components/shell/PageShell";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
 import { Note } from "@/src/components/ui/Note";
 import { SkeletonLine } from "@/src/components/ui/Skeleton";
@@ -18,12 +18,22 @@ import {
 } from "@/src/features/workspaces/services/studioService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
 import { stamp } from "@/src/lib/format";
-import { PREVIEW_ENABLED, PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
+import { PREVIEW_ENABLED, usePreviewState } from "@/src/lib/preview/preview";
 
 type Load =
   | { status: "loading" }
   | { status: "ready"; manifest: ManifestResponse }
   | { status: "failed"; fault: PageFault };
+
+const VERSION_PREVIEW_STATES = [
+  "loading",
+  "empty",
+  "success",
+  "error",
+  "unauthorized",
+  "forbidden",
+  "not_found",
+] as const;
 
 export function VersionPage({
   workspaceId,
@@ -62,80 +72,56 @@ export function VersionPage({
     };
   }, [preview, authenticated, workspaceId, versionId]);
 
-  const rail = (
-    <DeskRail
-      crumbs={[
-        { label: "场景", href: "/workspaces" },
-        { label: "历史版本" },
-      ]}
-      right={
-        <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />
-      }
-    />
+  const railRight = (
+    <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />
   );
-  const previewBar = (
-    <PreviewBar
-      states={["loading", "empty", "success", "error", "unauthorized", "forbidden", "not_found"]}
-    />
-  );
+  const versionCrumbs = [{ label: "场景", href: "/workspaces" }, { label: "历史版本" }];
 
   const unauthorized = preview === "unauthorized" || (!preview && session.status === "anonymous");
   if (unauthorized) {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid">
-          <StatePanel
-            actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>}
-            code="401 · AUTH_REQUIRED"
-            description="登录后才能查看这个版本。"
-            title="需要登录"
-            tone="locked"
-          />
-        </main>
-      </>
+      <PageShell crumbs={versionCrumbs} mainClassName="page-mid" previewStates={VERSION_PREVIEW_STATES} right={railRight}>
+        <StatePanel
+          actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>}
+          code="401 · AUTH_REQUIRED"
+          description="登录后才能查看这个版本。"
+          title="需要登录"
+          tone="locked"
+        />
+      </PageShell>
     );
   }
 
   if (load.status === "failed") {
     const fault = load.fault;
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid">
-          <StatePanel
-            actions={
-              <ButtonLink href={`/workspaces/${workspaceId}?section=versions`} variant="primary">
-                回到版本列表
-              </ButtonLink>
-            }
-            code={fault.code}
-            description={fault.message}
-            title="版本读取失败"
-            tone="fault"
-          />
-        </main>
-      </>
+      <PageShell crumbs={versionCrumbs} mainClassName="page-mid" previewStates={VERSION_PREVIEW_STATES} right={railRight}>
+        <StatePanel
+          actions={
+            <ButtonLink href={`/workspaces/${workspaceId}?section=versions`} variant="primary">
+              回到版本列表
+            </ButtonLink>
+          }
+          code={fault.code}
+          description={fault.message}
+          title="版本读取失败"
+          tone="fault"
+        />
+      </PageShell>
     );
   }
 
   if (load.status === "loading") {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid stack-lg">
-          <div aria-busy="true" className="stack">
-            <SkeletonLine height={28} width="40%" />
-            <div className="sheet sheet-pad stack">
-              <SkeletonLine height={20} width="60%" />
-              <SkeletonLine height={40} />
-            </div>
+      <PageShell crumbs={versionCrumbs} mainClassName="page-mid stack-lg" previewStates={VERSION_PREVIEW_STATES} right={railRight}>
+        <div aria-busy="true" className="stack">
+          <SkeletonLine height={28} width="40%" />
+          <div className="sheet sheet-pad stack">
+            <SkeletonLine height={20} width="60%" />
+            <SkeletonLine height={40} />
           </div>
-        </main>
-      </>
+        </div>
+      </PageShell>
     );
   }
 
@@ -143,13 +129,10 @@ export function VersionPage({
   const version = manifest.version;
 
   return (
-    <>
-      {rail}
-      {previewBar}
-      <main className="page page-mid stack-lg">
-        <div className="stack-sm">
-          <div className="spread">
-            <h1 className="doc-title">版本 {version.version_number}</h1>
+    <PageShell crumbs={versionCrumbs} mainClassName="page-mid stack-lg" previewStates={VERSION_PREVIEW_STATES} right={railRight}>
+      <div className="stack-sm">
+        <div className="spread">
+          <h1 className="doc-title">版本 {version.version_number}</h1>
             <span className="state state-green">
               <span className="dot" />
               不可变
@@ -212,8 +195,7 @@ export function VersionPage({
               </span>
             </div>
           </div>
-        </TechnicalDisclosure>
-      </main>
-    </>
+      </TechnicalDisclosure>
+    </PageShell>
   );
 }

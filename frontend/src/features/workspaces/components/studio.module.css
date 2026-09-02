@@ -57,7 +57,7 @@
 .canvas {
   display: grid;
   gap: var(--s-8);
-  max-width: 720px;
+  max-width: 1120px;
   width: 100%;
   margin: 0 auto;
   padding: var(--s-8) var(--s-6) var(--s-14);

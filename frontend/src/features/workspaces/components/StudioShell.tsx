@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { PageShell } from "@/src/components/shell/PageShell";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
 import { Note } from "@/src/components/ui/Note";
 import { StatePanel } from "@/src/components/ui/StatePanel";
 import { useSession, type SessionResult } from "@/src/features/auth/hooks/useSession";
 import { UserChip } from "@/src/features/auth/components/UserChip";
-import { DeskRail } from "@/src/components/shell/DeskRail";
 import {
   getStudioProjection,
   type StudioProjection,
@@ -21,7 +21,7 @@ import {
 } from "@/src/features/workspaces/services/studioService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
 import { stamp } from "@/src/lib/format";
-import { PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
+import { usePreviewState } from "@/src/lib/preview/preview";
 import { PREVIEW_STUDIO_SUCCESS } from "@/src/features/workspaces/preview/studioFixtures";
 import { listQuestions, type QuestionListResponse } from "@/src/features/case-builder/services/authoringService";
 import { AgentConnectionPanel } from "@/src/features/workspaces/components/AgentConnectionPanel";
@@ -42,6 +42,18 @@ const SECTION_LABEL: Record<StudioSection, string> = {
 };
 
 const SECTION_ORDER: StudioSection[] = ["current", "questions", "versions"];
+
+const STUDIO_PREVIEW_STATES = [
+  "loading",
+  "empty",
+  "success",
+  "error",
+  "unauthorized",
+  "forbidden",
+  "not_found",
+  "question",
+  "review",
+] as const;
 
 export function StudioShell({
   workspaceId,
@@ -112,47 +124,25 @@ export function StudioShell({
     };
   }, [menuOpen]);
 
-  const rail = (
-    <DeskRail
-      crumbs={[
-        { label: "场景", href: "/workspaces" },
-        { label: workspaceName ?? "…" },
-      ]}
-      right={
-        <>
-          <Button
-            aria-label="切换工作区导航"
-            aria-expanded={menuOpen}
-            className={`${styles.mobileNavTrigger} btn-quiet btn-sm`}
-            onClick={() => setMenuOpen((open) => !open)}
-            buttonRef={menuButtonRef}
-            variant="quiet"
-          >
-            {SECTION_LABEL[section]}
-            <span aria-hidden="true" style={{ marginLeft: 4 }}>▾</span>
-          </Button>
-          <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />
-        </>
-      }
-    />
+  const railRight = (
+    <>
+      <Button
+        aria-label="切换工作区导航"
+        aria-expanded={menuOpen}
+        className={`${styles.mobileNavTrigger} btn-quiet btn-sm`}
+        onClick={() => setMenuOpen((open) => !open)}
+        buttonRef={menuButtonRef}
+        variant="quiet"
+      >
+        {SECTION_LABEL[section]}
+        <span aria-hidden="true" style={{ marginLeft: 4 }}>▾</span>
+      </Button>
+      <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />
+    </>
   );
 
   return (
-    <>
-      {rail}
-      <PreviewBar
-        states={[
-          "loading",
-          "empty",
-          "success",
-          "error",
-          "unauthorized",
-          "forbidden",
-          "not_found",
-          "question",
-          "review",
-        ]}
-      />
+    <PageShell chromeOnly crumbs={[{ label: "场景", href: "/workspaces" }, { label: workspaceName ?? "…" }]} previewStates={STUDIO_PREVIEW_STATES} right={railRight}>
       {menuOpen && (
         <div
           aria-modal="true"
@@ -213,7 +203,7 @@ export function StudioShell({
           {children}
         </main>
       </div>
-    </>
+    </PageShell>
   );
 }
 

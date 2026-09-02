@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
-import { DeskRail } from "@/src/components/shell/DeskRail";
+import { PageShell } from "@/src/components/shell/PageShell";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
 import { Field } from "@/src/components/ui/Field";
 import { Cross } from "@/src/components/ui/Glyph";
@@ -17,9 +17,19 @@ import { useSession } from "@/src/features/auth/hooks/useSession";
 import { AttachmentStrip } from "@/src/features/case-builder/components/AttachmentStrip";
 import { createUploadBatch } from "@/src/features/workspaces/services/studioService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
-import { PREVIEW_ENABLED, PreviewBar, usePreviewState } from "@/src/lib/preview/preview";
+import { PREVIEW_ENABLED, usePreviewState } from "@/src/lib/preview/preview";
 
 const ACCEPTED = [".txt", ".md", ".json", ".jsonl", ".zip"];
+
+const UPLOAD_PREVIEW_STATES = [
+  "loading",
+  "empty",
+  "success",
+  "error",
+  "unauthorized",
+  "forbidden",
+  "not_found",
+] as const;
 
 function extensionOf(name: string) {
   const index = name.lastIndexOf(".");
@@ -116,39 +126,22 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
     }
   }
 
-  const rail = (
-    <DeskRail
-      crumbs={[
-        { label: "场景", href: "/workspaces" },
-        { label: "上传资料" },
-      ]}
-      right={
-        <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />
-      }
-    />
-  );
-  const previewBar = (
-    <PreviewBar
-      states={["loading", "empty", "success", "error", "unauthorized", "forbidden", "not_found"]}
-    />
+  const railRight = (
+    <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />
   );
 
   const unauthorized = preview === "unauthorized" || (!preview && session.status === "anonymous");
   if (unauthorized) {
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid">
-          <StatePanel
-            actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>}
-            code="401 · AUTH_REQUIRED"
-            description="上传前需要登录。"
-            title="需要登录才能向这个场景上传"
-            tone="locked"
-          />
-        </main>
-      </>
+      <PageShell crumbs={[{ label: "场景", href: "/workspaces" }, { label: "上传资料" }]} mainClassName="page-mid" previewStates={UPLOAD_PREVIEW_STATES} right={railRight}>
+        <StatePanel
+          actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>}
+          code="401 · AUTH_REQUIRED"
+          description="上传前需要登录。"
+          title="需要登录才能向这个场景上传"
+          tone="locked"
+        />
+      </PageShell>
     );
   }
 
@@ -169,39 +162,32 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
           ? { title: "场景不存在", body: "查不到这个场景。" }
           : { title: "读取场景失败", body: fault.message };
     return (
-      <>
-        {rail}
-        {previewBar}
-        <main className="page page-mid">
-          <StatePanel
-            actions={
-              <ButtonLink href="/workspaces" variant="primary">
-                回到场景
-              </ButtonLink>
-            }
-            code={`${fault.kind === "forbidden" ? "403" : fault.kind === "not_found" ? "404" : "500"} · ${fault.code}`}
-            description={copy.body}
-            title={copy.title}
-            tone="fault"
-          />
-        </main>
-      </>
+      <PageShell crumbs={[{ label: "场景", href: "/workspaces" }, { label: "上传资料" }]} mainClassName="page-mid" previewStates={UPLOAD_PREVIEW_STATES} right={railRight}>
+        <StatePanel
+          actions={
+            <ButtonLink href="/workspaces" variant="primary">
+              回到场景
+            </ButtonLink>
+          }
+          code={`${fault.kind === "forbidden" ? "403" : fault.kind === "not_found" ? "404" : "500"} · ${fault.code}`}
+          description={copy.body}
+          title={copy.title}
+          tone="fault"
+        />
+      </PageShell>
     );
   }
 
   const loading = preview === "loading";
 
   return (
-    <>
-      {rail}
-      {previewBar}
-      <main className="page page-mid stack-lg">
-        <div className="stack-sm">
-          <h1 className="doc-title">上传资料</h1>
-          <p className="secondary">
-            上传真实交付材料，AI 会帮你分析可独立验收的题目边界。
-          </p>
-        </div>
+    <PageShell crumbs={[{ label: "场景", href: "/workspaces" }, { label: "上传资料" }]} mainClassName="page-mid stack-lg" previewStates={UPLOAD_PREVIEW_STATES} right={railRight}>
+      <div className="stack-sm">
+        <h1 className="doc-title">上传资料</h1>
+        <p className="secondary">
+          上传真实交付材料，AI 会帮你分析可独立验收的题目边界。
+        </p>
+      </div>
 
         <div className="stack-lg">
           <section className="sheet">
@@ -371,7 +357,6 @@ export function UploadPage({ workspaceId }: { workspaceId: string }) {
             )}
           </aside>
         </div>
-      </main>
-    </>
+    </PageShell>
   );
 }

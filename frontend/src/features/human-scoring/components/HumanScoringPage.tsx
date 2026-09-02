@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
-import { DeskRail } from "@/src/components/shell/DeskRail";
+import { PageShell } from "@/src/components/shell/PageShell";
 import { AutoTextarea } from "@/src/components/ui/AutoTextarea";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
 import { Field } from "@/src/components/ui/Field";
@@ -26,7 +26,6 @@ import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault"
 import {
   HUMAN_SCORING_PREVIEW_STATES,
   PREVIEW_STATES,
-  PreviewBar,
   useHumanScoringPreviewState,
   type HumanScoringPreviewState,
 } from "@/src/lib/preview/preview";
@@ -61,24 +60,17 @@ function isHumanPreviewState(value: string | null): value is HumanScoringPreview
   return HUMAN_SCORING_PREVIEW_STATES.includes(value as HumanScoringPreviewState);
 }
 
-function previewRail(
-  title: string,
+const HUMAN_PREVIEW_BAR_STATES = [...PREVIEW_STATES, ...HUMAN_SCORING_PREVIEW_STATES] as const;
+
+function scoringCrumbs(title: string) {
+  return [{ label: "场景", href: "/workspaces" }, { label: "人工评分" }, { label: title }];
+}
+
+function scoringRailRight(
   session: ReturnType<typeof useSession>,
   preview: string | null,
 ) {
-  return (
-    <>
-      <DeskRail
-        crumbs={[
-          { label: "场景", href: "/workspaces" },
-          { label: "人工评分" },
-          { label: title },
-        ]}
-        right={<UserChip previewName={preview ? "teacher-a" : undefined} session={session} />}
-      />
-      <PreviewBar states={[...PREVIEW_STATES, ...HUMAN_SCORING_PREVIEW_STATES]} />
-    </>
-  );
+  return <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />;
 }
 
 function FaultPanel({
@@ -204,10 +196,11 @@ export function SubmissionEntryPage({
     }
   }
 
-  const rail = previewRail("提交答卷", session, preview);
-  if (preview === "loading" || (!preview && session.status === "loading")) return <>{rail}<EntrySkeleton /></>;
-  if (!preview && session.status === "anonymous") return <>{rail}<main className="page page-mid"><FaultPanel fault={session.fault} returnTo={returnTo} /></main></>;
-  if (!preview && session.status === "failed") return <>{rail}<main className="page page-mid"><FaultPanel fault={session.fault} returnTo={returnTo} title="登录状态读取失败" /></main></>;
+  const railRight = scoringRailRight(session, preview);
+  const crumbs = scoringCrumbs("提交答卷");
+  if (preview === "loading" || (!preview && session.status === "loading")) return <PageShell chromeOnly crumbs={crumbs} previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}><EntrySkeleton /></PageShell>;
+  if (!preview && session.status === "anonymous") return <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}><FaultPanel fault={session.fault} returnTo={returnTo} /></PageShell>;
+  if (!preview && session.status === "failed") return <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}><FaultPanel fault={session.fault} returnTo={returnTo} title="登录状态读取失败" /></PageShell>;
   if (preview === "empty" || preview === "unauthorized" || preview === "forbidden" || preview === "not_found" || preview === "error" || preview === "human_invalid") {
     const previewFault: PageFault = preview === "unauthorized"
       ? { kind: "unauthorized", code: "AUTH_REQUIRED", message: "请先登录。" }
@@ -218,13 +211,12 @@ export function SubmissionEntryPage({
           : preview === "empty"
             ? { kind: "failed", code: "NO_PUBLISHED_REVISION", message: "当前场景还没有可用于评分的已发布题目修订。" }
             : { kind: "failed", code: "INVALID_SUBMISSION", message: "这份待评答卷暂时不能提交，请检查内容后重试。" };
-    return <>{rail}<main className="page page-mid"><FaultPanel fault={previewFault} returnTo={returnTo} title="提交入口暂时不可用" /></main></>;
+    return <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}><FaultPanel fault={previewFault} returnTo={returnTo} title="提交入口暂时不可用" /></PageShell>;
   }
 
   return (
-    <>
-      {rail}
-      <main className={`${styles.entryPage} page stack-lg`} data-testid="submission-entry">
+    <PageShell crumbs={crumbs} mainClassName={`${styles.entryPage} stack-lg`} previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}>
+      <div data-testid="submission-entry" className="stack-lg">
         <header className="stack-sm">
           <span className="section-label">待评答卷</span>
           <h1 className="doc-title">提交一份答卷</h1>
@@ -289,8 +281,8 @@ export function SubmissionEntryPage({
             <ButtonLink href={`/workspaces/${workspaceId}?section=versions`} variant="quiet">返回版本</ButtonLink>
           </div>
         </form>
-      </main>
-    </>
+      </div>
+    </PageShell>
   );
 }
 
@@ -808,10 +800,11 @@ export function HumanScoringPage({
   const title = snapshot
     ? revisionFor(snapshot, selectedRevisionId).title
     : "人工评分";
-  const rail = previewRail(title, session, preview);
-  if (preview === "loading" || (!preview && session.status === "loading")) return <>{rail}<EntrySkeleton /></>;
-  if (!preview && session.status === "anonymous") return <>{rail}<main className="page page-mid"><FaultPanel fault={session.fault} returnTo={returnTo} /></main></>;
-  if (!preview && session.status === "failed") return <>{rail}<main className="page page-mid"><FaultPanel fault={session.fault} returnTo={returnTo} title="登录状态读取失败" /></main></>;
+  const railRight = scoringRailRight(session, preview);
+  const crumbs = scoringCrumbs(title);
+  if (preview === "loading" || (!preview && session.status === "loading")) return <PageShell chromeOnly crumbs={crumbs} previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}><EntrySkeleton /></PageShell>;
+  if (!preview && session.status === "anonymous") return <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}><FaultPanel fault={session.fault} returnTo={returnTo} /></PageShell>;
+  if (!preview && session.status === "failed") return <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}><FaultPanel fault={session.fault} returnTo={returnTo} title="登录状态读取失败" /></PageShell>;
   if (preview === "empty" || preview === "error" || preview === "unauthorized" || preview === "forbidden" || preview === "not_found" || preview === "human_invalid") {
     const previewFault: PageFault = preview === "unauthorized"
       ? { kind: "unauthorized", code: "AUTH_REQUIRED", message: "请先登录。" }
@@ -822,10 +815,10 @@ export function HumanScoringPage({
           : preview === "empty"
             ? { kind: "failed", code: "NO_SUBMISSION", message: "还没有可读取的待评答卷。" }
             : { kind: "failed", code: "SUBMISSION_INVALID", message: "答卷快照暂时无法读取。" };
-    return <>{rail}<main className="page page-mid"><FaultPanel fault={previewFault} returnTo={returnTo} title="答卷暂时无法读取" /></main></>;
+    return <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}><FaultPanel fault={previewFault} returnTo={returnTo} title="答卷暂时无法读取" /></PageShell>;
   }
-  if (load.status === "loading") return <>{rail}<EntrySkeleton /></>;
-  if (load.status === "failed") return <>{rail}<main className="page page-mid"><FaultPanel fault={load.fault} returnTo={returnTo} /></main></>;
+  if (load.status === "loading") return <PageShell chromeOnly crumbs={crumbs} previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}><EntrySkeleton /></PageShell>;
+  if (load.status === "failed") return <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}><FaultPanel fault={load.fault} returnTo={returnTo} /></PageShell>;
   if (!snapshot) return null;
 
   const scores = snapshot.scores ?? [];
@@ -835,9 +828,8 @@ export function HumanScoringPage({
   const activeRevision = revisionFor(snapshot, rescoreMode ? selectedRevisionId : latest?.question_revision_id);
 
   return (
-    <>
-      {rail}
-      <main className={`${styles.page} page stack-lg`} data-testid="human-scoring-page">
+    <PageShell crumbs={crumbs} mainClassName={`${styles.page} stack-lg`} previewStates={HUMAN_PREVIEW_BAR_STATES} right={railRight}>
+      <div data-testid="human-scoring-page" className="stack-lg">
         <header className={styles.header}>
           <div className="stack-sm">
             <span className="section-label">人工评分 · 题 v{activeRevision.revision_number}</span>
@@ -932,7 +924,7 @@ export function HumanScoringPage({
             </form>
           </aside>
         </div>
-      </main>
-    </>
+      </div>
+    </PageShell>
   );
 }

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { DeskRail } from "@/src/components/shell/DeskRail";
+import { PageShell } from "@/src/components/shell/PageShell";
 import { AutoTextarea } from "@/src/components/ui/AutoTextarea";
 import { Button, ButtonLink } from "@/src/components/ui/Button";
 import { Field } from "@/src/components/ui/Field";
@@ -30,12 +30,20 @@ import {
 } from "@/src/features/evaluation-sets/services/rubricService";
 import { loginHref, toPageFault, type PageFault } from "@/src/lib/api/pageFault";
 import {
-  PreviewBar,
   useRubricPreviewState,
   type RubricPreviewState,
 } from "@/src/lib/preview/preview";
 
 import styles from "./rubric.module.css";
+
+const RUBRIC_PREVIEW_STATES = [
+  "rubric_processing",
+  "rubric_waiting",
+  "rubric_review",
+  "rubric_failed",
+  "rubric_published",
+  "rubric_stale",
+] as const;
 
 type QuestionDraft = NonNullable<AuthoringConversation["question_drafts"]>[number];
 type QuestionChoice = Pick<QuestionDraft, "id" | "title" | "input" | "bad_samples" | "reference_answer_text" | "confirmed_revision" | "lifecycle_status">;
@@ -663,31 +671,26 @@ export function AuthoringRubricPage({
   }
 
 
-  const rail = (
-    <DeskRail
-      crumbs={[{ label: "场景", href: "/workspaces" }, { label: "建题会话", href: `/workspaces/${workspaceId}/authoring/${conversationId}` }, { label: "评分规则" }]}
-      right={<UserChip previewName={preview ? "teacher-a" : undefined} session={session} />}
-    />
-  );
-  const previewBar = <PreviewBar states={["rubric_processing", "rubric_waiting", "rubric_review", "rubric_failed", "rubric_published", "rubric_stale"]} />;
+  const railRight = <UserChip previewName={preview ? "teacher-a" : undefined} session={session} />;
+  const crumbs = [{ label: "场景", href: "/workspaces" }, { label: "建题会话", href: `/workspaces/${workspaceId}/authoring/${conversationId}` }, { label: "评分规则" }];
 
   if (!preview && session.status === "loading") {
-    return <>{rail}{previewBar}<main className="page page-mid stack-lg"><SkeletonLine height={28} width="42%" /><section aria-busy="true" className="sheet sheet-pad stack-lg"><SkeletonLine height={20} /><SkeletonLine height={180} /></section></main></>;
+    return <PageShell crumbs={crumbs} mainClassName="page-mid stack-lg" previewStates={RUBRIC_PREVIEW_STATES} right={railRight}><SkeletonLine height={28} width="42%" /><section aria-busy="true" className="sheet sheet-pad stack-lg"><SkeletonLine height={20} /><SkeletonLine height={180} /></section></PageShell>;
   }
   if (!preview && session.status === "anonymous") {
-    return <>{rail}{previewBar}<main className="page page-mid"><StatePanel actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>} description="登录后才能审阅打分规则。" title="需要登录" tone="locked" /></main></>;
+    return <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={RUBRIC_PREVIEW_STATES} right={railRight}><StatePanel actions={<ButtonLink href={loginHref(returnTo)} variant="primary">去登录</ButtonLink>} description="登录后才能审阅打分规则。" title="需要登录" tone="locked" /></PageShell>;
   }
   if (!preview && session.status === "failed") {
-    return <>{rail}{previewBar}<main className="page page-mid"><StatePanel actions={<Button onClick={reloadSession} variant="primary">重新验证登录</Button>} code={session.fault.code} description={session.fault.message} title="登录状态读取失败" tone="fault" /></main></>;
+    return <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={RUBRIC_PREVIEW_STATES} right={railRight}><StatePanel actions={<Button onClick={reloadSession} variant="primary">重新验证登录</Button>} code={session.fault.code} description={session.fault.message} title="登录状态读取失败" tone="fault" /></PageShell>;
   }
   if (!preview && conversationLoad.status === "failed") {
-    return <>{rail}{previewBar}<main className="page page-mid"><StatePanel actions={<Button onClick={() => window.location.reload()} variant="primary">重新读取</Button>} code={conversationLoad.fault.code} description={conversationLoad.fault.message} title="建题会话读取失败" tone="fault" /></main></>;
+    return <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={RUBRIC_PREVIEW_STATES} right={railRight}><StatePanel actions={<Button onClick={() => window.location.reload()} variant="primary">重新读取</Button>} code={conversationLoad.fault.code} description={conversationLoad.fault.message} title="建题会话读取失败" tone="fault" /></PageShell>;
   }
   if (!preview && (conversationLoad.status === "loading" || !selectedQuestion)) {
     if (conversationLoad.status === "ready" && !selectedQuestion) {
-      return <>{rail}{previewBar}<main className="page page-mid"><StatePanel actions={<ButtonLink href={`/workspaces/${workspaceId}/authoring/${conversationId}`} variant="primary">回到建题会话</ButtonLink>} description="请先确认至少一道题的题目输入和标准答案。" title="还没有可生成规则的题目" tone="empty" /></main></>;
+      return <PageShell crumbs={crumbs} mainClassName="page-mid" previewStates={RUBRIC_PREVIEW_STATES} right={railRight}><StatePanel actions={<ButtonLink href={`/workspaces/${workspaceId}/authoring/${conversationId}`} variant="primary">回到建题会话</ButtonLink>} description="请先确认至少一道题的题目输入和标准答案。" title="还没有可生成规则的题目" tone="empty" /></PageShell>;
     }
-    return <>{rail}{previewBar}<main className="page page-mid stack-lg"><SkeletonLine height={28} width="42%" /><section aria-busy="true" className="sheet sheet-pad stack-lg"><SkeletonLine height={20} /><SkeletonLine height={180} /></section></main></>;
+    return <PageShell crumbs={crumbs} mainClassName="page-mid stack-lg" previewStates={RUBRIC_PREVIEW_STATES} right={railRight}><SkeletonLine height={28} width="42%" /><section aria-busy="true" className="sheet sheet-pad stack-lg"><SkeletonLine height={20} /><SkeletonLine height={180} /></section></PageShell>;
   }
 
   const displayedConversation = liveConversation;
@@ -696,10 +699,8 @@ export function AuthoringRubricPage({
   const rubricFault = rubricLoad.status === "failed" ? rubricLoad.fault : null;
 
   return (
-    <>
-      {rail}
-      {previewBar}
-      <main className={`${styles.page} page stack-lg`} data-testid="rubric-page">
+    <PageShell crumbs={crumbs} mainClassName={`${styles.page} page-wide stack-lg`} previewStates={RUBRIC_PREVIEW_STATES} right={railRight}>
+      <div data-testid="rubric-page" className="stack-lg">
         <header className={styles.header}>
           <div className="stack-sm">
             <span className="section-label">评分规则</span>
@@ -782,7 +783,7 @@ export function AuthoringRubricPage({
             title="确认规则并发布到评测集"
           />
         )}
-      </main>
-    </>
+      </div>
+    </PageShell>
   );
 }
