@@ -470,3 +470,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 21: 收敛为纯后端工程并新增管理员 CLI
+<!-- trellis-session: v=2 fp=fa925a0e33e6fe22 -->
+
+**Date**: 2026-09-03
+**Task**: 收敛为纯后端工程并新增管理员 CLI
+**Branch**: `main`
+
+### Summary
+
+子任务2：删除 frontend/ 与 Next.js/pnpm/Playwright 工件及前端规范，移除 Node 依赖；重写 Makefile 为后端命令族；新增 scripts/admin_cli.py（场景与凭证签发/轮换/撤销/状态，明文只显示一次）；修复对抗审查发现的 CLI 错误路径、空白场景名、超长凭证标签与 shell 注入面；README/.env.example/.gitignore/specs 同步为后端边界。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b70f83d` | refactor(repo): 收敛为纯后端工程并新增管理员 CLI |
+
+### Status
+
+[OK] **Completed**
