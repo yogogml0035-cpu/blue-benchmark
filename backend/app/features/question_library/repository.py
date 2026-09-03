@@ -160,6 +160,8 @@ def update_fields(
     *,
     expected_revision: int,
     now: datetime,
+    expected_status: str | None = None,
+    extra_conditions: list | None = None,
     **fields: Any,
 ) -> QuestionRecord | None:
     """CAS update guarded by a conditional UPDATE.
@@ -168,20 +170,32 @@ def update_fields(
     pattern cannot be used.  The conditional UPDATE is the portable
     compare-and-swap: when the stored revision no longer matches, ``rowcount``
     is 0 and the caller receives ``None``.
+
+    State-transition commands must not rely on a snapshot status check alone:
+    ``content_revision`` only changes on material edits, so two concurrent
+    state commands would both pass a revision-only predicate. Callers pass
+    ``expected_status`` (and any ``extra_conditions``) to fold the source-state
+    gate into the atomic WHERE clause.
     """
 
+    conditions = [
+        EvalQuestionRow.id == question_id,
+        EvalQuestionRow.content_revision == expected_revision,
+    ]
+    if expected_status is not None:
+        conditions.append(EvalQuestionRow.status == expected_status)
+    if extra_conditions:
+        conditions.extend(extra_conditions)
     statement = (
         update(EvalQuestionRow)
-        .where(
-            EvalQuestionRow.id == question_id,
-            EvalQuestionRow.content_revision == expected_revision,
-        )
+        .where(*conditions)
         .values(updated_at=now, **fields)
         .execution_options(synchronize_session=False)
     )
     if session.execute(statement).rowcount != 1:
         session.rollback()
         return None
+    session.expire_all()
     row = session.get(EvalQuestionRow, question_id)
     if row is None:  # pragma: no cover - deleted between update and read
         return None
@@ -193,8 +207,16 @@ def question_exists(session: Session, question_id: str) -> bool:
     return session.get(EvalQuestionRow, question_id) is not None
 
 
-def delete_question_and_generation_history(session: Session, question_id: str) -> None:
+def delete_question_and_generation_history(
+    session: Session, question_id: str, *, expected_revision: int
+) -> bool:
     """Hard-delete a question plus its generation jobs and attempt records.
+
+    The state gates ride inside one conditional DELETE: a concurrent publish
+    that commits between the service snapshot and this statement still blocks
+    the removal, because the row no longer satisfies the predicate. Returns
+    ``False`` when no row matched (missing, stale revision, or a protected
+    status won the race).
 
     ``operation_jobs`` references the question only through a loose
     ``target_id`` string, so the cleanup is explicit and scoped to this single
@@ -204,6 +226,16 @@ def delete_question_and_generation_history(session: Session, question_id: str) -
 
     from sqlalchemy import delete
 
+    deleted = session.execute(
+        delete(EvalQuestionRow).where(
+            EvalQuestionRow.id == question_id,
+            EvalQuestionRow.content_revision == expected_revision,
+            EvalQuestionRow.status.not_in(["generating", "published"]),
+        )
+    ).rowcount
+    if deleted != 1:
+        session.rollback()
+        return False
     job_ids = (
         session.execute(
             select(OperationJobRow.id).where(
@@ -219,9 +251,8 @@ def delete_question_and_generation_history(session: Session, question_id: str) -
             delete(AgentRunAttemptRow).where(AgentRunAttemptRow.operation_job_id.in_(job_ids))
         )
         session.execute(delete(OperationJobRow).where(OperationJobRow.id.in_(job_ids)))
-    row = session.get(EvalQuestionRow, question_id)
-    if row is not None:
-        session.delete(row)
+    session.expire_all()
+    return True
 
 
 # ---------------------------------------------------------------------------

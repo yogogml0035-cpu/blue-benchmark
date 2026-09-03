@@ -502,6 +502,14 @@ def patch_criteria(question_id: str, payload: CriteriaPatchRequest) -> QuestionD
             question_id,
             expected_revision=payload.content_revision,
             now=now,
+            extra_conditions=[
+                EvalQuestionRow.status.in_(
+                    [
+                        QuestionStatus.pending_review.value,
+                        QuestionStatus.generation_failed.value,
+                    ]
+                )
+            ],
             **values,
         )
         if record is None:
@@ -571,11 +579,19 @@ def publish(question_id: str, payload: QuestionCommandRequest) -> QuestionDetail
                 "CRITERIA_NOT_CONFIRMED",
                 "AI 候选维度必须经老师保存确认后才能发布。",
             )
+        # Fold the source-state and confirmation gates into the atomic CAS:
+        # a concurrent criteria patch or publish cannot slip in between the
+        # snapshot checks above and this commit.
         record = repository.update_fields(
             session,
             question_id,
             expected_revision=payload.content_revision,
             now=now,
+            expected_status=QuestionStatus.pending_review.value,
+            extra_conditions=[
+                EvalQuestionRow.criteria_confirmed.is_(True),
+                EvalQuestionRow.criteria_json.is_not(None),
+            ],
             status=QuestionStatus.published.value,
             published_at=now,
             ever_published=True,
@@ -611,6 +627,7 @@ def review_reopen(question_id: str, payload: QuestionCommandRequest) -> Question
             question_id,
             expected_revision=payload.content_revision,
             now=now,
+            expected_status=QuestionStatus.published.value,
             status=QuestionStatus.pending_review.value,
             published_at=None,
         )
@@ -659,7 +676,28 @@ def delete_question(question_id: str, payload: QuestionDeleteRequest) -> None:
                     "DELETE_CONFIRMATION_MISMATCH",
                     "该题目曾经发布过，必须输入当前完整题目标题确认删除。",
                 )
-        repository.delete_question_and_generation_history(session, question_id)
+        # The conditional DELETE re-checks revision and protected status
+        # atomically, so a concurrent publish that commits after the snapshot
+        # above still blocks the removal.
+        if not repository.delete_question_and_generation_history(
+            session, question_id, expected_revision=payload.content_revision
+        ):
+            current_row = session.get(EvalQuestionRow, question_id)
+            if current_row is None:
+                raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+            if current_row.content_revision != payload.content_revision:
+                raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+            if current_row.status == QuestionStatus.generating.value:
+                raise AppError(
+                    409,
+                    "RUBRIC_GENERATING",
+                    "评分维度生成中，等待生成完成或失败后再删除。",
+                )
+            raise AppError(
+                409,
+                "PUBLISHED_REOPEN_REQUIRED",
+                "已发布题目必须先重新打开审改，才能删除。",
+            )
 
 
 def _raise_stale_or_missing(question_id: str) -> None:

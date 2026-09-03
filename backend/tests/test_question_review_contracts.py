@@ -319,6 +319,119 @@ def test_delete_stale_revision_is_rejected() -> None:
         assert client.get(f"/api/questions/{question_id}").status_code == 200
 
 
+def test_cas_backstops_reject_raced_state_transitions() -> None:
+    """Repository-level predicates are the atomic backstop for state gates.
+
+    Even when a snapshot check passes, the conditional UPDATE/DELETE must
+    refuse to apply a transition whose source state no longer holds. This is
+    what keeps concurrent publish/delete/criteria commands last-writer-LOSES.
+    """
+
+    from datetime import datetime, timezone
+
+    from app.features.question_library import repository
+    from app.lib.database import session_scope
+    from app.lib.database.models import EvalQuestionRow
+
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _setup_pending_review(client)
+        _confirm_criteria(client, question_id)
+        _publish(client, question_id)
+
+    now = datetime.now(timezone.utc)
+
+    # Reopen CAS requires the published source state; a row already reopened
+    # (pending_review) refuses a second transition.
+    with session_scope() as session:
+        record = repository.get_question(session, question_id)
+        assert record is not None and record.status == "published"
+        revision = record.content_revision
+    with session_scope() as session:
+        raced = repository.update_fields(
+            session,
+            question_id,
+            expected_revision=revision,
+            now=now,
+            expected_status="pending_review",  # wrong source state on purpose
+            status="generating",
+        )
+    assert raced is None
+    with session_scope() as session:
+        still = repository.get_question(session, question_id)
+    assert still is not None and still.status == "published"
+
+    # Conditional delete refuses a published row even with the right revision.
+    with session_scope() as session:
+        deleted = repository.delete_question_and_generation_history(
+            session, question_id, expected_revision=revision
+        )
+    assert deleted is False
+    with session_scope() as session:
+        assert repository.question_exists(session, question_id)
+
+    # After a real reopen the guarded delete succeeds with the same revision.
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/auth/login",
+            json={"identifier": "admin", "password": "platform-admin-password"},
+        )
+        assert login.status_code == 200, login.text
+        detail = client.get(f"/api/questions/{question_id}").json()
+        reopened = client.post(
+            f"/api/questions/{question_id}/review-reopen",
+            json={"command_id": "reopen-cas", "content_revision": detail["content_revision"]},
+        )
+        assert reopened.status_code == 200, reopened.text
+        title = reopened.json()["title"]
+        deleted = client.request(
+            "DELETE",
+            f"/api/questions/{question_id}",
+            json={
+                "content_revision": reopened.json()["content_revision"],
+                "confirmation_title": title,
+            },
+        )
+        assert deleted.status_code == 204
+
+
+def test_publish_cas_requires_confirmation_facts() -> None:
+    """The publish CAS folds criteria_confirmed into the atomic predicate."""
+
+    from datetime import datetime, timezone
+
+    from app.features.question_library import repository
+    from app.lib.database import session_scope
+    from app.lib.database.models import EvalQuestionRow
+
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _setup_pending_review(client)
+        detail = client.get(f"/api/questions/{question_id}").json()
+        revision = detail["content_revision"]
+
+    now = datetime.now(timezone.utc)
+    # Attempting to publish an unconfirmed draft via the CAS backstop fails:
+    # the predicate requires criteria_confirmed=true in the same statement.
+    with session_scope() as session:
+        raced = repository.update_fields(
+            session,
+            question_id,
+            expected_revision=revision,
+            now=now,
+            expected_status="pending_review",
+            extra_conditions=[
+                EvalQuestionRow.criteria_confirmed.is_(True),
+                EvalQuestionRow.criteria_json.is_not(None),
+            ],
+            status="published",
+        )
+    assert raced is None
+    with session_scope() as session:
+        record = repository.get_question(session, question_id)
+    assert record is not None and record.status == "pending_review"
+
+
 def test_regeneration_after_publish_keeps_delete_gate() -> None:
     """Editing materials of a published question un-confirms criteria but the
     ever-published delete protection survives."""
