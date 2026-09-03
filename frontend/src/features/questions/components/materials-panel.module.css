@@ -1,0 +1,111 @@
+.materials {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.materialBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.blockLabel {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--aura-muted);
+  text-transform: none;
+}
+
+.text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--aura-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--aura-faint);
+}
+
+.subItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--aura-radius-md);
+  border: 1px solid var(--aura-line);
+  background: var(--aura-surface);
+  min-width: 0;
+}
+
+.subLabel {
+  margin: 0;
+  font-size: 12px;
+  color: var(--aura-muted);
+}
+
+.feedback {
+  margin: 0;
+  font-size: 13px;
+  color: var(--aura-warning);
+  line-height: 1.6;
+}
+
+.memoryToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--aura-text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.memoryNote {
+  margin: 0;
+  font-size: 12px;
+  color: var(--aura-faint);
+}
+
+.fieldArea {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fieldAreaLabel {
+  font-size: 12px;
+  color: var(--aura-muted);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 90px;
+  padding: 10px 12px;
+  border-radius: var(--aura-radius-md);
+  border: 1px solid var(--aura-line-strong);
+  background: var(--aura-surface-elevated);
+  color: var(--aura-text);
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--aura-focus-blue);
+  box-shadow: var(--aura-focus-ring);
+}
