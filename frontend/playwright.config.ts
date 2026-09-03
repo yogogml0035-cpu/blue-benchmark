@@ -30,7 +30,7 @@ export default defineConfig({
       },
       // First-run registration needs the empty database; it runs only here,
       // before any other project touches the isolated backend.
-      testMatch: ["01-auth-register.spec.ts", "02-auth-login.spec.ts"],
+      testMatch: ["01-auth-register.spec.ts", "02-auth-login.spec.ts", "03-evaluation-sets.spec.ts"],
     },
     {
       name: "chromium-minimum",
@@ -60,6 +60,7 @@ export default defineConfig({
     timeout: 240_000,
     env: {
       BACKEND_URL: "http://127.0.0.1:8123",
+      NEXT_PUBLIC_AGENT_API_BASE_URL: "http://127.0.0.1:8000",
     },
   },
 });
