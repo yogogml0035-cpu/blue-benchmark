@@ -2,7 +2,7 @@
 
 ## 当前结构
 
-后端是 Python 3.12+ / FastAPI 的单体服务，按业务 Feature 纵向组织，业务数据由 SQLAlchemy Repository 持久化。仓库是纯后端工程，没有前端、Node 或 TypeScript 依赖：
+后端是 Python 3.12+ / FastAPI 的单体服务，按业务 Feature 纵向组织，业务数据由 SQLAlchemy Repository 持久化。本文件只描述后端；前端（`frontend/`，Next.js）规范见 `../frontend/`：
 
 ```text
 backend/

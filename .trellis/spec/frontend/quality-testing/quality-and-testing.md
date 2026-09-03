@@ -17,20 +17,21 @@ pnpm --dir frontend test:e2e       # Playwright（Chromium + WebKit）
 ## 测试分层
 
 - **Vitest 单元/组件**（`src/**/*.test.{ts,tsx}`）：纯逻辑（`redirect.ts`、`client.ts` 错误解析/401 分流）与控件行为（错误关联、密码可见切换、loading 稳定）。用 `@testing-library/react` + jsdom；`src/test/setup.ts` 统一 `jest-dom` 与 `cleanup()`。
-- **Playwright 浏览器**（`e2e/*.spec.ts`）：真实 FastAPI + 真实会话 Cookie。spec 文件名带数字前缀（`01-`、`02-`）保证串行顺序；`fullyParallel:false` + `workers:1`。
-  - Chromium 完整流程（首注/登录/登出/会话恢复/returnTo/Canvas）。
-  - WebKit 与 1280x720 跑核心登录流程。
+- **Playwright 浏览器**（`e2e/*.spec.ts`）：真实 FastAPI + 真实会话 Cookie。spec 文件名带数字前缀（`01-`、`02-`、`03-`、`04-`）保证串行顺序；`fullyParallel:false` + `workers:1`。
+  - Chromium 完整流程：认证（首注/登录/登出/会话恢复/returnTo/Canvas）+ 评测集与凭证（`03-`）+ 题目审改工作台（`04-`）。
+  - WebKit 与 1280x720（chromium-minimum）跑核心登录流程。
 
 ## E2E 隔离后端
 
-- `e2e/global-setup.ts` 为每次运行启动隔离后端：临时 SQLite + `alembic upgrade head` + `uvicorn`（fake AI 模式，8123 端口）。**清理由 `globalSetup` 返回的函数完成**——Playwright 只调用 setup 的返回函数，`globalTeardown` 具名导出不会被执行（曾因此泄漏进程与临时目录）。
+- `e2e/global-setup.ts` 为每次运行启动隔离后端：临时 SQLite + `alembic upgrade head` + `uvicorn`（fake AI 模式，8123 端口）+ **一个 fake 模式 worker**（处理评分生成任务，使题目进入待审改）。**清理由 `globalSetup` 返回的函数完成**——Playwright 只调用 setup 的返回函数，`globalTeardown` 具名导出不会被执行（曾因此泄漏进程与临时目录）。
 - **教训（务必保留）**：
   - 全新 SQLite 必须先迁移再起服务；应用启动不会建表（`no such table`）。
-  - 杀后端要杀整个进程组（`uv run` 会另起 uvicorn 子进程，单杀 wrapper 会留孤儿占端口）。
+  - 杀后端/worker 要杀整个进程组（`uv run` 会另起子进程，单杀 wrapper 会留孤儿占端口）。
   - `globalSetup` 启动前先 `freePort`（并打印被杀 PID），防止上一次泄漏的进程以"健康但库已被删"的状态污染本轮；setup 中途失败也要清理进程与临时目录。
   - 后端访问日志写入 `$TMPDIR/m0-e2e-backend.log`，便于排查请求顺序。
   - 串行依赖：`01-`（首注，需空库）必须先于 `02-`（登录，`ensureAdmin` 兜底）；`workers:1` + 文件名数字前缀共同保证顺序，改动前先理解该约定。
 - webServer 用 `pnpm build && pnpm start`（生产构建）。**不要用 `next dev`**：本环境 dev 的 HMR WebSocket 握手在 headless Chromium 下失败，导致 React 不水合、页面逻辑不执行；生产构建稳定。`BACKEND_URL` 只在 **build 期** 注入生效（rewrite 目标在构建期固化到 `.next/routes-manifest.json`，运行期再注入无效）。
+- **真实 AI 验收**用独立脚本 `scripts/real-acceptance.mjs`（`make accept-web`）：隔离库 + 8200/3200 端口 + **一个 production worker + 真实 Provider**，真实浏览器走完整链路（首注→评测集→凭证提示词→上传→真实动态维度→保存→发布→重开→再发布），输出 `M0_WEB_ACCEPTANCE=PASS`。它**不复用** E2E 的 fake global-setup（模式不同：production vs fake）。输出只含阶段/计数/ID，绝不含密码、Cookie、token、提示词全文、材料正文或 raw model output。
 
 ## 契约/一致性
 

@@ -1,6 +1,6 @@
 # 后端开发规范
 
-适用于 `backend/` 的 FastAPI 业务数据库服务。仓库是纯后端工程（无前端、无 Node 依赖）。写代码前先确认任务触及哪一类边界，再读取对应规范。
+适用于 `backend/` 的 FastAPI 业务数据库服务。仓库为后端 + 前端两层：后端是业务事实源，前端（`frontend/`，见 `../frontend/` 规范）只做呈现并复用后端 Session Cookie。写代码前先确认任务触及哪一类边界，再读取对应规范。
 
 ## 规范索引
 
@@ -13,7 +13,7 @@
 
 ## 开发前检查
 
-- [ ] 已从源码、迁移、测试和 `README.md` 判断当前实现，没有把已删除的旧链路（旧建题/共创/Working Set/版本包/人工评分/前端）当成现状。
+- [ ] 已从源码、迁移、测试和 `README.md` 判断当前实现，没有把已删除的旧链路（旧建题/共创/Working Set/版本包/人工评分）当成现状。
 - [ ] 已确定修改所属 Feature（`question_library`、`scenes`、`auth`），跨 Feature 依赖通过对方 Service。
 - [ ] 涉及 API 字段、状态或错误时，已列出 `backend/openapi.json`、`scripts/verify_openapi.py` 和测试的同步点。
 - [ ] 涉及资源读取或写入时，已检查管理员会话、场景凭证最小权限与场景归属边界。

@@ -64,7 +64,8 @@
 ## 证据等级
 
 - `pytest` / OpenAPI 漂移检查通过：自动化门通过；
-- `accept_real_ai_rubric` 真实 Provider 端到端通过：真实 AI 验收；
+- `accept_real_ai_rubric` 真实 Provider 端到端通过：真实 AI 验收（API 级）；
+- `make accept-web`（`M0_WEB_ACCEPTANCE=PASS`）真实 Provider + 真实浏览器 Web 闭环通过：真实 AI Web 验收；
 - 文档或 Mock 写明能力：只代表设计或说明，不能升级为运行证据。
 
 ## 真实运行与命令身份检查

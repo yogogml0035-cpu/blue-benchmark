@@ -12,7 +12,7 @@ make test      # pytest + OpenAPI 漂移检查
 make build     # 后端编译/导入验证
 ```
 
-`make test` 与 `make contract-check` 只运行后端检查（仓库已无前端）。OpenAPI 合同变更见 `../guides/cross-layer-contracts.md`。
+`make test` 与 `make build` 同时覆盖后端与前端（前端命令见 `make frontend-*`；仅后端检查用 `cd backend && uv run pytest -q` 与 `make contract-check`）。OpenAPI 合同变更见 `../guides/cross-layer-contracts.md`。
 
 ## 测试模式
 
