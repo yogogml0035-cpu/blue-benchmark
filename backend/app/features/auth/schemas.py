@@ -46,4 +46,3 @@ class LoginRequest(BaseModel):
 
 class UserResponse(BaseModel):
     user: User
-

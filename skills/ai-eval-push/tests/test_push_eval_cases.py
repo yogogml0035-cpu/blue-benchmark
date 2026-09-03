@@ -469,4 +469,3 @@ def test_connection_only_prints_whitelisted_fields(server, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "secret_extra" not in out
     assert "scene_id" in out
-

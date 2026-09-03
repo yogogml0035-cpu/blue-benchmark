@@ -432,4 +432,3 @@ def downgrade() -> None:
         sa.Column("score_id", sa.String(length=36), nullable=False),
         sa.Column("criterion_id", sa.String(length=64), nullable=False),
     )
-

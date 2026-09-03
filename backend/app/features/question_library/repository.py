@@ -313,10 +313,3 @@ def complete_command(
     row.result_json = result
     row.completed_at = now
     session.flush()
-
-
-def release_command(session: Session, receipt_id: str) -> None:
-    row = session.get(BatchUploadCommandRow, receipt_id)
-    if row is not None and row.status == "creating":
-        session.delete(row)
-        session.flush()

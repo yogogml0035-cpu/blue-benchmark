@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 
 from app.lib.database import as_utc
 from app.lib.database.models import (
-    BatchUploadCommandRow,
     EvalQuestionRow,
     SceneCredentialRow,
     SceneRow,
@@ -230,14 +229,6 @@ def revoke_scene_credentials(session: Session, scene_id: str, *, reason: str, no
         row.revoked_reason = reason
     session.flush()
     return len(rows)
-
-
-def count_commands_for_scene(session: Session, scene_id: str) -> int:
-    return session.execute(
-        select(func.count(BatchUploadCommandRow.id)).where(
-            BatchUploadCommandRow.scene_id == scene_id
-        )
-    ).scalar_one()
 
 
 def count_questions_for_scene(session: Session, scene_id: str) -> int:

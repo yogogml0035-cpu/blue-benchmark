@@ -137,4 +137,3 @@ def reset_admin_password(new_password: str) -> None:
     if admin is None:
         raise AppError(409, "ADMIN_MISSING", "平台还没有管理员，无法重置密码。")
     repository.reset_admin_password(admin.id, _hash_password(new_password))
-

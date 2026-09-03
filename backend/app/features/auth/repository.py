@@ -81,20 +81,6 @@ def add_first_user(user: UserRecord) -> bool:
             return False
 
 
-def add_user(user: UserRecord) -> None:
-    with session_scope() as session:
-        session.add(
-            UserRow(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                password_hash=user.password_hash,
-                password_generation=user.password_generation,
-                created_at=user.created_at,
-            )
-        )
-
-
 def count_users() -> int:
     from sqlalchemy import func
 

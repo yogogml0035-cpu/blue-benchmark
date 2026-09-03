@@ -2,7 +2,7 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { MAX_PASS_SCORE, type CriterionDraft } from "../criterion-draft";
+import { MAX_PASS_SCORE, newManualDraft, type CriterionDraft } from "../criterion-draft";
 import styles from "./criteria-editor.module.css";
 
 export interface CriteriaEditorProps {
@@ -20,13 +20,7 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
   }
 
   function addManual(): void {
-    onChange((list) => [...list, newManual(list.map((d) => d.id))]);
-  }
-
-  function newManual(existingIds: string[]): CriterionDraft {
-    let id = `manual-${crypto.randomUUID()}`;
-    while (existingIds.includes(id)) id = `manual-${crypto.randomUUID()}`;
-    return { id, criterion: "", pass_score: 5, selected: true, source: "manual" };
+    onChange((list) => [...list, newManualDraft(new Set(list.map((d) => d.id)))]);
   }
 
   return (

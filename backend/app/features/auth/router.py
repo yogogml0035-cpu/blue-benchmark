@@ -45,4 +45,3 @@ def logout(request: Request, response: Response) -> None:
 @router.get("/me", response_model=UserResponse, responses={401: {"model": ErrorResponse}})
 def me(request: Request) -> UserResponse:
     return UserResponse(user=service.to_user(service.require_current_user(request)))
-

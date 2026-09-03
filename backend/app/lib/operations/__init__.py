@@ -16,7 +16,6 @@ from app.lib.operations.repository import (
     renew,
     supersede,
 )
-from app.lib.operations import attempts
 
 if TYPE_CHECKING:
     from app.lib.operations.worker import OperationWorker, fake_worker
@@ -47,5 +46,4 @@ __all__ = [
     "supersede",
     "OperationWorker",
     "fake_worker",
-    "attempts",
 ]

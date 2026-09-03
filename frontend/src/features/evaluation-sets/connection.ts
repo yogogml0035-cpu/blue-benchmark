@@ -27,4 +27,3 @@ export const CONNECTION_STATUS_LABEL: Record<ConnectionStatus, string> = {
   connected: "已连接",
   disabled: "已停用",
 };
-

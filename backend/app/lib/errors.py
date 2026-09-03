@@ -45,4 +45,3 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
         location = [str(part) for part in item.get("loc", []) if part != "body"]
         fields.append({"loc": location, "message": str(item.get("msg", "字段不合法"))})
     return error_response(422, "VALIDATION_ERROR", "请求参数不合法。", {"fields": fields})
-

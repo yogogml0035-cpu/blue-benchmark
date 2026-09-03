@@ -169,15 +169,6 @@ def assert_public_material_text(value: str, *, field_label: str) -> None:
         raise AppError(422, "PRIVATE_CONTENT_REJECTED", str(exc)) from exc
 
 
-def assert_actionable_criterion(criterion: str) -> None:
-    """Reject vague one-word labels that cannot guide stable scoring."""
-
-    try:
-        rubric_rules.validate_criterion_text(criterion)
-    except ValueError as exc:
-        raise AppError(422, "CRITERION_TOO_VAGUE", str(exc)) from exc
-
-
 class CriterionIn(BaseModel):
     """Administrator-supplied criterion; identical shape to the AI output contract."""
 
@@ -384,4 +375,3 @@ def assert_case_materials_private(case: CaseIn) -> None:
             assert_public_material_text(feedback, field_label="老师反馈")
         if item.reason_summary:
             assert_public_material_text(item.reason_summary, field_label="原因整理")
-
