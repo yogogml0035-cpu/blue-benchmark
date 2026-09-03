@@ -13,22 +13,29 @@ Usage:
     uv run python -m scripts.admin_cli credentials issue --scene-id <id> [--label ...]
     uv run python -m scripts.admin_cli credentials rotate --scene-id <id> [--label ...]
     uv run python -m scripts.admin_cli credentials revoke --scene-id <id> --credential-id <id>
+    uv run python -m scripts.admin_cli account reset-password
 
 Or through the Makefile:
     make admin ARGS="scenes list"
+
+The password-reset command reads the new password only through hidden
+interactive prompts (twice, for confirmation). It never accepts the password
+through argv or environment variables and never prints it.
 """
 
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import sys
 
 from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
+from app.features.auth import service as auth_service
 from app.features.scenes import service as scene_service
-from app.features.scenes.schemas import SceneCreateRequest
+from app.features.scenes.schemas import SceneCreateRequest, SceneUpdateRequest
 from app.lib.errors import AppError
 
 
@@ -81,6 +88,19 @@ def _scenes_status(args: argparse.Namespace) -> None:
     _print_json(response.model_dump())
 
 
+def _scenes_update(args: argparse.Namespace) -> None:
+    view = scene_service.update_scene(
+        args.scene_id,
+        SceneUpdateRequest(name=args.name, description=args.description),
+    )
+    _print_json(view.model_dump())
+
+
+def _scenes_delete(args: argparse.Namespace) -> None:
+    scene_service.delete_empty_scene(args.scene_id)
+    _print_json({"deleted": args.scene_id})
+
+
 def _credentials_issue(args: argparse.Namespace) -> None:
     issued = scene_service.issue_credential(args.scene_id, args.label)
     _print_json(issued.model_dump())
@@ -106,6 +126,17 @@ def _credentials_revoke(args: argparse.Namespace) -> None:
     _print_json(status.model_dump())
 
 
+def _account_reset_password(_args: argparse.Namespace) -> None:
+    # The new password is read twice via hidden interactive input only. It is
+    # never accepted through argv, environment variables, or echoed to output.
+    first = getpass.getpass("New password: ")
+    second = getpass.getpass("Confirm new password: ")
+    if first != second:
+        _fail("the two password inputs do not match; nothing was changed")
+    auth_service.reset_admin_password(first)
+    print("Password reset. All previous sessions were revoked.", file=sys.stderr)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="admin_cli", description="Administrator CLI for scenes and credentials."
@@ -127,6 +158,20 @@ def build_parser() -> argparse.ArgumentParser:
     scenes_status.add_argument("--scene-id", required=True)
     scenes_status.set_defaults(func=_scenes_status)
 
+    scenes_update = scenes_sub.add_parser(
+        "update", help="Replace scene name/description (full state; omitting --description clears it)."
+    )
+    scenes_update.add_argument("--scene-id", required=True)
+    scenes_update.add_argument("--name", required=True)
+    scenes_update.add_argument("--description", default=None)
+    scenes_update.set_defaults(func=_scenes_update)
+
+    scenes_delete = scenes_sub.add_parser(
+        "delete", help="Delete an empty scene; refuses a scene that still has questions."
+    )
+    scenes_delete.add_argument("--scene-id", required=True)
+    scenes_delete.set_defaults(func=_scenes_delete)
+
     credentials = sub.add_parser("credentials", help="Manage scene upload credentials.")
     credentials_sub = credentials.add_subparsers(dest="action", required=True)
 
@@ -146,6 +191,15 @@ def build_parser() -> argparse.ArgumentParser:
     cred_revoke.add_argument("--scene-id", required=True)
     cred_revoke.add_argument("--credential-id", required=True)
     cred_revoke.set_defaults(func=_credentials_revoke)
+
+    account = sub.add_parser("account", help="Manage the single admin account.")
+    account_sub = account.add_subparsers(dest="action", required=True)
+
+    account_reset = account_sub.add_parser(
+        "reset-password",
+        help="Reset the admin password via hidden interactive input; revokes all sessions.",
+    )
+    account_reset.set_defaults(func=_account_reset_password)
 
     return parser
 

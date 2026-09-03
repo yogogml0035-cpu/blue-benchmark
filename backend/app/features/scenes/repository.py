@@ -93,6 +93,45 @@ def get_scene(session: Session, scene_id: str) -> SceneRecord | None:
     return _scene_record(row) if row else None
 
 
+def update_scene(
+    session: Session, scene_id: str, *, name: str, description: str | None, now: datetime
+) -> SceneRecord | None:
+    """Overwrite scene metadata; returns None when the scene is missing."""
+
+    row = session.get(SceneRow, scene_id)
+    if row is None:
+        return None
+    row.name = name
+    row.description = description
+    row.updated_at = now
+    try:
+        session.flush()
+    except IntegrityError as exc:
+        session.rollback()
+        raise ValueError("SCENE_NAME_EXISTS") from exc
+    return _scene_record(row)
+
+
+def delete_empty_scene(session: Session, scene_id: str) -> bool:
+    """Atomically delete a scene only while it still has zero questions.
+
+    The conditional DELETE makes the emptiness check and the removal one
+    statement, so a concurrent upload that already inserted a question blocks
+    the delete instead of leaving an orphan row. Credential and zero-case
+    batch receipts follow through the database-level CASCADE.
+    """
+
+    from sqlalchemy import delete
+
+    statement = delete(SceneRow).where(
+        SceneRow.id == scene_id,
+        ~select(EvalQuestionRow.id)
+        .where(EvalQuestionRow.scene_id == scene_id)
+        .exists(),
+    )
+    return session.execute(statement).rowcount == 1
+
+
 def list_scene_summaries(session: Session) -> list[SceneSummary]:
     scenes = session.execute(select(SceneRow).order_by(SceneRow.created_at)).scalars().all()
     question_counts = dict(

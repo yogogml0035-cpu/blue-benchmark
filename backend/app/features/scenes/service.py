@@ -18,6 +18,7 @@ from app.features.scenes.schemas import (
     SceneCreateRequest,
     SceneListResponse,
     SceneStatusResponse,
+    SceneUpdateRequest,
     SceneView,
 )
 from app.lib.database import session_scope
@@ -69,6 +70,58 @@ def list_scenes() -> SceneListResponse:
     with session_scope() as session:
         summaries = repository.list_scene_summaries(session)
     return SceneListResponse(items=[_scene_view(item) for item in summaries])
+
+
+def update_scene(scene_id: str, payload: SceneUpdateRequest) -> SceneView:
+    """Rename and/or re-describe a scene; the name keeps its uniqueness rule."""
+
+    now = datetime.now(timezone.utc)
+    with session_scope() as session:
+        try:
+            record = repository.update_scene(
+                session,
+                scene_id,
+                name=payload.name,
+                description=payload.description,
+                now=now,
+            )
+        except ValueError as exc:
+            if str(exc) == "SCENE_NAME_EXISTS":
+                raise AppError(409, "SCENE_NAME_EXISTS", "同名场景已经存在。") from exc
+            raise
+        if record is None:
+            raise AppError(404, "RESOURCE_NOT_FOUND", "场景不存在。")
+        question_count = repository.count_questions_for_scene(session, scene_id)
+        active_count = repository.count_active_credentials(session, scene_id)
+    return SceneView(
+        id=record.id,
+        name=record.name,
+        description=record.description,
+        created_at=_iso(record.created_at) or "",
+        question_count=question_count,
+        active_credential_count=active_count,
+    )
+
+
+def delete_empty_scene(scene_id: str) -> None:
+    """Delete a scene only while it has zero questions.
+
+    The emptiness check and the delete are one atomic conditional statement,
+    so a concurrent upload cannot leave an orphan question. Credential rows
+    and zero-case batch receipts are removed by the database CASCADE. A
+    scene that still holds questions is rejected with an explicit conflict.
+    """
+
+    with session_scope() as session:
+        if repository.get_scene(session, scene_id) is None:
+            raise AppError(404, "RESOURCE_NOT_FOUND", "场景不存在。")
+        deleted = repository.delete_empty_scene(session, scene_id)
+        if not deleted:
+            raise AppError(
+                409,
+                "SCENE_NOT_EMPTY",
+                "评测集仍有题目，不能删除；请先处理其中的题目。",
+            )
 
 
 def get_scene_or_404(scene_id: str) -> SceneStatusResponse:

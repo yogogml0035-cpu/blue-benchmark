@@ -42,6 +42,34 @@ class SceneView(BaseModel):
     active_credential_count: int
 
 
+class SceneUpdateRequest(BaseModel):
+    """Full desired metadata state; the same validation rules as creation.
+
+    The web client always submits both fields together, so ``description=null``
+    unambiguously clears the description.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=1_000)
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("场景名称不能为空白。")
+        return stripped
+
+    @field_validator("description")
+    @classmethod
+    def _description_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
 class SceneListResponse(BaseModel):
     items: list[SceneView]
 
