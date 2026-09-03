@@ -1,0 +1,37 @@
+.panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--aura-radius-md);
+  border: 1px solid rgba(255, 92, 103, 0.35);
+  background: rgba(255, 92, 103, 0.08);
+}
+
+.icon {
+  flex: none;
+  color: var(--aura-danger);
+  margin-top: 1px;
+}
+
+.content {
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--aura-text);
+}
+
+.message {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--aura-muted);
+}
+
+.action {
+  flex: none;
+}

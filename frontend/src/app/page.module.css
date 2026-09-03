@@ -1,0 +1,24 @@
+.deciding {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--aura-page);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 320px;
+  padding: 28px;
+  border-radius: var(--aura-radius-lg);
+  border: 1px solid var(--aura-line);
+  background: var(--aura-surface);
+}
+
+.error {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--aura-danger);
+}

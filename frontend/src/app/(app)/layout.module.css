@@ -1,0 +1,25 @@
+.loading {
+  display: flex;
+  min-height: 100vh;
+  min-width: 1280px;
+  background: var(--aura-page);
+}
+
+.loadingSidebar {
+  flex: none;
+  width: 232px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 16px;
+  background: var(--aura-nav);
+  border-right: 1px solid var(--aura-line);
+}
+
+.loadingContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px 28px;
+}

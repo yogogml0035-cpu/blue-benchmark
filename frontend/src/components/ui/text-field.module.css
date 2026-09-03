@@ -1,0 +1,79 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--aura-text);
+}
+
+.control {
+  position: relative;
+  display: flex;
+}
+
+.input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: var(--aura-radius-md);
+  border: 1px solid var(--aura-line-strong);
+  background: var(--aura-surface-elevated);
+  color: var(--aura-text);
+  font-size: 14px;
+  transition:
+    border-color var(--aura-duration-fast) var(--aura-ease),
+    box-shadow var(--aura-duration-fast) var(--aura-ease);
+}
+
+.input::placeholder {
+  color: var(--aura-faint);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--aura-focus-blue);
+  box-shadow: var(--aura-focus-ring);
+}
+
+.invalid {
+  border-color: var(--aura-danger);
+}
+
+.reveal {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--aura-radius-sm);
+  background: transparent;
+  color: var(--aura-muted);
+  cursor: pointer;
+}
+
+.reveal:hover {
+  color: var(--aura-text);
+  background: var(--aura-surface-overlay);
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--aura-muted);
+}
+
+.error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--aura-danger);
+}

@@ -1,0 +1,162 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+  min-width: 1280px;
+  background: var(--aura-page);
+}
+
+.sidebar {
+  flex: none;
+  width: 232px;
+  display: flex;
+  flex-direction: column;
+  background: var(--aura-nav);
+  border-right: 1px solid var(--aura-line);
+  transition: width var(--aura-duration-base) var(--aura-ease);
+  overflow: hidden;
+}
+
+.collapsed {
+  width: 80px;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 18px 16px;
+}
+
+.wordmark {
+  display: inline-flex;
+  gap: 6px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--aura-text);
+  /* Distinct character spacing for the wordmark instead of negative tracking. */
+  letter-spacing: 0;
+}
+
+.collapsed .wordmark span:not(:first-child) {
+  display: none;
+}
+
+.collapseToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--aura-radius-sm);
+  background: transparent;
+  color: var(--aura-muted);
+  cursor: pointer;
+}
+
+.collapseToggle:hover {
+  background: var(--aura-surface-elevated);
+  color: var(--aura-text);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  flex: 1;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--aura-radius-md);
+  color: var(--aura-muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--aura-duration-fast) var(--aura-ease);
+}
+
+.navItem:hover {
+  background: var(--aura-surface-elevated);
+  color: var(--aura-text);
+  text-decoration: none;
+}
+
+.navItemActive {
+  background: rgba(103, 98, 254, 0.16);
+  color: var(--aura-action-purple-hover);
+}
+
+.navItemActive:hover {
+  background: rgba(103, 98, 254, 0.22);
+  color: var(--aura-action-purple-hover);
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--aura-line);
+}
+
+.avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--aura-action-purple);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.username {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.logout {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--aura-radius-sm);
+  background: transparent;
+  color: var(--aura-muted);
+  cursor: pointer;
+}
+
+.logout:hover:not(:disabled) {
+  background: var(--aura-surface-elevated);
+  color: var(--aura-danger);
+}
+
+.logout:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 28px;
+  overflow-y: auto;
+}

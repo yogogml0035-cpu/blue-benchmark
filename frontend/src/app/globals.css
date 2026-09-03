@@ -1,0 +1,121 @@
+/* AURA semantic design tokens.
+ *
+ * The dark workstation palette is inherited from the AURA prototype but
+ * converged into semantic variables. Component styles reference these tokens
+ * only; raw hex values must not leak into component CSS.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --aura-page: #15161a;
+  --aura-nav: #1e1f23;
+  --aura-surface: #1e1f23;
+  --aura-surface-elevated: #26272c;
+  --aura-surface-overlay: #2c2d33;
+
+  /* Lines */
+  --aura-line: rgba(237, 247, 255, 0.08);
+  --aura-line-strong: rgba(237, 247, 255, 0.16);
+
+  /* Text */
+  --aura-text: #edf7ff;
+  --aura-muted: #8b8e99;
+  --aura-faint: #6c6f78;
+
+  /* Brand + feedback */
+  --aura-action-purple: #6762fe;
+  --aura-action-purple-hover: #7a75ff;
+  --aura-focus-blue: #35bfff;
+  --aura-focus-blue-strong: #2679ea;
+  --aura-success: #38cd83;
+  --aura-danger: #ff5c67;
+  --aura-warning: #f5b544;
+
+  /* Folder color palette (evaluation-set cards) */
+  --aura-folder-blue: #4c9aff;
+  --aura-folder-purple: #9b7bff;
+  --aura-folder-green: #43c98a;
+  --aura-folder-yellow: #e8b93f;
+  --aura-folder-orange: #f08a4b;
+  --aura-folder-pink: #ef7bae;
+  --aura-folder-teal: #3fbfb2;
+  --aura-folder-red: #e4675f;
+
+  /* Focus ring */
+  --aura-focus-ring: 0 0 0 2px rgba(53, 191, 255, 0.55);
+
+  /* Radii & shadows */
+  --aura-radius-sm: 6px;
+  --aura-radius-md: 10px;
+  --aura-radius-lg: 14px;
+  --aura-shadow-card: 0 2px 12px rgba(0, 0, 0, 0.32);
+  --aura-shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.5);
+
+  /* Motion */
+  --aura-ease: cubic-bezier(0.32, 0.72, 0.24, 1);
+  --aura-duration-fast: 140ms;
+  --aura-duration-base: 220ms;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--aura-page);
+  color: var(--aura-text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  /* AURA body copy keeps neutral tracking; display wordmarks opt in to their
+   * own spacing instead of relying on negative letter-spacing. */
+  letter-spacing: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--aura-focus-blue);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Global keyboard focus treatment. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--aura-focus-ring);
+  border-radius: var(--aura-radius-sm);
+}
+
+/* Reduce motion for users who ask for it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

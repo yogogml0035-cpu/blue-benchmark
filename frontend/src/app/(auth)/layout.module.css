@@ -1,0 +1,75 @@
+.surface {
+  position: relative;
+  min-height: 100vh;
+  min-width: 1280px;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  background: var(--aura-page);
+}
+
+/* Left column: the AURA wordmark balanced against the right-hand panel. */
+.brandArea {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 96px;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wordmark {
+  display: inline-flex;
+  gap: 12px;
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--aura-text);
+  letter-spacing: 0;
+}
+
+.tagline {
+  margin: 0;
+  font-size: 15px;
+  color: var(--aura-muted);
+}
+
+/* Right column: the authentication panel. */
+.panelWrap {
+  position: relative;
+  z-index: 1;
+  width: 440px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 48px 44px;
+  /* The register panel is taller than a 720px viewport; let the surface
+     scroll vertically instead of clipping the form. */
+  overflow-y: auto;
+  max-height: 100vh;
+}
+
+/* margin:auto centers the panel when it fits, and degrades to top-aligned
+   scrollable content when it is taller than the viewport. */
+.inner {
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.panel {
+  padding: 24px 28px;
+  border-radius: var(--aura-radius-lg);
+  border: 1px solid var(--aura-line-strong);
+  background: rgba(30, 31, 35, 0.82);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--aura-shadow-card);
+}
