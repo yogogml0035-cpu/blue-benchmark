@@ -8,3 +8,14 @@ __pycache__/
 storage/
 backend/storage/
 .local-samples/
+
+# Frontend (Next.js) build/test artifacts and transient acceptance state.
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.cache/
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+frontend/.generated-api-probe.ts
