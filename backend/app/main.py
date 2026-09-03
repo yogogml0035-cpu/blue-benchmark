@@ -25,7 +25,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version="0.2.0",
-    description="Backend service for the unified evaluation question library.",
+    description="Backend service for scene-scoped evaluation question management.",
     openapi_url="/api/openapi.json",
     docs_url="/api/docs",
     redoc_url="/api/redoc",

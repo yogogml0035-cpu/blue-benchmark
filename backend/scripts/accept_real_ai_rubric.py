@@ -113,7 +113,9 @@ def main() -> int:
                 print(f"ACCEPT_REAL_AI=FAIL stage=publish question={question_id} code={publish.status_code}")
                 return 1
 
-        listing = client.get("/api/questions?status=published").json()
+        listing = client.get(
+            f"/api/questions?scene_id={scene['id']}&status=published"
+        ).json()
         if listing["total"] != len(question_ids):
             print(f"ACCEPT_REAL_AI=FAIL stage=library published={listing['total']}")
             return 1

@@ -1,4 +1,4 @@
-"""Unified question library service: batch intake, editing, publication."""
+"""Scene-scoped question library service: batch intake, editing, publication."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from app.features.question_library.schemas import (
     canonical_payload_hash,
     NEXT_ACTION_BY_STATUS,
 )
-from app.features.scenes.service import ScenePrincipal
+from app.features.scenes.service import ScenePrincipal, ensure_scene_exists
 from app.lib.database import session_scope
 from app.lib.database.models import EvalQuestionRow
 from app.lib.errors import AppError
@@ -278,11 +278,12 @@ def _validate_batch_cases(session, scene_id: str, payload: BatchUploadRequest) -
 
 
 def list_library(
-    *, status: QuestionStatus | None = None, scene_id: str | None = None
+    *, scene_id: str, status: QuestionStatus | None = None
 ) -> QuestionLibraryResponse:
+    ensure_scene_exists(scene_id)
     with session_scope() as session:
         records = repository.list_questions(
-            session, status=status.value if status else None, scene_id=scene_id
+            session, scene_id=scene_id, status=status.value if status else None
         )
     items = [
         QuestionListItem(

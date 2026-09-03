@@ -103,6 +103,14 @@ def get_scene_or_404(scene_id: str) -> SceneStatusResponse:
     )
 
 
+def ensure_scene_exists(scene_id: str) -> None:
+    """Narrow existence check for cross-feature scene boundary enforcement."""
+
+    with session_scope() as session:
+        if repository.get_scene(session, scene_id) is None:
+            raise AppError(404, "RESOURCE_NOT_FOUND", "场景不存在。")
+
+
 def _validate_label(label: str | None) -> str | None:
     if label is None:
         return None

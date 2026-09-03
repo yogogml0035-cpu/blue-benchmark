@@ -6,9 +6,11 @@ description: Organize evaluation cases from the current agent context and push t
 # AI Eval Push
 
 Turn real work done in this conversation into evaluation questions and upload
-them to the platform's unified question library. You (the local agent) organize
-the materials; a deterministic script validates and transmits them. The teacher
-confirms a full-batch preview before anything is sent.
+them to the platform's question library. Questions always land in the scene
+bound to the upload credential; there is no cross-scene or global intake. You
+(the local agent) organize the materials; a deterministic script validates and
+transmits them. The teacher confirms a full-batch preview before anything is
+sent.
 
 ## When to run
 
@@ -68,8 +70,9 @@ For each candidate question, collect:
    and safe fragments, drop anything secret/path-like/from other tasks. Add an
    optional safe `source_label`. May be empty.
 
-Also write a short **`title`** for each question (for library search only; it is
-not one of the six materials and does not affect rubric generation).
+Also write a short **`title`** for each question (for identification in the
+question list only; it is not one of the six materials and does not affect
+rubric generation).
 
 Shared materials: if the same reference example or memory fragment belongs to
 several questions, list it **separately in each question** with its own

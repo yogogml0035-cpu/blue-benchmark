@@ -65,3 +65,13 @@ def test_openapi_documents_question_library_actions() -> None:
     assert "/api/questions/{question_id}/generation-retry" in paths
     assert "/api/questions/{question_id}/publication" in paths
     assert "/api/questions/{question_id}/title" in paths
+
+
+def test_openapi_requires_scene_id_on_question_list() -> None:
+    spec = app.openapi()
+    list_operation = spec["paths"]["/api/questions"]["get"]
+    params = {param["name"]: param for param in list_operation["parameters"]}
+    assert params["scene_id"]["required"] is True
+    assert params["scene_id"]["schema"]["type"] == "string"
+    assert params["status"].get("required", False) is False
+    assert set(list_operation["responses"].keys()) == {"200", "401", "404", "422"}

@@ -74,7 +74,7 @@ def test_batch_upload_saves_six_materials_per_question() -> None:
 def test_idempotent_replay_and_payload_conflict() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        _scene_id, token = _setup(client)
+        scene_id, token = _setup(client)
         payload = helpers.make_batch("cmd-idem", [helpers.make_case("case-x")])
         first = helpers.upload_batch(client, token, payload)
         assert first.status_code == 201
@@ -83,7 +83,7 @@ def test_idempotent_replay_and_payload_conflict() -> None:
         assert replay.json() == first.json()
 
         # Only one question exists after the replay.
-        listing = client.get("/api/questions").json()
+        listing = client.get(f"/api/questions?scene_id={scene_id}").json()
         assert listing["total"] == 1
 
         # Same command with a changed payload must conflict.
@@ -97,7 +97,7 @@ def test_idempotent_replay_and_payload_conflict() -> None:
 def test_failed_batch_leaves_no_trace_and_new_command_succeeds() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        _scene_id, token = _setup(client)
+        scene_id, token = _setup(client)
         bad_case = helpers.make_case("case-bad")
         bad_case["reference_answer"] = "   "  # blank answer after strip -> invalid
         good_case = helpers.make_case("case-good")
@@ -112,13 +112,13 @@ def test_failed_batch_leaves_no_trace_and_new_command_succeeds() -> None:
             client, token, helpers.make_batch("cmd-ok", [good_case])
         )
         assert response.status_code == 201, response.text
-        assert client.get("/api/questions").json()["total"] == 1
+        assert client.get(f"/api/questions?scene_id={scene_id}").json()["total"] == 1
 
 
 def test_private_content_is_rejected_for_entire_batch() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        _scene_id, token = _setup(client)
+        scene_id, token = _setup(client)
         leaking = helpers.make_case("case-leak")
         leaking["memory_materials"] = [
             {
@@ -137,13 +137,13 @@ def test_private_content_is_rejected_for_entire_batch() -> None:
         problems = {item["client_case_id"] for item in error["details"]["cases"]}
         assert problems == {"case-leak"}
         # Atomicity: the clean case in the same batch is not created either.
-        assert client.get("/api/questions").json()["total"] == 0
+        assert client.get(f"/api/questions?scene_id={scene_id}").json()["total"] == 0
 
 
 def test_duplicate_client_case_id_conflicts_without_half_batch() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        _scene_id, token = _setup(client)
+        scene_id, token = _setup(client)
         first = helpers.upload_batch(
             client, token, helpers.make_batch("cmd-dup-1", [helpers.make_case("case-dup")])
         )
@@ -157,13 +157,13 @@ def test_duplicate_client_case_id_conflicts_without_half_batch() -> None:
             ),
         )
         assert second.status_code == 422
-        assert client.get("/api/questions").json()["total"] == 1
+        assert client.get(f"/api/questions?scene_id={scene_id}").json()["total"] == 1
 
 
 def test_materials_are_isolated_between_questions() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        _scene_id, token = _setup(client)
+        scene_id, token = _setup(client)
         shared_memory = {
             "client_ref_id": "mem-shared",
             "source_label": "共享记忆",
@@ -206,7 +206,7 @@ def test_materials_are_isolated_between_questions() -> None:
         # Deleting question A leaves B intact.
         assert client.delete(f"/api/questions/{ids[0]}").status_code == 204
         assert client.get(f"/api/questions/{ids[1]}").status_code == 200
-        assert client.get("/api/questions").json()["total"] == 1
+        assert client.get(f"/api/questions?scene_id={scene_id}").json()["total"] == 1
 
 
 def test_scene_credentials_are_isolated_between_scenes() -> None:

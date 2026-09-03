@@ -1,7 +1,7 @@
 [project]
 name = "skill-eval-platform-backend"
 version = "0.2.0"
-description = "Backend service for the unified evaluation question library"
+description = "Backend service for scene-scoped evaluation question management"
 requires-python = ">=3.12,<3.14"
 dependencies = [
   "alembic>=1.14,<2",

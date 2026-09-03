@@ -130,13 +130,17 @@ def get_question(session: Session, question_id: str) -> QuestionRecord | None:
 
 
 def list_questions(
-    session: Session, *, status: str | None = None, scene_id: str | None = None
+    session: Session, *, scene_id: str, status: str | None = None
 ) -> list[QuestionRecord]:
-    statement = select(EvalQuestionRow).order_by(EvalQuestionRow.created_at)
+    if not scene_id.strip():
+        raise ValueError("scene_id is required for listing questions")
+    statement = (
+        select(EvalQuestionRow)
+        .where(EvalQuestionRow.scene_id == scene_id)
+        .order_by(EvalQuestionRow.created_at)
+    )
     if status:
         statement = statement.where(EvalQuestionRow.status == status)
-    if scene_id:
-        statement = statement.where(EvalQuestionRow.scene_id == scene_id)
     rows = session.execute(statement).scalars().all()
     names = _scene_names(session, {row.scene_id for row in rows})
     return [_record(row, names.get(row.scene_id, "")) for row in rows]

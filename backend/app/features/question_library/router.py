@@ -1,4 +1,4 @@
-"""Administrator routes for the unified question library."""
+"""Administrator routes for the scene-scoped question library."""
 
 from __future__ import annotations
 
@@ -23,14 +23,14 @@ router = APIRouter(prefix="/questions", tags=["question-library"])
 @router.get(
     "",
     response_model=QuestionLibraryResponse,
-    responses={401: {"description": "未登录"}},
+    responses={401: {"description": "未登录"}, 404: {"description": "场景不存在"}},
 )
 def list_library(
+    scene_id: str = Query(...),
     status: QuestionStatus | None = Query(default=None),
-    scene_id: str | None = Query(default=None),
     _user=Depends(auth_service.require_current_user),
 ) -> QuestionLibraryResponse:
-    return service.list_library(status=status, scene_id=scene_id)
+    return service.list_library(scene_id=scene_id, status=status)
 
 
 @router.get(

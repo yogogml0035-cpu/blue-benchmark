@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Skill Eval Platform API",
-    "description": "Backend service for the unified evaluation question library.",
+    "description": "Backend service for scene-scoped evaluation question management.",
     "version": "0.2.0"
   },
   "paths": {
@@ -506,6 +506,15 @@
         "operationId": "list_library_api_questions_get",
         "parameters": [
           {
+            "name": "scene_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scene Id"
+            }
+          },
+          {
             "name": "status",
             "in": "query",
             "required": false,
@@ -519,22 +528,6 @@
                 }
               ],
               "title": "Status"
-            }
-          },
-          {
-            "name": "scene_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Scene Id"
             }
           }
         ],
@@ -551,6 +544,9 @@
           },
           "401": {
             "description": "未登录"
+          },
+          "404": {
+            "description": "场景不存在"
           },
           "422": {
             "description": "Validation Error",

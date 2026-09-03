@@ -1,4 +1,4 @@
-"""Pydantic contracts for the unified question library and six material groups."""
+"""Pydantic contracts for the scene-scoped question library and six material groups."""
 
 from __future__ import annotations
 
