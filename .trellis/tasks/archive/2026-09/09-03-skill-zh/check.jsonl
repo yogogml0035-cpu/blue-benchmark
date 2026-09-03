@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/quality-and-tests.md", "reason": "文档改动不影响脚本隔离测试，质量门判定"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "检查中文化后文案与后端合同一致"}
