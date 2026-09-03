@@ -1,162 +1,105 @@
 ---
 name: ai-eval-push
-description: Organize evaluation cases from the current agent context and push them to the Skill Eval Platform question library. Use whenever the user explicitly asks to save, distill, collect, or upload evaluation questions / test cases / benchmark cases from the work you just did together — even if they do not say "push". This skill identifies candidate questions, assembles the six material groups, gets teacher confirmation on a full-batch preview, then uploads with a scene credential. It never uploads until the user has confirmed.
+description: 从当前 Agent 上下文整理评测题，并上传到 Skill Eval Platform 题库。只要用户明确要求把刚才一起完成的工作保存、提炼、收集或上传为评测题 / 测试用例 / 基准用例——即使没有说"上传"这个词——都应使用本 Skill。它会识别候选题目、整理六类材料、让老师对整批预览确认，然后用场景凭证上传。在用户确认之前绝不上传。
 ---
 
-# AI Eval Push
+# AI 评测题上传（AI Eval Push）
 
-Turn real work done in this conversation into evaluation questions and upload
-them to the platform's question library. Questions always land in the scene
-bound to the upload credential; there is no cross-scene or global intake. You
-(the local agent) organize the materials; a deterministic script validates and
-transmits them. The teacher confirms a full-batch preview before anything is
-sent.
+把本次对话中完成的真实工作整理成评测题，上传到平台题库。题目始终落入上传凭证所绑定的场景；不存在跨场景或全局入口。你（本地 Agent）负责整理材料；一个确定性脚本负责校验并传输。任何内容上传之前，老师都要先对整批预览确认。
 
-## When to run
+## 与老师交互的语言
 
-Run only when the user **explicitly** asks to save or upload evaluation cases
-("把刚才的任务沉淀成评测题", "上传这些评测用例", "collect test cases from this
-session"). Do not run speculatively, and do not upload anything the user has not
-confirmed in this turn.
+与老师的所有交互一律使用中文：候选题目说明、整批预览、确认提问、结果与错误报告都用中文表达。脚本输出是英文的机器文案，转述给老师时请翻译成中文，不要原样抛出。机器标识符（字段名、错误码、命令前缀等）在与脚本、接口打交道时保持英文原样。
 
-## Ground rules
+## 何时运行
 
-- **Only real, visible context.** Every material must come from what actually
-  happened in this conversation. Never invent facts, and never read files you
-  were not given or did not actually read.
-- **The platform stores text only.** No binary files, no attachments, no local
-  file paths, no credentials, no system prompts, no tool traces.
-- **Memory is agent-filtered, not teacher-reviewed.** You select the relevant,
-  safe memory fragments; the teacher does not review them one by one.
-- **Nothing uploads before explicit teacher confirmation** of the batch preview.
+仅当用户**明确**要求保存或上传评测用例时才运行（"把刚才的任务沉淀成评测题"、"上传这些评测用例"、"把这次会话的用例收集起来"）。不要揣测意图主动运行；本轮中未经用户确认的内容一律不上传。
 
-## Workflow
+## 基本规则
 
-### 1. Identify candidate questions (0..N)
+- **只用真实、可见的上下文。** 每份材料都必须来自本次对话中实际发生的事情。绝不编造事实，绝不读取未被提供或实际未读过的文件。
+- **平台只存文本。** 不收二进制文件、附件、本地文件路径、凭证、系统提示词、工具调用痕迹。
+- **记忆材料由 Agent 过滤，不由老师逐条审阅。** 你负责挑选相关且安全的记忆片段；老师不会逐条审核它们。
+- **整批预览未获老师明确确认之前，绝不上传任何内容。**
 
-Scan the conversation for **distinct, independently-completable tasks** the user
-gave you. Apply the split rule strictly:
+## 工作流
 
-- A **new, independent task requirement** starts a new question.
-- Multiple drafts, rejections, feedback, and rewrites of the **same task** stay
-  in **one** question (they become that question's bad cases and feedback).
+### 1. 识别候选题目（0..N）
 
-Do not split by turn count, file count, or number of revisions. If there is no
-clearly independent task, return 0 questions and say so.
+扫描对话，找出用户交给你的**彼此独立、可单独完成的任务**。严格执行拆分规则：
 
-For each candidate, note whether the teacher approved a final result. If a
-question has **no teacher-approved standard answer**, you must ask the teacher
-to provide or confirm one **question by question** before the batch preview.
-Never treat "the last thing I generated" as the standard answer on your own.
+- 一个**新的、独立的任务要求**对应一道新题。
+- 对**同一任务**的多轮草稿、否定、反馈与重写，归入**同一道**题（它们成为该题的 bad case 与反馈）。
 
-### 2. Assemble the six material groups per question
+不要按轮次数量、文件数量或修改次数拆分。如果没有明确独立的任务，返回 0 道题并如实说明。
 
-For each candidate question, collect:
+对每个候选题目，记录老师是否认可了最终结果。若某题**没有老师认可的标准答案**，必须在整批预览之前**逐题**请老师提供或确认一份。绝不自作主张把"我最后生成的那份"当作标准答案。
 
-1. **题目 `task_prompt`** — the user's actual task requirement / prompt, verbatim.
-2. **参考样例 `reference_examples[]`** — content the user provided this session
-   that you actually read (files, attachments, data). You may distill it into
-   task-relevant text, but every statement must be supported by the source. Do
-   not scan unread files or guess from filenames. Give each a stable
-   `client_ref_id` and an optional safe `source_name`.
-3. **Bad case `bad_cases[]`** — real rejected outputs from this session, each
-   bound to the teacher's verbatim feedback (`teacher_feedback_texts[]`) and an
-   optional confirmed `reason_summary`. May be empty.
-4. **老师反馈** — stored inside each bad case (never standalone).
-5. **标准答案 `reference_answer`** — the teacher-approved result. Required.
-6. **记忆材料 `memory_materials[]`** — raw fragments from memory actually loaded
-   into this task's context (business-skill memory, user memory, local project
-   memory). Keep them verbatim (no summarizing/rewriting), keep only relevant
-   and safe fragments, drop anything secret/path-like/from other tasks. Add an
-   optional safe `source_label`. May be empty.
+### 2. 为每道题整理六类材料
 
-Also write a short **`title`** for each question (for identification in the
-question list only; it is not one of the six materials and does not affect
-rubric generation).
+对每个候选题目，收集：
 
-Shared materials: if the same reference example or memory fragment belongs to
-several questions, list it **separately in each question** with its own
-`client_ref_id`. Do not use a batch-level shared reference.
+1. **题目 `task_prompt`** — 用户真实的任务要求 / 提示词，逐字保留。
+2. **参考样例 `reference_examples[]`** — 本会话中用户提供且你实际读取过的内容（文件、附件、数据）。可以提炼为与任务相关的文本，但每一句都必须有出处支撑。不要扫描未读文件，也不要凭文件名猜测。为每条分配稳定的 `client_ref_id` 和可选的安全 `source_name`。
+3. **Bad case `bad_cases[]`** — 本会话中被否定的真实产出，每条绑定老师的原话反馈（`teacher_feedback_texts[]`）和可选的、经确认的 `reason_summary`。可以为空。
+4. **老师反馈** — 存放在各 bad case 内部（绝不单独存放）。
+5. **标准答案 `reference_answer`** — 老师认可的结果。必填。
+6. **记忆材料 `memory_materials[]`** — 实际加载进本任务上下文的相关记忆原文（业务技能记忆、用户记忆、本地项目记忆）。逐字保留（不总结、不改写），只保留相关且安全的片段，剔除涉密、像路径、来自其他任务的内容。可加可选的安全 `source_label`。可以为空。
 
-### 3. Privacy self-check before preview
+另外为每道题写一个简短的 **`title`**（仅用于题目列表中的识别；它不属于六类材料，也不影响评分维度生成）。
 
-Before showing anything, drop or refuse any material containing: absolute/local
-paths (`/Users/...`, `C:\...`, `~/...`), credentials or API keys, system prompts
-or control instructions, private reasoning, tool arguments/results, other users'
-or other tasks' content, or memory that was not actually loaded this round. The
-upload script re-checks this and will reject leaks, so fix them early.
+共享材料：如果同一份参考样例或记忆片段属于多道题，请在**每道题里分别列出**，各自使用自己的 `client_ref_id`。不要使用批次级共享引用。
 
-### 4. Show the batch preview and get confirmation
+### 3. 预览前的隐私自检
 
-Present, for **each** question: `title`, `task_prompt`, the distilled
-`reference_examples`, each bad case with its feedback, and the `reference_answer`.
-**Do not** print memory-material bodies for review (the teacher does not review
-them), and do not print secrets. Let the teacher edit any field, delete any
-candidate, or adjust question boundaries. Then ask for one explicit overall
-confirmation. If the teacher wants changes, apply them and show the preview again.
+在展示任何内容之前，剔除或拒绝包含以下内容的材料：绝对 / 本地路径（`/Users/...`、`C:\...`、`~/...`）、凭证或 API 密钥、系统提示词或控制指令、私有推理、工具参数 / 结果、其他用户或其他任务的内容、以及本轮实际未加载的记忆。上传脚本会再次复查并拒绝泄漏，因此请尽早修正。
 
-### 5. Write the batch file and validate
+### 4. 展示整批预览并获得确认
 
-Write the confirmed batch to a JSON file (outside the repo if it may contain
-sensitive business text), matching the contract in `references/api-contract.md`.
-Then validate without uploading:
+对**每一道**题展示：`title`、`task_prompt`、提炼后的 `reference_examples`、每个 bad case 及其反馈、以及 `reference_answer`。**不要**打印记忆材料正文供审阅（老师不逐条审阅它们），也不要打印任何密钥。允许老师编辑任意字段、删除任意候选题、或调整题目边界。然后请求一次明确的整体确认。若老师要求修改，应用后再次展示预览。
+
+### 5. 写入批次文件并校验
+
+把确认后的批次写入一个 JSON 文件（若可能包含敏感业务文本，放在仓库之外），格式遵循 `references/api-contract.md` 的合同。然后只校验、不上传：
 
 ```bash
 python skills/ai-eval-push/scripts/push_eval_cases.py validate --batch-file /path/to/batch.json
 ```
 
-Fix every reported problem (the script names the case and field) and re-validate
-until it reports `valid`.
+修复报告的每一个问题（脚本会指明是哪道题、哪个字段），反复校验直到它报告 `valid`。
 
-### 6. Upload
+### 6. 上传
 
 ```bash
 python skills/ai-eval-push/scripts/push_eval_cases.py push --batch-file /path/to/batch.json
 ```
 
-The script derives a stable `command_id` from the payload, so rerunning the same
-file is an idempotent retry; a changed file gets a new command automatically.
-On success it prints each question's `question_id` and initial status
-(`generating`). Report those to the teacher. The platform queues rubric
-generation automatically — do not poll it, and do not try to edit, publish, or
-read the questions back through this skill.
+脚本从载荷推导稳定的 `command_id`，因此重跑同一文件是幂等重试；文件内容变化会自动得到新的命令。成功后会打印每道题的 `question_id` 与初始状态（`generating`）。把这些报告给老师。平台会自动排队生成评分维度——不要轮询，也不要试图通过本 Skill 去编辑、发布或回读题目。
 
-### 7. Handle failures
+### 7. 失败处理
 
-- `config-error` — `AI_EVAL_BASE_URL` / `AI_EVAL_ACCESS_TOKEN` (or
-  `AI_EVAL_CONFIG`) missing, or the base URL is not http/https; tell the user
-  what to set. Do not print the token.
-- `invalid` — local validation failed; nothing uploaded. Fix the named case/field.
-- `upload-failed [BATCH_CASE_INVALID]` — the server rejected one or more cases
-  (privacy leak, duplicate `client_case_id`, etc.); the message names each case
-  and problem. Fix those cases and rerun (the payload changed, so a new command
-  id is derived automatically).
-- `upload-failed [VALIDATION_ERROR]` — the payload violated the schema (lengths,
-  blank required text, extra fields); fix the field and rerun.
-- `upload-failed [COMMAND_ID_REUSED]` — this `command_id` was used with a
-  different payload; change the batch (new command id) and retry.
-- `upload-failed [CREDENTIAL_INVALID]` — credential invalid/revoked; ask the
-  admin to issue/rotate one via the backend admin CLI.
-- Any failure is all-or-nothing: no partial batch is created. Keep the local
-  batch file so the teacher can correct and retry.
+- `config-error` — 缺少 `AI_EVAL_BASE_URL` / `AI_EVAL_ACCESS_TOKEN`（或 `AI_EVAL_CONFIG`），或 base URL 不是 http/https；告诉用户需要设置什么。不要打印 token。
+- `invalid` — 本地校验失败；未上传任何内容。修复脚本指出的题目 / 字段。
+- `upload-failed [BATCH_CASE_INVALID]` — 服务端拒绝了一道或多道题（隐私泄漏、`client_case_id` 重复等）；消息会逐条指明题目与问题。修复这些题目后重跑（载荷已变，会自动推导新的命令 id）。
+- `upload-failed [VALIDATION_ERROR]` — 载荷违反 schema（长度、必填文本为空、多余字段）；修复对应字段后重跑。
+- `upload-failed [COMMAND_ID_REUSED]` — 该 `command_id` 已用于不同的载荷；修改批次（获得新命令 id）后重试。
+- `upload-failed [CREDENTIAL_INVALID]` — 凭证无效 / 已吊销；请管理员通过后端管理员 CLI 重新签发 / 轮换。
+- 任何失败都是全成全败：不会创建部分批次。保留本地批次文件，方便老师修改后重试。
 
-## Configuration
+## 配置
 
-The script reads the API base URL and scene credential from the environment:
+脚本从环境变量读取 API base URL 和场景凭证：
 
-- `AI_EVAL_BASE_URL` (e.g. `http://127.0.0.1:8000`)
-- `AI_EVAL_ACCESS_TOKEN` (the scene credential, `sep_...`)
-- or `AI_EVAL_CONFIG` — absolute path to a JSON file with `base_url` and
-  `access_token`, kept **outside** the repository.
+- `AI_EVAL_BASE_URL`（例如 `http://127.0.0.1:8000`）
+- `AI_EVAL_ACCESS_TOKEN`（场景凭证，`sep_...`）
+- 或 `AI_EVAL_CONFIG` — 一个 JSON 文件的绝对路径，内含 `base_url` 与 `access_token`，放在**仓库之外**。
 
-Never write the token into the repo, the batch file, logs, or your reply. Verify
-the binding first with:
+绝不把 token 写进仓库、批次文件、日志或你的回复。先用以下命令确认绑定关系：
 
 ```bash
 python skills/ai-eval-push/scripts/push_eval_cases.py connection
 ```
 
-## Contract reference
+## 合同参考
 
-Read `references/api-contract.md` for the exact payload schema, field limits, and
-error codes before building a batch.
+构造批次前，先阅读 `references/api-contract.md`，了解精确的载荷 schema、字段限制与错误码。

@@ -1,10 +1,8 @@
-# Batch Upload API Contract
+# 批量上传 API 合同
 
-Machine contract for `POST /api/external/question-batches`, authenticated by a
-scene credential (`Authorization: Bearer sep_...`). The scene is determined by
-the credential; the payload must not carry a scene id.
+`POST /api/external/question-batches` 的机器合同，使用场景凭证鉴权（`Authorization: Bearer sep_...`）。场景由凭证决定；载荷中不得携带场景 id。
 
-## Request
+## 请求
 
 ```json
 {
@@ -42,47 +40,37 @@ the credential; the payload must not carry a scene id.
 }
 ```
 
-## Field limits
+## 字段限制
 
-| Field | Constraint |
+| 字段 | 约束 |
 |---|---|
-| `schema_version` | value must be `"1.0"` when present (defaults to `"1.0"`) |
-| `command_id` | 1..255 chars; stable per payload |
+| `schema_version` | 出现时必须为 `"1.0"`（缺省即 `"1.0"`） |
+| `command_id` | 1..255 字符；同一载荷保持稳定 |
 | `cases` | 0..50 |
-| `client_case_id` | 1..128 chars; unique within the batch and per scene |
-| `title` | 1..200 chars, non-blank |
-| `task_prompt` | 1..100,000 chars, non-blank |
-| `reference_answer` | 1..200,000 chars, non-blank (required per question) |
-| `reference_examples` | 0..50 items |
-| `bad_cases` | 0..50 items |
-| `memory_materials` | 0..50 items |
-| `*.client_ref_id` | 1..128 chars; unique within its list |
-| `source_name` / `source_label` | optional, <= 200 chars |
-| `content_text` | 1..200,000 chars, non-blank |
-| `teacher_feedback_texts` | 1..20 items, each 1..5,000 chars, non-blank |
-| `reason_summary` | optional, <= 5,000 chars |
+| `client_case_id` | 1..128 字符；批次内唯一，且场景内唯一 |
+| `title` | 1..200 字符，非空白 |
+| `task_prompt` | 1..100,000 字符，非空白 |
+| `reference_answer` | 1..200,000 字符，非空白（每题必填） |
+| `reference_examples` | 0..50 条 |
+| `bad_cases` | 0..50 条 |
+| `memory_materials` | 0..50 条 |
+| `*.client_ref_id` | 1..128 字符；所在列表内唯一 |
+| `source_name` / `source_label` | 可选，<= 200 字符 |
+| `content_text` | 1..200,000 字符，非空白 |
+| `teacher_feedback_texts` | 1..20 条，每条 1..5,000 字符，非空白 |
+| `reason_summary` | 可选，<= 5,000 字符 |
 
-`extra` fields are rejected (`422`). Memory material text must be the raw loaded
-fragment (no summarizing). Reference examples may be distilled but must stay
-source-supported.
+`extra` 字段会被拒绝（`422`）。记忆材料文本必须是实际加载的原文（不得总结）。参考样例可以提炼，但必须有出处支撑。
 
-## Idempotency
+## 幂等性
 
-- Same `command_id` + same payload -> original result replayed (201, same ids).
-- Same `command_id` + different payload -> `409 COMMAND_ID_REUSED`.
-- Business-level case problems (privacy leak, duplicate `client_case_id`, etc.)
-  -> the **entire** batch is rejected with `422 BATCH_CASE_INVALID`; the
-  `details.cases[]` array names each failing `client_case_id` and its problems
-  (problem code `PRIVATE_CONTENT_REJECTED` or `CASE_ALREADY_EXISTS`). Nothing is
-  created.
-- Schema violations (wrong types, over-length fields, blank required text, extra
-  unknown fields, bad `schema_version`) -> `422 VALIDATION_ERROR` from the
-  request-validation layer; nothing is created.
-- A `client_case_id` that already exists in the scene is caught pre-flight and
-  reported inside `BATCH_CASE_INVALID` (problem code `CASE_ALREADY_EXISTS`); the
-  top-level `409 CASE_ALREADY_EXISTS` only occurs on a concurrent-write race.
+- 相同 `command_id` + 相同载荷 -> 重放原始结果（201，相同 id）。
+- 相同 `command_id` + 不同载荷 -> `409 COMMAND_ID_REUSED`。
+- 业务级题目问题（隐私泄漏、`client_case_id` 重复等）-> **整批**以 `422 BATCH_CASE_INVALID` 拒绝；`details.cases[]` 数组逐条指明失败的 `client_case_id` 及其问题（问题码为 `PRIVATE_CONTENT_REJECTED` 或 `CASE_ALREADY_EXISTS`）。不创建任何内容。
+- Schema 违规（类型错误、字段超长、必填文本为空、多余未知字段、`schema_version` 非法）-> 请求校验层返回 `422 VALIDATION_ERROR`；不创建任何内容。
+- 场景内已存在的 `client_case_id` 会在预检阶段被捕获，并归入 `BATCH_CASE_INVALID` 上报（问题码 `CASE_ALREADY_EXISTS`）；顶层 `409 CASE_ALREADY_EXISTS` 只出现在并发写入竞态时。
 
-## Response (201)
+## 响应（201）
 
 ```json
 {
@@ -95,26 +83,24 @@ source-supported.
 }
 ```
 
-Each question is immediately queued for rubric generation (`status: generating`).
-The skill reports these and does not poll further.
+每道题会立即进入评分维度生成队列（`status: generating`）。Skill 报告这些结果即可，不做后续轮询。
 
-## Error codes
+## 错误码
 
-| Code | Meaning |
+| 错误码 | 含义 |
 |---|---|
-| `CREDENTIAL_REQUIRED` / `CREDENTIAL_INVALID` | missing / invalid / revoked credential (401) |
-| `COMMAND_ID_REUSED` | same command, different payload (409) |
-| `COMMAND_IN_PROGRESS` | same command currently processing (409) |
-| `BATCH_CASE_INVALID` | business-level case problems; nothing created (422); `details.cases[]` names each failing case |
-| `VALIDATION_ERROR` | request failed schema validation (types/limits/extra fields); nothing created (422) |
-| `CASE_ALREADY_EXISTS` | as a top-level code, only a concurrent-write race (409); normally nested in `BATCH_CASE_INVALID` |
-| `PRIVATE_CONTENT_REJECTED` | privacy leak; nested problem code inside `BATCH_CASE_INVALID` on this endpoint |
-| `BATCH_CONFLICT` | unexpected write conflict; nothing created (409) |
+| `CREDENTIAL_REQUIRED` / `CREDENTIAL_INVALID` | 凭证缺失 / 无效 / 已吊销（401） |
+| `COMMAND_ID_REUSED` | 相同命令、不同载荷（409） |
+| `COMMAND_IN_PROGRESS` | 相同命令正在处理中（409） |
+| `BATCH_CASE_INVALID` | 业务级题目问题；不创建任何内容（422）；`details.cases[]` 逐条指明失败题目 |
+| `VALIDATION_ERROR` | 请求未通过 schema 校验（类型 / 长度 / 多余字段）；不创建任何内容（422） |
+| `CASE_ALREADY_EXISTS` | 作为顶层错误码时仅表示并发写入竞态（409）；通常嵌套在 `BATCH_CASE_INVALID` 内 |
+| `PRIVATE_CONTENT_REJECTED` | 隐私泄漏；本端点上是 `BATCH_CASE_INVALID` 内的问题码 |
+| `BATCH_CONFLICT` | 意外写入冲突；不创建任何内容（409） |
 
-## Connection check
+## 连接状态检查
 
-`GET /api/external/connection` with the same bearer token returns the bound scene
-and credential id (never the token):
+`GET /api/external/connection` 使用同一 bearer token，返回绑定的场景与凭证 id（绝不返回 token）：
 
 ```json
 {
@@ -127,10 +113,6 @@ and credential id (never the token):
 }
 ```
 
-## Privacy backstop (server)
+## 隐私兜底（服务端）
 
-Every text field (title, client_case_id, task_prompt, reference_answer, all
-example/memory/bad-case bodies, feedbacks, reason, and source names/labels) is
-scanned for credentials, host paths, and system-control content after Unicode
-normalization and zero-width stripping. Leaks are rejected with
-`PRIVATE_CONTENT_REJECTED`. Do the same filtering client-side before previewing.
+所有文本字段（title、client_case_id、task_prompt、reference_answer、全部样例 / 记忆 / bad case 正文、反馈、原因总结、来源名 / 标签）都会在 Unicode 归一化和零宽字符剥离后，扫描凭证、主机路径与系统控制内容。泄漏会以 `PRIVATE_CONTENT_REJECTED` 拒绝。预览前请在客户端先做同样的过滤。
