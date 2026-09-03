@@ -1,24 +1,122 @@
 "use client";
 
-import { FolderKanban } from "lucide-react";
+import { FolderPlus, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorPanel } from "@/components/ui/error-panel";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getSceneStatus, listScenes, type SceneView } from "@/features/evaluation-sets/api";
+import {
+  deriveConnectionStatus,
+  type ConnectionStatus,
+} from "@/features/evaluation-sets/connection";
+import { FolderCard } from "@/features/evaluation-sets/components/folder-card";
+import { EvaluationSetFormDialog } from "@/features/evaluation-sets/components/form-dialog";
+import { ApiError } from "@/lib/api/client";
+import styles from "./page.module.css";
 
-/**
- * Placeholder route so the shell has a mountable destination in this task.
- * The real folder grid, metadata editing and credential lifecycle land in the
- * evaluation-set UI task.
- */
 export default function EvaluationSetsPage(): React.JSX.Element {
+  const router = useRouter();
+  const [scenes, setScenes] = useState<SceneView[] | null>(null);
+  const [connectionById, setConnectionById] = useState<Record<string, ConnectionStatus>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const response = await listScenes();
+      setScenes(response.items);
+      // Derive the precise connection state per scene from its credentials.
+      const entries = await Promise.all(
+        response.items.map(async (scene) => {
+          try {
+            const status = await getSceneStatus(scene.id);
+            return [scene.id, deriveConnectionStatus(status.credentials)] as const;
+          } catch {
+            return [scene.id, "unsigned"] as const;
+          }
+        }),
+      );
+      setConnectionById(Object.fromEntries(entries));
+    } catch (err) {
+      setScenes(null);
+      setLoadError(err instanceof ApiError ? err.message : "加载评测集失败，请稍后重试。");
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   return (
-    <div>
-      <h1 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 4px" }}>评测集</h1>
-      <p style={{ margin: "0 0 20px", color: "var(--aura-muted)", fontSize: 13 }}>
-        评测集是题目归属的第一层业务容器。
-      </p>
-      <EmptyState
-        icon={FolderKanban}
-        title="评测集列表即将上线"
-        description="创建、重命名与凭证管理将在评测集管理界面任务中提供。当前壳层已连接到真实会话。"
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <div>
+          <h1 className={styles.title}>评测集</h1>
+          <p className={styles.subtitle}>评测集是题目归属的第一层业务容器。</p>
+        </div>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus size={16} aria-hidden="true" />
+          创建评测集
+        </Button>
+      </div>
+
+      {loadError ? (
+        <ErrorPanel
+          title="加载未成功"
+          message={loadError}
+          action={
+            <Button variant="secondary" onClick={() => void load()}>
+              重试
+            </Button>
+          }
+        />
+      ) : null}
+
+      {scenes === null && !loadError ? (
+        <div className={styles.grid} aria-busy="true">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} variant="block" height={140} />
+          ))}
+        </div>
+      ) : null}
+
+      {scenes !== null && scenes.length === 0 ? (
+        <EmptyState
+          icon={FolderPlus}
+          title="还没有评测集"
+          description="创建一个评测集，然后用上传凭证把本地上传 Skill 绑定进来。"
+          action={
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus size={16} aria-hidden="true" />
+              创建评测集
+            </Button>
+          }
+        />
+      ) : null}
+
+      {scenes !== null && scenes.length > 0 ? (
+        <div className={styles.grid}>
+          {scenes.map((scene) => (
+            <FolderCard
+              key={scene.id}
+              scene={scene}
+              connection={connectionById[scene.id] ?? "unsigned"}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      <EvaluationSetFormDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSaved={(saved) => {
+          // Enter the new evaluation set's detail; no credential is auto-issued.
+          router.push(`/evaluation-sets/${saved.id}`);
+        }}
       />
     </div>
   );
