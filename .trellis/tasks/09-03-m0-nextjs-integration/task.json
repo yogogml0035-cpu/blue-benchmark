@@ -1,0 +1,32 @@
+{
+  "id": "m0-nextjs-integration",
+  "name": "m0-nextjs-integration",
+  "title": "M0 Next.js 前后端交互规划",
+  "description": "基于 AURA 静态设计与现有 M0 后端合同，规划新的 Next.js 管理端及真实前后端交互",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-09-03",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-03-m0-web-backend-contracts",
+    "09-03-m0-nextjs-shell-auth",
+    "09-03-m0-evaluation-set-credentials-ui",
+    "09-03-m0-question-review-ui",
+    "09-03-m0-local-integration-acceptance"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

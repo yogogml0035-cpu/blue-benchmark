@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/quality-and-tests.md","reason":"迁移、API、并发和真实后端质量门"}
+{"file":".trellis/spec/backend/errors-and-api-responses.md","reason":"检查错误语义和敏感信息"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"检查 OpenAPI、README 和调用方同步"}
+{"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"核对每个后端合同缺口与验收"}

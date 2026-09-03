@@ -1,0 +1,4 @@
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"检查凭证不泄漏与后端门禁"}
+{"file":".trellis/spec/backend/errors-and-api-responses.md","reason":"检查 scene/credential 错误语义"}
+{"file":".trellis/tasks/09-03-m0-nextjs-integration/research/aura-interface-audit.md","reason":"检查文件夹、Dialog、Clipboard 和桌面视觉"}
+{"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"检查空集删除与一次性响应合同"}

@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"检查前后端状态一致与证据等级"}
+{"file":".trellis/spec/backend/quality-and-tests.md","reason":"检查状态机、竞态和真实 AI 回归"}
+{"file":".trellis/spec/backend/errors-and-api-responses.md","reason":"检查业务错误和无泄漏"}
+{"file":".trellis/tasks/09-03-m0-nextjs-integration/research/aura-interface-audit.md","reason":"检查双栏、长内容、选择与桌面交互"}
+{"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"核对人工确认、重开与删除门禁"}

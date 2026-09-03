@@ -1,0 +1,6 @@
+{"file":".trellis/spec/guides/code-reuse.md","reason":"题目状态、草稿和 API service 所有权"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"题目状态机、OpenAPI 与真实 AI 边界"}
+{"file":".trellis/spec/backend/stub-state-and-contracts.md","reason":"六类材料、维度、发布与 Worker 合同"}
+{"file":".trellis/spec/backend/errors-and-api-responses.md","reason":"stale、状态门禁和删除错误处理"}
+{"file":".trellis/tasks/09-03-m0-nextjs-integration/research/aura-interface-audit.md","reason":"列表、双栏、候选选择与状态 UX"}
+{"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"confirmed、reopen、delete 后端合同"}
