@@ -563,3 +563,26 @@
 ### Next Steps
 
 - 父任务最终验收记录已写入，随后归档父任务。
+
+
+## Session 25: 题目上传 Skill 文档中文化
+<!-- trellis-session: v=2 fp=273874b0b5185ef6 -->
+
+**Date**: 2026-09-03
+**Task**: 题目上传 Skill 文档中文化
+**Branch**: `main`
+
+### Summary
+
+将 skills/ai-eval-push 的 SKILL.md 与 references/api-contract.md 从英文翻译为中文，新增与老师交互使用中文的约定；机器标识符（字段名/错误码/脚本输出前缀/限制数值）逐字保留并经 token 对比核对零漂移；沉淀 Skill 文档编辑规则到 cross-layer-contracts 指南
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4ba7518` | docs(skill): 题目上传 Skill 文档中文化 |
+| `f00e0a0` | docs(spec): 记录 Skill 文档编辑的机器标识符保留规则 |
+
+### Status
+
+[OK] **Completed**
