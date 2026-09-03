@@ -1,5 +1,5 @@
 {"file":".trellis/spec/guides/code-reuse.md","reason":"评测集与凭证状态的单一前端所有者"}
 {"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"凭证授权、响应与 OpenAPI 边界"}
-{"file":".trellis/spec/backend/stub-state-and-contracts.md","reason":"场景凭证一次明文与最小权限合同"}
+{"file":".trellis/spec/backend/core/stub-state-and-contracts.md","reason":"场景凭证一次明文与最小权限合同"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/aura-interface-audit.md","reason":"文件夹视觉、凭证 UX 和一次性提示词"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"scene update/delete 与 credential API 事实"}

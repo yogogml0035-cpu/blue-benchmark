@@ -1,6 +1,6 @@
 {"file":".trellis/spec/guides/index.md","reason":"跨层与复用指南入口"}
 {"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"OpenAPI、授权、状态机和真实验收同步规则"}
 {"file":".trellis/spec/guides/code-reuse.md","reason":"避免前后端重复 DTO、状态映射和业务所有者"}
-{"file":".trellis/spec/backend/index.md","reason":"后端合同变更规范入口"}
+{"file":".trellis/spec/backend/core/index.md","reason":"后端合同变更规范入口"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"现有能力、缺口、新 API 与迁移设计"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/aura-interface-audit.md","reason":"AURA 视觉、页面结构、状态与桌面验收合同"}

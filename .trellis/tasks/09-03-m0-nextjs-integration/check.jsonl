@@ -1,5 +1,5 @@
 {"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"检查跨层合同、OpenAPI、授权与证据等级"}
-{"file":".trellis/spec/backend/errors-and-api-responses.md","reason":"检查新增错误码和无泄漏响应"}
-{"file":".trellis/spec/backend/quality-and-tests.md","reason":"检查后端、迁移与真实 AI 质量门"}
+{"file":".trellis/spec/backend/core/errors-and-api-responses.md","reason":"检查新增错误码和无泄漏响应"}
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"检查后端、迁移与真实 AI 质量门"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"逐项核对后端缺口是否真实闭合"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/aura-interface-audit.md","reason":"逐项核对界面、浏览器和视觉验收"}

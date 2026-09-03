@@ -1,3 +1,5 @@
 {"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"检查 Cookie、授权、OpenAPI 与 generated types"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/aura-interface-audit.md","reason":"检查 AURA 一致性、可访问性和浏览器范围"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"检查首注和会话行为没有前端伪造"}
+{"file": ".trellis/spec/frontend/quality-testing/quality-and-testing.md", "reason": "前端质量门与 E2E 隔离规则"}
+{"file": ".trellis/spec/frontend/api-state/api-and-state.md", "reason": "检查 401/会话/跳转安全"}

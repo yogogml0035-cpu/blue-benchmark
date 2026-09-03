@@ -1,5 +1,5 @@
 {"file":".trellis/spec/guides/index.md","reason":"全栈收口规范入口"}
 {"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"OpenAPI、授权、运行身份与证据等级"}
-{"file":".trellis/spec/backend/quality-and-tests.md","reason":"后端、迁移、Worker 与真实 AI 门禁"}
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"后端、迁移、Worker 与真实 AI 门禁"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"全后端合同与重复 Worker 风险"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/aura-interface-audit.md","reason":"浏览器、视口、视觉和前端质量门"}
