@@ -4,7 +4,7 @@
 
 ## 视觉令牌
 
-- 全部语义色来自 `src/app/globals.css` 的 `--aura-*` 变量（page/nav/surface/text/muted/action/focus/success/danger + 文件夹多色板）。组件 CSS 只引用变量，禁止写裸 hex。
+- 全部语义色来自 `src/app/globals.css` 的 `--aura-*` 变量：基础（page/nav/surface/text/muted/action/focus/success/danger）、文件夹多色板、动作色上的前景 `on-action`、反馈色的半透明 `*-tint`/`*-line` 派生令牌，以及 `overlay`/`surface-translucent`。组件 CSS 只引用变量，禁止写裸色值。
 - 深色工作台：页面背景 `--aura-page`，表面 `--aura-surface`/`-elevated`/`-overlay`，低对比描边 `--aura-line`。
 - 正文 `letter-spacing: 0`；AURA 字标用独立字符 + `gap` 表达分隔，不用负字距。
 - 内页标题收敛为操作界面尺度（约 15–18px），不照搬原型 62–72px 展示型字号。
@@ -12,7 +12,7 @@
 ## 组件
 
 - 共享控件在 `src/components/ui/`（Button、TextField、Dialog、StatusBadge、EmptyState、Skeleton、ErrorPanel），壳层在 `src/components/shell/`（AppShell）。页面优先复用，不另造一次性控件。
-- 每个控件一个 `.module.css`，类名语义化；动效只用轻量属性（`opacity`/`transform`/颜色/描边/阴影），禁止动画会引发布局位移的属性（width/height/top/left/margin），且必须可被 reduced-motion 覆盖。
+- 每个控件一个 `.module.css`，类名语义化；动效优先用轻量属性（`opacity`/`transform`/颜色/描边/阴影），必须可被 reduced-motion 覆盖，且不得因内容或状态变化引起布局跳动。唯一允许的布局过渡是侧栏折叠的 `width` 动画（有意、有界、可中断）；新增任何会改变布局的动画前先在此登记理由。
 - 异步按钮用 `loading` 态：显示 spinner、禁用、保持尺寸稳定，布局不因状态跳动。
 - Dialog 负责焦点移入、Tab 循环、Escape 关闭与关闭后还原焦点。
 - 表单错误优先用 `TextField error` 关联 `aria-describedby`/`aria-invalid` 并以 `role="alert"` 呈现（如注册"两次输入的密码不一致"挂在确认密码字段）；跨字段的业务失败用表单级 `ErrorPanel`。错误留在操作上下文，不只靠全局 toast。

@@ -28,6 +28,8 @@ const BACKEND_URL = resolveBackendUrl(process.env.BACKEND_URL);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Do not advertise the framework.
+  poweredByHeader: false,
   // Defense-in-depth headers applied to every page.
   async headers() {
     return [
