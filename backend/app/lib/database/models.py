@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -10,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -92,6 +94,9 @@ class EvalQuestionRow(Base):
     reference_answer: Mapped[str] = mapped_column(Text, nullable=False)
     memory_materials_json: Mapped[list] = mapped_column(JSON, nullable=False)
     criteria_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    criteria_confirmed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="generating")
     content_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     active_operation_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -99,6 +104,9 @@ class EvalQuestionRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ever_published: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
 
 class BatchUploadCommandRow(Base):

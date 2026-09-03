@@ -41,7 +41,65 @@ def test_fresh_database_reaches_new_head(tmp_path) -> None:
         revisions = connection.execute(
             sa.text("SELECT version_num FROM alembic_version")
         ).scalars().all()
-    assert revisions == ["0018_m0_question_library"]
+    assert revisions == ["0019_m0_web_review_contracts"]
+    question_columns = {item["name"] for item in sa.inspect(engine).get_columns("eval_questions")}
+    assert {"criteria_confirmed", "ever_published"}.issubset(question_columns)
+
+
+def test_review_contracts_upgrade_backfills_published(tmp_path) -> None:
+    """0018 -> 0019: published questions backfill confirmed+ever_published."""
+
+    database_url = f"sqlite:///{tmp_path / 'upgrade.db'}"
+    config = _alembic_config(database_url)
+    command.upgrade(config, "0018_m0_question_library")
+    engine = sa.create_engine(database_url)
+    now = "2026-09-03 00:00:00+00:00"
+    with engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                "INSERT INTO scenes (id, name, created_at, updated_at) "
+                "VALUES ('s1', '场景', :now, :now)"
+            ),
+            {"now": now},
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO eval_questions "
+                "(id, scene_id, client_case_id, title, task_prompt, "
+                " reference_examples_json, bad_cases_json, reference_answer, "
+                " memory_materials_json, status, content_revision, created_at, updated_at, published_at) "
+                "VALUES ('q-pub', 's1', 'c-pub', '已发布', '任务', '[]', '[]', '答案', '[]', "
+                "'published', 1, :now, :now, :now)"
+            ),
+            {"now": now},
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO eval_questions "
+                "(id, scene_id, client_case_id, title, task_prompt, "
+                " reference_examples_json, bad_cases_json, reference_answer, "
+                " memory_materials_json, status, content_revision, created_at, updated_at) "
+                "VALUES ('q-pending', 's1', 'c-pending', '待审', '任务', '[]', '[]', '答案', '[]', "
+                "'pending_review', 1, :now, :now)"
+            ),
+            {"now": now},
+        )
+
+    command.upgrade(config, "head")
+
+    with engine.connect() as connection:
+        pub = connection.execute(
+            sa.text(
+                "SELECT criteria_confirmed, ever_published FROM eval_questions WHERE id='q-pub'"
+            )
+        ).one()
+        pending = connection.execute(
+            sa.text(
+                "SELECT criteria_confirmed, ever_published FROM eval_questions WHERE id='q-pending'"
+            )
+        ).one()
+    assert bool(pub[0]) and bool(pub[1]), "published history must backfill both facts"
+    assert not pending[0] and not pending[1], "unpublished history stays unconfirmed"
 
 
 def test_legacy_head_upgrade_drops_old_business_tables(tmp_path) -> None:
@@ -102,8 +160,17 @@ def test_downgrade_restores_executable_schema(tmp_path) -> None:
     database_url = f"sqlite:///{tmp_path / 'roundtrip.db'}"
     config = _alembic_config(database_url)
     command.upgrade(config, "head")
-    command.downgrade(config, "-1")
     engine = sa.create_engine(database_url)
+
+    # 0019 -> 0018: the review-contract columns disappear, tables stay.
+    command.downgrade(config, "-1")
+    question_columns = {item["name"] for item in sa.inspect(engine).get_columns("eval_questions")}
+    assert "criteria_confirmed" not in question_columns
+    assert "ever_published" not in question_columns
+    assert "eval_questions" in _table_names(engine)
+
+    # 0018 -> 0017: the whole M0 shape is dropped, legacy shape restored.
+    command.downgrade(config, "-1")
     tables = _table_names(engine)
     for new_table in ["scenes", "scene_credentials", "eval_questions", "batch_upload_commands"]:
         assert new_table not in tables, new_table

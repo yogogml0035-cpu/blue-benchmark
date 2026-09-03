@@ -22,7 +22,7 @@ from app.lib.database.models import (
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0018_m0_question_library"
+BUSINESS_SCHEMA_HEAD = "0019_m0_web_review_contracts"
 
 
 def as_utc(value: datetime) -> datetime:
@@ -90,11 +90,13 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
                 "reference_answer",
                 "memory_materials_json",
                 "criteria_json",
+                "criteria_confirmed",
                 "status",
                 "content_revision",
                 "active_operation_id",
                 "last_error_json",
                 "published_at",
+                "ever_published",
             },
             "batch_upload_commands": {"id", "scene_id", "command_id", "payload_hash", "status", "result_json"},
             "operation_jobs": {"id", "kind", "command_id", "status", "lease_until", "business_revision"},
