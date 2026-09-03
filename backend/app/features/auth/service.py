@@ -7,7 +7,14 @@ from uuid import uuid4
 from fastapi import Request, Response
 
 from app.features.auth import repository
-from app.features.auth.schemas import LoginRequest, RegisterRequest, User
+from app.features.auth.schemas import (
+    PASSWORD_MAX_LENGTH,
+    PASSWORD_MIN_LENGTH,
+    BootstrapResponse,
+    LoginRequest,
+    RegisterRequest,
+    User,
+)
 from app.lib.errors import AppError
 from app.lib.settings import settings
 
@@ -92,4 +99,41 @@ def logout(request: Request, response: Response) -> None:
     require_current_user(request)
     repository.revoke_session(request.cookies.get(settings.session_cookie_name))
     response.delete_cookie(settings.session_cookie_name, path="/")
+
+
+def bootstrap() -> BootstrapResponse:
+    """Anonymous first-run probe.
+
+    Reveals only whether the platform still accepts a first registration; it
+    never exposes the admin's identity or any other enumerable fact.
+    """
+
+    return BootstrapResponse(registration_available=repository.count_users() == 0)
+
+
+def assert_valid_password(password: str) -> None:
+    """Shared length rule for register and the local password-reset CLI."""
+
+    if not PASSWORD_MIN_LENGTH <= len(password) <= PASSWORD_MAX_LENGTH:
+        raise AppError(
+            422,
+            "PASSWORD_INVALID",
+            f"密码长度必须在 {PASSWORD_MIN_LENGTH} 到 {PASSWORD_MAX_LENGTH} 个字符之间。",
+        )
+
+
+def reset_admin_password(new_password: str) -> None:
+    """Local recovery path: replace the sole admin's password and revoke sessions.
+
+    The password arrives via interactive hidden input, never through argv or
+    environment variables. On success every existing session is revoked in the
+    same transaction, so both the old password and all old sessions stop
+    working immediately.
+    """
+
+    assert_valid_password(new_password)
+    admin = repository.get_sole_admin()
+    if admin is None:
+        raise AppError(409, "ADMIN_MISSING", "平台还没有管理员，无法重置密码。")
+    repository.reset_admin_password(admin.id, _hash_password(new_password))
 

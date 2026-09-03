@@ -130,6 +130,29 @@ def revoke_session(token: str | None) -> None:
         session.execute(delete(SessionRow).where(SessionRow.token_hash == _token_hash(token)))
 
 
+def get_sole_admin() -> UserRecord | None:
+    """Return the single admin user, or None when the platform is empty."""
+
+    with session_scope() as session:
+        row = session.scalars(select(UserRow)).first()
+        return _to_record(row) if row else None
+
+
+def reset_admin_password(user_id: str, password_hash: str) -> None:
+    """Overwrite the admin password and revoke every session atomically.
+
+    Revoking all sessions in the same transaction guarantees that a reset
+    invalidates both the old password and any live session in one step.
+    """
+
+    with session_scope() as session:
+        row = session.get(UserRow, user_id)
+        if row is None:
+            raise LookupError("admin user missing")
+        row.password_hash = password_hash
+        session.execute(delete(SessionRow).where(SessionRow.user_id == user_id))
+
+
 def reset() -> None:
     from app.lib.database import clear_business_data
 

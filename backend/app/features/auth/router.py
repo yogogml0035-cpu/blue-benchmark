@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.features.auth import service
-from app.features.auth.schemas import LoginRequest, RegisterRequest, UserResponse
+from app.features.auth.schemas import BootstrapResponse, LoginRequest, RegisterRequest, UserResponse
 from app.lib.schemas import ErrorResponse
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 error_responses = {401: {"model": ErrorResponse}, 409: {"model": ErrorResponse}}
+
+
+@router.get("/bootstrap", response_model=BootstrapResponse)
+def bootstrap() -> BootstrapResponse:
+    return service.bootstrap()
 
 
 @router.post(
