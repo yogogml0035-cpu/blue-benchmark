@@ -154,7 +154,7 @@ make openapi
 
 ## 显式真实 AI 验收
 
-真实 Provider 端到端（批量上传 → 生产 Worker 生成维度 → 发布）只允许本地显式运行：
+真实 Provider 端到端（批量上传 → 生产 Worker 生成维度 → 初稿拒发布 → 老师保存确认 → 发布 → 重新打开审改 → 再发布）只允许本地显式运行：
 
 ```bash
 cd backend && uv run python -m scripts.accept_real_ai_rubric

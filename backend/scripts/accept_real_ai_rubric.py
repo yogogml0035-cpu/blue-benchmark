@@ -1,8 +1,12 @@
-"""Real-AI acceptance: batch upload -> production worker -> published contract.
+"""Real-AI acceptance: batch upload -> production worker -> review -> published.
 
 Runs against an isolated SQLite business database while calling the configured
 real AI provider for rubric generation. Output is limited to stage markers,
 counts, ids and error codes — never material bodies.
+
+Contract exercised: upload -> real generation (unconfirmed draft) -> publish
+refused -> teacher saves final criteria -> publish -> review-reopen ->
+re-publish.
 
 Usage: uv run python -m scripts.accept_real_ai_rubric
 """
@@ -99,19 +103,80 @@ def main() -> int:
                         f"fields={sorted(item.keys())}"
                     )
                     return 1
+            if detail["criteria_confirmed"] is not False or detail["next_action"] != "review_criteria":
+                print(
+                    f"ACCEPT_REAL_AI=FAIL stage=draft question={question_id} "
+                    f"confirmed={detail['criteria_confirmed']} next={detail['next_action']}"
+                )
+                return 1
             print(
                 f"ACCEPT_REAL_AI_STAGE=question question={question_id} "
                 f"criteria={len(criteria)} revision={detail['content_revision']}"
             )
 
-            # Publish the question to exercise the full contract.
+            # An unconfirmed AI draft must not be publishable.
+            refused = client.post(
+                f"/api/questions/{question_id}/publication",
+                json={"command_id": f"accept-draft-{question_id}", "content_revision": detail["content_revision"]},
+            )
+            if refused.status_code != 409 or refused.json()["error"]["code"] != "CRITERIA_NOT_CONFIRMED":
+                print(
+                    f"ACCEPT_REAL_AI=FAIL stage=draft-gate question={question_id} "
+                    f"code={refused.status_code}"
+                )
+                return 1
+
+            # The teacher saves the final criteria list, confirming the draft.
+            patched = client.patch(
+                f"/api/questions/{question_id}/criteria",
+                json={
+                    "command_id": f"accept-confirm-{question_id}",
+                    "content_revision": detail["content_revision"],
+                    "criteria": criteria,
+                },
+            )
+            if patched.status_code != 200 or patched.json()["criteria_confirmed"] is not True:
+                print(
+                    f"ACCEPT_REAL_AI=FAIL stage=confirm question={question_id} "
+                    f"code={patched.status_code}"
+                )
+                return 1
+
+            # Publish the confirmed question to exercise the full contract.
             publish = client.post(
                 f"/api/questions/{question_id}/publication",
-                json={"command_id": f"accept-publish-{question_id}", "content_revision": detail["content_revision"]},
+                json={"command_id": f"accept-publish-{question_id}", "content_revision": patched.json()["content_revision"]},
             )
             if publish.status_code != 200:
                 print(f"ACCEPT_REAL_AI=FAIL stage=publish question={question_id} code={publish.status_code}")
                 return 1
+
+            # Reopen for review and re-publish: no version history is created.
+            published = publish.json()
+            reopened = client.post(
+                f"/api/questions/{question_id}/review-reopen",
+                json={"command_id": f"accept-reopen-{question_id}", "content_revision": published["content_revision"]},
+            )
+            if reopened.status_code != 200 or reopened.json()["status"] != "pending_review":
+                print(
+                    f"ACCEPT_REAL_AI=FAIL stage=reopen question={question_id} "
+                    f"code={reopened.status_code}"
+                )
+                return 1
+            if reopened.json()["criteria_confirmed"] is not True or not reopened.json()["criteria"]:
+                print(f"ACCEPT_REAL_AI=FAIL stage=reopen-facts question={question_id}")
+                return 1
+            republished = client.post(
+                f"/api/questions/{question_id}/publication",
+                json={"command_id": f"accept-republish-{question_id}", "content_revision": reopened.json()["content_revision"]},
+            )
+            if republished.status_code != 200 or republished.json()["status"] != "published":
+                print(
+                    f"ACCEPT_REAL_AI=FAIL stage=republish question={question_id} "
+                    f"code={republished.status_code}"
+                )
+                return 1
+            print(f"ACCEPT_REAL_AI_STAGE=published question={question_id}")
 
         listing = client.get(
             f"/api/questions?scene_id={scene['id']}&status=published"
