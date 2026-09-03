@@ -27,6 +27,27 @@
         }
       }
     },
+    "/api/auth/bootstrap": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Bootstrap",
+        "operationId": "bootstrap_api_auth_bootstrap_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BootstrapResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/register": {
       "post": {
         "tags": [
@@ -307,6 +328,107 @@
           },
           "404": {
             "description": "场景不存在"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "scenes"
+        ],
+        "summary": "Update Scene",
+        "operationId": "update_scene_api_scenes__scene_id__patch",
+        "parameters": [
+          {
+            "name": "scene_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scene Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SceneUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "404": {
+            "description": "场景不存在"
+          },
+          "409": {
+            "description": "同名场景已存在"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "scenes"
+        ],
+        "summary": "Delete Scene",
+        "operationId": "delete_scene_api_scenes__scene_id__delete",
+        "parameters": [
+          {
+            "name": "scene_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scene Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "404": {
+            "description": "场景不存在"
+          },
+          "409": {
+            "description": "场景仍有题目"
           },
           "422": {
             "description": "Validation Error",
@@ -625,6 +747,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionDeleteRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "Successful Response"
@@ -635,15 +767,11 @@
           "404": {
             "description": "题目不存在"
           },
+          "409": {
+            "description": "状态或版本不允许删除"
+          },
           "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
+            "description": "标题确认不匹配"
           }
         }
       }
@@ -939,6 +1067,67 @@
         }
       }
     },
+    "/api/questions/{question_id}/review-reopen": {
+      "post": {
+        "tags": [
+          "question-library"
+        ],
+        "summary": "Review Reopen",
+        "operationId": "review_reopen_api_questions__question_id__review_reopen_post",
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionCommandRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "404": {
+            "description": "题目不存在"
+          },
+          "409": {
+            "description": "状态或版本不允许重新打开"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/external/connection": {
       "get": {
         "tags": [
@@ -1150,6 +1339,20 @@
           "cases"
         ],
         "title": "BatchUploadResponse"
+      },
+      "BootstrapResponse": {
+        "properties": {
+          "registration_available": {
+            "type": "boolean",
+            "title": "Registration Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "registration_available"
+        ],
+        "title": "BootstrapResponse",
+        "description": "Anonymous first-run probe; reveals only whether registration is open."
       },
       "CaseIn": {
         "properties": {
@@ -1516,7 +1719,8 @@
         "enum": [
           "wait_for_generation",
           "retry_generation",
-          "review_and_publish",
+          "review_criteria",
+          "publish",
           "published"
         ],
         "title": "NextAction"
@@ -1571,6 +1775,34 @@
           "content_revision"
         ],
         "title": "QuestionCommandRequest"
+      },
+      "QuestionDeleteRequest": {
+        "properties": {
+          "content_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Content Revision"
+          },
+          "confirmation_title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation Title"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "content_revision"
+        ],
+        "title": "QuestionDeleteRequest",
+        "description": "Protected hard-delete contract.\n\n``confirmation_title`` is only required for questions that were ever\npublished; it must match the current title exactly (after Unicode NFC\nnormalization and trimming) or the delete is rejected."
       },
       "QuestionDetailResponse": {
         "properties": {
@@ -1637,6 +1869,10 @@
             ],
             "title": "Criteria"
           },
+          "criteria_confirmed": {
+            "type": "boolean",
+            "title": "Criteria Confirmed"
+          },
           "status": {
             "$ref": "#/components/schemas/QuestionStatus"
           },
@@ -1667,6 +1903,10 @@
                 "type": "null"
               }
             ]
+          },
+          "delete_confirmation_required": {
+            "type": "boolean",
+            "title": "Delete Confirmation Required"
           },
           "created_at": {
             "type": "string",
@@ -1701,11 +1941,13 @@
           "reference_answer",
           "memory_materials",
           "criteria",
+          "criteria_confirmed",
           "status",
           "next_action",
           "content_revision",
           "active_operation_id",
           "last_error",
+          "delete_confirmation_required",
           "created_at",
           "updated_at",
           "published_at"
@@ -1769,6 +2011,10 @@
             ],
             "title": "Rubric Criterion Count"
           },
+          "criteria_confirmed": {
+            "type": "boolean",
+            "title": "Criteria Confirmed"
+          },
           "next_action": {
             "$ref": "#/components/schemas/NextAction"
           },
@@ -1801,6 +2047,7 @@
           "title",
           "status",
           "rubric_criterion_count",
+          "criteria_confirmed",
           "next_action",
           "created_at",
           "updated_at",
@@ -2293,6 +2540,35 @@
           "credentials"
         ],
         "title": "SceneStatusResponse"
+      },
+      "SceneUpdateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "SceneUpdateRequest",
+        "description": "Full desired metadata state; the same validation rules as creation.\n\nThe web client always submits both fields together, so ``description=null``\nunambiguously clears the description."
       },
       "SceneView": {
         "properties": {

@@ -32,20 +32,25 @@ Record 是内部状态（`@dataclass(frozen=True)`），Pydantic Schema 是外�
 对外状态唯一来源是 `question_library/schemas.py::QuestionStatus`。状态转换由 `question_library/service.py` 与 `rubric_generation.py` 集中执行：
 
 ```text
-批量收题 -> generating
+批量收题 -> generating（criteria_confirmed=false）
 generating -> pending_review | generation_failed
 generation_failed -> generating（retry）
-pending_review -> published（publish）
-任意状态 -> generating（save-and-regenerate，published 回到待处理）
+pending_review -> published（publish，要求 criteria_confirmed=true；成功置 ever_published=true）
+published -> pending_review（review-reopen，保留材料/维度/确认事实，清空 published_at）
+任意状态 -> generating（save-and-regenerate，published 回到待处理，criteria_confirmed 归 false）
 ```
+
+`next_action` 由状态 + `criteria_confirmed` 共同决定：`pending_review` 未确认是 `review_criteria`，已确认是 `publish`。
 
 保持以下已实现合同：
 
 - 批量收题成功后每题立即排队生成；生成失败保留题目并支持重试，不回滚同批其他题。
-- “保存并重新生成”是唯一材料编辑动作：覆盖材料、`content_revision` 递增、旧维度立即失效并重新排队；已发布题目被编辑后回到待处理，不保留历史版本。
+- “保存并重新生成”是唯一材料编辑动作：覆盖材料、`content_revision` 递增、旧维度立即失效（`criteria_confirmed=false`）并重新排队；已发布题目被编辑后回到待处理，不保留历史版本；`ever_published` 不清除。
 - 仅改 `title` 不触碰六类材料，也不触发重新生成。
 - `generating` 中的题目禁止改维度、发布、删除。
-- 发布要求存在非空评分维度。
+- 发布要求存在非空评分维度，且 `criteria_confirmed=true`（AI 初稿不能直接发布）。
+- `review-reopen` 只接受 `published` 来源；重复、错误状态或陈旧 revision 返回 409。
+- 删除门禁按顺序：陈旧 revision（409 STALE_REVISION）、生成中（409 RUBRIC_GENERATING）、已发布（409 PUBLISHED_REOPEN_REQUIRED）、曾发布题标题确认（422 DELETE_CONFIRMATION_MISMATCH）；“曾发布”是服务端持久化事实（`ever_published`），详情以派生的 `delete_confirmation_required` 暴露。
 
 新增状态时要同时检查 Schema、Service、`next_action` 映射、API 测试和 OpenAPI，不能只改枚举。
 
@@ -65,10 +70,12 @@ pending_review -> published（publish）
 ## 认证与归属顺序
 
 - 管理员路由用 `Depends(auth_service.require_current_user)` 解析会话；单管理员由数据库唯一约束原子保证。
+- `GET /api/auth/bootstrap` 匿名只返回 `registration_available`，不泄露管理员身份；首注与否的最终防线仍是数据库唯一约束。
+- 本机密码重置只走 `scripts.admin_cli account reset-password`：`getpass` 两次隐藏输入、复用认证层长度校验与 PBKDF2 哈希，同事务更新唯一管理员并删除其全部 Session；密码不进入 argv、输出或日志。
 - 外部收题用 `scenes.service.require_scene_principal` 解析凭证，返回 `ScenePrincipal(scene_id, credential_id)`；凭证只能“查询连接状态 + 批量上传”，不能读取/修改/删除/发布题目。
 - 保持 `401`（未登录/凭证无效）、`403`（越权）、`404`（授权范围内不存在）、`409`（状态/版本/幂等冲突）的语义。
 
-密码只以 PBKDF2 哈希存入内部 Record；Session Cookie 为 `HttpOnly`、`SameSite=Strict`、`Secure` 默认开启；场景凭证只存 hash，明文只在签发/轮换时返回一次。
+密码只以 PBKDF2 哈希存入内部 Record；Session Cookie 为 `HttpOnly`、`SameSite=Strict`、`Secure` 默认开启；场景凭证只存 hash，明文只在签发/轮换时返回一次，签发/轮换响应携带 `Cache-Control: no-store` 与 `Pragma: no-cache`。
 
 ## Worker 与评分维度生成
 

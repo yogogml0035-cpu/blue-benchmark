@@ -10,7 +10,10 @@
 - **一道题的六类材料**：题目、参考样例、Bad case（绑定老师反馈）、标准答案、记忆材料，以及仅供识别的用例标题 `title`。
 - **两字段评分维度**：每个维度只有 `criterion`（完整可执行的评判标准）与 `pass_score`（0..10 整数及格分），固定满分 10 分，任一维度不及格整题不通过。
 - **状态机**：`generating → pending_review → published`，失败为 `generation_failed`；“保存并重新生成”是唯一材料编辑动作，覆盖材料、作废旧维度并重新排队生成。
-- **单管理员**：平台只有一个管理员账号；业务老师不建账号，只通过场景凭证提交材料。场景凭证只有“查询连接状态 + 批量上传”的最小权限。
+- **老师确认门禁**：AI 生成的维度只是候选草稿（`criteria_confirmed=false`），发布前必须经老师保存最终维度列表（`PATCH /criteria` 置 `criteria_confirmed=true`）；未确认的 AI 初稿不能发布。`next_action` 区分 `review_criteria`（待选择维度）与 `publish`（待发布）。
+- **重新打开审改**：已发布题目通过 `POST /api/questions/{id}/review-reopen` 原子退回 `pending_review`，保留材料与维度、清空当前发布时间；不产生版本或快照。
+- **受保护删除**：`generating` 禁止删除；`published` 必须先重新打开；曾发布过的题目删除时必须提交与当前标题完全一致的 `confirmation_title`（服务端持久化“曾发布”事实，刷新后仍然生效）。
+- **单管理员**：平台只有一个管理员账号；业务老师不建账号，只通过场景凭证提交材料。场景凭证只有“查询连接状态 + 批量上传”的最小权限。`GET /api/auth/bootstrap` 匿名返回 `registration_available`，只暴露是否仍可首注。
 
 ## 本地准备
 
@@ -67,12 +70,19 @@ make worker    # Worker
 cd backend && uv run python -m scripts.admin_cli scenes create --name 媒体场景
 cd backend && uv run python -m scripts.admin_cli scenes list
 cd backend && uv run python -m scripts.admin_cli scenes status --scene-id <scene_id>
+cd backend && uv run python -m scripts.admin_cli scenes update --scene-id <scene_id> --name 新名称 [--description ...]
+cd backend && uv run python -m scripts.admin_cli scenes delete --scene-id <scene_id>
 cd backend && uv run python -m scripts.admin_cli credentials issue --scene-id <scene_id> --label ci
 cd backend && uv run python -m scripts.admin_cli credentials rotate --scene-id <scene_id>
 cd backend && uv run python -m scripts.admin_cli credentials revoke --scene-id <scene_id> --credential-id <credential_id>
+cd backend && uv run python -m scripts.admin_cli account reset-password
 ```
 
 明文凭证 token 只在 `issue`/`rotate` 成功时显示一次，后续 `status`/`list` 查询绝不返回明文。
+
+- `scenes update` 提交完整的目标元数据：省略 `--description` 表示清空描述；同名冲突返回错误。
+- `scenes delete` 与 API 共用同一 Service：只有当前无题目的评测集可删除，删除会级联撤销其凭证；非空场景被拒绝。
+- `account reset-password` 通过两次隐藏交互输入接收新密码（不接受 argv/环境变量），成功后旧密码与全部旧会话立即失效。
 
 ## 外部批量收题
 
@@ -100,6 +110,14 @@ GET /api/questions?scene_id=<scene_id>&status=pending_review
 - `status` 可选，只在指定场景内筛选；
 - 题目详情与命令路由仍是 `/api/questions/{question_id}/...`；
 - 场景凭证不能访问任何管理员题目接口（返回 401）。
+
+题目命令路由（均为管理员会话）：
+
+- `PATCH /api/questions/{id}/criteria`：老师保存最终维度列表（1–20 项），成功后 `criteria_confirmed=true`；
+- `POST /api/questions/{id}/publication`：要求非空维度且 `criteria_confirmed=true`，否则 `409 CRITERIA_NOT_CONFIRMED`；成功置 `ever_published=true`；
+- `POST /api/questions/{id}/review-reopen`：仅 `published → pending_review`，保留材料/维度，清空当前发布时间；
+- `DELETE /api/questions/{id}`：请求体 `{ "content_revision", "confirmation_title"? }`，按 revision、生成中、已发布、曾发布标题确认的顺序门禁。
+- `PATCH /api/scenes/{id}` / `DELETE /api/scenes/{id}`：评测集改名/描述与空集删除（非空返回 `409 SCENE_NOT_EMPTY`）。
 
 ## 题目上传 Skill
 
