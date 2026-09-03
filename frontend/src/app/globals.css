@@ -65,6 +65,8 @@
   --aura-folder-pink: #ef7bae;
   --aura-folder-teal: #3fbfb2;
   --aura-folder-red: #e4675f;
+  /* Foreground drawn on top of the bright folder tabs. */
+  --aura-folder-icon: rgba(8, 9, 16, 0.85);
 
   /* Focus ring */
   --aura-focus-ring: 0 0 0 2px rgba(53, 191, 255, 0.55);

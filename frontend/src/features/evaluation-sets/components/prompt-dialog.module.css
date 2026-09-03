@@ -1,0 +1,42 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--aura-muted);
+}
+
+.copyFailed {
+  margin: 0;
+  font-size: 13px;
+  color: var(--aura-warning);
+}
+
+.prompt {
+  width: 100%;
+  min-height: 220px;
+  padding: 12px;
+  border-radius: var(--aura-radius-md);
+  border: 1px solid var(--aura-line-strong);
+  background: var(--aura-surface-elevated);
+  color: var(--aura-text);
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.prompt:focus {
+  outline: none;
+  border-color: var(--aura-focus-blue);
+  box-shadow: var(--aura-focus-ring);
+}
+
+.notice {
+  margin: 0;
+  font-size: 14px;
+  color: var(--aura-text);
+}
