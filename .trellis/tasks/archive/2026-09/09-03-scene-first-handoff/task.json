@@ -1,0 +1,30 @@
+{
+  "id": "scene-first-handoff",
+  "name": "scene-first-handoff",
+  "title": "修正场景优先前端交接稿",
+  "description": "将 M0 前端信息架构改为场景列表进入场景题目列表，移除全部题目页面和跨场景筛选",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-09-03",
+  "completedAt": "2026-09-03",
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-03-scene-first-question-navigation",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "delivery_repo": "/Users/hsikey/Assets",
+    "delivery_commit": "a7ff2c7",
+    "delivery_file": "对话复盘/M3/Benchmark平台M0前端设计交接稿.md"
+  }
+}
