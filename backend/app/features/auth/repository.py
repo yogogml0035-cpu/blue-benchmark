@@ -4,7 +4,7 @@ import hashlib
 
 from sqlalchemy import delete, select
 
-from app.lib.database import as_utc, session_scope
+from app.lib.database import as_utc, engine, session_scope
 from app.lib.database.models import SessionRow, UserRow
 
 @dataclass(slots=True)
@@ -142,8 +142,15 @@ def get_user_id_by_session(token: str | None) -> str | None:
             return None
         session_row, user_row = row
         if session_row.password_generation != user_row.password_generation:
-            # Lazily drop the stale session; the decision is already made.
-            session.delete(session_row)
+            # Delete the stale row on a dedicated connection: the surrounding
+            # transaction may later roll back (for example when a dependency
+            # raises 401/404 after resolution), and the cleanup must survive.
+            stale_hash = session_row.token_hash
+            session.rollback()
+            with engine.begin() as connection:
+                connection.execute(
+                    delete(SessionRow).where(SessionRow.token_hash == stale_hash)
+                )
             return None
         return user_row.id
 

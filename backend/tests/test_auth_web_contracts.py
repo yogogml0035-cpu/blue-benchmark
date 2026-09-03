@@ -177,3 +177,47 @@ def test_reset_generation_gate_blocks_raced_sessions(
         )
         assert login.status_code == 200
         assert client.get("/api/auth/me").status_code == 200
+
+
+def test_generation_mismatch_lazily_deletes_stale_session() -> None:
+    """A session row that survives a reset still fails the generation check.
+
+    The reset sweep deletes rows in the same transaction; this test covers the
+    other half of the gate: a stale-generation row that is still present must
+    stop resolving and be removed by the lazy cleanup branch.
+    """
+
+    from sqlalchemy import delete, select
+
+    from app.features.auth import repository as auth_repository
+    from app.lib.database import session_scope
+    from app.lib.database.models import SessionRow, UserRow
+
+    clear_business_data()
+    with TestClient(app) as client:
+        helpers.register_admin(client, username="stale-admin")
+
+    with session_scope() as session:
+        user = session.scalars(select(UserRow)).first()
+        assert user is not None
+        user_id = user.id
+        # Drop the registration session so only the session under test remains.
+        session.execute(delete(SessionRow).where(SessionRow.user_id == user_id))
+
+    # A session minted under generation 1...
+    auth_repository.create_session("stale-token", user_id, 1)
+    assert auth_repository.get_user_id_by_session("stale-token") == user_id
+
+    # ...while the user's generation advances without sweeping sessions.
+    with session_scope() as session:
+        row = session.get(UserRow, user_id)
+        assert row is not None
+        row.password_generation = int(row.password_generation) + 1
+
+    # Resolution fails and the stale row is removed by the lazy cleanup.
+    assert auth_repository.get_user_id_by_session("stale-token") is None
+    with session_scope() as session:
+        remaining = session.execute(
+            select(SessionRow).where(SessionRow.user_id == user_id)
+        ).scalars().all()
+    assert remaining == []

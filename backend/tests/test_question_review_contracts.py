@@ -432,6 +432,126 @@ def test_publish_cas_requires_confirmation_facts() -> None:
     assert record is not None and record.status == "pending_review"
 
 
+def test_publish_cas_rejects_missing_criteria_json() -> None:
+    """The criteria_json IS NOT NULL half of the publish predicate."""
+
+    from datetime import datetime, timezone
+
+    from sqlalchemy import null
+
+    from app.features.question_library import repository
+    from app.lib.database import session_scope
+    from app.lib.database.models import EvalQuestionRow
+
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _setup_pending_review(client)
+
+    now = datetime.now(timezone.utc)
+    # Simulate a row whose criteria were wiped to SQL NULL while the
+    # confirmed flag happens to be set: publish must still be refused.
+    # (``null()`` is required — a plain None binds as JSON null, not SQL NULL.)
+    with session_scope() as session:
+        record = repository.update_fields(
+            session,
+            question_id,
+            expected_revision=1,
+            now=now,
+            criteria_json=null(),
+            criteria_confirmed=True,
+        )
+    assert record is not None
+    with session_scope() as session:
+        raced = repository.update_fields(
+            session,
+            question_id,
+            expected_revision=record.content_revision,
+            now=now,
+            expected_status="pending_review",
+            extra_conditions=[
+                EvalQuestionRow.criteria_confirmed.is_(True),
+                EvalQuestionRow.criteria_json.is_not(None),
+            ],
+            status="published",
+        )
+    assert raced is None
+
+
+def test_retry_cas_requires_generation_failed_source() -> None:
+    """A teacher criteria save that wins the race blocks a trailing retry.
+
+    Mirrors the first-round finding: both commands pass the snapshot checks on
+    a generation_failed row, the criteria PATCH commits first (recovering the
+    question to pending_review), and the retry CAS must then miss because its
+    source-state predicate no longer matches.
+    """
+
+    from datetime import datetime, timezone
+
+    from app.features.question_library import repository
+    from app.lib.database import session_scope
+
+    clear_business_data()
+    with TestClient(app) as client:
+        helpers.register_admin(client)
+        scene = helpers.create_scene(client)
+        credential = helpers.issue_credential(client, scene["id"])
+        from app.lib.ai_runtime.adapters import FakeRubricGenerator
+
+        failing = helpers.make_case("case-retry-race")
+        failing["task_prompt"] = f"{FakeRubricGenerator.FAIL_MARKER} 生成失败的题目。"
+        response = helpers.upload_batch(
+            client, credential["token"], helpers.make_batch("cmd-retry-race", [failing])
+        )
+        question_id = response.json()["cases"][0]["question_id"]
+        helpers.run_worker_until_idle()
+        detail = client.get(f"/api/questions/{question_id}").json()
+        assert detail["status"] == "generation_failed"
+        revision = detail["content_revision"]
+
+        # The teacher saves criteria first; the question recovers.
+        patched = client.patch(
+            f"/api/questions/{question_id}/criteria",
+            json={
+                "command_id": "criteria-before-retry",
+                "content_revision": revision,
+                "criteria": [
+                    {
+                        "id": "saved-rule",
+                        "criterion": "老师先保存的评分标准，必须优先于迟到的重试。",
+                        "pass_score": 6,
+                    }
+                ],
+            },
+        )
+        assert patched.status_code == 200, patched.text
+
+        # The trailing retry is rejected at the service gate...
+        retry = client.post(
+            f"/api/questions/{question_id}/generation-retry",
+            json={"command_id": "retry-late", "content_revision": revision},
+        )
+        assert retry.status_code == 409
+        assert retry.json()["error"]["code"] == "RETRY_NOT_AVAILABLE"
+
+    # ...and at the CAS backstop: the source-state predicate misses.
+    now = datetime.now(timezone.utc)
+    with session_scope() as session:
+        raced = repository.update_fields(
+            session,
+            question_id,
+            expected_revision=revision,
+            now=now,
+            expected_status="generation_failed",
+            status="generating",
+        )
+    assert raced is None
+    with session_scope() as session:
+        record = repository.get_question(session, question_id)
+    assert record is not None and record.status == "pending_review"
+    assert record.criteria_confirmed is True
+
+
 def test_regeneration_after_publish_keeps_delete_gate() -> None:
     """Editing materials of a published question un-confirms criteria but the
     ever-published delete protection survives."""

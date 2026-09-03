@@ -544,6 +544,7 @@ def retry_generation(question_id: str, payload: QuestionCommandRequest) -> Opera
             question_id,
             expected_revision=payload.content_revision,
             now=now,
+            expected_status=QuestionStatus.generation_failed.value,
             status=QuestionStatus.generating.value,
             active_operation_id=job_id,
             last_error_json=None,
