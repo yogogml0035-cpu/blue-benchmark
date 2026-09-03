@@ -1,0 +1,10 @@
+node_modules/
+.next/
+out/
+build/
+test-results/
+playwright-report/
+playwright/.cache/
+*.tsbuildinfo
+next-env.d.ts
+.generated-api-probe.ts

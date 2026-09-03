@@ -1,0 +1,10 @@
+packages:
+  # Isolated generator package: openapi-typescript requires the TypeScript 5
+  # compiler API, while the app typechecks with TypeScript 7. Keeping the
+  # generator in its own importer scope lets its typescript peer resolve to
+  # the version it actually supports.
+  - tools/api-gen
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - lucide-react@1.40.0

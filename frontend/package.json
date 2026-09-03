@@ -1,0 +1,40 @@
+{
+  "name": "skill-eval-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "generate:api": "node tools/api-gen/generate.mjs ../backend/openapi.json src/lib/api/generated.ts",
+    "check:api": "node scripts/check-generated-api.mjs",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium webkit"
+  },
+  "dependencies": {
+    "lucide-react": "1.40.0",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.1",
+    "jsdom": "27.2.0",
+    "playwright": "1.62.1",
+    "typescript": "7.0.2",
+    "vitest": "4.0.14"
+  }
+}
