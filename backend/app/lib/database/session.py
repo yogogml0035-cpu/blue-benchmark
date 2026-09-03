@@ -76,7 +76,8 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
         if revisions != [BUSINESS_SCHEMA_HEAD]:
             return False
         required_columns = {
-            "users": {"id", "username", "password_hash", "admin_slot"},
+            "users": {"id", "username", "password_hash", "password_generation", "admin_slot"},
+            "sessions": {"token_hash", "user_id", "password_generation"},
             "scenes": {"id", "name", "created_at", "updated_at"},
             "scene_credentials": {"id", "scene_id", "token_hash", "revoked_at", "last_used_at"},
             "eval_questions": {

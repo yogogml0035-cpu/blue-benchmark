@@ -56,7 +56,7 @@ def require_current_user(request: Request) -> repository.UserRecord:
 
 def _set_session(response: Response, user: repository.UserRecord) -> None:
     token = secrets.token_urlsafe(32)
-    repository.create_session(token, user.id)
+    repository.create_session(token, user.id, user.password_generation)
     response.set_cookie(
         settings.session_cookie_name,
         token,
@@ -73,6 +73,7 @@ def register(payload: RegisterRequest, response: Response) -> User:
         username=payload.username,
         email=str(payload.email) if payload.email else None,
         password_hash=_hash_password(payload.password),
+        password_generation=1,
         created_at=datetime.now(timezone.utc),
     )
     # The admin_slot unique constraint makes the single-admin rule atomic:

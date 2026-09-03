@@ -129,3 +129,51 @@ def test_password_reset_without_admin_fails(
         admin_cli.main(["account", "reset-password"])
     captured = capsys.readouterr()
     assert "whatever-password-1" not in captured.out + captured.err
+
+
+def test_reset_generation_gate_blocks_raced_sessions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A session created under the pre-reset generation must stop resolving.
+
+    This models the race where a login verifies the old password just before
+    the reset commits and inserts its session just after the reset's session
+    sweep: the row survives, but the generation mismatch invalidates it.
+    """
+
+    from sqlalchemy import select
+
+    from app.features.auth import repository as auth_repository
+    from app.features.auth import service as auth_service
+    from app.lib.database import session_scope
+    from app.lib.database.models import UserRow
+
+    clear_business_data()
+    with TestClient(app) as client:
+        helpers.register_admin(client, username="raced-admin")
+
+    with session_scope() as session:
+        user = session.scalars(select(UserRow)).first()
+        assert user is not None
+        user_id = user.id
+        generation_before_reset = user.password_generation
+
+    # The raced session is created with the generation observed before reset.
+    auth_repository.create_session("raced-token", user_id, generation_before_reset)
+    assert auth_repository.get_user_id_by_session("raced-token") == user_id
+
+    answers = iter(["post-reset-password-1", "post-reset-password-1"])
+    monkeypatch.setattr(getpass, "getpass", lambda *_a, **_k: next(answers))
+    assert admin_cli.main(["account", "reset-password"]) == 0
+
+    # The raced session no longer resolves, even though code created it.
+    assert auth_repository.get_user_id_by_session("raced-token") is None
+
+    # A fresh login with the new password works and resolves normally.
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/auth/login",
+            json={"identifier": "raced-admin", "password": "post-reset-password-1"},
+        )
+        assert login.status_code == 200
+        assert client.get("/api/auth/me").status_code == 200

@@ -28,19 +28,43 @@ depends_on = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    columns = {item["name"] for item in inspector.get_columns("eval_questions")}
+    existing_tables = set(inspector.get_table_names())
+
+    # Session generation tracking: a password change bumps the user's
+    # generation and every session must carry the generation it was created
+    # under. Existing rows start at 1, matching fresh-database defaults.
+    if "users" in existing_tables:
+        user_columns = {item["name"] for item in inspector.get_columns("users")}
+        if "password_generation" not in user_columns:
+            op.add_column(
+                "users",
+                sa.Column(
+                    "password_generation", sa.Integer(), nullable=False, server_default="1"
+                ),
+            )
+    if "sessions" in existing_tables:
+        session_columns = {item["name"] for item in inspector.get_columns("sessions")}
+        if "password_generation" not in session_columns:
+            op.add_column(
+                "sessions",
+                sa.Column(
+                    "password_generation", sa.Integer(), nullable=False, server_default="1"
+                ),
+            )
+
+    question_columns = {item["name"] for item in inspector.get_columns("eval_questions")}
 
     # A fresh database already has both columns: migration 0001 creates the
     # whole schema from the ORM metadata. Only a legacy-head database needs
     # the incremental ADD COLUMN path.
-    if "criteria_confirmed" not in columns:
+    if "criteria_confirmed" not in question_columns:
         op.add_column(
             "eval_questions",
             sa.Column(
                 "criteria_confirmed", sa.Boolean(), nullable=False, server_default=sa.false()
             ),
         )
-    if "ever_published" not in columns:
+    if "ever_published" not in question_columns:
         op.add_column(
             "eval_questions",
             sa.Column(
@@ -57,8 +81,17 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    columns = {item["name"] for item in inspector.get_columns("eval_questions")}
-    if "ever_published" in columns:
+    existing_tables = set(inspector.get_table_names())
+    question_columns = {item["name"] for item in inspector.get_columns("eval_questions")}
+    if "ever_published" in question_columns:
         op.drop_column("eval_questions", "ever_published")
-    if "criteria_confirmed" in columns:
+    if "criteria_confirmed" in question_columns:
         op.drop_column("eval_questions", "criteria_confirmed")
+    if "sessions" in existing_tables:
+        session_columns = {item["name"] for item in inspector.get_columns("sessions")}
+        if "password_generation" in session_columns:
+            op.drop_column("sessions", "password_generation")
+    if "users" in existing_tables:
+        user_columns = {item["name"] for item in inspector.get_columns("users")}
+        if "password_generation" in user_columns:
+            op.drop_column("users", "password_generation")
