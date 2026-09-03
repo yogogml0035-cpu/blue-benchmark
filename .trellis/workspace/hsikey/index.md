@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 23
+- **Total Sessions**: 24
 - **Last Active**: 2026-09-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~538 | Active |
+| `journal-1.md` | ~565 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 24 | 2026-09-03 | 场景优先题库导航与接口收紧（父任务 + 两子任务串行闭环） | `f50037f`, `64a2726` | `main` |
 | 23 | 2026-09-03 | Benchmark M0 后端接口与上传 Skill 重构（父任务完成） | `950ce36` | `main` |
 | 22 | 2026-09-03 | 新增 ai-eval-push 上传 Skill 与外部连接状态端点 | `5c5a3d4` | `main` |
 | 21 | 2026-09-03 | 收敛为纯后端工程并新增管理员 CLI | `b70f83d` | `main` |

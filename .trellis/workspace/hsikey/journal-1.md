@@ -536,3 +536,30 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 24: 场景优先题库导航与接口收紧（父任务 + 两子任务串行闭环）
+<!-- trellis-session: v=2 fp=96a06321a33f12de -->
+
+**Date**: 2026-09-03
+**Task**: 场景优先题库导航与接口收紧（父任务 + 两子任务串行闭环）
+**Branch**: `main`
+
+### Summary
+
+子任务1重写 M0 前端交接稿为场景列表→场景题目列表→题目详情（外部仓库提交 a7ff2c7），两轮对抗审查修正全部发现项；子任务2将 GET /api/questions 的 scene_id 改为必填（缺参422、场景不存在404），删除无场景全量查询分支，同步测试、OpenAPI、README、验收脚本与上传 Skill 口径，两轮对抗审查后合并回 main；真实 AI 验收在分支与 main 均 ACCEPT_REAL_AI=OK；独立审计 10/10 验收标准 PASS。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f50037f` | feat(backend): 题目列表接口收紧为场景必填并删除无场景全量查询 |
+| `64a2726` | docs(spec): 记录旧语义删除的全仓库同步检查 |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 父任务最终验收记录已写入，随后归档父任务。
