@@ -76,13 +76,24 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   const repoRoot = path.resolve(process.cwd(), "..");
   const databaseUrl = `sqlite:///${databaseFile}`;
   let backend: ChildProcess | undefined;
+  let worker: ChildProcess | undefined;
 
   const cleanup = async (): Promise<void> => {
+    killProcessTree(worker);
     killProcessTree(backend);
-    // Give the group a moment to exit, then hard-free the port as a backstop.
+    // Give the groups a moment to exit, then hard-free the port as a backstop.
     await new Promise((resolve) => setTimeout(resolve, 1_500));
     freePort(BACKEND_PORT);
     rmSync(workDir, { recursive: true, force: true });
+  };
+
+  const childEnv = {
+    ...process.env,
+    DATABASE_URL: databaseUrl,
+    AI_RUNTIME_MODE: "fake",
+    SESSION_COOKIE_SECURE: "false",
+    DATABASE_SCHEMA_CHECK_ON_STARTUP: "false",
+    STORAGE_ROOT: path.join(workDir, "storage"),
   };
 
   try {
@@ -102,17 +113,19 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       {
         cwd: repoRoot,
         detached: true,
-        env: {
-          ...process.env,
-          DATABASE_URL: databaseUrl,
-          AI_RUNTIME_MODE: "fake",
-          SESSION_COOKIE_SECURE: "false",
-          DATABASE_SCHEMA_CHECK_ON_STARTUP: "false",
-          STORAGE_ROOT: path.join(workDir, "storage"),
-        },
+        env: childEnv,
         stdio: ["ignore", openSync(BACKEND_LOG, "w"), openSync(BACKEND_LOG, "a")],
       },
     );
+
+    // A fake-mode worker to process rubric-generation jobs so uploaded
+    // questions move generating -> pending_review during browser tests.
+    worker = spawn("uv", ["run", "python", "-m", "app.lib.operations.worker"], {
+      cwd: path.join(repoRoot, "backend"),
+      detached: true,
+      env: childEnv,
+      stdio: "ignore",
+    });
 
     await waitForBackend(`http://127.0.0.1:${BACKEND_PORT}`);
   } catch (error) {

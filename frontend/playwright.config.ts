@@ -30,7 +30,7 @@ export default defineConfig({
       },
       // First-run registration needs the empty database; it runs only here,
       // before any other project touches the isolated backend.
-      testMatch: ["01-auth-register.spec.ts", "02-auth-login.spec.ts", "03-evaluation-sets.spec.ts"],
+      testMatch: ["01-auth-register.spec.ts", "02-auth-login.spec.ts", "03-evaluation-sets.spec.ts", "04-question-review.spec.ts"],
     },
     {
       name: "chromium-minimum",
