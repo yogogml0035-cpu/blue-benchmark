@@ -1,8 +1,8 @@
-# Skill Eval Platform（后端）
+# Skill Eval Platform
 
-这是 M0 评测题后端：业务老师在本地 Agent 里完成真实任务后，调用仓库内上传 Skill，从当前可见上下文整理评测题并经确认后批量上传；后端保存题目的六类材料，并自动为每道题生成两字段评分维度（`criterion + pass_score`，固定 10 分、逐项及格），供后续新前端与评测运行使用。
+这是 M0 评测题平台：业务老师在本地 Agent 里完成真实任务后，调用仓库内上传 Skill，从当前可见上下文整理评测题并经确认后批量上传；后端保存题目的六类材料，并由真实 AI 为每道题动态生成两字段评分维度（`criterion + pass_score`，固定 10 分、逐项及格）；管理员在 Next.js 桌面管理端完成首次注册、评测集与凭证管理、维度审改与发布。
 
-当前仓库是**纯后端工程**：FastAPI + SQLAlchemy/Alembic 业务数据库 + 单消费者 Worker。没有前端，也不依赖 Node.js/pnpm。题目、材料、评分维度和发布状态都保存在业务数据库，OpenAPI 是唯一对外机器合同。
+仓库为后端 + 前端两层：**后端**是 FastAPI + SQLAlchemy/Alembic 业务数据库 + 恰好一个生产 Worker；**前端**是 Next.js App Router + TypeScript 的桌面管理端，浏览器经同源 `/api` 代理访问后端并复用 HttpOnly Session Cookie。题目、材料、评分维度和发布状态都保存在业务数据库，OpenAPI 是唯一跨层机器合同；前端类型由 `backend/openapi.json` 生成，不手写重复 DTO。
 
 ## 领域模型
 
@@ -17,7 +17,7 @@
 
 ## 本地准备
 
-需要 Python 3.12–3.13、uv，以及 PostgreSQL（生产）或默认 SQLite（本地开发/测试）。
+需要 Python 3.12–3.13、uv、Node.js ≥ 24、pnpm，以及 PostgreSQL（生产）或默认 SQLite（本地开发/测试）。
 
 ```bash
 cp .env.example .env
@@ -28,7 +28,8 @@ cp .env.example .env
 安装依赖：
 
 ```bash
-uv sync --project backend --dev
+uv sync --project backend --dev   # 后端
+make frontend-install             # 前端（cd frontend && pnpm install）
 ```
 
 ## 启动 API 与 Worker
@@ -48,23 +49,45 @@ make ai-smoke
 
 成功标记为 `AI_SMOKE=OK ...`；该命令会产生一次真实模型调用，没有真实密钥时应先补齐配置，不能用 Fake 结果冒充真实 AI 验收。
 
-同一个业务数据库只允许一个长驻 Worker。`make start-all` 会同时启动 API 和一个 Worker；也可以分两个终端分别执行：
+同一个业务数据库只允许一个长驻 Worker（进程锁保证）。`make start-all` 会同时启动 API、恰好一个 Worker 和前端三个进程，任一退出即清理其余进程；也可以分开单独启动调试：
 
 ```bash
-make backend   # API，http://127.0.0.1:8000
-make worker    # Worker
+make backend         # API，http://127.0.0.1:8000
+make worker          # 单个生产 Worker
+make frontend-dev    # 前端 dev，http://127.0.0.1:3000（BACKEND_URL 默认指向 8000）
 ```
 
 成功标记：
 
 - API 健康检查：<http://127.0.0.1:8000/healthz> 返回 `status=ok`、`persistence=business database`，`ai` 与当前 `AI_RUNTIME_MODE` 一致；
+- 前端控制台：<http://127.0.0.1:3000>，首次进入会按 `/api/auth/bootstrap` 决定去首注还是登录；
 - OpenAPI 文档：<http://127.0.0.1:8000/api/docs>。
 
 若 API 因 schema 未就绪退出，先运行 `make db-migrate` 和 `make db-check`。Fake 模式（`AI_RUNTIME_MODE=fake` 或 `--fake`）仅用于确定性测试，只允许连接 SQLite 业务库，不能用它做真实 AI 验收。
 
-## 管理员 CLI（无前端阶段）
+## 管理端（Next.js）
 
-场景与凭证管理通过仓库命令完成，直接读写业务数据库。在 `backend/` 目录下运行（参数不经过 shell 插值）：
+前端是单管理员桌面控制台（最低支持 1280px 宽）：
+
+- **首次注册/登录**：空库时引导创建唯一管理员；已有管理员则只登录。支持用户名或邮箱登录，无“忘记密码/记住我”。
+- **评测集**：彩色文件夹卡片，创建/改名/改描述/空集删除；连接状态（未签发/已签发待验证/已连接/已停用）由脱敏凭证派生。
+- **上传凭证**：显式签发/轮换/撤销；签发或轮换后只显示一次包含本地服务地址与长期凭证的 Agent 绑定提示词，关闭即不可恢复。
+- **题目审改**：紧凑列表（标题搜索/状态筛选/最近更新优先）+ 双栏工作台（左侧六类材料、右侧状态与维度）；AI 候选维度首次全未选，老师选择/修改/新增并保存后才能发布；已发布可重新打开审改；删除按状态门禁（曾发布题需输入完整标题）。
+
+前端契约命令：
+
+```bash
+make frontend-typecheck    # tsc --noEmit
+make frontend-test         # Vitest 单元/组件测试
+make frontend-check-api    # OpenAPI 生成类型漂移检查
+make frontend-generate-api # 后端合同变更后重新生成类型
+make frontend-build        # 生产构建
+make frontend-e2e          # Playwright（Chromium 完整 + WebKit 核心）
+```
+
+## 管理员 CLI（备用运维入口）
+
+管理端的常规操作在 Web 控制台完成；以下命令作为备用运维入口，直接读写业务数据库。在 `backend/` 目录下运行（参数不经过 shell 插值）：
 
 ```bash
 cd backend && uv run python -m scripts.admin_cli scenes create --name 媒体场景
@@ -137,33 +160,43 @@ cd backend && uv run pytest ../skills/ai-eval-push/tests/ -q
 
 ## 合同与自动化验证
 
-后端测试使用每次全新的临时 SQLite，覆盖批量收题原子性/幂等/隔离、评分维度生成与重试、发布与状态机、迁移（旧 head 升级 + fresh DB + downgrade）、OpenAPI 合同，以及一轮对抗审查后的安全/并发加固回归。
+后端测试使用每次全新的临时 SQLite，覆盖批量收题原子性/幂等/隔离、评分维度生成与重试、发布与状态机、迁移（旧 head 升级 + fresh DB + downgrade）、OpenAPI 合同，以及多轮对抗审查后的安全/并发加固回归。前端用 Vitest（纯函数/组件）与 Playwright（Chromium 完整 + WebKit 核心，含 1280x720 与 1440x900 视口）。
 
 ```bash
-make test    # pytest + OpenAPI 漂移检查
-make build   # 后端编译/导入验证
+make test    # 后端 pytest + OpenAPI 漂移 + 前端 typecheck/单测/类型漂移
+make build   # 后端编译/导入 + 前端生产构建
+make frontend-e2e   # Playwright（自动拉起隔离后端 + fake worker）
 ```
 
-`make contract-check` 校验已提交的 `backend/openapi.json` 与当前 FastAPI 合同一致。后端合同变更后先运行：
+`make contract-check` 校验已提交的 `backend/openapi.json` 与当前 FastAPI 合同一致；`make frontend-check-api` 校验前端生成类型与 `openapi.json` 一致。后端合同变更后先运行：
 
 ```bash
-make openapi
+make openapi                 # 重新导出
+make frontend-generate-api   # 重新生成前端类型
 ```
 
-不要手改 `backend/openapi.json`。
+不要手改 `backend/openapi.json` 或 `frontend/src/lib/api/generated.ts`。
 
 ## 显式真实 AI 验收
 
-真实 Provider 端到端（批量上传 → 生产 Worker 生成维度 → 初稿拒发布 → 老师保存确认 → 发布 → 重新打开审改 → 再发布）只允许本地显式运行：
+两套真实 Provider 验收都只允许本地显式运行，均只输出阶段标记、计数和错误码，不输出材料正文、密码、Cookie、token、提示词全文或 raw model output：
 
-```bash
-cd backend && uv run python -m scripts.accept_real_ai_rubric
-```
+- **API 级**（批量上传 → 生产 Worker 生成维度 → 初稿拒发布 → 老师保存确认 → 发布 → 重新打开审改 → 再发布）：
 
-成功输出 `ACCEPT_REAL_AI=OK`；runner 只输出阶段标记、计数和错误码，不输出材料正文或凭证。
+  ```bash
+  cd backend && uv run python -m scripts.accept_real_ai_rubric   # 输出 ACCEPT_REAL_AI=OK
+  ```
+
+- **Web 级**（隔离库 + 单生产 Worker + 真实浏览器：首注 → 评测集 → 凭证提示词 → 上传 → 真实动态维度 → 保存 → 发布 → 重开 → 再发布）：
+
+  ```bash
+  make accept-web    # 输出 M0_WEB_ACCEPTANCE=PASS
+  ```
 
 ## 目录边界
 
 - `backend/`：FastAPI 应用、迁移、脚本、测试。
+- `frontend/`：Next.js 管理端（App Router + TypeScript + CSS Modules），类型由 `openapi.json` 生成；Vitest + Playwright 测试。
 - `skills/ai-eval-push/`：题目上传 Skill（`SKILL.md` + 标准库客户端脚本 + API 合同 reference + 隔离测试）。
-- 前端、Next.js、Playwright、TypeScript DTO 生成均已移除，不再作为运行或验收依赖。
+
+平台仅面向当前本机：单管理员、单生产 Worker、本地数据库；不含公网部署、HTTPS、Docker/CI/CD、移动端。
