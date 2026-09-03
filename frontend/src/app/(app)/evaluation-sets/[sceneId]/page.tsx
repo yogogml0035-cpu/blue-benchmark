@@ -23,6 +23,7 @@ import {
 import { CredentialPanel } from "@/features/evaluation-sets/components/credential-panel";
 import { EvaluationSetFormDialog } from "@/features/evaluation-sets/components/form-dialog";
 import { AgentPromptDialog } from "@/features/evaluation-sets/components/prompt-dialog";
+import { QuestionListSection } from "@/features/questions/components/question-list-section";
 import { buildAgentBindingPrompt, resolveAgentApiBaseUrl } from "@/features/evaluation-sets/prompt";
 import { ApiError } from "@/lib/api/client";
 import styles from "./page.module.css";
@@ -188,6 +189,8 @@ export default function EvaluationSetDetailPage(): React.JSX.Element {
         onIssued={handleIssued}
         onChanged={() => void load()}
       />
+
+      <QuestionListSection sceneId={sceneId} />
 
       <EvaluationSetFormDialog
         open={editOpen}
