@@ -9,7 +9,7 @@
 - **场景优先**：场景是题目导航与归属的第一层业务容器。场景列表（`GET /api/scenes`）是管理端查询的起点；题目列表必须在场景范围内查询，`GET /api/questions` 必须携带有效 `scene_id`。平台不提供无场景的全量题目查询、跨场景搜索或跨场景筛选。
 - **一道题的六类材料**：题目、参考样例、Bad case（绑定老师反馈）、标准答案、记忆材料，以及仅供识别的用例标题 `title`。
 - **两字段评分维度**：每个维度只有 `criterion`（完整可执行的评判标准）与 `pass_score`（0..10 整数及格分），固定满分 10 分，任一维度不及格整题不通过。
-- **状态机**：`generating → pending_review → published`，失败为 `generation_failed`；“保存并重新生成”是唯一材料编辑动作，覆盖材料、作废旧维度并重新排队生成。
+- **状态机**：`generating → pending_review → published`，失败为 `generation_failed`；已发布题目可 `review-reopen` 退回 `pending_review`；“保存并重新生成”是唯一材料编辑动作，覆盖材料、作废旧维度并重新排队生成。
 - **老师确认门禁**：AI 生成的维度只是候选草稿（`criteria_confirmed=false`），发布前必须经老师保存最终维度列表（`PATCH /criteria` 置 `criteria_confirmed=true`）；未确认的 AI 初稿不能发布。`next_action` 区分 `review_criteria`（待选择维度）与 `publish`（待发布）。
 - **重新打开审改**：已发布题目通过 `POST /api/questions/{id}/review-reopen` 原子退回 `pending_review`，保留材料与维度、清空当前发布时间；不产生版本或快照。
 - **受保护删除**：`generating` 禁止删除；`published` 必须先重新打开；曾发布过的题目删除时必须提交与当前标题完全一致的 `confirmation_title`（服务端持久化“曾发布”事实，刷新后仍然生效）。

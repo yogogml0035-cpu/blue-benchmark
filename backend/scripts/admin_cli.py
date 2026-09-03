@@ -1,7 +1,9 @@
 """Administrator CLI for the no-frontend phase.
 
-Covers scene creation and scene-credential lifecycle (issue / rotate / revoke /
-status) by calling the service layer directly against the business database.
+Covers scene metadata (create / list / status / update / delete), the
+scene-credential lifecycle (issue / rotate / revoke / status) and the local
+admin password reset, by calling the service layer directly against the
+business database.
 
 Plaintext credential tokens are printed exactly once, at issue/rotate time.
 Status and list commands never return plaintext tokens.
@@ -139,7 +141,8 @@ def _account_reset_password(_args: argparse.Namespace) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="admin_cli", description="Administrator CLI for scenes and credentials."
+        prog="admin_cli",
+        description="Administrator CLI for scenes, credentials and the single admin account.",
     )
     sub = parser.add_subparsers(dest="resource", required=True)
 

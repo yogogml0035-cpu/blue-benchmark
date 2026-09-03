@@ -27,6 +27,13 @@ Record 是内部状态（`@dataclass(frozen=True)`），Pydantic Schema 是外�
 
 测试通过 `clear_business_data()` 清空业务测试数据库；`backend/tests/conftest.py` 为每个 pytest 进程提供独立 SQLite 文件。新增表时必须纳入 `clear_business_data()` 的依赖逆序清理与 `check_schema_ready()` 的合同。
 
+## 评测集生命周期合同
+
+- `PATCH /api/scenes/{id}` 提交完整目标元数据：名称沿用创建时的非空/长度/同名规则（同名 `409 SCENE_NAME_EXISTS`），`description=null` 明确清空描述。无变化时直接返回当前值，不另设“无变化冲突”合同。
+- `DELETE /api/scenes/{id}` 只允许当前无题目的评测集：空判与删除是同一条件 DELETE（`WHERE NOT EXISTS(question)`），并发上传已建题时原子返回 `409 SCENE_NOT_EMPTY`，不留孤儿题目或半删状态。
+- 删除空评测集由数据库级联清理其凭证与零题批次回执；场景与凭证、回执之间的外键必须保持 `ondelete=CASCADE`。
+- CLI `scenes update`/`scenes delete` 复用同一 Service，不拥有第二套规则。
+
 ## 题目状态机
 
 对外状态唯一来源是 `question_library/schemas.py::QuestionStatus`。状态转换由 `question_library/service.py` 与 `rubric_generation.py` 集中执行：
