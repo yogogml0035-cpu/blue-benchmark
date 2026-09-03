@@ -31,6 +31,14 @@
 6. 如运行方式改变，同步 README 的使用说明；
 7. 有意删除旧语义（破坏性收紧、入口收缩）时，全仓库 grep 旧词：`main.py` 的 FastAPI `description`、`pyproject.toml` description、包/模块 docstring、`openapi.json`、README 与 `skills/` 下的 SKILL.md / reference；只保留必要的禁止性描述，不留兼容性旧词。历史迁移文件不改写。
 
+## Skill 文档编辑规则
+
+`skills/` 下的 SKILL.md 与 reference 是双重文本：人类可读的指引可以改写或翻译，但机器标识符必须与脚本行为、后端合同逐字一致：
+
+- 保留原样：字段名、错误码、脚本输出前缀（`config-error`、`invalid`、`upload-failed` 等）、HTTP 路径、JSON/命令示例、长度限制数值、环境变量名；
+- 脚本输出文案由 `skills/ai-eval-push/tests/` 的隔离测试固定；要改输出文案（含中文化）必须同步改脚本与测试，并单独开任务，不在文档任务里顺手改；
+- 翻译或改写后用 token 对比核对（如 `grep -oE '`[^`]+`'` 新旧版本取集合差异），确认机器标识符零漂移。
+
 ## 授权与数据泄露检查
 
 跨主体功能必须同时验证：
