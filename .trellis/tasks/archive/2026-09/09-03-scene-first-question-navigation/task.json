@@ -1,0 +1,29 @@
+{
+  "id": "scene-first-question-navigation",
+  "name": "scene-first-question-navigation",
+  "title": "场景优先题库导航与接口收紧",
+  "description": "将前端交接稿改为场景列表到场景题目列表的信息架构，并要求题目列表接口必须指定有效场景，移除跨场景全部题目能力",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-09-03",
+  "completedAt": "2026-09-03",
+  "branch": "main",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-03-scene-first-handoff",
+    "09-03-require-scene-question-list"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
