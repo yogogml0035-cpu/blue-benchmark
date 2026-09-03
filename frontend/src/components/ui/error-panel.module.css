@@ -4,8 +4,8 @@
   gap: 10px;
   padding: 12px 14px;
   border-radius: var(--aura-radius-md);
-  border: 1px solid rgba(255, 92, 103, 0.35);
-  background: rgba(255, 92, 103, 0.08);
+  border: 1px solid var(--aura-danger-line-strong);
+  background: var(--aura-danger-tint);
 }
 
 .icon {

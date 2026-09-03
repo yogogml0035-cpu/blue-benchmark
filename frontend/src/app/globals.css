@@ -33,6 +33,29 @@
   --aura-danger: #ff5c67;
   --aura-warning: #f5b544;
 
+  /* Text/icons placed on top of solid action colors. */
+  --aura-on-action: #ffffff;
+
+  /* Translucent tints/lines derived from the feedback palette (badges, panels,
+     active nav). Component CSS must reference these, never raw color values. */
+  --aura-info-tint: rgba(53, 191, 255, 0.12);
+  --aura-info-line: rgba(53, 191, 255, 0.3);
+  --aura-success-tint: rgba(56, 205, 131, 0.12);
+  --aura-success-line: rgba(56, 205, 131, 0.3);
+  --aura-warning-tint: rgba(245, 181, 68, 0.12);
+  --aura-warning-line: rgba(245, 181, 68, 0.3);
+  --aura-danger-tint: rgba(255, 92, 103, 0.08);
+  --aura-danger-tint-strong: rgba(255, 92, 103, 0.12);
+  --aura-danger-line: rgba(255, 92, 103, 0.3);
+  --aura-danger-line-strong: rgba(255, 92, 103, 0.35);
+  --aura-purple-tint: rgba(103, 98, 254, 0.16);
+  --aura-purple-tint-strong: rgba(103, 98, 254, 0.22);
+  --aura-purple-line: rgba(103, 98, 254, 0.4);
+
+  /* Overlay + translucent surfaces. */
+  --aura-overlay: rgba(8, 9, 16, 0.7);
+  --aura-surface-translucent: rgba(30, 31, 35, 0.82);
+
   /* Folder color palette (evaluation-set cards) */
   --aura-folder-blue: #4c9aff;
   --aura-folder-purple: #9b7bff;
@@ -101,11 +124,11 @@ textarea {
   color: inherit;
 }
 
-/* Global keyboard focus treatment. */
+/* Global keyboard focus treatment. Only the ring is managed here; component
+   radii stay untouched so focus never distorts a control's shape. */
 :focus-visible {
   outline: none;
   box-shadow: var(--aura-focus-ring);
-  border-radius: var(--aura-radius-sm);
 }
 
 /* Reduce motion for users who ask for it. */

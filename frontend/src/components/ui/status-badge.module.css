@@ -18,31 +18,31 @@
 }
 
 .info {
-  background: rgba(53, 191, 255, 0.12);
+  background: var(--aura-info-tint);
   color: var(--aura-focus-blue);
-  border-color: rgba(53, 191, 255, 0.3);
+  border-color: var(--aura-info-line);
 }
 
 .success {
-  background: rgba(56, 205, 131, 0.12);
+  background: var(--aura-success-tint);
   color: var(--aura-success);
-  border-color: rgba(56, 205, 131, 0.3);
+  border-color: var(--aura-success-line);
 }
 
 .warning {
-  background: rgba(245, 181, 68, 0.12);
+  background: var(--aura-warning-tint);
   color: var(--aura-warning);
-  border-color: rgba(245, 181, 68, 0.3);
+  border-color: var(--aura-warning-line);
 }
 
 .danger {
-  background: rgba(255, 92, 103, 0.12);
+  background: var(--aura-danger-tint-strong);
   color: var(--aura-danger);
-  border-color: rgba(255, 92, 103, 0.3);
+  border-color: var(--aura-danger-line);
 }
 
 .purple {
-  background: rgba(103, 98, 254, 0.16);
+  background: var(--aura-purple-tint);
   color: var(--aura-action-purple-hover);
-  border-color: rgba(103, 98, 254, 0.4);
+  border-color: var(--aura-purple-line);
 }

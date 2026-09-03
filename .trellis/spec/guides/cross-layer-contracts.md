@@ -3,20 +3,22 @@
 ## 当前数据流
 
 ```text
-调用方（管理员会话 / 场景凭证 / 未来的上传 Skill 与前端）
+浏览器（Next.js 管理端，同源 /api 代理 + HttpOnly Session Cookie）
+本地上传 Skill（场景凭证 Bearer）
   -> FastAPI Router
   -> Feature Service
   -> SQLAlchemy Repository / 业务数据库
   -> Pydantic Response / AppError
 ```
 
-仓库是纯后端工程。管理员路由走 Session Cookie；外部批量收题走场景凭证 Bearer；评分维度生成由单消费者 Worker 异步执行。没有前端、浏览器路径或 TypeScript 生成类型。OpenAPI 是唯一对外机器合同。
+仓库为后端（FastAPI）+ 前端（Next.js 管理端）两层。管理员路由走 Session Cookie；外部批量收题走场景凭证 Bearer；评分维度生成由单消费者 Worker 异步执行。前端经同源 `/api` 代理，类型由 `backend/openapi.json` 生成（`frontend/src/lib/api/generated.ts`），不手写重复 DTO。OpenAPI 是唯一跨层机器合同。
 
 ## 合同事实源
 
 - 后端运行时字段、枚举和校验：`backend/app/features/*/schemas.py`；
 - 状态转换、授权和幂等：对应 Feature `service.py`；
 - 机器可读 HTTP 合同：FastAPI 导出的 `backend/openapi.json`；
+- 前端类型派生：`frontend/src/lib/api/generated.ts`（`pnpm generate:api` 生成、`pnpm check:api` 防漂移）；
 - 当前可运行边界：`README.md`、`Makefile`、Alembic migrations 和 `backend/app/lib/database/session.py`。
 
 ## API 合同变更清单

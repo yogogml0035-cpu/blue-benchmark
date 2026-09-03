@@ -24,6 +24,9 @@ export default function RegisterPage(): React.JSX.Element {
   const [confirm, setConfirm] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Field-level error so the mismatch is programmatically associated with the
+  // confirm-password input, not only announced at the form level.
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   // Gate the page on the real bootstrap state; an existing admin means this
   // surface is closed and the visitor goes to login.
@@ -44,12 +47,14 @@ export default function RegisterPage(): React.JSX.Element {
     if (submitting) return;
 
     if (password !== confirm) {
-      setError("两次输入的密码不一致。");
+      setError(null);
+      setConfirmError("两次输入的密码不一致。");
       return;
     }
 
     setSubmitting(true);
     setError(null);
+    setConfirmError(null);
     try {
       await registerAdmin({ username, email: email || null, password });
       // Establish the shared session state before entering the protected app.
@@ -130,7 +135,11 @@ export default function RegisterPage(): React.JSX.Element {
         revealable
         autoComplete="new-password"
         value={confirm}
-        onChange={(e) => setConfirm(e.target.value)}
+        onChange={(e) => {
+          setConfirm(e.target.value);
+          if (confirmError) setConfirmError(null);
+        }}
+        error={confirmError}
         required
         disabled={submitting}
       />

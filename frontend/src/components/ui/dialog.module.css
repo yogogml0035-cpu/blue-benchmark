@@ -6,7 +6,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(8, 9, 16, 0.7);
+  background: var(--aura-overlay);
   backdrop-filter: blur(2px);
 }
 

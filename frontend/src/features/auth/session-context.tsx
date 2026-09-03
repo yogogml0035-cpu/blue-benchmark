@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { getCurrentUser, logout as logoutRequest, type User } from "@/lib/api/auth";
-import { ApiError, setAuthFailureHandler } from "@/lib/api/client";
+import { setAuthFailureHandler } from "@/lib/api/client";
 import { buildAuthUrl } from "@/lib/redirect";
 
 export type SessionStatus = "loading" | "authenticated" | "anonymous";
@@ -50,22 +50,26 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
   const [user, setUser] = useState<User | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const redirected = useRef(false);
+  // Monotonic sequence so a slow /auth/me response can never overwrite the
+  // outcome of a newer refresh (e.g. a late 401 landing after a fresh login).
+  const refreshSeq = useRef(0);
 
   const refresh = useCallback(async () => {
+    const seq = ++refreshSeq.current;
     try {
       const response = await getCurrentUser();
+      if (seq !== refreshSeq.current) return;
       setUser(response.user);
       setStatus("authenticated");
-    } catch (error) {
-      if (error instanceof ApiError && error.isAuthError) {
-        setUser(null);
-        setStatus("anonymous");
-      } else {
-        // Treat unexpected failures as unauthenticated so the guard can act,
-        // but keep the user record cleared.
-        setUser(null);
-        setStatus("anonymous");
-      }
+      // A live session re-arms the one-shot session-expired redirect and clears
+      // any in-flight logout state; without this the second expiry in one SPA
+      // lifetime would never redirect and the logout button would stay disabled.
+      redirected.current = false;
+      setLoggingOut(false);
+    } catch {
+      if (seq !== refreshSeq.current) return;
+      setUser(null);
+      setStatus("anonymous");
     }
   }, []);
 

@@ -57,10 +57,13 @@ export function AppShell({ username, onLogout, loggingOut = false, children }: A
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={[styles.navItem, active ? styles.navItemActive : null].join(" ")}
-                title={collapsed ? item.label : undefined}
               >
                 <item.icon size={18} aria-hidden="true" />
-                {!collapsed ? <span>{item.label}</span> : null}
+                {/* Keep a programmatically readable label even when collapsed;
+                    a title attribute alone is unreliable for screen readers. */}
+                <span className={collapsed ? styles.navLabelHidden : undefined}>
+                  {item.label}
+                </span>
               </Link>
             );
           })}

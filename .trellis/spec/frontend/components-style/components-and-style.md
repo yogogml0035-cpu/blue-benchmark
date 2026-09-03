@@ -12,10 +12,10 @@
 ## 组件
 
 - 共享控件在 `src/components/ui/`（Button、TextField、Dialog、StatusBadge、EmptyState、Skeleton、ErrorPanel），壳层在 `src/components/shell/`（AppShell）。页面优先复用，不另造一次性控件。
-- 每个控件一个 `.module.css`，类名语义化；动效只用 `opacity`/`transform`。
+- 每个控件一个 `.module.css`，类名语义化；动效只用轻量属性（`opacity`/`transform`/颜色/描边/阴影），禁止动画会引发布局位移的属性（width/height/top/left/margin），且必须可被 reduced-motion 覆盖。
 - 异步按钮用 `loading` 态：显示 spinner、禁用、保持尺寸稳定，布局不因状态跳动。
 - Dialog 负责焦点移入、Tab 循环、Escape 关闭与关闭后还原焦点。
-- 表单错误用 `TextField error` 关联 `aria-describedby`/`aria-invalid`，并以 `role="alert"` 呈现；错误留在字段上下文，不只靠全局 toast。
+- 表单错误优先用 `TextField error` 关联 `aria-describedby`/`aria-invalid` 并以 `role="alert"` 呈现（如注册"两次输入的密码不一致"挂在确认密码字段）；跨字段的业务失败用表单级 `ErrorPanel`。错误留在操作上下文，不只靠全局 toast。
 
 ## 布局与视口
 
