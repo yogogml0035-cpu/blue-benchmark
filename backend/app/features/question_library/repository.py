@@ -12,8 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.lib.database import as_utc
 from app.lib.database.models import (
+    AgentRunAttemptRow,
     BatchUploadCommandRow,
     EvalQuestionRow,
+    OperationJobRow,
     SceneRow,
 )
 from app.features.scenes.repository import new_id
@@ -32,6 +34,7 @@ class QuestionRecord:
     reference_answer: str
     memory_materials: list[dict[str, Any]]
     criteria: list[dict[str, Any]] | None
+    criteria_confirmed: bool
     status: str
     content_revision: int
     active_operation_id: str | None
@@ -39,6 +42,7 @@ class QuestionRecord:
     created_at: datetime
     updated_at: datetime
     published_at: datetime | None
+    ever_published: bool
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,7 @@ def _record(row: EvalQuestionRow, scene_name: str) -> QuestionRecord:
         reference_answer=row.reference_answer,
         memory_materials=list(row.memory_materials_json or []),
         criteria=list(row.criteria_json) if row.criteria_json is not None else None,
+        criteria_confirmed=bool(row.criteria_confirmed),
         status=row.status,
         content_revision=row.content_revision,
         active_operation_id=row.active_operation_id,
@@ -73,6 +78,7 @@ def _record(row: EvalQuestionRow, scene_name: str) -> QuestionRecord:
         created_at=as_utc(row.created_at),
         updated_at=as_utc(row.updated_at),
         published_at=as_utc(row.published_at) if row.published_at else None,
+        ever_published=bool(row.ever_published),
     )
 
 
@@ -107,6 +113,7 @@ def create_question(
         reference_answer=reference_answer,
         memory_materials_json=memory_materials,
         criteria_json=None,
+        criteria_confirmed=False,
         status="generating",
         content_revision=1,
         active_operation_id=None,
@@ -114,6 +121,7 @@ def create_question(
         created_at=now,
         updated_at=now,
         published_at=None,
+        ever_published=False,
     )
     session.add(row)
     session.flush()
@@ -183,6 +191,37 @@ def update_fields(
 
 def question_exists(session: Session, question_id: str) -> bool:
     return session.get(EvalQuestionRow, question_id) is not None
+
+
+def delete_question_and_generation_history(session: Session, question_id: str) -> None:
+    """Hard-delete a question plus its generation jobs and attempt records.
+
+    ``operation_jobs`` references the question only through a loose
+    ``target_id`` string, so the cleanup is explicit and scoped to this single
+    question; it never touches sibling questions or batch receipts. Attempts
+    are removed before their jobs to stay independent of FK cascade timing.
+    """
+
+    from sqlalchemy import delete
+
+    job_ids = (
+        session.execute(
+            select(OperationJobRow.id).where(
+                OperationJobRow.target_type == "eval_question",
+                OperationJobRow.target_id == question_id,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if job_ids:
+        session.execute(
+            delete(AgentRunAttemptRow).where(AgentRunAttemptRow.operation_job_id.in_(job_ids))
+        )
+        session.execute(delete(OperationJobRow).where(OperationJobRow.id.in_(job_ids)))
+    row = session.get(EvalQuestionRow, question_id)
+    if row is not None:
+        session.delete(row)
 
 
 # ---------------------------------------------------------------------------

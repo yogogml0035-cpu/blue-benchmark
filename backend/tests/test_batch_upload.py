@@ -204,7 +204,13 @@ def test_materials_are_isolated_between_questions() -> None:
         helpers.run_worker_until_idle()
 
         # Deleting question A leaves B intact.
-        assert client.delete(f"/api/questions/{ids[0]}").status_code == 204
+        detail_a = client.get(f"/api/questions/{ids[0]}").json()
+        deleted = client.request(
+            "DELETE",
+            f"/api/questions/{ids[0]}",
+            json={"content_revision": detail_a["content_revision"]},
+        )
+        assert deleted.status_code == 204
         assert client.get(f"/api/questions/{ids[1]}").status_code == 200
         assert client.get(f"/api/questions?scene_id={scene_id}").json()["total"] == 1
 

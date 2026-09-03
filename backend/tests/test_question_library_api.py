@@ -90,16 +90,56 @@ def test_publish_requires_valid_criteria_and_overwrite_on_edit() -> None:
     with TestClient(app) as client:
         question_id, scene_id = _setup_with_generated_question(client)
         detail = client.get(f"/api/questions/{question_id}").json()
+        assert detail["criteria_confirmed"] is False
+        assert detail["next_action"] == "review_criteria"
+
+        # AI-drafted criteria alone cannot be published.
+        blocked = client.post(
+            f"/api/questions/{question_id}/publication",
+            json={"command_id": "publish-draft", "content_revision": detail["content_revision"]},
+        )
+        assert blocked.status_code == 409
+        assert blocked.json()["error"]["code"] == "CRITERIA_NOT_CONFIRMED"
+
+        # The teacher saves the final criteria list, then publication succeeds.
+        patched = client.patch(
+            f"/api/questions/{question_id}/criteria",
+            json={
+                "command_id": "criteria-confirm",
+                "content_revision": detail["content_revision"],
+                "criteria": [
+                    {
+                        "id": "fact-accuracy",
+                        "criterion": "核心事实和数据必须准确，不得虚构，引用与来源一致。",
+                        "pass_score": 8,
+                    }
+                ],
+            },
+        )
+        assert patched.status_code == 200, patched.text
+        confirmed = patched.json()
+        assert confirmed["criteria_confirmed"] is True
+        assert confirmed["next_action"] == "publish"
 
         published = client.post(
             f"/api/questions/{question_id}/publication",
-            json={"command_id": "publish-1", "content_revision": detail["content_revision"]},
+            json={"command_id": "publish-1", "content_revision": confirmed["content_revision"]},
         )
         assert published.status_code == 200, published.text
         body = published.json()
         assert body["status"] == "published"
         assert body["next_action"] == "published"
         assert body["published_at"] is not None
+        assert body["criteria_confirmed"] is True
+        assert body["delete_confirmation_required"] is True
+
+        # Publishing again is rejected, not silently repeated.
+        again = client.post(
+            f"/api/questions/{question_id}/publication",
+            json={"command_id": "publish-2", "content_revision": body["content_revision"]},
+        )
+        assert again.status_code == 409
+        assert again.json()["error"]["code"] == "ALREADY_PUBLISHED"
 
         # Editing a published question overwrites and returns it to processing.
         save = client.post(
@@ -115,6 +155,9 @@ def test_publish_requires_valid_criteria_and_overwrite_on_edit() -> None:
         assert updated["status"] == "generating"
         assert updated["published_at"] is None
         assert updated["criteria"] is None
+        assert updated["criteria_confirmed"] is False
+        # The publish history survives regeneration for the delete gate.
+        assert updated["delete_confirmation_required"] is True
         # No historical copy remains: the scene list still shows exactly one question.
         assert client.get(f"/api/questions?scene_id={scene_id}").json()["total"] == 1
 

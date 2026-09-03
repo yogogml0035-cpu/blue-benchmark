@@ -25,14 +25,14 @@ class QuestionStatus(StrEnum):
 class NextAction(StrEnum):
     wait_for_generation = "wait_for_generation"
     retry_generation = "retry_generation"
-    review_and_publish = "review_and_publish"
+    review_criteria = "review_criteria"
+    publish = "publish"
     published = "published"
 
 
 NEXT_ACTION_BY_STATUS = {
     QuestionStatus.generating: NextAction.wait_for_generation,
     QuestionStatus.generation_failed: NextAction.retry_generation,
-    QuestionStatus.pending_review: NextAction.review_and_publish,
     QuestionStatus.published: NextAction.published,
 }
 
@@ -253,6 +253,7 @@ class QuestionListItem(BaseModel):
     title: str
     status: QuestionStatus
     rubric_criterion_count: int | None
+    criteria_confirmed: bool
     next_action: NextAction
     created_at: str
     updated_at: str
@@ -276,11 +277,13 @@ class QuestionDetailResponse(BaseModel):
     reference_answer: str
     memory_materials: list[MemoryMaterialView]
     criteria: list[CriterionView] | None
+    criteria_confirmed: bool
     status: QuestionStatus
     next_action: NextAction
     content_revision: int
     active_operation_id: str | None
     last_error: GenerationErrorView | None
+    delete_confirmation_required: bool
     created_at: str
     updated_at: str
     published_at: str | None
@@ -325,6 +328,20 @@ class QuestionCommandRequest(BaseModel):
 
     command_id: str = Field(min_length=1, max_length=255)
     content_revision: int = Field(ge=1)
+
+
+class QuestionDeleteRequest(BaseModel):
+    """Protected hard-delete contract.
+
+    ``confirmation_title`` is only required for questions that were ever
+    published; it must match the current title exactly (after Unicode NFC
+    normalization and trimming) or the delete is rejected.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    content_revision: int = Field(ge=1)
+    confirmation_title: str | None = Field(default=None, max_length=200)
 
 
 class OperationAcceptedResponse(BaseModel):

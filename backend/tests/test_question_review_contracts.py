@@ -1,0 +1,355 @@
+"""Teacher confirmation, review reopen, and protected hard-delete contracts."""
+
+from fastapi.testclient import TestClient
+
+from app.lib.database import clear_business_data
+from app.main import app
+from tests import helpers
+
+
+def _setup_pending_review(client: TestClient) -> str:
+    helpers.register_admin(client)
+    scene = helpers.create_scene(client)
+    credential = helpers.issue_credential(client, scene["id"])
+    response = helpers.upload_batch(
+        client, credential["token"], helpers.make_batch("cmd-review", [helpers.make_case("case-review")])
+    )
+    assert response.status_code == 201, response.text
+    question_id = response.json()["cases"][0]["question_id"]
+    helpers.run_worker_until_idle()
+    return question_id
+
+
+def _confirm_criteria(client: TestClient, question_id: str) -> dict:
+    detail = client.get(f"/api/questions/{question_id}").json()
+    patched = client.patch(
+        f"/api/questions/{question_id}/criteria",
+        json={
+            "command_id": "criteria-save",
+            "content_revision": detail["content_revision"],
+            "criteria": [
+                {
+                    "id": "teacher-rule",
+                    "criterion": "输出必须覆盖题目要求的全部要点，不得遗漏关键信息。",
+                    "pass_score": 7,
+                }
+            ],
+        },
+    )
+    assert patched.status_code == 200, patched.text
+    return patched.json()
+
+
+def _publish(client: TestClient, question_id: str) -> dict:
+    detail = client.get(f"/api/questions/{question_id}").json()
+    published = client.post(
+        f"/api/questions/{question_id}/publication",
+        json={"command_id": "publish-cmd", "content_revision": detail["content_revision"]},
+    )
+    assert published.status_code == 200, published.text
+    return published.json()
+
+
+def test_save_and_publish_are_separate_steps() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _setup_pending_review(client)
+        detail = client.get(f"/api/questions/{question_id}").json()
+        assert detail["status"] == "pending_review"
+        assert detail["criteria_confirmed"] is False
+        assert detail["next_action"] == "review_criteria"
+        assert detail["delete_confirmation_required"] is False
+
+        confirmed = _confirm_criteria(client, question_id)
+        assert confirmed["criteria_confirmed"] is True
+        assert confirmed["next_action"] == "publish"
+        assert confirmed["status"] == "pending_review"
+
+        published = _publish(client, question_id)
+        assert published["status"] == "published"
+        assert published["next_action"] == "published"
+        assert published["delete_confirmation_required"] is True
+
+
+def test_review_reopen_preserves_materials_and_criteria() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _setup_pending_review(client)
+        _confirm_criteria(client, question_id)
+        published = _publish(client, question_id)
+
+        reopened = client.post(
+            f"/api/questions/{question_id}/review-reopen",
+            json={
+                "command_id": "reopen-1",
+                "content_revision": published["content_revision"],
+            },
+        )
+        assert reopened.status_code == 200, reopened.text
+        body = reopened.json()
+        assert body["status"] == "pending_review"
+        assert body["next_action"] == "publish"
+        assert body["published_at"] is None
+        # Materials, criteria and the confirmation fact are preserved.
+        assert body["criteria_confirmed"] is True
+        assert [item["id"] for item in body["criteria"]] == ["teacher-rule"]
+        assert body["task_prompt"] == published["task_prompt"]
+        # Publish history stays true to protect deletion.
+        assert body["delete_confirmation_required"] is True
+
+        # Repeating reopen on a non-published question conflicts.
+        again = client.post(
+            f"/api/questions/{question_id}/review-reopen",
+            json={"command_id": "reopen-2", "content_revision": body["content_revision"]},
+        )
+        assert again.status_code == 409
+        assert again.json()["error"]["code"] == "REVIEW_REOPEN_NOT_AVAILABLE"
+
+
+def test_review_reopen_requires_published_state_and_fresh_revision() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _setup_pending_review(client)
+        detail = client.get(f"/api/questions/{question_id}").json()
+
+        # Never published: reopen is unavailable.
+        blocked = client.post(
+            f"/api/questions/{question_id}/review-reopen",
+            json={"command_id": "reopen-early", "content_revision": detail["content_revision"]},
+        )
+        assert blocked.status_code == 409
+        assert blocked.json()["error"]["code"] == "REVIEW_REOPEN_NOT_AVAILABLE"
+
+        _confirm_criteria(client, question_id)
+        published = _publish(client, question_id)
+        # Stale revision: rejected.
+        stale = client.post(
+            f"/api/questions/{question_id}/review-reopen",
+            json={"command_id": "reopen-stale", "content_revision": 999},
+        )
+        assert stale.status_code == 409
+        assert stale.json()["error"]["code"] == "STALE_REVISION"
+        assert published["status"] == "published"
+
+
+def test_republish_after_reopen_keeps_single_record() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        helpers.register_admin(client)
+        scene = helpers.create_scene(client)
+        credential = helpers.issue_credential(client, scene["id"])
+        response = helpers.upload_batch(
+            client, credential["token"], helpers.make_batch("cmd-cycle", [helpers.make_case("case-cycle")])
+        )
+        question_id = response.json()["cases"][0]["question_id"]
+        helpers.run_worker_until_idle()
+
+        _confirm_criteria(client, question_id)
+        _publish(client, question_id)
+        detail = client.get(f"/api/questions/{question_id}").json()
+        client.post(
+            f"/api/questions/{question_id}/review-reopen",
+            json={"command_id": "reopen", "content_revision": detail["content_revision"]},
+        )
+
+        # Adjust the saved criteria and publish again — no version history.
+        current = client.get(f"/api/questions/{question_id}").json()
+        patched = client.patch(
+            f"/api/questions/{question_id}/criteria",
+            json={
+                "command_id": "criteria-adjust",
+                "content_revision": current["content_revision"],
+                "criteria": [
+                    {
+                        "id": "adjusted-rule",
+                        "criterion": "重新打开后调整的评分标准，仍然必须可执行且完整。",
+                        "pass_score": 8,
+                    }
+                ],
+            },
+        )
+        assert patched.status_code == 200, patched.text
+        republished = client.post(
+            f"/api/questions/{question_id}/publication",
+            json={
+                "command_id": "publish-again",
+                "content_revision": patched.json()["content_revision"],
+            },
+        )
+        assert republished.status_code == 200
+        assert republished.json()["status"] == "published"
+        listing = client.get(f"/api/questions?scene_id={scene['id']}").json()
+        assert listing["total"] == 1
+
+
+def test_delete_gate_for_ever_published_questions() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _setup_pending_review(client)
+        _confirm_criteria(client, question_id)
+        published = _publish(client, question_id)
+        title = published["title"]
+
+        # Still published: reopen first.
+        blocked = client.request(
+            "DELETE",
+            f"/api/questions/{question_id}",
+            json={"content_revision": published["content_revision"]},
+        )
+        assert blocked.status_code == 409
+        assert blocked.json()["error"]["code"] == "PUBLISHED_REOPEN_REQUIRED"
+
+        reopened = client.post(
+            f"/api/questions/{question_id}/review-reopen",
+            json={"command_id": "reopen-del", "content_revision": published["content_revision"]},
+        )
+        revision = reopened.json()["content_revision"]
+
+        # No confirmation title: rejected, even after a fresh reload.
+        missing = client.request(
+            "DELETE", f"/api/questions/{question_id}", json={"content_revision": revision}
+        )
+        assert missing.status_code == 422
+        assert missing.json()["error"]["code"] == "DELETE_CONFIRMATION_MISMATCH"
+
+        # Wrong title: rejected.
+        wrong = client.request(
+            "DELETE",
+            f"/api/questions/{question_id}",
+            json={"content_revision": revision, "confirmation_title": title + "x"},
+        )
+        assert wrong.status_code == 422
+        assert wrong.json()["error"]["code"] == "DELETE_CONFIRMATION_MISMATCH"
+
+        # Exact current title: allowed.
+        deleted = client.request(
+            "DELETE",
+            f"/api/questions/{question_id}",
+            json={"content_revision": revision, "confirmation_title": title},
+        )
+        assert deleted.status_code == 204
+        assert client.get(f"/api/questions/{question_id}").status_code == 404
+
+
+def test_delete_confirmation_title_is_normalized() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        helpers.register_admin(client)
+        scene = helpers.create_scene(client)
+        credential = helpers.issue_credential(client, scene["id"])
+        case = helpers.make_case("case-nfc")
+        # NFD-decomposed title; the delete confirmation arrives recomposed + padded.
+        case["title"] = "标题\u0065\u0301的分解形式"
+        response = helpers.upload_batch(
+            client, credential["token"], helpers.make_batch("cmd-nfc", [case])
+        )
+        question_id = response.json()["cases"][0]["question_id"]
+        helpers.run_worker_until_idle()
+        _confirm_criteria(client, question_id)
+        _publish(client, question_id)
+        detail = client.get(f"/api/questions/{question_id}").json()
+        client.post(
+            f"/api/questions/{question_id}/review-reopen",
+            json={"command_id": "reopen-nfc", "content_revision": detail["content_revision"]},
+        )
+        reopened = client.get(f"/api/questions/{question_id}").json()
+
+        padded_nfc = "  " + "\u00e9".join(reopened["title"].split("\u0065\u0301")) + "  "
+        deleted = client.request(
+            "DELETE",
+            f"/api/questions/{question_id}",
+            json={"content_revision": reopened["content_revision"], "confirmation_title": padded_nfc},
+        )
+        assert deleted.status_code == 204, deleted.text
+
+
+def test_never_published_questions_delete_with_plain_confirmation() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _setup_pending_review(client)
+        detail = client.get(f"/api/questions/{question_id}").json()
+        assert detail["delete_confirmation_required"] is False
+
+        deleted = client.request(
+            "DELETE",
+            f"/api/questions/{question_id}",
+            json={"content_revision": detail["content_revision"]},
+        )
+        assert deleted.status_code == 204
+        assert client.get(f"/api/questions/{question_id}").status_code == 404
+
+
+def test_delete_cleans_up_generation_jobs() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _setup_pending_review(client)
+        detail = client.get(f"/api/questions/{question_id}").json()
+        deleted = client.request(
+            "DELETE",
+            f"/api/questions/{question_id}",
+            json={"content_revision": detail["content_revision"]},
+        )
+        assert deleted.status_code == 204
+
+    from sqlalchemy import select
+
+    from app.lib.database import session_scope
+    from app.lib.database.models import AgentRunAttemptRow, OperationJobRow
+
+    with session_scope() as session:
+        jobs = session.execute(
+            select(OperationJobRow).where(OperationJobRow.target_id == question_id)
+        ).scalars().all()
+        attempts = session.execute(
+            select(AgentRunAttemptRow).where(AgentRunAttemptRow.target_id == question_id)
+        ).scalars().all()
+    assert jobs == []
+    assert attempts == []
+
+
+def test_delete_stale_revision_is_rejected() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _setup_pending_review(client)
+        stale = client.request(
+            "DELETE", f"/api/questions/{question_id}", json={"content_revision": 42}
+        )
+        assert stale.status_code == 409
+        assert stale.json()["error"]["code"] == "STALE_REVISION"
+        assert client.get(f"/api/questions/{question_id}").status_code == 200
+
+
+def test_regeneration_after_publish_keeps_delete_gate() -> None:
+    """Editing materials of a published question un-confirms criteria but the
+    ever-published delete protection survives."""
+
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _setup_pending_review(client)
+        _confirm_criteria(client, question_id)
+        published = _publish(client, question_id)
+
+        save = client.post(
+            f"/api/questions/{question_id}/save-regenerate",
+            json={
+                "command_id": "edit-after-publish",
+                "content_revision": published["content_revision"],
+                "task_prompt": "修改材料后重新生成。",
+            },
+        )
+        assert save.status_code == 200
+        helpers.run_worker_until_idle()
+        detail = client.get(f"/api/questions/{question_id}").json()
+        assert detail["status"] == "pending_review"
+        assert detail["criteria_confirmed"] is False
+        assert detail["next_action"] == "review_criteria"
+        assert detail["delete_confirmation_required"] is True
+
+        # Deleting it still requires the title confirmation.
+        rejected = client.request(
+            "DELETE",
+            f"/api/questions/{question_id}",
+            json={"content_revision": detail["content_revision"]},
+        )
+        assert rejected.status_code == 422
+        assert rejected.json()["error"]["code"] == "DELETE_CONFIRMATION_MISMATCH"

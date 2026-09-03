@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any
 
@@ -19,6 +20,7 @@ from app.features.question_library.schemas import (
     NextAction,
     OperationAcceptedResponse,
     QuestionCommandRequest,
+    QuestionDeleteRequest,
     QuestionDetailResponse,
     QuestionLibraryResponse,
     QuestionListItem,
@@ -45,8 +47,13 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
-def _next_action(status: str) -> NextAction:
-    return NEXT_ACTION_BY_STATUS[QuestionStatus(status)]
+def _next_action(status: str, criteria_confirmed: bool) -> NextAction:
+    """`pending_review` splits on teacher confirmation: review vs. publish."""
+
+    question_status = QuestionStatus(status)
+    if question_status == QuestionStatus.pending_review:
+        return NextAction.publish if criteria_confirmed else NextAction.review_criteria
+    return NEXT_ACTION_BY_STATUS[question_status]
 
 
 def _detail_response(record: repository.QuestionRecord) -> QuestionDetailResponse:
@@ -95,7 +102,7 @@ def _detail_response(record: repository.QuestionRecord) -> QuestionDetailRespons
             else None
         ),
         status=QuestionStatus(record.status),
-        next_action=_next_action(record.status),
+        next_action=_next_action(record.status, record.criteria_confirmed),
         content_revision=record.content_revision,
         active_operation_id=record.active_operation_id,
         last_error=(
@@ -106,6 +113,8 @@ def _detail_response(record: repository.QuestionRecord) -> QuestionDetailRespons
             if record.last_error
             else None
         ),
+        criteria_confirmed=record.criteria_confirmed,
+        delete_confirmation_required=record.ever_published,
         created_at=_iso(record.created_at) or "",
         updated_at=_iso(record.updated_at) or "",
         published_at=_iso(record.published_at),
@@ -296,7 +305,8 @@ def list_library(
             rubric_criterion_count=(
                 len(record.criteria) if record.criteria is not None else None
             ),
-            next_action=_next_action(record.status),
+            criteria_confirmed=record.criteria_confirmed,
+            next_action=_next_action(record.status, record.criteria_confirmed),
             created_at=_iso(record.created_at) or "",
             updated_at=_iso(record.updated_at) or "",
             published_at=_iso(record.published_at),
@@ -443,6 +453,7 @@ def save_and_regenerate(
             memory_materials_json=new_memory,
             content_revision=new_revision,
             criteria_json=None,
+            criteria_confirmed=False,
             status=QuestionStatus.generating.value,
             published_at=None,
             last_error_json=None,
@@ -475,11 +486,12 @@ def patch_criteria(question_id: str, payload: CriteriaPatchRequest) -> QuestionD
         if row.status == QuestionStatus.published.value:
             raise AppError(
                 409,
-                "PUBLISHED_USE_SAVE_REGENERATE",
-                "已发布题目的评分维度变更必须通过保存并重新生成提交。",
+                "PUBLISHED_REOPEN_REQUIRED",
+                "已发布题目必须先重新打开审改，才能修改评分维度。",
             )
         values: dict[str, Any] = {
             "criteria_json": criteria,
+            "criteria_confirmed": True,
             "active_operation_id": None,
         }
         if row.status == QuestionStatus.generation_failed.value:
@@ -549,8 +561,16 @@ def publish(question_id: str, payload: QuestionCommandRequest) -> QuestionDetail
             raise AppError(409, "RUBRIC_GENERATING", "评分维度生成中，无法发布。")
         if row.status == QuestionStatus.generation_failed.value:
             raise AppError(409, "GENERATION_FAILED", "评分维度生成失败，请先重试生成。")
+        if row.status == QuestionStatus.published.value:
+            raise AppError(409, "ALREADY_PUBLISHED", "题目已经发布，无需重复发布。")
         if not row.criteria_json:
             raise AppError(409, "CRITERIA_MISSING", "题目缺少评分维度，无法发布。")
+        if not row.criteria_confirmed:
+            raise AppError(
+                409,
+                "CRITERIA_NOT_CONFIRMED",
+                "AI 候选维度必须经老师保存确认后才能发布。",
+            )
         record = repository.update_fields(
             session,
             question_id,
@@ -558,24 +578,88 @@ def publish(question_id: str, payload: QuestionCommandRequest) -> QuestionDetail
             now=now,
             status=QuestionStatus.published.value,
             published_at=now,
+            ever_published=True,
         )
         if record is None:
             raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
     return get_detail(question_id)
 
 
-def delete_question(question_id: str) -> None:
+def review_reopen(question_id: str, payload: QuestionCommandRequest) -> QuestionDetailResponse:
+    """Reopen a published question for review without regenerating.
+
+    Materials, criteria and the teacher-confirmation fact are preserved; only
+    the current publication timestamp is cleared. No version, snapshot or
+    history is created.
+    """
+
+    now = _utc_now()
     with session_scope() as session:
         row = session.get(EvalQuestionRow, question_id)
         if row is None:
             raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+        if payload.content_revision != row.content_revision:
+            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+        if row.status != QuestionStatus.published.value:
+            raise AppError(
+                409,
+                "REVIEW_REOPEN_NOT_AVAILABLE",
+                "只有已发布的题目可以重新打开审改。",
+            )
+        record = repository.update_fields(
+            session,
+            question_id,
+            expected_revision=payload.content_revision,
+            now=now,
+            status=QuestionStatus.pending_review.value,
+            published_at=None,
+        )
+        if record is None:
+            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+    return get_detail(question_id)
+
+
+def delete_question(question_id: str, payload: QuestionDeleteRequest) -> None:
+    """Protected hard delete.
+
+    Gates, in order: stale revision, generating, still published, and — for
+    any question that was ever published — an exact title confirmation that
+    survives page reloads because it is checked against the persisted
+    ``ever_published`` fact, not client state.
+    """
+
+    with session_scope() as session:
+        row = session.get(EvalQuestionRow, question_id)
+        if row is None:
+            raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+        if payload.content_revision != row.content_revision:
+            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
         if row.status == QuestionStatus.generating.value:
             raise AppError(
                 409,
                 "RUBRIC_GENERATING",
                 "评分维度生成中，等待生成完成或失败后再删除。",
             )
-        session.delete(row)
+        if row.status == QuestionStatus.published.value:
+            raise AppError(
+                409,
+                "PUBLISHED_REOPEN_REQUIRED",
+                "已发布题目必须先重新打开审改，才能删除。",
+            )
+        if row.ever_published:
+            provided = (
+                unicodedata.normalize("NFC", payload.confirmation_title).strip()
+                if payload.confirmation_title is not None
+                else ""
+            )
+            current = unicodedata.normalize("NFC", row.title).strip()
+            if provided != current:
+                raise AppError(
+                    422,
+                    "DELETE_CONFIRMATION_MISMATCH",
+                    "该题目曾经发布过，必须输入当前完整题目标题确认删除。",
+                )
+        repository.delete_question_and_generation_history(session, question_id)
 
 
 def _raise_stale_or_missing(question_id: str) -> None:

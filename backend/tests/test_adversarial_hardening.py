@@ -162,9 +162,24 @@ def test_published_question_rejects_criteria_patch() -> None:
         question_id = response.json()["cases"][0]["question_id"]
         helpers.run_worker_until_idle()
         detail = client.get(f"/api/questions/{question_id}").json()
+        confirmed = client.patch(
+            f"/api/questions/{question_id}/criteria",
+            json={
+                "command_id": "criteria-before-publish",
+                "content_revision": detail["content_revision"],
+                "criteria": [
+                    {
+                        "id": "confirmed-rule",
+                        "criterion": "输出必须覆盖题目要求的全部要点，不得遗漏关键信息。",
+                        "pass_score": 6,
+                    }
+                ],
+            },
+        )
+        assert confirmed.status_code == 200, confirmed.text
         publish = client.post(
             f"/api/questions/{question_id}/publication",
-            json={"command_id": "pub", "content_revision": detail["content_revision"]},
+            json={"command_id": "pub", "content_revision": confirmed.json()["content_revision"]},
         )
         assert publish.status_code == 200
         patched = client.get(f"/api/questions/{question_id}").json()
@@ -183,7 +198,7 @@ def test_published_question_rejects_criteria_patch() -> None:
             },
         )
         assert edit.status_code == 409
-        assert edit.json()["error"]["code"] == "PUBLISHED_USE_SAVE_REGENERATE"
+        assert edit.json()["error"]["code"] == "PUBLISHED_REOPEN_REQUIRED"
 
 
 def test_whitespace_only_material_returns_422_not_500() -> None:
@@ -220,11 +235,19 @@ def test_delete_is_blocked_while_generating() -> None:
         )
         question_id = response.json()["cases"][0]["question_id"]
         # Status is generating; deletion must be refused until it settles.
-        delete = client.delete(f"/api/questions/{question_id}")
+        delete = client.request(
+            "DELETE", f"/api/questions/{question_id}", json={"content_revision": 1}
+        )
         assert delete.status_code == 409
         assert delete.json()["error"]["code"] == "RUBRIC_GENERATING"
         helpers.run_worker_until_idle()
-        assert client.delete(f"/api/questions/{question_id}").status_code == 204
+        detail = client.get(f"/api/questions/{question_id}").json()
+        deleted = client.request(
+            "DELETE",
+            f"/api/questions/{question_id}",
+            json={"content_revision": detail["content_revision"]},
+        )
+        assert deleted.status_code == 204
 
 
 def test_pass_semantics_clamp_to_the_fixed_ten_point_scale() -> None:

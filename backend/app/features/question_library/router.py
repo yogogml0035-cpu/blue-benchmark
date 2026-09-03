@@ -10,6 +10,7 @@ from app.features.question_library.schemas import (
     CriteriaPatchRequest,
     OperationAcceptedResponse,
     QuestionCommandRequest,
+    QuestionDeleteRequest,
     QuestionDetailResponse,
     QuestionLibraryResponse,
     QuestionSaveRegenerateRequest,
@@ -131,12 +132,36 @@ def publish(
     return service.publish(question_id, payload)
 
 
+@router.post(
+    "/{question_id}/review-reopen",
+    response_model=QuestionDetailResponse,
+    responses={
+        401: {"description": "未登录"},
+        404: {"description": "题目不存在"},
+        409: {"description": "状态或版本不允许重新打开"},
+    },
+)
+def review_reopen(
+    question_id: str,
+    payload: QuestionCommandRequest,
+    _user=Depends(auth_service.require_current_user),
+) -> QuestionDetailResponse:
+    return service.review_reopen(question_id, payload)
+
+
 @router.delete(
     "/{question_id}",
     status_code=204,
-    responses={401: {"description": "未登录"}, 404: {"description": "题目不存在"}},
+    responses={
+        401: {"description": "未登录"},
+        404: {"description": "题目不存在"},
+        409: {"description": "状态或版本不允许删除"},
+        422: {"description": "标题确认不匹配"},
+    },
 )
 def delete_question(
-    question_id: str, _user=Depends(auth_service.require_current_user)
+    question_id: str,
+    payload: QuestionDeleteRequest,
+    _user=Depends(auth_service.require_current_user),
 ) -> None:
-    service.delete_question(question_id)
+    service.delete_question(question_id, payload)

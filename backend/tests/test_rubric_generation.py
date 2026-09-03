@@ -28,7 +28,9 @@ def test_generation_produces_two_field_criteria_only() -> None:
         helpers.run_worker_until_idle()
         detail = client.get(f"/api/questions/{question_id}").json()
         assert detail["status"] == "pending_review"
-        assert detail["next_action"] == "review_and_publish"
+        # AI output is an unconfirmed draft: the teacher must review it first.
+        assert detail["next_action"] == "review_criteria"
+        assert detail["criteria_confirmed"] is False
         assert detail["criteria"], "generated criteria must not be empty"
         for item in detail["criteria"]:
             assert set(item.keys()) == {"id", "criterion", "pass_score"}

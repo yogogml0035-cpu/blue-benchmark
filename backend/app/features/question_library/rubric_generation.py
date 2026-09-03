@@ -180,6 +180,7 @@ def commit_generation_result(
             _mark_attempt(session, job_row, "superseded")
             return True
         row.criteria_json = criteria
+        row.criteria_confirmed = False
         row.status = "pending_review"
         row.last_error_json = None
         row.active_operation_id = None
