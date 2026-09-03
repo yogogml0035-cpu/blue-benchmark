@@ -28,7 +28,8 @@
 3. 运行 `make openapi`，只接受生成器产生的 `openapi.json` 变更；
 4. 运行 `make contract-check` 确认已提交合同与当前 FastAPI 一致；
 5. `make test` 通过；涉及迁移或启动门控时补充 `make db-migrate` / `make db-check`；
-6. 如运行方式改变，同步 README 的使用说明。
+6. 如运行方式改变，同步 README 的使用说明；
+7. 有意删除旧语义（破坏性收紧、入口收缩）时，全仓库 grep 旧词：`main.py` 的 FastAPI `description`、`pyproject.toml` description、包/模块 docstring、`openapi.json`、README 与 `skills/` 下的 SKILL.md / reference；只保留必要的禁止性描述，不留兼容性旧词。历史迁移文件不改写。
 
 ## 授权与数据泄露检查
 
