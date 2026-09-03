@@ -73,10 +73,12 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const loadAbortRef = useRef<AbortController | null>(null);
+  const hasDetailRef = useRef(false);
   const dirty = (editingMaterials && materialDraft !== null) || criteriaDirty;
 
   const applyDetail = useCallback((d: QuestionDetailResponse) => {
     setDetail(d);
+    hasDetailRef.current = true;
     setCriterionDrafts(draftsFromDetail(d));
     setCriteriaDirty(false);
     setCriteriaError(null);
@@ -93,6 +95,10 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
       applyDetail(d);
     } catch (err) {
       if (controller.signal.aborted) return;
+      // Keep the last good detail so an in-flight poll survives a transient
+      // failure instead of permanently killing the page; only a first-load
+      // failure (no detail yet) shows the full error state.
+      if (hasDetailRef.current) return;
       setDetail(null);
       if (err instanceof ApiError) setLoadError({ code: err.code, message: err.message });
       else setLoadError({ code: "UNKNOWN", message: "加载题目失败，请稍后重试。" });
@@ -258,6 +264,13 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
         <ErrorPanel
           title={loadError.code === "RESOURCE_NOT_FOUND" ? "题目不存在" : "加载未成功"}
           message={loadError.message}
+          action={
+            loadError.code === "RESOURCE_NOT_FOUND" ? undefined : (
+              <Button variant="secondary" onClick={() => void load()}>
+                重试
+              </Button>
+            )
+          }
         />
       </div>
     );
@@ -410,7 +423,7 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
                       重新打开审改
                     </Button>
                   ) : null}
-                  {detail.criteria_confirmed && !published ? (
+                  {detail.criteria_confirmed && !published && !criteriaDirty ? (
                     <Button
                       onClick={() =>
                         runAction("publish", () =>
@@ -431,7 +444,7 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
             ) : null}
 
             <div className={styles.dangerZone}>
-              {!published ? (
+              {!published && !generating ? (
                 <Button
                   variant="danger"
                   onClick={() => {
@@ -443,7 +456,9 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
                   删除题目
                 </Button>
               ) : (
-                <p className={styles.deleteNote}>已发布题目需先重新打开审改才能删除。</p>
+                <p className={styles.deleteNote}>
+                  {published ? "已发布题目需先重新打开审改才能删除。" : "生成中的题目不能删除。"}
+                </p>
               )}
             </div>
           </div>

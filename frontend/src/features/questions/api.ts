@@ -16,6 +16,8 @@ export type CriterionView = components["schemas"]["CriterionView"];
 export type CriteriaPatchRequest = components["schemas"]["CriteriaPatchRequest"];
 export type QuestionSaveRegenerateRequest = components["schemas"]["QuestionSaveRegenerateRequest"];
 export type QuestionDeleteRequest = components["schemas"]["QuestionDeleteRequest"];
+export type QuestionTitleRequest = components["schemas"]["QuestionTitleRequest"];
+export type QuestionCommandRequest = components["schemas"]["QuestionCommandRequest"];
 export type OperationAcceptedResponse = components["schemas"]["OperationAcceptedResponse"];
 
 export function listQuestions(
@@ -35,7 +37,7 @@ export function getQuestion(questionId: string, signal?: AbortSignal): Promise<Q
 
 export function updateTitle(
   questionId: string,
-  payload: { command_id: string; content_revision: number; title: string },
+  payload: QuestionTitleRequest,
   signal?: AbortSignal,
 ): Promise<QuestionDetailResponse> {
   return request<QuestionDetailResponse>(
@@ -68,7 +70,7 @@ export function patchCriteria(
 
 export function retryGeneration(
   questionId: string,
-  payload: { command_id: string; content_revision: number },
+  payload: QuestionCommandRequest,
   signal?: AbortSignal,
 ): Promise<OperationAcceptedResponse> {
   return request<OperationAcceptedResponse>(
@@ -79,7 +81,7 @@ export function retryGeneration(
 
 export function publishQuestion(
   questionId: string,
-  payload: { command_id: string; content_revision: number },
+  payload: QuestionCommandRequest,
   signal?: AbortSignal,
 ): Promise<QuestionDetailResponse> {
   return request<QuestionDetailResponse>(
@@ -90,7 +92,7 @@ export function publishQuestion(
 
 export function reviewReopen(
   questionId: string,
-  payload: { command_id: string; content_revision: number },
+  payload: QuestionCommandRequest,
   signal?: AbortSignal,
 ): Promise<QuestionDetailResponse> {
   return request<QuestionDetailResponse>(

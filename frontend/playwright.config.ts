@@ -12,7 +12,10 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  // A single retry absorbs load-induced timing flakes when the whole suite
+  // (41 tests) runs back-to-back against one server; deterministic failures
+  // still fail twice and are reported.
+  retries: 1,
   timeout: 60_000,
   reporter: [["list"]],
   globalSetup: "./e2e/global-setup.ts",

@@ -26,6 +26,9 @@ export interface CriterionDraft {
 export const MIN_CRITERIA = 1;
 export const MAX_CRITERIA = 20;
 export const MAX_PASS_SCORE = 10;
+// Mirrors the backend rubric_rules.MIN_CRITERION_LENGTH so obviously-too-short
+// criteria are caught before a round trip.
+export const MIN_CRITERION_LENGTH = 8;
 
 /** Build the initial drafts from a question detail response. */
 export function draftsFromDetail(detail: QuestionDetailResponse): CriterionDraft[] {
@@ -58,7 +61,7 @@ export function newManualDraft(existingIds: Set<string>): CriterionDraft {
 }
 
 export interface CriterionValidationError {
-  code: "TOO_FEW" | "TOO_MANY" | "DUPLICATE_ID" | "EMPTY_CRITERION" | "BAD_SCORE";
+  code: "TOO_FEW" | "TOO_MANY" | "DUPLICATE_ID" | "EMPTY_CRITERION" | "SHORT_CRITERION" | "BAD_SCORE";
   message: string;
 }
 
@@ -77,8 +80,15 @@ export function validateSelected(drafts: CriterionDraft[]): CriterionValidationE
       return { code: "DUPLICATE_ID", message: "评分维度 id 必须唯一。" };
     }
     ids.add(d.id);
-    if (!d.criterion.trim()) {
+    const trimmed = d.criterion.trim();
+    if (!trimmed) {
       return { code: "EMPTY_CRITERION", message: "评分标准不能为空白。" };
+    }
+    if (trimmed.length < MIN_CRITERION_LENGTH) {
+      return {
+        code: "SHORT_CRITERION",
+        message: `评分标准过短（至少 ${MIN_CRITERION_LENGTH} 个字符），请写明判断对象与合格表现。`,
+      };
     }
     if (!Number.isInteger(d.pass_score) || d.pass_score < 0 || d.pass_score > MAX_PASS_SCORE) {
       return { code: "BAD_SCORE", message: "通过分必须是 0–10 的整数。" };
