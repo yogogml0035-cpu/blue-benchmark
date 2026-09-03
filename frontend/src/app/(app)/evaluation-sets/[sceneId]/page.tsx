@@ -3,7 +3,7 @@
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorPanel } from "@/components/ui/error-panel";
@@ -47,13 +47,21 @@ export default function EvaluationSetDetailPage(): React.JSX.Element {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [promptOpen, setPromptOpen] = useState(false);
+  // Tracks the in-flight load so a delete (which navigates away) can cancel it
+  // and avoid a late 404 flashing "not found" over the departing page.
+  const loadAbortRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
     setLoadError(null);
     try {
-      const response = await getSceneStatus(sceneId);
+      const response = await getSceneStatus(sceneId, controller.signal);
+      if (controller.signal.aborted) return;
       setStatus(response);
     } catch (err) {
+      if (controller.signal.aborted) return;
       setStatus(null);
       if (err instanceof ApiError) {
         setLoadError({ code: err.code, message: err.message });
@@ -84,10 +92,11 @@ export default function EvaluationSetDetailPage(): React.JSX.Element {
     setDeleteError(null);
     try {
       await deleteScene(sceneId);
+      // Cancel any in-flight load so a late 404 can't flash over the redirect.
+      loadAbortRef.current?.abort();
       router.replace("/evaluation-sets");
     } catch (err) {
       setDeleteOpen(false);
-      setDeleting(false);
       if (err instanceof ApiError) {
         setDeleteError(err.message);
         // The scene changed underneath (e.g. became non-empty); refresh it.
@@ -95,6 +104,8 @@ export default function EvaluationSetDetailPage(): React.JSX.Element {
       } else {
         setDeleteError("删除失败，请稍后重试。");
       }
+    } finally {
+      setDeleting(false);
     }
   }
 

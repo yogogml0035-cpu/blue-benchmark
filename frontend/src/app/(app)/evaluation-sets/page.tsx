@@ -2,7 +2,7 @@
 
 import { FolderPlus, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorPanel } from "@/components/ui/error-panel";
@@ -23,13 +23,17 @@ export default function EvaluationSetsPage(): React.JSX.Element {
   const [connectionById, setConnectionById] = useState<Record<string, ConnectionStatus>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  // Guards against overlapping loads (retry, StrictMode) writing state out of
+  // order: only the most recent load may commit its result.
+  const loadSeqRef = useRef(0);
 
   const load = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoadError(null);
     try {
       const response = await listScenes();
-      setScenes(response.items);
-      // Derive the precise connection state per scene from its credentials.
+      // Derive the precise connection state per scene from its credentials,
+      // then commit scenes and badges together so they never disagree mid-load.
       const entries = await Promise.all(
         response.items.map(async (scene) => {
           try {
@@ -40,8 +44,11 @@ export default function EvaluationSetsPage(): React.JSX.Element {
           }
         }),
       );
+      if (seq !== loadSeqRef.current) return;
       setConnectionById(Object.fromEntries(entries));
+      setScenes(response.items);
     } catch (err) {
+      if (seq !== loadSeqRef.current) return;
       setScenes(null);
       setLoadError(err instanceof ApiError ? err.message : "加载评测集失败，请稍后重试。");
     }

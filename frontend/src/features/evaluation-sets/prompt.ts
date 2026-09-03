@@ -15,8 +15,18 @@ export interface AgentBindingPromptInput {
   token: string;
 }
 
+/**
+ * Neutralize newlines and control characters in user-supplied text before it
+ * is embedded in the Agent prompt, so a scene name cannot break out of its
+ * line and inject extra instructions to the receiving Agent.
+ */
+function sanitizePromptText(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+}
+
 export function buildAgentBindingPrompt(input: AgentBindingPromptInput): string {
-  const { agentApiBaseUrl, sceneId, sceneName, token } = input;
+  const { agentApiBaseUrl, sceneId, token } = input;
+  const sceneName = sanitizePromptText(input.sceneName);
   return `请把本机上传 Skill（ai-eval-push）绑定到评测集「${sceneName}」。
 
 要求：

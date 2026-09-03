@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorPanel } from "@/components/ui/error-panel";
@@ -30,15 +30,19 @@ export function EvaluationSetFormDialog({
   const [nameError, setNameError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Seed the fields from the scene being edited whenever it changes/opened.
+  // Seed only on the closed -> open transition. Keying on the transition (not
+  // on the scene object reference) means a concurrent reload that produces a
+  // new scene object cannot wipe what the user is currently typing.
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (open) {
+    if (open && !wasOpen.current) {
       setName(scene?.name ?? "");
       setDescription(scene?.description ?? "");
       setNameError(null);
       setFormError(null);
       setSubmitting(false);
     }
+    wasOpen.current = open;
   }, [open, scene]);
 
   async function handleSubmit(event: FormEvent): Promise<void> {
