@@ -1,4 +1,6 @@
-.PHONY: backend start-all openapi contract-check test build db-migrate db-check ai-smoke worker admin
+.PHONY: backend start-all openapi contract-check test build db-migrate db-check ai-smoke worker admin \
+	frontend-install frontend-dev frontend-build frontend-test frontend-typecheck \
+	frontend-check-api frontend-generate-api frontend-e2e
 BACKEND_PORT ?= 8000
 
 backend:
@@ -35,10 +37,14 @@ contract-check:
 test:
 	cd backend && uv run pytest -q
 	$(MAKE) contract-check
+	$(MAKE) frontend-typecheck
+	$(MAKE) frontend-test
+	$(MAKE) frontend-check-api
 
 build:
 	cd backend && uv run python -m compileall -q app scripts tests migrations
 	cd backend && uv run python -c "import app.main; import app.lib.operations.worker; print('backend import ok')"
+	$(MAKE) frontend-build
 
 db-migrate:
 	cd backend && uv run alembic upgrade head
@@ -56,3 +62,29 @@ admin:
 	@echo "Run the admin CLI directly (arguments are not shell-interpolated here):"
 	@echo "  cd backend && uv run python -m scripts.admin_cli --help"
 	@cd backend && uv run python -m scripts.admin_cli --help
+
+# --- Frontend (Next.js admin console) ---------------------------------------
+
+frontend-install:
+	cd frontend && pnpm install
+
+frontend-dev:
+	cd frontend && pnpm dev
+
+frontend-build:
+	cd frontend && pnpm build
+
+frontend-typecheck:
+	cd frontend && pnpm typecheck
+
+frontend-test:
+	cd frontend && pnpm test
+
+frontend-check-api:
+	cd frontend && pnpm check:api
+
+frontend-generate-api:
+	cd frontend && pnpm generate:api
+
+frontend-e2e:
+	cd frontend && pnpm test:e2e
