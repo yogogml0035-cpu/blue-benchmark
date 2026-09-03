@@ -3,3 +3,4 @@
 {"file":".trellis/spec/backend/core/errors-and-api-responses.md","reason":"检查业务错误和无泄漏"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/aura-interface-audit.md","reason":"检查双栏、长内容、选择与桌面交互"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"核对人工确认、重开与删除门禁"}
+{"file": ".trellis/spec/frontend/quality-testing/quality-and-testing.md", "reason": "前端质量门与 E2E 隔离"}

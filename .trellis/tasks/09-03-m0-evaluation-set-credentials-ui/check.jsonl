@@ -2,3 +2,4 @@
 {"file":".trellis/spec/backend/core/errors-and-api-responses.md","reason":"检查 scene/credential 错误语义"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/aura-interface-audit.md","reason":"检查文件夹、Dialog、Clipboard 和桌面视觉"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"检查空集删除与一次性响应合同"}
+{"file": ".trellis/spec/frontend/quality-testing/quality-and-testing.md", "reason": "前端质量门与 E2E 隔离"}

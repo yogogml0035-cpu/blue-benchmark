@@ -3,3 +3,4 @@
 {"file":".trellis/spec/backend/core/errors-and-api-responses.md","reason":"检查日志、响应与 artifact 无泄漏"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/repository-contract-audit.md","reason":"核对 API、迁移、Worker 与安全缺口"}
 {"file":".trellis/tasks/09-03-m0-nextjs-integration/research/aura-interface-audit.md","reason":"核对 Chrome/Safari、视口与 AURA 完整性"}
+{"file": ".trellis/spec/frontend/quality-testing/quality-and-testing.md", "reason": "前端质量门与 E2E 隔离"}
