@@ -97,18 +97,27 @@ test("an unsafe returnTo is never honored", async ({ page, context }) => {
   await expect(page).toHaveURL(/\/evaluation-sets$/);
 });
 
-test("login surface renders the particle artwork backdrop", async ({ page }) => {
+test("login surface renders the live particle backdrop", async ({ page }) => {
   await page.goto("/login");
 
-  // The static artwork mode paints the approved prototype PNG on the auth
-  // surface; assert it is actually applied and served successfully.
-  const backdrop = await page.evaluate(() => {
-    const surface = document.querySelector("main")?.parentElement;
-    return surface ? getComputedStyle(surface).backgroundImage : "";
-  });
-  expect(backdrop).toContain("particle-login-bg");
+  // The artwork is painted by a decorative full-surface canvas stacked under
+  // the panel; assert it is present, hidden from accessibility, and actually
+  // painted (not a blank bitmap) once the client mounts.
+  const canvas = page.locator("main").locator("..").locator("canvas[aria-hidden='true']");
+  await expect(canvas).toBeVisible();
 
-  const image = await page.request.get("/particle-login-bg.png");
-  expect(image.status()).toBe(200);
-  expect(image.headers()["content-type"]).toBe("image/png");
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const el = document.querySelector("main")?.parentElement?.querySelector("canvas");
+        if (!(el instanceof HTMLCanvasElement)) return false;
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return false;
+        // Sample a quarter in from the top-left: the artwork's navy gradient
+        // with dust; a blank bitmap is pure black.
+        const data = el.getContext("2d")?.getImageData(Math.round(rect.width / 4), Math.round(rect.height / 4), 1, 1).data;
+        return data ? data[0] > 8 || data[1] > 8 || data[2] > 8 : false;
+      }),
+    )
+    .toBe(true);
 });

@@ -7,7 +7,12 @@ import { defineConfig, devices } from "@playwright/test";
  * `e2e/global-setup.ts` boots an isolated FastAPI (fresh SQLite, fake AI
  * mode) on a dedicated port, and the Next.js webServer proxies to it via
  * BACKEND_URL, so browser tests never touch the real development database.
+ *
+ * E2E_PORT moves the whole suite off 3000 (e.g. when a manual preview
+ * occupies the default port); the isolated backend port is independent.
  */
+const e2ePort = Number(process.env.E2E_PORT ?? 3000);
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -20,7 +25,7 @@ export default defineConfig({
   reporter: [["list"]],
   globalSetup: "./e2e/global-setup.ts",
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: `http://127.0.0.1:${e2ePort}`,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
@@ -57,8 +62,8 @@ export default defineConfig({
     // avoids the dev-server HMR WebSocket path entirely. BACKEND_URL is read
     // by next.config.mjs at build time, so the same value must be present for
     // both the build and the server.
-    command: "pnpm build && pnpm start",
-    url: "http://127.0.0.1:3000",
+    command: `pnpm build && pnpm exec next start -p ${e2ePort}`,
+    url: `http://127.0.0.1:${e2ePort}`,
     reuseExistingServer: false,
     timeout: 240_000,
     env: {
