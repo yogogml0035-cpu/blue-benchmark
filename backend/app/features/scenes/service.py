@@ -14,6 +14,7 @@ from app.features.scenes.schemas import (
     CREDENTIAL_LABEL_MAX_LENGTH,
     SceneConnectionStatusView,
     SceneCredentialIssuedView,
+    SceneCredentialPlaintextView,
     SceneCredentialStatusView,
     SceneCreateRequest,
     SceneListResponse,
@@ -124,12 +125,35 @@ def delete_empty_scene(scene_id: str) -> None:
             )
 
 
+def _token_preview(plaintext: str | None) -> str | None:
+    """Masked preview of a stored credential; None when plaintext is missing."""
+
+    if not plaintext:
+        return None
+    if len(plaintext) <= 12:
+        return plaintext[:3] + "…"
+    return f"{plaintext[:7]}…{plaintext[-4:]}"
+
+
+def _credential_status_view(item: repository.SceneCredentialRecord) -> SceneCredentialStatusView:
+    return SceneCredentialStatusView(
+        credential_id=item.id,
+        label=item.label,
+        status="revoked" if item.revoked_at else "active",
+        created_at=_iso(item.created_at) or "",
+        last_used_at=_iso(item.last_used_at),
+        revoked_at=_iso(item.revoked_at),
+        revoked_reason=item.revoked_reason,
+        token_preview=_token_preview(item.token_plaintext),
+    )
+
+
 def get_scene_or_404(scene_id: str) -> SceneStatusResponse:
     with session_scope() as session:
         scene = repository.get_scene(session, scene_id)
         if scene is None:
             raise AppError(404, "RESOURCE_NOT_FOUND", "场景不存在。")
-        credentials = repository.list_credentials(session, scene_id)
+        active = repository.get_active_credential(session, scene_id)
         question_count = repository.count_questions_for_scene(session, scene_id)
         active_count = repository.count_active_credentials(session, scene_id)
     return SceneStatusResponse(
@@ -141,18 +165,7 @@ def get_scene_or_404(scene_id: str) -> SceneStatusResponse:
             question_count=question_count,
             active_credential_count=active_count,
         ),
-        credentials=[
-            SceneCredentialStatusView(
-                credential_id=item.id,
-                label=item.label,
-                status="revoked" if item.revoked_at else "active",
-                created_at=_iso(item.created_at) or "",
-                last_used_at=_iso(item.last_used_at),
-                revoked_at=_iso(item.revoked_at),
-                revoked_reason=item.revoked_reason,
-            )
-            for item in credentials
-        ],
+        credential=_credential_status_view(active) if active else None,
     )
 
 
@@ -175,7 +188,13 @@ def _validate_label(label: str | None) -> str | None:
     return stripped
 
 
-def issue_credential(scene_id: str, label: str | None) -> SceneCredentialIssuedView:
+def create_or_replace_credential(scene_id: str, label: str | None) -> SceneCredentialIssuedView:
+    """The single credential action under the 1:1 model.
+
+    Creates the scene's credential when it has none, or replaces the current
+    one (revoking it immediately) when it already has one.
+    """
+
     label = _validate_label(label)
     now = datetime.now(timezone.utc)
     plaintext = f"sep_{secrets.token_urlsafe(36)}"
@@ -183,8 +202,9 @@ def issue_credential(scene_id: str, label: str | None) -> SceneCredentialIssuedV
     with session_scope() as session:
         if repository.get_scene(session, scene_id) is None:
             raise AppError(404, "RESOURCE_NOT_FOUND", "场景不存在。")
+        repository.revoke_scene_credentials(session, scene_id, reason="replaced", now=now)
         record = repository.create_credential(
-            session, scene_id=scene_id, hashed=hashed, label=label, now=now
+            session, scene_id=scene_id, hashed=hashed, plaintext=plaintext, label=label, now=now
         )
     return SceneCredentialIssuedView(
         credential_id=record.id,
@@ -194,26 +214,22 @@ def issue_credential(scene_id: str, label: str | None) -> SceneCredentialIssuedV
     )
 
 
-def rotate_credentials(scene_id: str, label: str | None) -> SceneCredentialIssuedView:
-    """Revoke every active credential of the scene, then issue one replacement."""
+def get_active_credential_plaintext(scene_id: str) -> SceneCredentialPlaintextView:
+    """Administrator reveal of the scene's current credential plaintext."""
 
-    label = _validate_label(label)
-    now = datetime.now(timezone.utc)
-    plaintext = f"sep_{secrets.token_urlsafe(36)}"
-    hashed = repository.token_hash(plaintext)
     with session_scope() as session:
         if repository.get_scene(session, scene_id) is None:
             raise AppError(404, "RESOURCE_NOT_FOUND", "场景不存在。")
-        repository.revoke_scene_credentials(session, scene_id, reason="rotated", now=now)
-        record = repository.create_credential(
-            session, scene_id=scene_id, hashed=hashed, label=label, now=now
+        active = repository.get_active_credential(session, scene_id)
+    if active is None:
+        raise AppError(404, "NO_ACTIVE_CREDENTIAL", "该评测集当前没有有效凭证。")
+    if not active.token_plaintext:
+        raise AppError(
+            409,
+            "CREDENTIAL_PLAINTEXT_UNAVAILABLE",
+            "该凭证签发于旧版本，明文不可查看；请替换凭证。",
         )
-    return SceneCredentialIssuedView(
-        credential_id=record.id,
-        scene_id=scene_id,
-        token=plaintext,
-        created_at=_iso(record.created_at) or "",
-    )
+    return SceneCredentialPlaintextView(credential_id=active.id, token=active.token_plaintext)
 
 
 def revoke_credential(scene_id: str, credential_id: str) -> SceneCredentialStatusView:
@@ -227,15 +243,7 @@ def revoke_credential(scene_id: str, credential_id: str) -> SceneCredentialStatu
         )
         if updated is None:
             raise AppError(409, "CREDENTIAL_ALREADY_REVOKED", "该凭证已经被撤销。")
-    return SceneCredentialStatusView(
-        credential_id=updated.id,
-        label=updated.label,
-        status="revoked",
-        created_at=_iso(updated.created_at) or "",
-        last_used_at=_iso(updated.last_used_at),
-        revoked_at=_iso(updated.revoked_at),
-        revoked_reason=updated.revoked_reason,
-    )
+    return _credential_status_view(updated)
 
 
 def require_scene_principal(

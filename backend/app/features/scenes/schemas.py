@@ -95,7 +95,11 @@ class SceneConnectionStatusView(BaseModel):
 
 
 class SceneCredentialIssuedView(BaseModel):
-    """Returned exactly once at issue/rotate time; plaintext is never stored."""
+    """Returned once at create/replace time for the handoff convenience.
+
+    Unlike the old model, the plaintext is also persisted so the administrator
+    can reveal it later from the scene page.
+    """
 
     credential_id: str
     scene_id: str
@@ -111,8 +115,23 @@ class SceneCredentialStatusView(BaseModel):
     last_used_at: str | None
     revoked_at: str | None
     revoked_reason: str | None
+    # Masked preview derived from the stored plaintext (e.g. ``sep_Ab3d…Xy9z``).
+    # ``None`` for legacy credentials whose plaintext was never stored.
+    token_preview: str | None
+
+
+class SceneCredentialPlaintextView(BaseModel):
+    """Administrator-only reveal of the scene's current credential.
+
+    Served with ``Cache-Control: no-store``; never part of a listing or status
+    response.
+    """
+
+    credential_id: str
+    token: str
 
 
 class SceneStatusResponse(BaseModel):
     scene: SceneView
-    credentials: list[SceneCredentialStatusView]
+    # 1:1 model: at most one active credential, no revoked history.
+    credential: SceneCredentialStatusView | None

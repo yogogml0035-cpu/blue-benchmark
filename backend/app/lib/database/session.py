@@ -22,7 +22,7 @@ from app.lib.database.models import (
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0019_m0_web_review_contracts"
+BUSINESS_SCHEMA_HEAD = "0020_credential_one_to_one"
 
 
 def as_utc(value: datetime) -> datetime:
@@ -79,7 +79,7 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             "users": {"id", "username", "password_hash", "password_generation", "admin_slot"},
             "sessions": {"token_hash", "user_id", "password_generation"},
             "scenes": {"id", "name", "created_at", "updated_at"},
-            "scene_credentials": {"id", "scene_id", "token_hash", "revoked_at", "last_used_at"},
+            "scene_credentials": {"id", "scene_id", "token_hash", "token_plaintext", "revoked_at", "last_used_at"},
             "eval_questions": {
                 "id",
                 "scene_id",

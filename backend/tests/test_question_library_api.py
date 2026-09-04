@@ -10,7 +10,7 @@ from tests import helpers
 def _setup_with_generated_question(client: TestClient) -> tuple[str, str]:
     helpers.register_admin(client)
     scene = helpers.create_scene(client)
-    credential = helpers.issue_credential(client, scene["id"])
+    credential = helpers.create_credential(client, scene["id"])
     response = helpers.upload_batch(
         client, credential["token"], helpers.make_batch("cmd-lib", [helpers.make_case("case-lib")])
     )
@@ -57,8 +57,8 @@ def test_two_scenes_never_leak_questions_across_scenes() -> None:
         helpers.register_admin(client)
         scene_a = helpers.create_scene(client, name="场景甲")
         scene_b = helpers.create_scene(client, name="场景乙")
-        credential_a = helpers.issue_credential(client, scene_a["id"])
-        credential_b = helpers.issue_credential(client, scene_b["id"])
+        credential_a = helpers.create_credential(client, scene_a["id"])
+        credential_b = helpers.create_credential(client, scene_b["id"])
 
         upload_a = helpers.upload_batch(
             client, credential_a["token"], helpers.make_batch("cmd-a", [helpers.make_case("case-a")])
@@ -268,7 +268,7 @@ def test_publish_gates_block_generating_and_failed_questions() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
 
         from app.lib.ai_runtime.adapters import FakeRubricGenerator
 
@@ -321,7 +321,7 @@ def test_credential_cannot_read_or_modify_questions() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         token = credential["token"]
         scene_id = scene["id"]
 

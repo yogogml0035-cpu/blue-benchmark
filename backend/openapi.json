@@ -448,8 +448,8 @@
         "tags": [
           "scenes"
         ],
-        "summary": "Issue Credential",
-        "operationId": "issue_credential_api_scenes__scene_id__credentials_post",
+        "summary": "Create Or Replace Credential",
+        "operationId": "create_or_replace_credential_api_scenes__scene_id__credentials_post",
         "parameters": [
           {
             "name": "scene_id",
@@ -501,13 +501,13 @@
         }
       }
     },
-    "/api/scenes/{scene_id}/credentials/rotation": {
-      "post": {
+    "/api/scenes/{scene_id}/credential": {
+      "get": {
         "tags": [
           "scenes"
         ],
-        "summary": "Rotate Credentials",
-        "operationId": "rotate_credentials_api_scenes__scene_id__credentials_rotation_post",
+        "summary": "Reveal Credential",
+        "operationId": "reveal_credential_api_scenes__scene_id__credential_get",
         "parameters": [
           {
             "name": "scene_id",
@@ -519,23 +519,13 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SceneCredentialIssueRequest"
-              }
-            }
-          }
-        },
         "responses": {
-          "201": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SceneCredentialIssuedView"
+                  "$ref": "#/components/schemas/SceneCredentialPlaintextView"
                 }
               }
             }
@@ -544,7 +534,10 @@
             "description": "未登录"
           },
           "404": {
-            "description": "场景不存在"
+            "description": "场景不存在或无有效凭证"
+          },
+          "409": {
+            "description": "旧版本凭证，明文不可查看"
           },
           "422": {
             "description": "Validation Error",
@@ -2428,7 +2421,26 @@
           "created_at"
         ],
         "title": "SceneCredentialIssuedView",
-        "description": "Returned exactly once at issue/rotate time; plaintext is never stored."
+        "description": "Returned once at create/replace time for the handoff convenience.\n\nUnlike the old model, the plaintext is also persisted so the administrator\ncan reveal it later from the scene page."
+      },
+      "SceneCredentialPlaintextView": {
+        "properties": {
+          "credential_id": {
+            "type": "string",
+            "title": "Credential Id"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credential_id",
+          "token"
+        ],
+        "title": "SceneCredentialPlaintextView",
+        "description": "Administrator-only reveal of the scene's current credential.\n\nServed with ``Cache-Control: no-store``; never part of a listing or status\nresponse."
       },
       "SceneCredentialStatusView": {
         "properties": {
@@ -2491,6 +2503,17 @@
               }
             ],
             "title": "Revoked Reason"
+          },
+          "token_preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Preview"
           }
         },
         "type": "object",
@@ -2501,7 +2524,8 @@
           "created_at",
           "last_used_at",
           "revoked_at",
-          "revoked_reason"
+          "revoked_reason",
+          "token_preview"
         ],
         "title": "SceneCredentialStatusView"
       },
@@ -2526,18 +2550,21 @@
           "scene": {
             "$ref": "#/components/schemas/SceneView"
           },
-          "credentials": {
-            "items": {
-              "$ref": "#/components/schemas/SceneCredentialStatusView"
-            },
-            "type": "array",
-            "title": "Credentials"
+          "credential": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SceneCredentialStatusView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "required": [
           "scene",
-          "credentials"
+          "credential"
         ],
         "title": "SceneStatusResponse"
       },

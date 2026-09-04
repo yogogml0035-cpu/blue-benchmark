@@ -9,6 +9,7 @@ from app.features.scenes import service as scene_service
 from app.features.scenes.schemas import (
     SceneCredentialIssueRequest,
     SceneCredentialIssuedView,
+    SceneCredentialPlaintextView,
     SceneCredentialStatusView,
     SceneCreateRequest,
     SceneListResponse,
@@ -19,8 +20,8 @@ from app.features.scenes.schemas import (
 
 router = APIRouter(prefix="/scenes", tags=["scenes"])
 
-# Issue/rotate responses carry a one-time plaintext token. They must never be
-# cached by browsers, proxies, or the Next.js same-origin rewrite layer.
+# Credential responses carrying a plaintext token must never be cached by
+# browsers, proxies, or the Next.js same-origin rewrite layer.
 _NO_STORE_HEADERS = {"Cache-Control": "no-store", "Pragma": "no-cache"}
 
 
@@ -91,30 +92,32 @@ def delete_scene(
     status_code=201,
     responses={401: {"description": "未登录"}, 404: {"description": "场景不存在"}},
 )
-def issue_credential(
+def create_or_replace_credential(
     scene_id: str,
     payload: SceneCredentialIssueRequest,
     response: Response,
     _user=Depends(auth_service.require_current_user),
 ) -> SceneCredentialIssuedView:
     response.headers.update(_NO_STORE_HEADERS)
-    return scene_service.issue_credential(scene_id, payload.label)
+    return scene_service.create_or_replace_credential(scene_id, payload.label)
 
 
-@router.post(
-    "/{scene_id}/credentials/rotation",
-    response_model=SceneCredentialIssuedView,
-    status_code=201,
-    responses={401: {"description": "未登录"}, 404: {"description": "场景不存在"}},
+@router.get(
+    "/{scene_id}/credential",
+    response_model=SceneCredentialPlaintextView,
+    responses={
+        401: {"description": "未登录"},
+        404: {"description": "场景不存在或无有效凭证"},
+        409: {"description": "旧版本凭证，明文不可查看"},
+    },
 )
-def rotate_credentials(
+def reveal_credential(
     scene_id: str,
-    payload: SceneCredentialIssueRequest,
     response: Response,
     _user=Depends(auth_service.require_current_user),
-) -> SceneCredentialIssuedView:
+) -> SceneCredentialPlaintextView:
     response.headers.update(_NO_STORE_HEADERS)
-    return scene_service.rotate_credentials(scene_id, payload.label)
+    return scene_service.get_active_credential_plaintext(scene_id)
 
 
 @router.delete(

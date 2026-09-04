@@ -29,38 +29,32 @@ function credential(partial: Partial<SceneCredentialStatus> = {}): SceneCredenti
     last_used_at: null,
     revoked_at: null,
     revoked_reason: null,
+    token_preview: "sep_abcd…wxyz",
     ...partial,
   };
 }
 
 describe("deriveConnectionStatus", () => {
-  it("is unsigned with no credential history", () => {
-    expect(deriveConnectionStatus([])).toBe("unsigned");
+  it("is unsigned without a credential", () => {
+    expect(deriveConnectionStatus(null)).toBe("unsigned");
   });
 
-  it("is issued when active credentials are unused", () => {
-    expect(deriveConnectionStatus([credential()])).toBe("issued");
+  it("is issued while the credential is unused", () => {
+    expect(deriveConnectionStatus(credential())).toBe("issued");
   });
 
-  it("is connected when an active credential has been used", () => {
+  it("is connected once the credential has been used", () => {
     expect(
-      deriveConnectionStatus([credential({ last_used_at: "2026-01-02T00:00:00Z" })]),
+      deriveConnectionStatus(credential({ last_used_at: "2026-01-02T00:00:00Z" })),
     ).toBe("connected");
   });
 
-  it("is connected if any active credential is used, even with revoked ones", () => {
+  it("reads as unsigned again when the credential is revoked", () => {
     expect(
-      deriveConnectionStatus([
-        credential({ credential_id: "revoked", status: "revoked" }),
-        credential({ credential_id: "used", last_used_at: "2026-01-02T00:00:00Z" }),
-      ]),
-    ).toBe("connected");
-  });
-
-  it("is disabled when history exists but nothing is active", () => {
-    expect(
-      deriveConnectionStatus([credential({ status: "revoked", revoked_at: "2026-01-03T00:00:00Z" })]),
-    ).toBe("disabled");
+      deriveConnectionStatus(
+        credential({ status: "revoked", revoked_at: "2026-01-03T00:00:00Z" }),
+      ),
+    ).toBe("unsigned");
   });
 });
 

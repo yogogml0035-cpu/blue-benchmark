@@ -41,9 +41,13 @@ def test_fresh_database_reaches_new_head(tmp_path) -> None:
         revisions = connection.execute(
             sa.text("SELECT version_num FROM alembic_version")
         ).scalars().all()
-    assert revisions == ["0019_m0_web_review_contracts"]
+    assert revisions == ["0020_credential_one_to_one"]
     question_columns = {item["name"] for item in sa.inspect(engine).get_columns("eval_questions")}
     assert {"criteria_confirmed", "ever_published"}.issubset(question_columns)
+    credential_columns = {
+        item["name"] for item in sa.inspect(engine).get_columns("scene_credentials")
+    }
+    assert "token_plaintext" in credential_columns
 
 
 def test_review_contracts_upgrade_backfills_published(tmp_path) -> None:
@@ -100,6 +104,55 @@ def test_review_contracts_upgrade_backfills_published(tmp_path) -> None:
         ).one()
     assert bool(pub[0]) and bool(pub[1]), "published history must backfill both facts"
     assert not pending[0] and not pending[1], "unpublished history stays unconfirmed"
+
+
+def test_credential_one_to_one_upgrade_normalizes_duplicates(tmp_path) -> None:
+    """0019 -> 0020: scenes keep their newest active credential; the rest are
+    revoked as ``model-migration``. Already-revoked rows stay untouched."""
+
+    database_url = f"sqlite:///{tmp_path / 'one-to-one.db'}"
+    config = _alembic_config(database_url)
+    command.upgrade(config, "0019_m0_web_review_contracts")
+    engine = sa.create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.text("INSERT INTO scenes (id, name, created_at, updated_at) "
+                    "VALUES ('s1', '场景', '2026-09-01 00:00:00', '2026-09-01 00:00:00')")
+        )
+        for credential_id, created_at, revoked in [
+            ("c-old", "2026-09-01 01:00:00", None),
+            ("c-new", "2026-09-02 01:00:00", None),
+            ("c-ancient", "2026-08-01 01:00:00", "2026-08-02 01:00:00"),
+        ]:
+            connection.execute(
+                sa.text(
+                    "INSERT INTO scene_credentials "
+                    "(id, scene_id, token_hash, label, created_at, revoked_at) "
+                    "VALUES (:id, 's1', :hash, '旧', :created, :revoked)"
+                ),
+                {
+                    "id": credential_id,
+                    "hash": f"hash-{credential_id}",
+                    "created": created_at,
+                    "revoked": revoked,
+                },
+            )
+
+    command.upgrade(config, "head")
+
+    with engine.connect() as connection:
+        rows = dict(
+            connection.execute(
+                sa.text(
+                    "SELECT id, revoked_reason FROM scene_credentials ORDER BY created_at"
+                )
+            ).all()
+        )
+        columns = {item["name"] for item in sa.inspect(engine).get_columns("scene_credentials")}
+    assert "token_plaintext" in columns
+    assert rows["c-new"] is None, "newest active credential must survive"
+    assert rows["c-old"] == "model-migration"
+    assert rows["c-ancient"] is None, "pre-revoked history keeps its original state"
 
 
 def test_legacy_head_upgrade_drops_old_business_tables(tmp_path) -> None:
@@ -161,6 +214,14 @@ def test_downgrade_restores_executable_schema(tmp_path) -> None:
     config = _alembic_config(database_url)
     command.upgrade(config, "head")
     engine = sa.create_engine(database_url)
+
+    # 0020 -> 0019: the plaintext column disappears, tables stay.
+    command.downgrade(config, "-1")
+    credential_columns = {
+        item["name"] for item in sa.inspect(engine).get_columns("scene_credentials")
+    }
+    assert "token_plaintext" not in credential_columns
+    assert "scene_credentials" in _table_names(engine)
 
     # 0019 -> 0018: the review-contract columns disappear, tables stay.
     command.downgrade(config, "-1")

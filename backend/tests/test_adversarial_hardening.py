@@ -36,7 +36,7 @@ def test_title_and_client_case_id_are_scanned_on_upload() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         leaking = helpers.make_case("case-title-leak")
         leaking["title"] = "密码是 hunter2，备份在 /Users/hsikey/.ssh/id_rsa"
         response = helpers.upload_batch(
@@ -51,7 +51,7 @@ def test_admin_title_edit_is_scanned() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
             client, credential["token"], helpers.make_batch("cmd-title-edit", [helpers.make_case("case-t")])
         )
@@ -134,7 +134,7 @@ def test_no_change_save_and_regenerate_is_rejected() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
             client, credential["token"], helpers.make_batch("cmd-nochange", [helpers.make_case("case-n")])
         )
@@ -155,7 +155,7 @@ def test_published_question_rejects_criteria_patch() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
             client, credential["token"], helpers.make_batch("cmd-pubpatch", [helpers.make_case("case-p")])
         )
@@ -206,7 +206,7 @@ def test_whitespace_only_material_returns_422_not_500() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
             client, credential["token"], helpers.make_batch("cmd-blank", [helpers.make_case("case-b")])
         )
@@ -229,7 +229,7 @@ def test_delete_is_blocked_while_generating() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
             client, credential["token"], helpers.make_batch("cmd-delgen", [helpers.make_case("case-d")])
         )
@@ -278,7 +278,7 @@ def test_conditional_update_is_single_writer() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
             client, credential["token"], helpers.make_batch("cmd-cas", [helpers.make_case("case-cas")])
         )

@@ -16,14 +16,14 @@ export interface AgentPromptDialogProps {
 }
 
 /**
- * Shows the Agent binding prompt exactly once.
+ * Shows the Agent binding prompt after a credential is created or replaced.
  *
  * The token is only ever present in this component's props/state and the
  * clipboard. Copy prefers navigator.clipboard; when that is unavailable or
  * fails (e.g. Safari), the user is told to select and copy manually — the
  * textarea is always selectable, so the fallback never dead-ends. Closing
- * before a successful copy asks for confirmation because the prompt cannot be
- * recovered.
+ * before a successful copy asks for confirmation because this assembled prompt
+ * text is transient (the credential itself stays revealable in the panel).
  */
 export function AgentPromptDialog({ open, prompt, onClose }: AgentPromptDialogProps): React.JSX.Element | null {
   const [copied, setCopied] = useState(false);
@@ -93,12 +93,12 @@ export function AgentPromptDialog({ open, prompt, onClose }: AgentPromptDialogPr
     >
       {confirmingClose ? (
         <p className={styles.notice}>
-          还没有成功复制。关闭后此提示词无法找回，凭证只能通过轮换重新生成。确定要关闭吗？
+          还没有成功复制。关闭后这段提示词文本无法找回（凭证本身可稍后在凭证面板查看）。确定要关闭吗？
         </p>
       ) : (
         <div className={styles.body}>
           <p className={styles.hint}>
-            此提示词只显示一次，包含长期凭证。请复制后交给目标 Agent，勿提交到仓库。
+            此提示词包含共享凭证，请复制后交给目标 Agent，勿提交到仓库。
           </p>
           {copyFailed ? (
             <p className={styles.copyFailed} role="alert">

@@ -42,7 +42,7 @@ def main() -> int:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client, name="真实AI验收场景")
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         print(f"ACCEPT_REAL_AI_STAGE=scene scene_id={scene['id']}")
 
         cases = [

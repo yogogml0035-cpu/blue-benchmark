@@ -35,7 +35,7 @@ schemas -> HTTP 输入、输出和领域枚举
 ```
 
 - `router.py` 定义路径、HTTP 状态、认证依赖、请求模型和 `response_model`，然后委托给 Service。参考 `features/scenes/router.py` 与 `features/question_library/router.py`。
-- `service.py` 负责业务规则、状态转换、授权顺序和 Record 到响应模型的投影。参考 `question_library/service.py::publish` 与 `scenes/service.py::rotate_credentials`。
+- `service.py` 负责业务规则、状态转换、授权顺序和 Record 到响应模型的投影。参考 `question_library/service.py::publish` 与 `scenes/service.py::create_or_replace_credential`。
 - `repository.py` 只拥有本 Feature 的 Record 到数据库 Row 的映射和基本读写；不处理 HTTP，也不返回 FastAPI Response。
 - `schemas.py` 用 Pydantic 模型定义外部合同；内部状态使用 `@dataclass(frozen=True)` Record。参考 `question_library/schemas.py` 与 `question_library/repository.py`。
 - `question_library/rubric_generation.py` 负责评分维度生成的 Worker handler、原子提交（CAS + fencing）与失败投影；`rubric_rules.py` 是纯函数规则（可执行性、隐私兜底、逐项及格），被 API 校验与 Worker 共用。
@@ -69,4 +69,4 @@ schemas -> HTTP 输入、输出和领域枚举
 - 不要让一个 Feature 直接修改另一个 Feature 的全局字典。
 - 不要把内部 `password_hash`、`token_hash`、`client_case_id` 明文凭证等字段自动暴露进响应模型。
 - 不要让评分维度生成 adapter 直接确认或发布题目；模型输出必须先经过两字段合同与可执行性/隐私校验，再由 `rubric_generation` 做 revision/ownership CAS 提交。
-- 不要把场景凭证明文写入数据库、日志或状态查询响应；只在签发/轮换成功时返回一次。
+- 场景凭证明文按 1:1 模型持久化在 `token_plaintext`（撤销/替换即清空），但绝不进入日志与状态/列表响应（只给掩码预览）；携带明文的端点（创建/替换、`GET /scenes/{id}/credential`）必须带 `no-store` 头。

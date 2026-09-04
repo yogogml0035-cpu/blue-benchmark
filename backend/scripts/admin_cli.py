@@ -1,19 +1,20 @@
 """Administrator CLI for the no-frontend phase.
 
 Covers scene metadata (create / list / status / update / delete), the
-scene-credential lifecycle (issue / rotate / revoke / status) and the local
-admin password reset, by calling the service layer directly against the
-business database.
+scene-credential lifecycle (replace / revoke) and the local admin password
+reset, by calling the service layer directly against the business database.
 
-Plaintext credential tokens are printed exactly once, at issue/rotate time.
-Status and list commands never return plaintext tokens.
+Each scene holds exactly one active credential. ``credentials replace``
+creates it when missing or replaces the current one (revoking it immediately).
+Plaintext is persisted and can be revealed from the scene page; the CLI still
+prints it at replace time for handoff convenience. Status and list commands
+never return plaintext tokens.
 
 Usage:
     uv run python -m scripts.admin_cli scenes create --name "媒体场景" [--description ...]
     uv run python -m scripts.admin_cli scenes list
     uv run python -m scripts.admin_cli scenes status --scene-id <id>
-    uv run python -m scripts.admin_cli credentials issue --scene-id <id> [--label ...]
-    uv run python -m scripts.admin_cli credentials rotate --scene-id <id> [--label ...]
+    uv run python -m scripts.admin_cli credentials replace --scene-id <id> [--label ...]
     uv run python -m scripts.admin_cli credentials revoke --scene-id <id> --credential-id <id>
     uv run python -m scripts.admin_cli account reset-password
 
@@ -103,22 +104,12 @@ def _scenes_delete(args: argparse.Namespace) -> None:
     _print_json({"deleted": args.scene_id})
 
 
-def _credentials_issue(args: argparse.Namespace) -> None:
-    issued = scene_service.issue_credential(args.scene_id, args.label)
+def _credentials_replace(args: argparse.Namespace) -> None:
+    issued = scene_service.create_or_replace_credential(args.scene_id, args.label)
     _print_json(issued.model_dump())
     print(
-        "\nwarning: the token above is shown only once and is not stored in "
-        "plaintext. Save it now (e.g. into the Skill's private config).",
-        file=sys.stderr,
-    )
-
-
-def _credentials_rotate(args: argparse.Namespace) -> None:
-    issued = scene_service.rotate_credentials(args.scene_id, args.label)
-    _print_json(issued.model_dump())
-    print(
-        "\nwarning: all previous active credentials were revoked. The new token "
-        "is shown only once.",
+        "\nnote: the token above is also persisted and can be revealed from the "
+        "scene page later; hand it to your Agent now to bind the upload Skill.",
         file=sys.stderr,
     )
 
@@ -178,19 +169,15 @@ def build_parser() -> argparse.ArgumentParser:
     credentials = sub.add_parser("credentials", help="Manage scene upload credentials.")
     credentials_sub = credentials.add_subparsers(dest="action", required=True)
 
-    cred_issue = credentials_sub.add_parser("issue", help="Issue a credential (token shown once).")
-    cred_issue.add_argument("--scene-id", required=True)
-    cred_issue.add_argument("--label", default=None)
-    cred_issue.set_defaults(func=_credentials_issue)
-
-    cred_rotate = credentials_sub.add_parser(
-        "rotate", help="Revoke active credentials and issue a replacement (token shown once)."
+    cred_replace = credentials_sub.add_parser(
+        "replace",
+        help="Create the scene's credential, or replace the current one (old token stops working).",
     )
-    cred_rotate.add_argument("--scene-id", required=True)
-    cred_rotate.add_argument("--label", default=None)
-    cred_rotate.set_defaults(func=_credentials_rotate)
+    cred_replace.add_argument("--scene-id", required=True)
+    cred_replace.add_argument("--label", default=None)
+    cred_replace.set_defaults(func=_credentials_replace)
 
-    cred_revoke = credentials_sub.add_parser("revoke", help="Revoke one credential.")
+    cred_revoke = credentials_sub.add_parser("revoke", help="Revoke the credential.")
     cred_revoke.add_argument("--scene-id", required=True)
     cred_revoke.add_argument("--credential-id", required=True)
     cred_revoke.set_defaults(func=_credentials_revoke)

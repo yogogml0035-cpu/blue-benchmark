@@ -3,8 +3,11 @@
  * credentials. Components never call fetch directly; the shared request()
  * wrapper handles transport and maps backend errors to ApiError.
  *
- * Secret lifetime: issue/rotate return the one-time plaintext token. Callers
- * must keep it in transient component state only — never persist it.
+ * Secret lifetime: each scene holds exactly one active credential (1:1
+ * model). createOrReplaceCredential returns the plaintext once for handoff
+ * convenience; the plaintext is also persisted server-side and can be
+ * fetched again through revealCredential (eye icon). Callers keep plaintext
+ * in transient component state only — never persist it client-side.
  */
 
 import { request } from "@/lib/api/client";
@@ -18,6 +21,7 @@ export type SceneUpdateRequest = components["schemas"]["SceneUpdateRequest"];
 export type SceneCredentialIssueRequest = components["schemas"]["SceneCredentialIssueRequest"];
 export type SceneCredentialIssuedView = components["schemas"]["SceneCredentialIssuedView"];
 export type SceneCredentialStatusView = components["schemas"]["SceneCredentialStatusView"];
+export type SceneCredentialPlaintextView = components["schemas"]["SceneCredentialPlaintextView"];
 
 export function listScenes(signal?: AbortSignal): Promise<SceneListResponse> {
   return request<SceneListResponse>("/api/scenes", { signal });
@@ -47,7 +51,7 @@ export function deleteScene(sceneId: string, signal?: AbortSignal): Promise<void
   return request<void>(`/api/scenes/${encodeURIComponent(sceneId)}`, { method: "DELETE", signal });
 }
 
-export function issueCredential(
+export function createOrReplaceCredential(
   sceneId: string,
   payload: SceneCredentialIssueRequest,
   signal?: AbortSignal,
@@ -58,14 +62,13 @@ export function issueCredential(
   );
 }
 
-export function rotateCredentials(
+export function revealCredential(
   sceneId: string,
-  payload: SceneCredentialIssueRequest,
   signal?: AbortSignal,
-): Promise<SceneCredentialIssuedView> {
-  return request<SceneCredentialIssuedView>(
-    `/api/scenes/${encodeURIComponent(sceneId)}/credentials/rotation`,
-    { method: "POST", body: payload, signal },
+): Promise<SceneCredentialPlaintextView> {
+  return request<SceneCredentialPlaintextView>(
+    `/api/scenes/${encodeURIComponent(sceneId)}/credential`,
+    { signal },
   );
 }
 

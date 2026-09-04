@@ -149,25 +149,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Issue Credential */
-        post: operations["issue_credential_api_scenes__scene_id__credentials_post"];
+        /** Create Or Replace Credential */
+        post: operations["create_or_replace_credential_api_scenes__scene_id__credentials_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/scenes/{scene_id}/credentials/rotation": {
+    "/api/scenes/{scene_id}/credential": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Reveal Credential */
+        get: operations["reveal_credential_api_scenes__scene_id__credential_get"];
         put?: never;
-        /** Rotate Credentials */
-        post: operations["rotate_credentials_api_scenes__scene_id__credentials_rotation_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -757,7 +757,10 @@ export interface components {
         };
         /**
          * SceneCredentialIssuedView
-         * @description Returned exactly once at issue/rotate time; plaintext is never stored.
+         * @description Returned once at create/replace time for the handoff convenience.
+         *
+         *     Unlike the old model, the plaintext is also persisted so the administrator
+         *     can reveal it later from the scene page.
          */
         SceneCredentialIssuedView: {
             /** Credential Id */
@@ -768,6 +771,19 @@ export interface components {
             token: string;
             /** Created At */
             created_at: string;
+        };
+        /**
+         * SceneCredentialPlaintextView
+         * @description Administrator-only reveal of the scene's current credential.
+         *
+         *     Served with ``Cache-Control: no-store``; never part of a listing or status
+         *     response.
+         */
+        SceneCredentialPlaintextView: {
+            /** Credential Id */
+            credential_id: string;
+            /** Token */
+            token: string;
         };
         /** SceneCredentialStatusView */
         SceneCredentialStatusView: {
@@ -788,6 +804,8 @@ export interface components {
             revoked_at: string | null;
             /** Revoked Reason */
             revoked_reason: string | null;
+            /** Token Preview */
+            token_preview: string | null;
         };
         /** SceneListResponse */
         SceneListResponse: {
@@ -797,8 +815,7 @@ export interface components {
         /** SceneStatusResponse */
         SceneStatusResponse: {
             scene: components["schemas"]["SceneView"];
-            /** Credentials */
-            credentials: components["schemas"]["SceneCredentialStatusView"][];
+            credential: components["schemas"]["SceneCredentialStatusView"] | null;
         };
         /**
          * SceneUpdateRequest
@@ -1291,7 +1308,7 @@ export interface operations {
             };
         };
     };
-    issue_credential_api_scenes__scene_id__credentials_post: {
+    create_or_replace_credential_api_scenes__scene_id__credentials_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1340,7 +1357,7 @@ export interface operations {
             };
         };
     };
-    rotate_credentials_api_scenes__scene_id__credentials_rotation_post: {
+    reveal_credential_api_scenes__scene_id__credential_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1349,19 +1366,15 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SceneCredentialIssueRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SceneCredentialIssuedView"];
+                    "application/json": components["schemas"]["SceneCredentialPlaintextView"];
                 };
             };
             /** @description 未登录 */
@@ -1371,8 +1384,15 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description 场景不存在 */
+            /** @description 场景不存在或无有效凭证 */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 旧版本凭证，明文不可查看 */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

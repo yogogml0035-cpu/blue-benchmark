@@ -238,7 +238,7 @@ def main() -> int:
         RegisterRequest(username="admin", password="admin-password-1"), _NoopResponse()
     )
     scene = scene_service.create_scene(SceneCreateRequest(name="EvalData场景"))
-    issued = scene_service.issue_credential(scene.id, label="evaldata")
+    issued = scene_service.create_or_replace_credential(scene.id, label="evaldata")
     token = issued.token
     print(f"ACCEPT_SKILL_STAGE=scene scene_id={scene.id} credential_id={issued.credential_id}")
 

@@ -69,6 +69,15 @@ class SceneRow(Base):
 
 
 class SceneCredentialRow(Base):
+    """One shared upload credential per scene (1:1 model).
+
+    ``token_plaintext`` persists the issued token so the administrator can
+    view and copy it again from the scene page; it is cleared to NULL the
+    moment the credential is revoked or replaced. Rows created before the 1:1
+    model only carry ``token_hash`` (plaintext was never stored), so they
+    remain usable for authentication but cannot be revealed until replaced.
+    """
+
     __tablename__ = "scene_credentials"
     __table_args__ = (
         UniqueConstraint("token_hash", name="uq_scene_credential_token_hash"),
@@ -78,6 +87,7 @@ class SceneCredentialRow(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     scene_id: Mapped[str] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    token_plaintext: Mapped[str | None] = mapped_column(Text, nullable=True)
     label: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

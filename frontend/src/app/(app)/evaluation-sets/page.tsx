@@ -32,13 +32,14 @@ export default function EvaluationSetsPage(): React.JSX.Element {
     setLoadError(null);
     try {
       const response = await listScenes();
-      // Derive the precise connection state per scene from its credentials,
-      // then commit scenes and badges together so they never disagree mid-load.
+      // Derive the precise connection state per scene from its current
+      // credential, then commit scenes and badges together so they never
+      // disagree mid-load.
       const entries = await Promise.all(
         response.items.map(async (scene) => {
           try {
             const status = await getSceneStatus(scene.id);
-            return [scene.id, deriveConnectionStatus(status.credentials)] as const;
+            return [scene.id, deriveConnectionStatus(status.credential)] as const;
           } catch {
             return [scene.id, "unsigned"] as const;
           }

@@ -10,7 +10,7 @@ from tests import helpers
 def _setup_pending_review(client: TestClient) -> str:
     helpers.register_admin(client)
     scene = helpers.create_scene(client)
-    credential = helpers.issue_credential(client, scene["id"])
+    credential = helpers.create_credential(client, scene["id"])
     response = helpers.upload_batch(
         client, credential["token"], helpers.make_batch("cmd-review", [helpers.make_case("case-review")])
     )
@@ -137,7 +137,7 @@ def test_republish_after_reopen_keeps_single_record() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
             client, credential["token"], helpers.make_batch("cmd-cycle", [helpers.make_case("case-cycle")])
         )
@@ -236,7 +236,7 @@ def test_delete_confirmation_title_is_normalized() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         case = helpers.make_case("case-nfc")
         # NFD-decomposed title; the delete confirmation arrives recomposed + padded.
         case["title"] = "标题\u0065\u0301的分解形式"
@@ -495,7 +495,7 @@ def test_retry_cas_requires_generation_failed_source() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client)
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         from app.lib.ai_runtime.adapters import FakeRubricGenerator
 
         failing = helpers.make_case("case-retry-race")

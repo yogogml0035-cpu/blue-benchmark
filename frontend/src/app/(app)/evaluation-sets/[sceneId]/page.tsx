@@ -32,7 +32,6 @@ const STATUS_TONE: Record<ConnectionStatus, StatusTone> = {
   unsigned: "neutral",
   issued: "warning",
   connected: "success",
-  disabled: "danger",
 };
 
 export default function EvaluationSetDetailPage(): React.JSX.Element {
@@ -144,7 +143,7 @@ export default function EvaluationSetDetailPage(): React.JSX.Element {
   }
 
   const scene = status.scene;
-  const connection = deriveConnectionStatus(status.credentials);
+  const connection = deriveConnectionStatus(status.credential);
   const canDelete = scene.question_count === 0;
 
   return (
@@ -185,7 +184,7 @@ export default function EvaluationSetDetailPage(): React.JSX.Element {
 
       <CredentialPanel
         sceneId={sceneId}
-        credentials={status.credentials}
+        credential={status.credential}
         onIssued={handleIssued}
         onChanged={() => void load()}
       />

@@ -30,7 +30,7 @@ def test_scene_requires_admin_session() -> None:
         assert response.status_code == 401
 
 
-def test_scene_lifecycle_and_credential_plaintext_rules() -> None:
+def test_scene_lifecycle_and_credential_one_to_one_rules() -> None:
     clear_business_data()
     with TestClient(app) as client:
         helpers.register_admin(client)
@@ -41,43 +41,65 @@ def test_scene_lifecycle_and_credential_plaintext_rules() -> None:
         assert duplicate.status_code == 409
         assert duplicate.json()["error"]["code"] == "SCENE_NAME_EXISTS"
 
-        issued = helpers.issue_credential(client, scene["id"], label="首次凭证")
-        assert issued["token"].startswith("sep_")
-        plaintext = issued["token"]
+        created = helpers.create_credential(client, scene["id"], label="首次凭证")
+        assert created["token"].startswith("sep_")
+        plaintext = created["token"]
 
-        # Status views never return plaintext tokens.
+        # Status views return the single credential masked, never the plaintext.
         status = client.get(f"/api/scenes/{scene['id']}")
         assert status.status_code == 200
         body = status.json()
         assert plaintext not in status.text
         assert body["scene"]["active_credential_count"] == 1
-        assert body["credentials"][0]["status"] == "active"
-        assert "token" not in body["credentials"][0]
+        assert body["credential"]["status"] == "active"
+        assert body["credential"]["label"] == "首次凭证"
+        assert body["credential"]["token_preview"].startswith("sep_")
+        assert "…" in body["credential"]["token_preview"]
+        assert "token" not in body["credential"]
 
-        # Rotate revokes every active credential and shows plaintext once.
-        rotated = client.post(
-            f"/api/scenes/{scene['id']}/credentials/rotation", json={"label": "轮换"}
+        # The reveal endpoint returns exactly the issued plaintext, no-store.
+        revealed = client.get(f"/api/scenes/{scene['id']}/credential")
+        assert revealed.status_code == 200
+        assert revealed.json() == {"credential_id": created["credential_id"], "token": plaintext}
+        assert revealed.headers.get("cache-control") == "no-store"
+
+        # Replacing revokes the current credential and issues a new one.
+        replaced = client.post(
+            f"/api/scenes/{scene['id']}/credentials", json={"label": "替换"}
         )
-        assert rotated.status_code == 201
-        new_token = rotated.json()["token"]
+        assert replaced.status_code == 201
+        new_token = replaced.json()["token"]
         assert new_token != plaintext
 
-        status = client.get(f"/api/scenes/{scene['id']}")
-        credentials = status.json()["credentials"]
-        assert len(credentials) == 2
-        revoked = [item for item in credentials if item["status"] == "revoked"]
-        assert len(revoked) == 1
-        assert revoked[0]["revoked_reason"] == "rotated"
+        status = client.get(f"/api/scenes/{scene['id']}").json()
+        # Only the current credential is exposed; no revoked history.
+        assert status["credential"]["credential_id"] == replaced.json()["credential_id"]
+        assert status["credential"]["label"] == "替换"
+        assert status["scene"]["active_credential_count"] == 1
+        assert plaintext not in str(status)
+
+        # The replaced token stops working immediately.
+        stale = client.get(
+            "/api/external/connection", headers={"Authorization": f"Bearer {plaintext}"}
+        )
+        assert stale.status_code == 401
+
+        # Reveal now returns the replacement's plaintext.
+        assert client.get(f"/api/scenes/{scene['id']}/credential").json()["token"] == new_token
 
         # Manual revoke is idempotency-safe: second revoke conflicts.
-        active_id = next(
-            item["credential_id"] for item in credentials if item["status"] == "active"
-        )
+        active_id = status["credential"]["credential_id"]
         revoke = client.delete(f"/api/scenes/{scene['id']}/credentials/{active_id}")
         assert revoke.status_code == 200
         again = client.delete(f"/api/scenes/{scene['id']}/credentials/{active_id}")
         assert again.status_code == 409
         assert again.json()["error"]["code"] == "CREDENTIAL_ALREADY_REVOKED"
+
+        # After revoking the only credential there is none to reveal.
+        assert client.get(f"/api/scenes/{scene['id']}").json()["credential"] is None
+        missing = client.get(f"/api/scenes/{scene['id']}/credential")
+        assert missing.status_code == 404
+        assert missing.json()["error"]["code"] == "NO_ACTIVE_CREDENTIAL"
 
 
 def test_scene_listing_counts_questions() -> None:
@@ -85,7 +107,7 @@ def test_scene_listing_counts_questions() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client, name="有题场景")
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         payload = helpers.make_batch("cmd-count", [helpers.make_case("case-count")])
         response = helpers.upload_batch(client, credential["token"], payload)
         assert response.status_code == 201, response.text
@@ -122,7 +144,7 @@ def test_external_connection_status_reports_scene_without_token() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client, name="连接场景")
-        credential = helpers.issue_credential(client, scene["id"], label="ci")
+        credential = helpers.create_credential(client, scene["id"], label="ci")
         headers = {"Authorization": f"Bearer {credential['token']}"}
 
         response = client.get("/api/external/connection", headers=headers)
@@ -189,7 +211,7 @@ def test_empty_scene_delete_cascades_credentials() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client, name="待删除场景")
-        helpers.issue_credential(client, scene["id"], label="将随场景失效")
+        helpers.create_credential(client, scene["id"], label="将随场景失效")
 
         deleted = client.delete(f"/api/scenes/{scene['id']}")
         assert deleted.status_code == 204
@@ -205,7 +227,7 @@ def test_nonempty_scene_delete_is_rejected_at_api_layer() -> None:
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client, name="有题场景")
-        credential = helpers.issue_credential(client, scene["id"])
+        credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
             client, credential["token"], helpers.make_batch("cmd-del", [helpers.make_case("case-del")])
         )
@@ -221,23 +243,24 @@ def test_nonempty_scene_delete_is_rejected_at_api_layer() -> None:
         assert client.get(f"/api/questions?scene_id={scene['id']}").json()["total"] == 1
 
 
-def test_credential_issue_and_rotation_responses_are_not_cacheable() -> None:
+def test_credential_create_and_reveal_responses_are_not_cacheable() -> None:
     clear_business_data()
     with TestClient(app) as client:
         helpers.register_admin(client)
         scene = helpers.create_scene(client, name="缓存控制场景")
 
-        issued = client.post(f"/api/scenes/{scene['id']}/credentials", json={"label": "a"})
-        assert issued.status_code == 201
-        assert issued.headers.get("cache-control") == "no-store"
-        assert issued.headers.get("pragma") == "no-cache"
+        created = client.post(f"/api/scenes/{scene['id']}/credentials", json={"label": "a"})
+        assert created.status_code == 201
+        assert created.headers.get("cache-control") == "no-store"
+        assert created.headers.get("pragma") == "no-cache"
 
-        rotated = client.post(f"/api/scenes/{scene['id']}/credentials/rotation", json={"label": "b"})
-        assert rotated.status_code == 201
-        assert rotated.headers.get("cache-control") == "no-store"
-        assert rotated.headers.get("pragma") == "no-cache"
+        revealed = client.get(f"/api/scenes/{scene['id']}/credential")
+        assert revealed.status_code == 200
+        assert revealed.headers.get("cache-control") == "no-store"
+        assert revealed.headers.get("pragma") == "no-cache"
 
         # Status endpoints never carry plaintext, cacheable or not.
         status = client.get(f"/api/scenes/{scene['id']}")
-        assert issued.json()["token"] not in status.text
-        assert rotated.json()["token"] not in status.text
+        assert created.json()["token"] not in status.text
+        listing = client.get("/api/scenes")
+        assert created.json()["token"] not in listing.text

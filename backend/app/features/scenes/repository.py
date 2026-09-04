@@ -41,6 +41,7 @@ class SceneCredentialRecord:
     id: str
     scene_id: str
     label: str | None
+    token_plaintext: str | None
     created_at: datetime
     last_used_at: datetime | None
     revoked_at: datetime | None
@@ -69,6 +70,7 @@ def _credential_record(row: SceneCredentialRow) -> SceneCredentialRecord:
         id=row.id,
         scene_id=row.scene_id,
         label=row.label,
+        token_plaintext=row.token_plaintext,
         created_at=as_utc(row.created_at),
         last_used_at=as_utc(row.last_used_at) if row.last_used_at else None,
         revoked_at=as_utc(row.revoked_at) if row.revoked_at else None,
@@ -158,12 +160,13 @@ def list_scene_summaries(session: Session) -> list[SceneSummary]:
 
 
 def create_credential(
-    session: Session, *, scene_id: str, hashed: str, label: str | None, now: datetime
+    session: Session, *, scene_id: str, hashed: str, plaintext: str, label: str | None, now: datetime
 ) -> SceneCredentialRecord:
     row = SceneCredentialRow(
         id=new_id(),
         scene_id=scene_id,
         token_hash=hashed,
+        token_plaintext=plaintext,
         label=label,
         created_at=now,
     )
@@ -203,6 +206,18 @@ def list_credentials(session: Session, scene_id: str) -> list[SceneCredentialRec
     return [_credential_record(row) for row in rows]
 
 
+def get_active_credential(session: Session, scene_id: str) -> SceneCredentialRecord | None:
+    """The scene's single active credential under the 1:1 model, if any."""
+
+    row = session.execute(
+        select(SceneCredentialRow)
+        .where(SceneCredentialRow.scene_id == scene_id, SceneCredentialRow.revoked_at.is_(None))
+        .order_by(SceneCredentialRow.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    return _credential_record(row) if row else None
+
+
 def revoke_credential(
     session: Session, credential_id: str, *, reason: str, now: datetime
 ) -> SceneCredentialRecord | None:
@@ -211,6 +226,8 @@ def revoke_credential(
         return None
     row.revoked_at = now
     row.revoked_reason = reason
+    # A revoked credential must never retain its plaintext.
+    row.token_plaintext = None
     session.flush()
     return _credential_record(row)
 
@@ -227,6 +244,7 @@ def revoke_scene_credentials(session: Session, scene_id: str, *, reason: str, no
     for row in rows:
         row.revoked_at = now
         row.revoked_reason = reason
+        row.token_plaintext = None
     session.flush()
     return len(rows)
 

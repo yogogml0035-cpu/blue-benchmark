@@ -12,7 +12,6 @@ const STATUS_TONE: Record<ConnectionStatus, StatusTone> = {
   unsigned: "neutral",
   issued: "warning",
   connected: "success",
-  disabled: "danger",
 };
 
 export interface FolderCardProps {

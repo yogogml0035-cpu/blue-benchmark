@@ -12,7 +12,7 @@ from tests import helpers
 def _setup(client: TestClient) -> tuple[str, str]:
     helpers.register_admin(client)
     scene = helpers.create_scene(client)
-    credential = helpers.issue_credential(client, scene["id"])
+    credential = helpers.create_credential(client, scene["id"])
     return scene["id"], credential["token"]
 
 
@@ -39,7 +39,7 @@ def test_revoked_credential_cannot_upload() -> None:
     with TestClient(app) as client:
         scene_id, token = _setup(client)
         status = client.get(f"/api/scenes/{scene_id}").json()
-        credential_id = status["credentials"][0]["credential_id"]
+        credential_id = status["credential"]["credential_id"]
         assert client.delete(f"/api/scenes/{scene_id}/credentials/{credential_id}").status_code == 200
         response = helpers.upload_batch(
             client, token, helpers.make_batch("cmd-revoked", [helpers.make_case()])
@@ -221,7 +221,7 @@ def test_scene_credentials_are_isolated_between_scenes() -> None:
         helpers.register_admin(client)
         scene_a = helpers.create_scene(client, name="场景甲")
         scene_b = helpers.create_scene(client, name="场景乙")
-        credential_b = helpers.issue_credential(client, scene_b["id"])
+        credential_b = helpers.create_credential(client, scene_b["id"])
 
         response = helpers.upload_batch(
             client, credential_b["token"], helpers.make_batch("cmd-iso", [helpers.make_case()])

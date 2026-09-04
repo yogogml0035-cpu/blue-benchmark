@@ -62,14 +62,14 @@ test("rejects a duplicate scene name with a real 409", async ({ page }) => {
   await page.getByRole("button", { name: "取消" }).click();
 });
 
-test("issues a credential and shows the one-time prompt exactly once", async ({ page, context }) => {
+test("creates a credential and shows the handoff prompt", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await ensureLoggedIn(page);
   await page.goto("/evaluation-sets");
   await page.getByRole("link", { name: /媒体评测集/ }).first().click();
   await expect(page.getByRole("heading", { name: "媒体评测集" })).toBeVisible();
 
-  await page.getByRole("button", { name: "生成上传凭证" }).click();
+  await page.getByRole("button", { name: "创建凭证" }).click();
 
   // The prompt dialog appears with the token-bearing text.
   const promptBox = page.getByRole("textbox", { name: "绑定提示词" });
@@ -89,7 +89,7 @@ test("issues a credential and shows the one-time prompt exactly once", async ({ 
   await page.getByRole("button", { name: "复制提示词" }).click();
   await expect(page.getByRole("button", { name: "已复制" })).toBeVisible();
 
-  // Close the dialog: the plaintext is cleared and cannot be recovered.
+  // Close the dialog: the transient prompt text is cleared.
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "绑定提示词" })).toHaveCount(0);
 
@@ -97,8 +97,9 @@ test("issues a credential and shows the one-time prompt exactly once", async ({ 
   expect(page.url()).not.toContain(token);
   await expect(page.getByText("已签发待验证", { exact: true })).toBeVisible();
 
-  // Capture the token for later rotate/external-upload tests via test info.
-  test.info().annotations.push({ type: "issued_token", description: "present-once" });
+  // The masked credential card shows a preview, never the full token.
+  await expect(page.getByText(/sep_.*…/)).toBeVisible();
+  expect(await page.locator("body").innerText()).not.toContain(token);
 });
 
 test("renames an evaluation set", async ({ page }) => {
@@ -111,25 +112,25 @@ test("renames an evaluation set", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "媒体评测集·改名" })).toBeVisible();
 });
 
-test("rotate revokes old credentials; only the newest connects", async ({ page, context, request }) => {
+test("replace revokes the old credential; only the newest connects", async ({ page, context, request }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await ensureLoggedIn(page);
   await page.goto("/evaluation-sets");
   await page.getByRole("link", { name: /媒体评测集·改名/ }).first().click();
 
-  // Issue a first credential and capture its token.
-  await page.getByRole("button", { name: "生成上传凭证" }).click();
+  // Create the first credential and capture its token.
+  await page.getByRole("button", { name: "创建凭证" }).click();
   const firstPrompt = await page.getByRole("textbox", { name: "绑定提示词" }).inputValue();
   const firstToken = firstPrompt.match(/sep_[A-Za-z0-9_-]+/)![0];
   await page.getByRole("button", { name: "复制提示词" }).click();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
 
-  // Rotate: confirm the destructive action.
-  await page.getByRole("button", { name: "轮换凭证" }).click();
-  await page.getByRole("button", { name: "轮换", exact: true }).click();
-  const rotatedPrompt = await page.getByRole("textbox", { name: "绑定提示词" }).inputValue();
-  const rotatedToken = rotatedPrompt.match(/sep_[A-Za-z0-9_-]+/)![0];
-  expect(rotatedToken).not.toBe(firstToken);
+  // Replace: confirm the destructive action.
+  await page.getByRole("button", { name: "替换凭证" }).click();
+  await page.getByRole("button", { name: "替换", exact: true }).click();
+  const replacedPrompt = await page.getByRole("textbox", { name: "绑定提示词" }).inputValue();
+  const replacedToken = replacedPrompt.match(/sep_[A-Za-z0-9_-]+/)![0];
+  expect(replacedToken).not.toBe(firstToken);
   await page.getByRole("button", { name: "复制提示词" }).click();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
 
@@ -137,22 +138,26 @@ test("rotate revokes old credentials; only the newest connects", async ({ page, 
   // The old credential no longer connects.
   const oldResp = await request.get(conn, { headers: { Authorization: `Bearer ${firstToken}` } });
   expect(oldResp.status()).toBe(401);
-  // The rotated credential connects.
-  const newResp = await request.get(conn, { headers: { Authorization: `Bearer ${rotatedToken}` } });
+  // The replacement credential connects.
+  const newResp = await request.get(conn, { headers: { Authorization: `Bearer ${replacedToken}` } });
   expect(newResp.status()).toBe(200);
 
-  // Timeline shows one active and one revoked credential.
-  await expect(page.getByText("已撤销", { exact: true }).first()).toBeVisible();
+  // The eye icon reveals the full current credential (1:1: exactly one active).
+  await page.getByRole("button", { name: "查看完整凭证" }).click();
+  await expect(page.getByText(replacedToken)).toBeVisible();
+  // The replaced token is not shown anywhere on the page.
+  expect(await page.locator("body").innerText()).not.toContain(firstToken);
 });
 
-test("revokes a single active credential", async ({ page }) => {
+test("disables the credential and returns the scene to unsigned", async ({ page }) => {
   await ensureLoggedIn(page);
   await page.goto("/evaluation-sets");
   await page.getByRole("link", { name: /媒体评测集·改名/ }).first().click();
-  await page.getByRole("button", { name: /撤销凭证/ }).first().click();
-  await page.getByRole("dialog", { name: "撤销凭证" }).getByRole("button", { name: "撤销" }).click();
-  // After revoking the last active credential the scene is disabled.
-  await expect(page.getByText("已停用", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "停用" }).click();
+  await page.getByRole("dialog", { name: "停用凭证" }).getByRole("button", { name: "停用" }).click();
+  // After disabling the only credential the scene reads as unsigned again.
+  await expect(page.getByText("未签发", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("尚未签发凭证")).toBeVisible();
 });
 
 test("deletes an empty evaluation set", async ({ page }) => {
@@ -173,9 +178,9 @@ test("a non-empty evaluation set cannot be deleted", async ({ page, context, req
   await createEvaluationSet(page, "含题评测集");
   await expect(page.getByRole("heading", { name: "含题评测集" })).toBeVisible();
 
-  // Issue a credential, then push a question through the external endpoint so
+  // Create a credential, then push a question through the external endpoint so
   // the scene becomes non-empty.
-  await page.getByRole("button", { name: "生成上传凭证" }).click();
+  await page.getByRole("button", { name: "创建凭证" }).click();
   const prompt = await page.getByRole("textbox", { name: "绑定提示词" }).inputValue();
   const token = prompt.match(/sep_[A-Za-z0-9_-]+/)![0];
   await page.getByRole("button", { name: "复制提示词" }).click();

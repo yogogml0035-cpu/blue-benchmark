@@ -8,7 +8,7 @@
 |---|---|
 | `auth`、`scenes`、`question_library` 使用业务数据库表 | 评测执行与自动评分 |
 | 单管理员（`admin_slot` 唯一约束原子生效），业务老师不建账号 | 多管理员、细粒度角色 |
-| 场景凭证只存 SHA-256 hash，签发/轮换只回显一次明文 | 凭证过期时间、作用域细分 |
+| 场景凭证与场景 1:1：单一创建/替换动作，明文持久化（`token_plaintext`，撤销即清空），场景页小眼睛可查看；哈希仍用于认证 | 凭证过期时间、作用域细分 |
 | 批量收题整批全成全败 + `command_id + payload_hash` 幂等 | 跨场景移动/复制题目 |
 | 评分维度只有 `criterion + pass_score`，固定 10 分逐项及格 | 实际评分执行与提交 |
 | `OperationJob` 负责生成任务排队、租约、重试与幂等 | 其他异步任务类型 |
@@ -82,7 +82,7 @@ published -> pending_review（review-reopen，保留材料/维度/确认事实�
 - 外部收题用 `scenes.service.require_scene_principal` 解析凭证，返回 `ScenePrincipal(scene_id, credential_id)`；凭证只能“查询连接状态 + 批量上传”，不能读取/修改/删除/发布题目。
 - 保持 `401`（未登录/凭证无效）、`403`（越权）、`404`（授权范围内不存在）、`409`（状态/版本/幂等冲突）的语义。
 
-密码只以 PBKDF2 哈希存入内部 Record；Session Cookie 为 `HttpOnly`、`SameSite=Strict`、`Secure` 默认开启；场景凭证只存 hash，明文只在签发/轮换时返回一次，签发/轮换响应携带 `Cache-Control: no-store` 与 `Pragma: no-cache`。
+密码只以 PBKDF2 哈希存入内部 Record；Session Cookie 为 `HttpOnly`、`SameSite=Strict`、`Secure` 默认开启；场景凭证与场景严格 1:1——创建/替换是同一动作（`create_or_replace_credential`），明文持久化在 `token_plaintext`（撤销/替换时清空为 NULL）供管理员核对，认证查找仍走哈希；一切携带明文的响应（创建/替换、`GET /scenes/{id}/credential`）带 `Cache-Control: no-store` 与 `Pragma: no-cache`，状态/列表响应只给掩码预览（`token_preview`），绝不含明文。旧模型存量凭证无明文（列值为 NULL），界面以“不可查看”呈现，替换后恢复。
 
 ## Worker 与评分维度生成
 
