@@ -8,9 +8,9 @@ import { expect, test } from "@playwright/test";
 test.describe.configure({ mode: "serial" });
 
 const ADMIN = {
-  username: "aura-admin",
-  email: "aura-admin@example.com",
-  password: "aura-admin-password-1",
+  username: "benchmark-admin",
+  email: "benchmark-admin@example.com",
+  password: "benchmark-admin-password-1",
 };
 
 test("root redirects an anonymous visitor to registration on an empty platform", async ({ page }) => {
@@ -38,5 +38,5 @@ test("creates the first admin and lands in the app", async ({ page }) => {
 test("registration closes once an admin exists", async ({ page }) => {
   await page.goto("/register");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole("heading", { name: "登录" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "欢迎回来" })).toBeVisible();
 });

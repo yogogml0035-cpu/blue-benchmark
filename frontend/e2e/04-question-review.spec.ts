@@ -8,7 +8,7 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
 
 test.describe.configure({ mode: "serial" });
 
-const ADMIN = { username: "aura-admin", email: "aura-admin@example.com", password: "aura-admin-password-1" };
+const ADMIN = { username: "benchmark-admin", email: "benchmark-admin@example.com", password: "benchmark-admin-password-1" };
 
 async function ensureLoggedIn(page: Page): Promise<void> {
   await page.goto("/");
@@ -23,9 +23,9 @@ async function ensureLoggedIn(page: Page): Promise<void> {
     return;
   }
   if (/\/login$/.test(page.url())) {
-    await page.getByLabel("用户名或邮箱").fill(ADMIN.username);
+    await page.getByLabel("邮箱地址").fill(ADMIN.username);
     await page.getByLabel("密码", { exact: true }).fill(ADMIN.password);
-    await page.getByRole("button", { name: "登录" }).click();
+    await page.getByRole("button", { name: "登 录" }).click();
     await expect(page).toHaveURL(/\/evaluation-sets$/);
   }
 }

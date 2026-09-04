@@ -6,14 +6,14 @@
  */
 
 const FOLDER_COLOR_VARS = [
-  "var(--aura-folder-blue)",
-  "var(--aura-folder-purple)",
-  "var(--aura-folder-green)",
-  "var(--aura-folder-yellow)",
-  "var(--aura-folder-orange)",
-  "var(--aura-folder-pink)",
-  "var(--aura-folder-teal)",
-  "var(--aura-folder-red)",
+  "var(--benchmark-folder-blue)",
+  "var(--benchmark-folder-purple)",
+  "var(--benchmark-folder-green)",
+  "var(--benchmark-folder-yellow)",
+  "var(--benchmark-folder-orange)",
+  "var(--benchmark-folder-pink)",
+  "var(--benchmark-folder-teal)",
+  "var(--benchmark-folder-red)",
 ] as const;
 
 /** FNV-1a — small, deterministic, and well-distributed for short ids. */

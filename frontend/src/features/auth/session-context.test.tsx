@@ -34,7 +34,7 @@ function Probe(): React.JSX.Element {
   );
 }
 
-const AUTH_USER = { user: { id: "u1", username: "aura-admin", email: null, created_at: "2026-01-01T00:00:00Z" } };
+const AUTH_USER = { user: { id: "u1", username: "benchmark-admin", email: null, created_at: "2026-01-01T00:00:00Z" } };
 
 describe("SessionProvider", () => {
   beforeEach(() => {
@@ -77,7 +77,7 @@ describe("SessionProvider", () => {
     });
 
     expect(screen.getByTestId("status")).toHaveTextContent("authenticated");
-    expect(screen.getByTestId("user")).toHaveTextContent("aura-admin");
+    expect(screen.getByTestId("user")).toHaveTextContent("benchmark-admin");
   });
 
   it("becomes anonymous when the session probe returns 401", async () => {

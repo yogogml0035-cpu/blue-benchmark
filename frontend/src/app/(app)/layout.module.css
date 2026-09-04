@@ -2,7 +2,7 @@
   display: flex;
   min-height: 100vh;
   min-width: 1280px;
-  background: var(--aura-page);
+  background: var(--benchmark-page);
 }
 
 .loadingSidebar {
@@ -12,8 +12,8 @@
   flex-direction: column;
   gap: 14px;
   padding: 18px 16px;
-  background: var(--aura-nav);
-  border-right: 1px solid var(--aura-line);
+  background: var(--benchmark-nav);
+  border-right: 1px solid var(--benchmark-line);
 }
 
 .loadingContent {

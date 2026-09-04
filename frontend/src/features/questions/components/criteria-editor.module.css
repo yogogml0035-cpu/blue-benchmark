@@ -6,13 +6,13 @@
 
 .summary {
   font-size: 12px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
 }
 
 .empty {
   margin: 0;
   font-size: 13px;
-  color: var(--aura-faint);
+  color: var(--benchmark-faint);
 }
 
 .list {
@@ -29,13 +29,13 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border-radius: var(--aura-radius-md);
-  border: 1px solid var(--aura-line);
-  background: var(--aura-surface);
+  border-radius: var(--benchmark-radius-md);
+  border: 1px solid var(--benchmark-line);
+  background: var(--benchmark-surface);
 }
 
 .itemSelected {
-  border-color: var(--aura-purple-line);
+  border-color: var(--benchmark-purple-line);
 }
 
 .itemHead {
@@ -56,12 +56,12 @@
 .check input {
   width: 16px;
   height: 16px;
-  accent-color: var(--aura-action-purple);
+  accent-color: var(--benchmark-action-purple);
 }
 
 .source {
   font-size: 12px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
 }
 
 .score {
@@ -72,17 +72,17 @@
 
 .scoreLabel {
   font-size: 12px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
 }
 
 .score input {
   width: 56px;
   min-height: 30px;
   padding: 0 8px;
-  border-radius: var(--aura-radius-sm);
-  border: 1px solid var(--aura-line-strong);
-  background: var(--aura-surface-elevated);
-  color: var(--aura-text);
+  border-radius: var(--benchmark-radius-sm);
+  border: 1px solid var(--benchmark-line-strong);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-text);
   font-size: 13px;
   text-align: center;
 }
@@ -93,17 +93,17 @@
 
 .scoreMax {
   font-size: 12px;
-  color: var(--aura-faint);
+  color: var(--benchmark-faint);
 }
 
 .criterion {
   width: 100%;
   min-height: 70px;
   padding: 10px 12px;
-  border-radius: var(--aura-radius-md);
-  border: 1px solid var(--aura-line-strong);
-  background: var(--aura-surface-elevated);
-  color: var(--aura-text);
+  border-radius: var(--benchmark-radius-md);
+  border: 1px solid var(--benchmark-line-strong);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-text);
   font-size: 13px;
   line-height: 1.6;
   resize: vertical;
@@ -111,8 +111,8 @@
 
 .criterion:focus {
   outline: none;
-  border-color: var(--aura-focus-blue);
-  box-shadow: var(--aura-focus-ring);
+  border-color: var(--benchmark-focus-blue);
+  box-shadow: var(--benchmark-focus-ring);
 }
 
 .criterion:read-only {

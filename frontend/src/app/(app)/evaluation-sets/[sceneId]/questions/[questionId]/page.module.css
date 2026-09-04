@@ -11,12 +11,12 @@
   gap: 6px;
   align-self: flex-start;
   font-size: 13px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
   text-decoration: none;
 }
 
 .back:hover {
-  color: var(--aura-text);
+  color: var(--benchmark-text);
   text-decoration: none;
 }
 
@@ -89,7 +89,7 @@
 .statusNote {
   margin: 0;
   font-size: 13px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
 }
 
 .actionBar {
@@ -103,13 +103,13 @@
   align-items: center;
   gap: 10px;
   padding-top: 8px;
-  border-top: 1px solid var(--aura-line);
+  border-top: 1px solid var(--benchmark-line);
 }
 
 .deleteNote {
   margin: 0;
   font-size: 12px;
-  color: var(--aura-faint);
+  color: var(--benchmark-faint);
 }
 
 .dialogText {

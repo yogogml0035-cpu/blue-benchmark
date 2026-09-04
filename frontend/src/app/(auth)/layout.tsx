@@ -1,33 +1,18 @@
 import type { ReactNode } from "react";
-import { ParticleField } from "@/features/auth/particle-field";
 import styles from "./layout.module.css";
 
 /**
- * Authentication surface: a full-bleed deterministic particle field behind a
- * right-aligned panel. The panel content is provided by the login/register
- * pages so their forms, copy and submit actions stay distinct.
+ * Authentication surface: the approved particle-artwork backdrop with the
+ * 汽车事业 BenchMark 平台 wordmark pinned top-left. The panel itself is
+ * rendered by the login/register pages so each page controls its own
+ * geometry — the login panel is fixed to the artwork's reserved area, the
+ * register panel flows centered.
  */
 export default function AuthLayout({ children }: { children: ReactNode }): React.JSX.Element {
   return (
     <div className={styles.surface}>
-      <ParticleField />
-      <div className={styles.brandArea}>
-        <div className={styles.brand}>
-          <span className={styles.wordmark} aria-label="AURA">
-            {"AURA".split("").map((char, index) => (
-              <span key={`${char}-${index}`} aria-hidden="true">
-                {char}
-              </span>
-            ))}
-          </span>
-          <p className={styles.tagline}>评测管理台</p>
-        </div>
-      </div>
-      <div className={styles.panelWrap}>
-        <div className={styles.inner}>
-          <section className={styles.panel}>{children}</section>
-        </div>
-      </div>
+      <header className={styles.brand}>汽车事业 BenchMark 平台</header>
+      <main className={styles.stage}>{children}</main>
     </div>
   );
 }

@@ -2,74 +2,38 @@
   position: relative;
   min-height: 100vh;
   min-width: 1280px;
-  display: flex;
-  align-items: stretch;
-  overflow: hidden;
-  background: var(--aura-page);
-}
-
-/* Left column: the AURA wordmark balanced against the right-hand panel. */
-.brandArea {
-  position: relative;
-  z-index: 1;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding-left: 96px;
+  overflow-x: clip;
+  /* Static artwork mode: the approved prototype render is the visual source
+     of truth, so the backdrop is the prototype PNG stretched edge to edge. */
+  background-color: var(--benchmark-auth-page);
+  background-image: url("/particle-login-bg.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+  color: var(--benchmark-auth-ink);
+  font-family: Inter, "SF Pro Display", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 
 .brand {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  position: fixed;
+  z-index: 2;
+  top: clamp(28px, 5vh, 56px);
+  left: clamp(26px, 4vw, 64px);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.5em;
+  user-select: none;
 }
 
-.wordmark {
-  display: inline-flex;
-  gap: 12px;
-  font-size: 40px;
-  font-weight: 800;
-  color: var(--aura-text);
-  letter-spacing: 0;
-}
-
-.tagline {
-  margin: 0;
-  font-size: 15px;
-  color: var(--aura-muted);
-}
-
-/* Right column: the authentication panel. */
-.panelWrap {
+/* Centering stage for the register flow. The login panel is position:fixed
+   (see auth-form.module.css) and leaves this flow untouched. `margin: auto`
+   centers the register panel when it fits and degrades to top-aligned
+   scrollable content when it is taller than the viewport. */
+.stage {
   position: relative;
   z-index: 1;
-  width: 440px;
-  flex: none;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  padding: 48px 44px;
-  /* The register panel is taller than a 720px viewport; let the surface
-     scroll vertically instead of clipping the form. */
-  overflow-y: auto;
-  max-height: 100vh;
-}
-
-/* margin:auto centers the panel when it fits, and degrades to top-aligned
-   scrollable content when it is taller than the viewport. */
-.inner {
-  margin: auto 0;
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-
-.panel {
-  padding: 24px 28px;
-  border-radius: var(--aura-radius-lg);
-  border: 1px solid var(--aura-line-strong);
-  background: var(--aura-surface-translucent);
-  backdrop-filter: blur(14px);
-  box-shadow: var(--aura-shadow-card);
+  min-height: 100vh;
+  padding: clamp(96px, 14vh, 130px) clamp(24px, 3vw, 48px) 44px;
 }

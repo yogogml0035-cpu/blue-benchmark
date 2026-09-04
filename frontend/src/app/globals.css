@@ -1,6 +1,6 @@
-/* AURA semantic design tokens.
+/* BenchMark 平台 semantic design tokens.
  *
- * The dark workstation palette is inherited from the AURA prototype but
+ * The dark workstation palette is inherited from the original prototype but
  * converged into semantic variables. Component styles reference these tokens
  * only; raw hex values must not leak into component CSS.
  */
@@ -9,79 +9,107 @@
   color-scheme: dark;
 
   /* Surfaces */
-  --aura-page: #15161a;
-  --aura-nav: #1e1f23;
-  --aura-surface: #1e1f23;
-  --aura-surface-elevated: #26272c;
-  --aura-surface-overlay: #2c2d33;
+  --benchmark-page: #15161a;
+  --benchmark-nav: #1e1f23;
+  --benchmark-surface: #1e1f23;
+  --benchmark-surface-elevated: #26272c;
+  --benchmark-surface-overlay: #2c2d33;
 
   /* Lines */
-  --aura-line: rgba(237, 247, 255, 0.08);
-  --aura-line-strong: rgba(237, 247, 255, 0.16);
+  --benchmark-line: rgba(237, 247, 255, 0.08);
+  --benchmark-line-strong: rgba(237, 247, 255, 0.16);
 
   /* Text */
-  --aura-text: #edf7ff;
-  --aura-muted: #8b8e99;
-  --aura-faint: #6c6f78;
+  --benchmark-text: #edf7ff;
+  --benchmark-muted: #8b8e99;
+  --benchmark-faint: #6c6f78;
 
   /* Brand + feedback */
-  --aura-action-purple: #6762fe;
-  --aura-action-purple-hover: #7a75ff;
-  --aura-focus-blue: #35bfff;
-  --aura-focus-blue-strong: #2679ea;
-  --aura-success: #38cd83;
-  --aura-danger: #ff5c67;
-  --aura-warning: #f5b544;
+  --benchmark-action-purple: #6762fe;
+  --benchmark-action-purple-hover: #7a75ff;
+  --benchmark-focus-blue: #35bfff;
+  --benchmark-focus-blue-strong: #2679ea;
+  --benchmark-success: #38cd83;
+  --benchmark-danger: #ff5c67;
+  --benchmark-warning: #f5b544;
 
   /* Text/icons placed on top of solid action colors. */
-  --aura-on-action: #ffffff;
+  --benchmark-on-action: #ffffff;
 
   /* Translucent tints/lines derived from the feedback palette (badges, panels,
      active nav). Component CSS must reference these, never raw color values. */
-  --aura-info-tint: rgba(53, 191, 255, 0.12);
-  --aura-info-line: rgba(53, 191, 255, 0.3);
-  --aura-success-tint: rgba(56, 205, 131, 0.12);
-  --aura-success-line: rgba(56, 205, 131, 0.3);
-  --aura-warning-tint: rgba(245, 181, 68, 0.12);
-  --aura-warning-line: rgba(245, 181, 68, 0.3);
-  --aura-danger-tint: rgba(255, 92, 103, 0.08);
-  --aura-danger-tint-strong: rgba(255, 92, 103, 0.12);
-  --aura-danger-line: rgba(255, 92, 103, 0.3);
-  --aura-danger-line-strong: rgba(255, 92, 103, 0.35);
-  --aura-purple-tint: rgba(103, 98, 254, 0.16);
-  --aura-purple-tint-strong: rgba(103, 98, 254, 0.22);
-  --aura-purple-line: rgba(103, 98, 254, 0.4);
+  --benchmark-info-tint: rgba(53, 191, 255, 0.12);
+  --benchmark-info-line: rgba(53, 191, 255, 0.3);
+  --benchmark-success-tint: rgba(56, 205, 131, 0.12);
+  --benchmark-success-line: rgba(56, 205, 131, 0.3);
+  --benchmark-warning-tint: rgba(245, 181, 68, 0.12);
+  --benchmark-warning-line: rgba(245, 181, 68, 0.3);
+  --benchmark-danger-tint: rgba(255, 92, 103, 0.08);
+  --benchmark-danger-tint-strong: rgba(255, 92, 103, 0.12);
+  --benchmark-danger-line: rgba(255, 92, 103, 0.3);
+  --benchmark-danger-line-strong: rgba(255, 92, 103, 0.35);
+  --benchmark-purple-tint: rgba(103, 98, 254, 0.16);
+  --benchmark-purple-tint-strong: rgba(103, 98, 254, 0.22);
+  --benchmark-purple-line: rgba(103, 98, 254, 0.4);
 
   /* Overlay + translucent surfaces. */
-  --aura-overlay: rgba(8, 9, 16, 0.7);
-  --aura-surface-translucent: rgba(30, 31, 35, 0.82);
+  --benchmark-overlay: rgba(8, 9, 16, 0.7);
+  --benchmark-surface-translucent: rgba(30, 31, 35, 0.82);
 
   /* Folder color palette (evaluation-set cards) */
-  --aura-folder-blue: #4c9aff;
-  --aura-folder-purple: #9b7bff;
-  --aura-folder-green: #43c98a;
-  --aura-folder-yellow: #e8b93f;
-  --aura-folder-orange: #f08a4b;
-  --aura-folder-pink: #ef7bae;
-  --aura-folder-teal: #3fbfb2;
-  --aura-folder-red: #e4675f;
+  --benchmark-folder-blue: #4c9aff;
+  --benchmark-folder-purple: #9b7bff;
+  --benchmark-folder-green: #43c98a;
+  --benchmark-folder-yellow: #e8b93f;
+  --benchmark-folder-orange: #f08a4b;
+  --benchmark-folder-pink: #ef7bae;
+  --benchmark-folder-teal: #3fbfb2;
+  --benchmark-folder-red: #e4675f;
   /* Foreground drawn on top of the bright folder tabs. */
-  --aura-folder-icon: rgba(8, 9, 16, 0.85);
+  --benchmark-folder-icon: rgba(8, 9, 16, 0.85);
 
   /* Focus ring */
-  --aura-focus-ring: 0 0 0 2px rgba(53, 191, 255, 0.55);
+  --benchmark-focus-ring: 0 0 0 2px rgba(53, 191, 255, 0.55);
 
   /* Radii & shadows */
-  --aura-radius-sm: 6px;
-  --aura-radius-md: 10px;
-  --aura-radius-lg: 14px;
-  --aura-shadow-card: 0 2px 12px rgba(0, 0, 0, 0.32);
-  --aura-shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --benchmark-radius-sm: 6px;
+  --benchmark-radius-md: 10px;
+  --benchmark-radius-lg: 14px;
+  --benchmark-shadow-card: 0 2px 12px rgba(0, 0, 0, 0.32);
+  --benchmark-shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.5);
 
   /* Motion */
-  --aura-ease: cubic-bezier(0.32, 0.72, 0.24, 1);
-  --aura-duration-fast: 140ms;
-  --aura-duration-base: 220ms;
+  --benchmark-ease: cubic-bezier(0.32, 0.72, 0.24, 1);
+  --benchmark-duration-fast: 140ms;
+  --benchmark-duration-base: 220ms;
+
+  /* Auth surface (particle-artwork login, approved prototype-exact palette).
+     Scoped to the (auth) routes; the workstation tokens above keep governing
+     the rest of the app. */
+  --benchmark-auth-page: #061a32;
+  --benchmark-auth-ink: #f7fbff;
+  --benchmark-auth-muted: #91a7bd;
+  --benchmark-auth-label: #d8e7f2;
+  --benchmark-auth-remember: #cbdbe7;
+  --benchmark-auth-note: #839aaf;
+  --benchmark-auth-placeholder: #627a92;
+  --benchmark-auth-icon: #8098ae;
+  --benchmark-auth-toggle: #849aaf;
+  --benchmark-auth-toggle-hover: #dff5ff;
+  --benchmark-auth-line: rgba(181, 211, 236, 0.24);
+  --benchmark-auth-panel-line: rgba(194, 219, 239, 0.33);
+  --benchmark-auth-panel-bg: linear-gradient(145deg, rgb(7, 30, 54), rgb(4, 22, 42));
+  --benchmark-auth-input-bg: rgba(3, 17, 34, 0.31);
+  --benchmark-auth-input-bg-focus: rgba(6, 28, 51, 0.58);
+  --benchmark-auth-accent: #31bfff;
+  --benchmark-auth-accent-deep: #246ce4;
+  --benchmark-auth-link: #2dafff;
+  --benchmark-auth-focus-ring: 0 0 0 4px rgba(49, 191, 255, 0.09);
+  --benchmark-auth-panel-shadow: 0 34px 90px rgba(0, 4, 13, 0.24), inset 0 1px rgba(255, 255, 255, 0.04);
+  --benchmark-auth-button-shadow: 0 13px 34px rgba(26, 132, 237, 0.25);
+  --benchmark-auth-button-shadow-hover: 0 18px 42px rgba(26, 132, 237, 0.33);
+  --benchmark-auth-success: #86e1b6;
+  --benchmark-auth-danger: #ff8594;
 }
 
 * {
@@ -96,13 +124,13 @@ body {
 }
 
 body {
-  background: var(--aura-page);
-  color: var(--aura-text);
+  background: var(--benchmark-page);
+  color: var(--benchmark-text);
   font-family:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
     "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  /* AURA body copy keeps neutral tracking; display wordmarks opt in to their
-   * own spacing instead of relying on negative letter-spacing. */
+  /* BenchMark body copy keeps neutral tracking; display wordmarks opt in to
+   * their own spacing instead of relying on negative letter-spacing. */
   letter-spacing: 0;
   font-size: 14px;
   line-height: 1.5;
@@ -110,7 +138,7 @@ body {
 }
 
 a {
-  color: var(--aura-focus-blue);
+  color: var(--benchmark-focus-blue);
   text-decoration: none;
 }
 
@@ -130,7 +158,7 @@ textarea {
    radii stay untouched so focus never distorts a control's shape. */
 :focus-visible {
   outline: none;
-  box-shadow: var(--aura-focus-ring);
+  box-shadow: var(--benchmark-focus-ring);
 }
 
 /* Reduce motion for users who ask for it. */

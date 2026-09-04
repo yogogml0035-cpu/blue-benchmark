@@ -6,7 +6,7 @@
   gap: 8px;
   min-height: 40px;
   padding: 0 18px;
-  border-radius: var(--aura-radius-md);
+  border-radius: var(--benchmark-radius-md);
   border: 1px solid transparent;
   font-size: 14px;
   font-weight: 600;
@@ -14,10 +14,10 @@
   cursor: pointer;
   user-select: none;
   transition:
-    background-color var(--aura-duration-fast) var(--aura-ease),
-    border-color var(--aura-duration-fast) var(--aura-ease),
-    color var(--aura-duration-fast) var(--aura-ease),
-    opacity var(--aura-duration-fast) var(--aura-ease);
+    background-color var(--benchmark-duration-fast) var(--benchmark-ease),
+    border-color var(--benchmark-duration-fast) var(--benchmark-ease),
+    color var(--benchmark-duration-fast) var(--benchmark-ease),
+    opacity var(--benchmark-duration-fast) var(--benchmark-ease);
 }
 
 .button:disabled {
@@ -26,37 +26,37 @@
 }
 
 .primary {
-  background: var(--aura-action-purple);
-  color: var(--aura-on-action);
+  background: var(--benchmark-action-purple);
+  color: var(--benchmark-on-action);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--aura-action-purple-hover);
+  background: var(--benchmark-action-purple-hover);
 }
 
 .secondary {
-  background: var(--aura-surface-elevated);
-  border-color: var(--aura-line-strong);
-  color: var(--aura-text);
+  background: var(--benchmark-surface-elevated);
+  border-color: var(--benchmark-line-strong);
+  color: var(--benchmark-text);
 }
 
 .secondary:hover:not(:disabled) {
-  background: var(--aura-surface-overlay);
+  background: var(--benchmark-surface-overlay);
 }
 
 .ghost {
   background: transparent;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
 }
 
 .ghost:hover:not(:disabled) {
-  background: var(--aura-surface-elevated);
-  color: var(--aura-text);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-text);
 }
 
 .danger {
-  background: var(--aura-danger);
-  color: var(--aura-on-action);
+  background: var(--benchmark-danger);
+  color: var(--benchmark-on-action);
 }
 
 .danger:hover:not(:disabled) {

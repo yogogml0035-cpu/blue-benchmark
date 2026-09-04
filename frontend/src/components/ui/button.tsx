@@ -20,7 +20,7 @@ const VARIANT_CLASS: Record<Variant, string> = {
 };
 
 /**
- * AURA button.
+ * BenchMark button.
  *
  * Async actions pass `loading`; the control keeps its dimensions and becomes
  * non-interactive so layouts never jump during submission.

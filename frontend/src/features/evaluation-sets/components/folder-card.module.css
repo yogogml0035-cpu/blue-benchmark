@@ -3,18 +3,18 @@
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  border-radius: var(--aura-radius-lg);
-  border: 1px solid var(--aura-line);
-  background: var(--aura-surface);
+  border-radius: var(--benchmark-radius-lg);
+  border: 1px solid var(--benchmark-line);
+  background: var(--benchmark-surface);
   text-decoration: none;
   color: inherit;
-  transition: background-color var(--aura-duration-fast) var(--aura-ease),
-    border-color var(--aura-duration-fast) var(--aura-ease);
+  transition: background-color var(--benchmark-duration-fast) var(--benchmark-ease),
+    border-color var(--benchmark-duration-fast) var(--benchmark-ease);
 }
 
 .card:hover {
-  background: var(--aura-surface-elevated);
-  border-color: var(--aura-line-strong);
+  background: var(--benchmark-surface-elevated);
+  border-color: var(--benchmark-line-strong);
   text-decoration: none;
 }
 
@@ -24,8 +24,8 @@
   justify-content: center;
   width: 40px;
   height: 32px;
-  border-radius: var(--aura-radius-sm);
-  color: var(--aura-folder-icon);
+  border-radius: var(--benchmark-radius-sm);
+  color: var(--benchmark-folder-icon);
 }
 
 .body {
@@ -54,7 +54,7 @@
 .description {
   margin: 0;
   font-size: 13px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -63,5 +63,5 @@
 .meta {
   margin: 0;
   font-size: 12px;
-  color: var(--aura-faint);
+  color: var(--benchmark-faint);
 }

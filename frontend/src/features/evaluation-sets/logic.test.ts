@@ -9,7 +9,7 @@ describe("sceneColorVar", () => {
   });
 
   it("returns a folder color CSS variable", () => {
-    expect(sceneColorVar("any-id")).toMatch(/^var\(--aura-folder-[a-z]+\)$/);
+    expect(sceneColorVar("any-id")).toMatch(/^var\(--benchmark-folder-[a-z]+\)$/);
   });
 
   it("distributes across the palette for distinct ids", () => {

@@ -14,7 +14,7 @@ export interface DialogProps {
 }
 
 /**
- * AURA modal dialog.
+ * BenchMark modal dialog.
  *
  * Focus moves into the dialog on open, is trapped while it is open, and
  * returns to the previously focused element on close. Escape closes it.

@@ -73,86 +73,94 @@ export default function RegisterPage(): React.JSX.Element {
 
   if (checking) {
     return (
-      <div className={styles.form} aria-busy="true">
-        <Skeleton width={160} height={24} />
-        <Skeleton width="100%" height={40} />
-        <Skeleton width="100%" height={40} />
-        <Skeleton width="100%" height={40} />
-      </div>
+      <section className={[styles.panel, styles.panelFlow].join(" ")}>
+        <div className={styles.form} aria-busy="true">
+          <Skeleton width={160} height={24} />
+          <Skeleton width="100%" height={40} />
+          <Skeleton width="100%" height={40} />
+          <Skeleton width="100%" height={40} />
+        </div>
+      </section>
     );
   }
 
   if (!allowed) {
     return (
-      <div className={styles.form}>
-        <Skeleton width="100%" height={40} />
-      </div>
+      <section className={[styles.panel, styles.panelFlow].join(" ")}>
+        <div className={styles.form}>
+          <Skeleton width="100%" height={40} />
+        </div>
+      </section>
     );
   }
 
   return (
-    <form className={styles.form} onSubmit={handleSubmit} noValidate>
-      <h1 className={styles.title}>创建管理员</h1>
+    <section className={[styles.panel, styles.panelFlow].join(" ")} aria-labelledby="register-title">
+      <h1 className={styles.title} id="register-title">
+        创建管理员
+      </h1>
       <p className={styles.subtitle}>平台还没有管理员。创建后将作为唯一管理员使用。</p>
 
-      {error ? <ErrorPanel title="创建未成功" message={error} /> : null}
+      <form className={styles.form} onSubmit={handleSubmit} noValidate>
+        {error ? <ErrorPanel title="创建未成功" message={error} /> : null}
 
-      <TextField
-        label="用户名"
-        name="username"
-        autoComplete="username"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        required
-        disabled={submitting}
-        hint="2–50 个字符"
-      />
-      <TextField
-        label="邮箱（可选）"
-        name="email"
-        type="email"
-        autoComplete="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        disabled={submitting}
-      />
-      <TextField
-        label="密码"
-        name="new-password"
-        type="password"
-        revealable
-        autoComplete="new-password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-        disabled={submitting}
-        hint="8–128 个字符"
-      />
-      <TextField
-        label="确认密码"
-        name="confirm-password"
-        type="password"
-        revealable
-        autoComplete="new-password"
-        value={confirm}
-        onChange={(e) => {
-          setConfirm(e.target.value);
-          if (confirmError) setConfirmError(null);
-        }}
-        error={confirmError}
-        required
-        disabled={submitting}
-      />
+        <TextField
+          label="用户名"
+          name="username"
+          autoComplete="username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          required
+          disabled={submitting}
+          hint="2–50 个字符"
+        />
+        <TextField
+          label="邮箱（可选）"
+          name="email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={submitting}
+        />
+        <TextField
+          label="密码"
+          name="new-password"
+          type="password"
+          revealable
+          autoComplete="new-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          disabled={submitting}
+          hint="8–128 个字符"
+        />
+        <TextField
+          label="确认密码"
+          name="confirm-password"
+          type="password"
+          revealable
+          autoComplete="new-password"
+          value={confirm}
+          onChange={(e) => {
+            setConfirm(e.target.value);
+            if (confirmError) setConfirmError(null);
+          }}
+          error={confirmError}
+          required
+          disabled={submitting}
+        />
 
-      <Button type="submit" loading={submitting} className={styles.submit}>
-        创建管理员
-      </Button>
+        <Button type="submit" loading={submitting} className={styles.submit}>
+          创建管理员
+        </Button>
 
-      <div className={styles.footnote}>
-        <p className={styles.switch}>
-          已有管理员？<Link href="/login">去登录</Link>
-        </p>
-      </div>
-    </form>
+        <div className={styles.footnote}>
+          <p className={styles.signup}>
+            已有管理员？ <Link href="/login">去登录</Link>
+          </p>
+        </div>
+      </form>
+    </section>
   );
 }

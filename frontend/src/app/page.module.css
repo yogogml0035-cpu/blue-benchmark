@@ -3,7 +3,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--aura-page);
+  background: var(--benchmark-page);
 }
 
 .card {
@@ -12,13 +12,13 @@
   gap: 12px;
   width: 320px;
   padding: 28px;
-  border-radius: var(--aura-radius-lg);
-  border: 1px solid var(--aura-line);
-  background: var(--aura-surface);
+  border-radius: var(--benchmark-radius-lg);
+  border: 1px solid var(--benchmark-line);
+  background: var(--benchmark-surface);
 }
 
 .error {
   margin: 4px 0 0;
   font-size: 13px;
-  color: var(--aura-danger);
+  color: var(--benchmark-danger);
 }

@@ -14,7 +14,7 @@ export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 /**
- * AURA text input.
+ * BenchMark text input.
  *
  * The label, control, hint and error are wired together with `aria-describedby`
  * so validation messages stay programmatically associated with the field.

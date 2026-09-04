@@ -3,14 +3,14 @@
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: var(--aura-radius-md);
-  border: 1px solid var(--aura-danger-line-strong);
-  background: var(--aura-danger-tint);
+  border-radius: var(--benchmark-radius-md);
+  border: 1px solid var(--benchmark-danger-line-strong);
+  background: var(--benchmark-danger-tint);
 }
 
 .icon {
   flex: none;
-  color: var(--aura-danger);
+  color: var(--benchmark-danger);
   margin-top: 1px;
 }
 
@@ -23,13 +23,13 @@
   margin: 0;
   font-size: 13px;
   font-weight: 700;
-  color: var(--aura-text);
+  color: var(--benchmark-text);
 }
 
 .message {
   margin: 2px 0 0;
   font-size: 13px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
 }
 
 .action {

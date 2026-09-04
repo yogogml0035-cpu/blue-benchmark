@@ -2,7 +2,7 @@
   display: flex;
   min-height: 100vh;
   min-width: 1280px;
-  background: var(--aura-page);
+  background: var(--benchmark-page);
 }
 
 .sidebar {
@@ -10,9 +10,9 @@
   width: 232px;
   display: flex;
   flex-direction: column;
-  background: var(--aura-nav);
-  border-right: 1px solid var(--aura-line);
-  transition: width var(--aura-duration-base) var(--aura-ease);
+  background: var(--benchmark-nav);
+  border-right: 1px solid var(--benchmark-line);
+  transition: width var(--benchmark-duration-base) var(--benchmark-ease);
   overflow: hidden;
 }
 
@@ -30,16 +30,33 @@
 
 .wordmark {
   display: inline-flex;
-  gap: 6px;
-  font-size: 17px;
-  font-weight: 800;
-  color: var(--aura-text);
-  /* Distinct character spacing for the wordmark instead of negative tracking. */
-  letter-spacing: 0;
+  align-items: baseline;
+  min-width: 0;
+  color: var(--benchmark-text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
-.collapsed .wordmark span:not(:first-child) {
+.wordmarkMark {
   display: none;
+  font-size: 17px;
+}
+
+.collapsed .wordmarkFull {
+  display: none;
+}
+
+.collapsed .wordmarkMark {
+  display: inline;
+}
+
+/* The CJK monogram is wider than the old single latin glyph; tighten the row
+   so the collapse toggle still fits inside the 80px rail. */
+.collapsed .brandRow {
+  padding: 18px 10px;
+  gap: 4px;
 }
 
 .collapseToggle {
@@ -49,15 +66,15 @@
   width: 30px;
   height: 30px;
   border: none;
-  border-radius: var(--aura-radius-sm);
+  border-radius: var(--benchmark-radius-sm);
   background: transparent;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
   cursor: pointer;
 }
 
 .collapseToggle:hover {
-  background: var(--aura-surface-elevated);
-  color: var(--aura-text);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-text);
 }
 
 .nav {
@@ -73,29 +90,29 @@
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: var(--aura-radius-md);
-  color: var(--aura-muted);
+  border-radius: var(--benchmark-radius-md);
+  color: var(--benchmark-muted);
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
-  transition: background-color var(--aura-duration-fast) var(--aura-ease);
+  transition: background-color var(--benchmark-duration-fast) var(--benchmark-ease);
 }
 
 .navItem:hover {
-  background: var(--aura-surface-elevated);
-  color: var(--aura-text);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-text);
   text-decoration: none;
 }
 
 .navItemActive {
-  background: var(--aura-purple-tint);
-  color: var(--aura-action-purple-hover);
+  background: var(--benchmark-purple-tint);
+  color: var(--benchmark-action-purple-hover);
 }
 
 .navItemActive:hover {
-  background: var(--aura-purple-tint-strong);
-  color: var(--aura-action-purple-hover);
+  background: var(--benchmark-purple-tint-strong);
+  color: var(--benchmark-action-purple-hover);
 }
 
 /* Visually hidden but still exposed to assistive tech when the rail collapses. */
@@ -116,7 +133,16 @@
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  border-top: 1px solid var(--aura-line);
+  border-top: 1px solid var(--benchmark-line);
+}
+
+/* Collapsed rail stacks the identity vertically so the avatar and the logout
+   action both fit inside the 80px width instead of clipping. */
+.collapsed .identity {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 8px;
 }
 
 .avatar {
@@ -127,8 +153,8 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--aura-action-purple);
-  color: var(--aura-on-action);
+  background: var(--benchmark-action-purple);
+  color: var(--benchmark-on-action);
   font-weight: 700;
   font-size: 14px;
 }
@@ -151,15 +177,15 @@
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: var(--aura-radius-sm);
+  border-radius: var(--benchmark-radius-sm);
   background: transparent;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
   cursor: pointer;
 }
 
 .logout:hover:not(:disabled) {
-  background: var(--aura-surface-elevated);
-  color: var(--aura-danger);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-danger);
 }
 
 .logout:disabled {

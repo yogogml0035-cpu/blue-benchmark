@@ -1,11 +1,10 @@
 "use client";
 
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { ErrorPanel } from "@/components/ui/error-panel";
-import { TextField } from "@/components/ui/text-field";
 import { useSession } from "@/features/auth/session-context";
 import { getBootstrap, login } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
@@ -20,6 +19,8 @@ function LoginForm(): React.JSX.Element {
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [revealed, setRevealed] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [registrationOpen, setRegistrationOpen] = useState<boolean | null>(null);
@@ -60,45 +61,104 @@ function LoginForm(): React.JSX.Element {
   }
 
   return (
-    <form className={styles.form} onSubmit={handleSubmit} noValidate>
-      <h1 className={styles.title}>登录</h1>
-      <p className={styles.subtitle}>使用管理员账号登录评测管理台。</p>
+    <section className={[styles.panel, styles.panelHero].join(" ")} aria-labelledby="login-title">
+      <h1 className={styles.title} id="login-title">
+        欢迎回来
+      </h1>
+      <p className={styles.subtitle}>登录以继续</p>
 
-      {error ? <ErrorPanel title="登录未成功" message={error} /> : null}
+      <form className={styles.form} onSubmit={handleSubmit} noValidate>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="login-identifier">
+            邮箱地址
+          </label>
+          <div className={styles.inputWrap}>
+            <Mail className={styles.leadingIcon} size={20} strokeWidth={1.7} aria-hidden="true" />
+            <input
+              id="login-identifier"
+              name="identifier"
+              type="email"
+              autoComplete="username"
+              placeholder="输入您的邮箱地址"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              required
+              disabled={submitting}
+            />
+          </div>
+        </div>
 
-      <TextField
-        label="用户名或邮箱"
-        name="identifier"
-        autoComplete="username"
-        value={identifier}
-        onChange={(e) => setIdentifier(e.target.value)}
-        required
-        disabled={submitting}
-      />
-      <TextField
-        label="密码"
-        name="password"
-        type="password"
-        revealable
-        autoComplete="current-password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-        disabled={submitting}
-      />
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="login-password">
+            密码
+          </label>
+          <div className={styles.inputWrap}>
+            <Lock className={styles.leadingIcon} size={20} strokeWidth={1.7} aria-hidden="true" />
+            <input
+              id="login-password"
+              name="password"
+              type={revealed ? "text" : "password"}
+              autoComplete="current-password"
+              placeholder="输入您的密码"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={submitting}
+            />
+            <button
+              type="button"
+              className={styles.passwordToggle}
+              aria-label={revealed ? "隐藏密码" : "显示密码"}
+              aria-pressed={revealed}
+              onClick={() => setRevealed((value) => !value)}
+            >
+              {revealed ? (
+                <EyeOff size={20} strokeWidth={1.7} aria-hidden="true" />
+              ) : (
+                <Eye size={20} strokeWidth={1.7} aria-hidden="true" />
+              )}
+            </button>
+          </div>
+        </div>
 
-      <Button type="submit" loading={submitting} className={styles.submit}>
-        登录
-      </Button>
+        <div className={styles.options}>
+          <label className={styles.remember}>
+            <input
+              type="checkbox"
+              name="remember"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+            记住我
+          </label>
+          {/* Local deployments have no password-recovery channel; the control
+              exists for prototype parity and intentionally goes nowhere. */}
+          <a href="#" onClick={(e) => e.preventDefault()}>
+            忘记密码？
+          </a>
+        </div>
 
-      <div className={styles.footnote}>
-        {registrationOpen === true ? (
-          <p className={styles.switch}>
-            还没有管理员？<Link href="/register">创建首个管理员</Link>
-          </p>
-        ) : null}
-      </div>
-    </form>
+        <Button type="submit" loading={submitting} className={styles.submit}>
+          登 录
+        </Button>
+
+        <p
+          className={[styles.message, error ? styles.messageError : null].filter(Boolean).join(" ")}
+          role={error ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {error ?? ""}
+        </p>
+
+        <div className={styles.footnote}>
+          {registrationOpen === true ? (
+            <p className={styles.signup}>
+              还没有账号？ <Link href="/register">创建账号</Link>
+            </p>
+          ) : null}
+        </div>
+      </form>
+    </section>
   );
 }
 

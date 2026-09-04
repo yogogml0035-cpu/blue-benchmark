@@ -1,13 +1,13 @@
 # 前端组件与样式
 
-适用于 `frontend/` 的 UI 组件、AURA 视觉令牌与样式约定。不引入 Tailwind、CSS-in-JS 或通用 UI 组件库；用 CSS Custom Properties + CSS Modules。
+适用于 `frontend/` 的 UI 组件、BenchMark 视觉令牌与样式约定。不引入 Tailwind、CSS-in-JS 或通用 UI 组件库；用 CSS Custom Properties + CSS Modules。
 
 ## 视觉令牌
 
-- 全部语义色来自 `src/app/globals.css` 的 `--aura-*` 变量：基础（page/nav/surface/text/muted/action/focus/success/danger）、文件夹多色板、动作色上的前景 `on-action`、反馈色的半透明 `*-tint`/`*-line` 派生令牌，以及 `overlay`/`surface-translucent`。组件 CSS 只引用变量，禁止写裸色值。
-- 深色工作台：页面背景 `--aura-page`，表面 `--aura-surface`/`-elevated`/`-overlay`，低对比描边 `--aura-line`。
-- 正文 `letter-spacing: 0`；AURA 字标用独立字符 + `gap` 表达分隔，不用负字距。
-- 内页标题收敛为操作界面尺度（约 15–18px），不照搬原型 62–72px 展示型字号。
+- 全部语义色来自 `src/app/globals.css` 的 `--benchmark-*` 变量：基础（page/nav/surface/text/muted/action/focus/success/danger）、文件夹多色板、动作色上的前景 `on-action`、反馈色的半透明 `*-tint`/`*-line` 派生令牌，以及 `overlay`/`surface-translucent`。组件 CSS 只引用变量，禁止写裸色值。
+- 深色工作台：页面背景 `--benchmark-page`，表面 `--benchmark-surface`/`-elevated`/`-overlay`，低对比描边 `--benchmark-line`。
+- 正文 `letter-spacing: 0`；品牌字标（auth 面、侧栏）用 `letter-spacing` 表达宽字距；侧栏折叠时以首字 monogram 代替整段字标。
+- 内页标题收敛为操作界面尺度（约 15–18px），不照搬原型 62–72px 展示型字号；认证面是唯一例外，标题用原型展示尺度（`clamp(30px, 3vw, 43px)`）。
 
 ## 组件
 
@@ -25,12 +25,13 @@
 
 ## 认证面
 
-- 登录/注册共享 `(auth)` 布局：左侧 AURA 字标区 + 右侧半透明面板，背景为确定性粒子场景（`particle-field.tsx`）。
-- 粒子画布固定种子、仅在 resize 重绘、不持续占用动画帧；`prefers-reduced-motion` 下保持静态。
+- 登录/注册共享 `(auth)` 布局：背景为已确认的原型静态粒子图（`frontend/public/particle-login-bg.png`，`background-size: 100% 100%` 铺满），左上角固定「汽车事业 BenchMark 平台」字标。旧的确定性粒子画布（`particle-field.tsx`）已删除，不再维护。
+- 登录面板由页面自身渲染（`auth-form.module.css` 的 `.panelHero`）：`top: 18.2vh / left: 62.5vw / width: 30.6vw / height: 65.5vh` 固定在背景图右侧预留区；视口高度 ≤839px 时放宽为内容自适应并内部滚动，保证 1280x720 不裁切。注册面板用 `.panelFlow`（465px、`margin: auto` 居中、超高时随页面滚动）。
+- 认证面的原型精确色板收敛在 `globals.css` 的 `--benchmark-auth-*` 令牌块（页面底色、面板渐变、输入框、渐变按钮、链接、状态色），与工作台令牌并存；组件 CSS 依旧禁止裸色值。
 
 ## 可访问性与动效
 
-- 所有交互具备键盘焦点与可访问名称；`:focus-visible` 用统一 `--aura-focus-ring`。
+- 所有交互具备键盘焦点与可访问名称；`:focus-visible` 用统一 `--benchmark-focus-ring`。
 - 全局 `@media (prefers-reduced-motion: reduce)` 关闭动画；组件动效必须可被其覆盖。
 
 ## 禁止

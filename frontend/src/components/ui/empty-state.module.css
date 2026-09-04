@@ -14,10 +14,10 @@
   justify-content: center;
   width: 52px;
   height: 52px;
-  border-radius: var(--aura-radius-lg);
-  background: var(--aura-surface-elevated);
-  border: 1px solid var(--aura-line);
-  color: var(--aura-muted);
+  border-radius: var(--benchmark-radius-lg);
+  background: var(--benchmark-surface-elevated);
+  border: 1px solid var(--benchmark-line);
+  color: var(--benchmark-muted);
 }
 
 .title {
@@ -29,7 +29,7 @@
 .description {
   margin: 0;
   max-width: 420px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
   font-size: 13px;
 }
 

@@ -12,37 +12,37 @@
 }
 
 .neutral {
-  background: var(--aura-surface-elevated);
-  color: var(--aura-muted);
-  border-color: var(--aura-line-strong);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-muted);
+  border-color: var(--benchmark-line-strong);
 }
 
 .info {
-  background: var(--aura-info-tint);
-  color: var(--aura-focus-blue);
-  border-color: var(--aura-info-line);
+  background: var(--benchmark-info-tint);
+  color: var(--benchmark-focus-blue);
+  border-color: var(--benchmark-info-line);
 }
 
 .success {
-  background: var(--aura-success-tint);
-  color: var(--aura-success);
-  border-color: var(--aura-success-line);
+  background: var(--benchmark-success-tint);
+  color: var(--benchmark-success);
+  border-color: var(--benchmark-success-line);
 }
 
 .warning {
-  background: var(--aura-warning-tint);
-  color: var(--aura-warning);
-  border-color: var(--aura-warning-line);
+  background: var(--benchmark-warning-tint);
+  color: var(--benchmark-warning);
+  border-color: var(--benchmark-warning-line);
 }
 
 .danger {
-  background: var(--aura-danger-tint-strong);
-  color: var(--aura-danger);
-  border-color: var(--aura-danger-line);
+  background: var(--benchmark-danger-tint-strong);
+  color: var(--benchmark-danger);
+  border-color: var(--benchmark-danger-line);
 }
 
 .purple {
-  background: var(--aura-purple-tint);
-  color: var(--aura-action-purple-hover);
-  border-color: var(--aura-purple-line);
+  background: var(--benchmark-purple-tint);
+  color: var(--benchmark-action-purple-hover);
+  border-color: var(--benchmark-purple-line);
 }

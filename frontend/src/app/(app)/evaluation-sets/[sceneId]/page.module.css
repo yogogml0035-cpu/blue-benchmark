@@ -10,12 +10,12 @@
   gap: 6px;
   align-self: flex-start;
   font-size: 13px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
   text-decoration: none;
 }
 
 .back:hover {
-  color: var(--aura-text);
+  color: var(--benchmark-text);
   text-decoration: none;
 }
 
@@ -52,13 +52,13 @@
 .description {
   margin: 0;
   font-size: 13px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
 }
 
 .meta {
   margin: 0;
   font-size: 12px;
-  color: var(--aura-faint);
+  color: var(--benchmark-faint);
 }
 
 .headerActions {

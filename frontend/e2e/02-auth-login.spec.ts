@@ -9,9 +9,9 @@ import { expect, test, type Page } from "@playwright/test";
 test.describe.configure({ mode: "serial" });
 
 const ADMIN = {
-  username: "aura-admin",
-  email: "aura-admin@example.com",
-  password: "aura-admin-password-1",
+  username: "benchmark-admin",
+  email: "benchmark-admin@example.com",
+  password: "benchmark-admin-password-1",
 };
 
 async function ensureAdmin(page: Page): Promise<void> {
@@ -32,26 +32,26 @@ async function ensureAdmin(page: Page): Promise<void> {
 }
 
 async function login(page: Page): Promise<void> {
-  await page.getByLabel("用户名或邮箱").fill(ADMIN.username);
+  await page.getByLabel("邮箱地址").fill(ADMIN.username);
   await page.getByLabel("密码", { exact: true }).fill(ADMIN.password);
-  await page.getByRole("button", { name: "登录" }).click();
+  await page.getByRole("button", { name: "登 录" }).click();
 }
 
 test("an admin exists so login is the entry surface", async ({ page }) => {
   await ensureAdmin(page);
   await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "登录" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "欢迎回来" })).toBeVisible();
 });
 
 test("rejects invalid credentials with an inline error", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("用户名或邮箱").fill(ADMIN.username);
+  await page.getByLabel("邮箱地址").fill(ADMIN.username);
   await page.getByLabel("密码", { exact: true }).fill("wrong-password");
-  await page.getByRole("button", { name: "登录" }).click();
+  await page.getByRole("button", { name: "登 录" }).click();
 
-  // Scope to the inline error panel; Next also renders a route announcer with
-  // role=alert, so filter by the panel's heading text.
-  await expect(page.getByRole("alert").filter({ hasText: "登录未成功" })).toBeVisible();
+  // Scope to the form's status line; Next also renders a route announcer with
+  // role=alert, so filter by the backend error text.
+  await expect(page.getByRole("alert").filter({ hasText: "用户名或密码错误" })).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
 });
 
@@ -66,9 +66,9 @@ test("logs in with username and password, then logs out", async ({ page }) => {
 
 test("logs in with the admin email as the identifier", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("用户名或邮箱").fill(ADMIN.email);
+  await page.getByLabel("邮箱地址").fill(ADMIN.email);
   await page.getByLabel("密码", { exact: true }).fill(ADMIN.password);
-  await page.getByRole("button", { name: "登录" }).click();
+  await page.getByRole("button", { name: "登 录" }).click();
   await expect(page).toHaveURL(/\/evaluation-sets$/);
 });
 
@@ -97,22 +97,18 @@ test("an unsafe returnTo is never honored", async ({ page, context }) => {
   await expect(page).toHaveURL(/\/evaluation-sets$/);
 });
 
-test("login canvas paints a non-empty particle field", async ({ page }) => {
+test("login surface renders the particle artwork backdrop", async ({ page }) => {
   await page.goto("/login");
-  const canvas = page.locator("canvas[aria-hidden='true']");
-  await expect(canvas).toBeVisible();
 
-  const painted = await page.evaluate(() => {
-    const el = document.querySelector("canvas");
-    if (!el) return false;
-    const ctx = el.getContext("2d");
-    if (!ctx || el.width === 0 || el.height === 0) return false;
-    const data = ctx.getImageData(0, 0, el.width, el.height).data;
-    let nonZero = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i] > 0 || data[i + 1] > 0 || data[i + 2] > 0) nonZero += 1;
-    }
-    return nonZero > 1000;
+  // The static artwork mode paints the approved prototype PNG on the auth
+  // surface; assert it is actually applied and served successfully.
+  const backdrop = await page.evaluate(() => {
+    const surface = document.querySelector("main")?.parentElement;
+    return surface ? getComputedStyle(surface).backgroundImage : "";
   });
-  expect(painted).toBe(true);
+  expect(backdrop).toContain("particle-login-bg");
+
+  const image = await page.request.get("/particle-login-bg.png");
+  expect(image.status()).toBe(200);
+  expect(image.headers()["content-type"]).toBe("image/png");
 });

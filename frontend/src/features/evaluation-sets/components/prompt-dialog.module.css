@@ -7,23 +7,23 @@
 .hint {
   margin: 0;
   font-size: 13px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
 }
 
 .copyFailed {
   margin: 0;
   font-size: 13px;
-  color: var(--aura-warning);
+  color: var(--benchmark-warning);
 }
 
 .prompt {
   width: 100%;
   min-height: 220px;
   padding: 12px;
-  border-radius: var(--aura-radius-md);
-  border: 1px solid var(--aura-line-strong);
-  background: var(--aura-surface-elevated);
-  color: var(--aura-text);
+  border-radius: var(--benchmark-radius-md);
+  border: 1px solid var(--benchmark-line-strong);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-text);
   font-size: 13px;
   line-height: 1.6;
   resize: vertical;
@@ -31,12 +31,12 @@
 
 .prompt:focus {
   outline: none;
-  border-color: var(--aura-focus-blue);
-  box-shadow: var(--aura-focus-ring);
+  border-color: var(--benchmark-focus-blue);
+  box-shadow: var(--benchmark-focus-ring);
 }
 
 .notice {
   margin: 0;
   font-size: 14px;
-  color: var(--aura-text);
+  color: var(--benchmark-text);
 }

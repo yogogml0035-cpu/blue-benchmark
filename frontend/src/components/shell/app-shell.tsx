@@ -15,8 +15,8 @@ export interface AppShellProps {
 
 /**
  * Desktop application chrome: a collapsible navigation rail plus a content
- * region. The rail keeps the AURA 232px / 80px collapsed widths and pins the
- * single admin identity with a logout action at the bottom.
+ * region. The rail keeps the BenchMark 232px / 80px collapsed widths and pins
+ * the single admin identity with a logout action at the bottom.
  */
 export function AppShell({ username, onLogout, loggingOut = false, children }: AppShellProps): React.JSX.Element {
   const pathname = usePathname();
@@ -30,12 +30,13 @@ export function AppShell({ username, onLogout, loggingOut = false, children }: A
     <div className={styles.shell}>
       <aside className={[styles.sidebar, collapsed ? styles.collapsed : null].join(" ")}>
         <div className={styles.brandRow}>
-          <span className={styles.wordmark} aria-label="AURA">
-            {"AURA".split("").map((char) => (
-              <span key={char} aria-hidden="true">
-                {char}
-              </span>
-            ))}
+          <span className={styles.wordmark} aria-label="汽车事业 BenchMark 平台">
+            <span className={styles.wordmarkFull} aria-hidden="true">
+              汽车事业 BenchMark 平台
+            </span>
+            <span className={styles.wordmarkMark} aria-hidden="true">
+              汽
+            </span>
           </span>
           <button
             type="button"

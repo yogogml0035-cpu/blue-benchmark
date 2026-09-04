@@ -16,7 +16,7 @@
   margin: 0;
   font-size: 13px;
   font-weight: 700;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
   text-transform: none;
 }
 
@@ -24,7 +24,7 @@
   margin: 0;
   font-size: 14px;
   line-height: 1.7;
-  color: var(--aura-text);
+  color: var(--benchmark-text);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -32,7 +32,7 @@
 .empty {
   margin: 0;
   font-size: 13px;
-  color: var(--aura-faint);
+  color: var(--benchmark-faint);
 }
 
 .subItem {
@@ -40,22 +40,22 @@
   flex-direction: column;
   gap: 6px;
   padding: 12px;
-  border-radius: var(--aura-radius-md);
-  border: 1px solid var(--aura-line);
-  background: var(--aura-surface);
+  border-radius: var(--benchmark-radius-md);
+  border: 1px solid var(--benchmark-line);
+  background: var(--benchmark-surface);
   min-width: 0;
 }
 
 .subLabel {
   margin: 0;
   font-size: 12px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
 }
 
 .feedback {
   margin: 0;
   font-size: 13px;
-  color: var(--aura-warning);
+  color: var(--benchmark-warning);
   line-height: 1.6;
 }
 
@@ -66,7 +66,7 @@
   align-self: flex-start;
   border: none;
   background: transparent;
-  color: var(--aura-text);
+  color: var(--benchmark-text);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -76,7 +76,7 @@
 .memoryNote {
   margin: 0;
   font-size: 12px;
-  color: var(--aura-faint);
+  color: var(--benchmark-faint);
 }
 
 .fieldArea {
@@ -88,17 +88,17 @@
 
 .fieldAreaLabel {
   font-size: 12px;
-  color: var(--aura-muted);
+  color: var(--benchmark-muted);
 }
 
 .textarea {
   width: 100%;
   min-height: 90px;
   padding: 10px 12px;
-  border-radius: var(--aura-radius-md);
-  border: 1px solid var(--aura-line-strong);
-  background: var(--aura-surface-elevated);
-  color: var(--aura-text);
+  border-radius: var(--benchmark-radius-md);
+  border: 1px solid var(--benchmark-line-strong);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-text);
   font-size: 13px;
   line-height: 1.6;
   resize: vertical;
@@ -106,6 +106,6 @@
 
 .textarea:focus {
   outline: none;
-  border-color: var(--aura-focus-blue);
-  box-shadow: var(--aura-focus-ring);
+  border-color: var(--benchmark-focus-blue);
+  box-shadow: var(--benchmark-focus-ring);
 }

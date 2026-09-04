@@ -7,14 +7,14 @@
 | 层 | 何时读取 |
 |---|---|
 | [API 与状态](./api-state/index.md) | 请求、错误处理、401/会话、路由守卫、OpenAPI 边界 |
-| [组件与样式](./components-style/index.md) | UI 组件、AURA 视觉令牌、布局/视口、动效、可访问性 |
+| [组件与样式](./components-style/index.md) | UI 组件、BenchMark 视觉令牌、布局/视口、动效、可访问性 |
 | [质量与测试](./quality-testing/index.md) | 质量门、单元/组件/浏览器测试、E2E 隔离后端 |
 
 ## 开发前检查
 
 - [ ] 已从 `frontend/` 实际代码判断现状，没有把历史前端（已删除的旧页面/旧领域模型）当成现状。
 - [ ] 涉及请求/类型时，确认 `generated.ts` 与 `../backend/openapi.json` 一致（`pnpm check:api`）。
-- [ ] 涉及界面时，确认复用 `src/components/ui|shell` 与 `--aura-*` 令牌。
+- [ ] 涉及界面时，确认复用 `src/components/ui|shell` 与 `--benchmark-*` 令牌。
 - [ ] 涉及会话/跳转时，确认走 `session-context.tsx` 与 `redirect.ts` 的安全校验。
 
 ## 质量检查
