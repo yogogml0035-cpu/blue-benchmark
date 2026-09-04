@@ -96,6 +96,21 @@
   color: var(--benchmark-faint);
 }
 
+/* Compact icon-only delete: quiet by default, danger-red on hover. The
+   .itemHead prefix out-specifies the shared ghost variant's hover rules. */
+.itemHead .deleteButton {
+  width: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  color: var(--benchmark-faint);
+}
+
+.itemHead .deleteButton:hover:not(:disabled) {
+  background: var(--benchmark-danger-tint);
+  color: var(--benchmark-danger);
+}
+
 .criterion {
   width: 100%;
   min-height: 70px;

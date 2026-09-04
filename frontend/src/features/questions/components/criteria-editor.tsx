@@ -93,10 +93,11 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
               {!readOnly ? (
                 <Button
                   variant="ghost"
+                  className={styles.deleteButton}
                   onClick={() => onChange((list) => list.filter((_, j) => j !== i))}
                   aria-label={`删除维度 ${d.id}`}
                 >
-                  <Trash2 size={15} aria-hidden="true" />
+                  <Trash2 size={14} aria-hidden="true" />
                 </Button>
               ) : null}
             </div>

@@ -98,6 +98,12 @@
   gap: 10px;
 }
 
+/* Primary actions span the panel width: a lone button reads as a full-width
+   CTA (mirroring 手工新增维度), and paired buttons split evenly. */
+.actionBar > * {
+  flex: 1 1 0;
+}
+
 .dialogText {
   margin: 0;
   font-size: 14px;
