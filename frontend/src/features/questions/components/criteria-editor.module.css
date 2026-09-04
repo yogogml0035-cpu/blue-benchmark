@@ -106,7 +106,8 @@
   color: var(--benchmark-text);
   font-size: 13px;
   line-height: 1.6;
-  resize: vertical;
+  /* Height is driven by AutoGrowTextarea to show the full criterion. */
+  resize: none;
 }
 
 .criterion:focus {

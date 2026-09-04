@@ -1,6 +1,8 @@
 .shell {
   display: flex;
-  min-height: 100vh;
+  /* Fixed app frame: .content (overflow-y: auto) is the scroll container, so
+     in-page sticky columns keep working while long content scrolls inside. */
+  height: 100vh;
   min-width: 1280px;
   background: var(--benchmark-page);
 }
