@@ -25,7 +25,7 @@
 
 ## 认证面
 
-- 登录/注册共享 `(auth)` 布局：背景是 `ParticleBackdrop`（`src/features/auth/particle-backdrop.tsx`）用 Canvas 2D 实时重建的原型粒子画——四条嵌套尘埃弧带（外→内：电蓝/金黄/青绿/白），几何为按视口比例定位的 Catmull-Rom 弧带，控制点从原原型 PNG 量取。渲染分层：~24k 静态尘埃（确定性种子，resize 时重绘到离屏 canvas）+ ~2.3k 沿弧带流动闪烁的活粒子（sprite + `lighter` 合成）。`prefers-reduced-motion` 只渲染静态单帧；页签隐藏暂停 RAF；DPR 上限 1.5。背景组件是装饰性的（`aria-hidden`），UI 面板依旧只用 `--benchmark-auth-*` 令牌；旧的静态 `particle-login-bg.png` 已删除。
+- 登录/注册共享 `(auth)` 布局：背景是 `ParticleBackdrop`（`src/features/auth/particle-backdrop.tsx`）的两层 Canvas——底图层把参考画作 `public/particle-login-bg.png`（rebrand 任务图像修补版：已抹除烤入的 AURA 字标与登录面板，对应提交 95b8977）按 `100% x 100%` 拉伸绘制（`Image.onload` 后重绘，加载前是 `#061a32` 底色），保证色调、亮度与四条环带（外→内：电蓝/金黄/青绿/白）的形状尺寸与原型 1:1；活粒子层以 ~2k 低 alpha 粒子沿弧带（Catmull-Rom 控制点量自画作）流动闪烁（sprite + `lighter` 合成），强度不得改变画作整体观感。`prefers-reduced-motion` 只渲染静态单帧；页签隐藏暂停 RAF；DPR 上限 1.5。背景组件是装饰性的（`aria-hidden`），UI 面板依旧只用 `--benchmark-auth-*` 令牌；不得退回纯程序化重建画作（2026-09-04 因与参考图不一致被用户否决），也不得换回带烤入字标/面板的 raw 参考图（双面板）。
 - 登录面板由页面自身渲染（`auth-form.module.css` 的 `.panelHero`）：`top: 18.2vh / left: 62.5vw / width: 30.6vw / height: 65.5vh` 固定在背景右侧预留暗区；视口高度 ≤839px 时放宽为内容自适应并内部滚动，保证 1280x720 不裁切。注册面板用 `.panelFlow`（465px、`margin: auto` 居中、超高时随页面滚动）。
 - 认证面的原型精确色板收敛在 `globals.css` 的 `--benchmark-auth-*` 令牌块（页面底色、面板渐变、输入框、渐变按钮、链接、状态色），与工作台令牌并存；组件 CSS 依旧禁止裸色值。
 - 登录表单只有邮箱/密码字段；「记住我」「忘记密码？」没有后端能力（密码由后台 CLI 生效），不得凭原型还原重新引入死控件。E2E 用 `E2E_PORT` 可把整套 Playwright（webServer+baseURL）挪到其他端口，避免与手动预览的 3000 冲突。

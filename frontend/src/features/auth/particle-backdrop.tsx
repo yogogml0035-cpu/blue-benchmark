@@ -4,16 +4,18 @@ import { useEffect, useRef } from "react";
 import styles from "./particle-backdrop.module.css";
 
 /**
- * Living recreation of the approved prototype artwork: four nested ribbons of
- * dust (electric blue / gold / green / white, outermost first) sweep from the
- * lower left up across the top-left of the auth surface, leaving the right
- * third dark for the panel. Ribbons are modeled as Catmull-Rom splines through
- * control points measured from the prototype PNG this component replaces.
+ * Auth backdrop in two layers. The base layer is the approved reference
+ * artwork (`particle-login-bg.png`) stretched across the surface — the same
+ * painting the rebrand task shipped — so tone, brightness, and the shape and
+ * size of the four ribbons are identical to the prototype by construction.
+ * The live layer plays on top: ~2k particles drift and twinkle along those
+ * ribbons (electric blue / gold / green / white, outermost first; Catmull-Rom
+ * control points measured from the artwork) with a low alpha that keeps the
+ * artwork's overall look intact, so the painting reads as a living sky.
  *
- * Rendering is split for performance: a static dust layer (~24k particles,
- * deterministic seed) is painted once per resize onto an offscreen canvas;
- * every frame the visible canvas replays that layer under ~2.3k live
- * particles that drift along their ribbon and twinkle. `prefers-reduced-motion`
+ * Rendering is split for performance: the artwork is painted once per resize
+ * onto an offscreen canvas; every frame the visible canvas replays that layer
+ * under the live particles (`lighter` composite). `prefers-reduced-motion`
  * paints a single static frame and never starts the RAF loop; the loop also
  * pauses while the tab is hidden.
  */
@@ -22,18 +24,20 @@ type Rgb = readonly [number, number, number];
 type Vec2 = { readonly x: number; readonly y: number };
 
 interface BandSpec {
-  /** Fractional control points (x/width, y/height) measured from the prototype. */
+  /** Fractional control points (x/width, y/height) measured from the artwork. */
   points: readonly Vec2[];
-  /** Normal scatter at the crest, as a fraction of canvas height. */
+  /** Normal scatter of live particles, as a fraction of canvas height. */
   sigma: number;
-  /** Dust / live particle counts at the 1918x1064 reference area. */
-  dust: number;
+  /** Live particle count at the 1918x1064 reference area. */
   live: number;
-  /** Color stops along normalized arc length. */
+  /** Color stops along normalized arc length, tinting the live sprites. */
   stops: readonly { at: number; rgb: Rgb }[];
 }
 
-const REFERENCE_AREA = 1918 * 1064;
+const ARTWORK_SRC = "/particle-login-bg.png";
+
+/** Live particle counts scale with canvas area against the artwork's size. */
+const LIVE_AREA_REFERENCE = 1918 * 1064;
 
 const BANDS: readonly BandSpec[] = [
   {
@@ -56,8 +60,7 @@ const BANDS: readonly BandSpec[] = [
       { x: 0.425, y: 0.77 },
     ],
     sigma: 0.034,
-    dust: 7200,
-    live: 640,
+    live: 512,
     stops: [
       { at: 0, rgb: [28, 88, 220] },
       { at: 0.3, rgb: [40, 130, 250] },
@@ -85,8 +88,7 @@ const BANDS: readonly BandSpec[] = [
       { x: 0.3, y: 1.0 },
     ],
     sigma: 0.036,
-    dust: 6400,
-    live: 600,
+    live: 480,
     stops: [
       { at: 0, rgb: [204, 120, 22] },
       { at: 0.32, rgb: [248, 168, 32] },
@@ -96,7 +98,7 @@ const BANDS: readonly BandSpec[] = [
     ],
   },
   {
-    // Green ribbon; the prototype fades it toward the bottom edge.
+    // Green ribbon; the artwork fades it toward the bottom edge.
     points: [
       { x: -0.04, y: 1.0 },
       { x: 0.03, y: 0.84 },
@@ -114,8 +116,7 @@ const BANDS: readonly BandSpec[] = [
       { x: 0.215, y: 1.0 },
     ],
     sigma: 0.038,
-    dust: 4900,
-    live: 520,
+    live: 416,
     stops: [
       { at: 0, rgb: [16, 150, 116] },
       { at: 0.35, rgb: [22, 200, 150] },
@@ -142,8 +143,7 @@ const BANDS: readonly BandSpec[] = [
       { x: 0.27, y: 0.97 },
     ],
     sigma: 0.042,
-    dust: 4700,
-    live: 560,
+    live: 448,
     stops: [
       { at: 0, rgb: [178, 222, 202] },
       { at: 0.35, rgb: [226, 242, 236] },
@@ -154,7 +154,7 @@ const BANDS: readonly BandSpec[] = [
   },
 ];
 
-/** mulberry32 — small, fast, seedable PRNG so every load paints the same sky. */
+/** mulberry32 — small, fast, seedable PRNG so every load plays the same sky. */
 function createRandom(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
@@ -264,25 +264,6 @@ class Ribbon {
     return this.cumulative[best] / this.total;
   }
 
-  /** Number of LUT samples. */
-  sampleCount(): number {
-    return this.count;
-  }
-
-  /** Normalized arc length at LUT sample `index`. */
-  tAt(index: number): number {
-    const i = Math.min(Math.max(index, 0), this.count - 1);
-    return this.cumulative[i] / this.total;
-  }
-
-  /** Add LUT samples [start, end) of the core line to `ctx`'s current path. */
-  pathSegment(ctx: CanvasRenderingContext2D, start: number, end: number): void {
-    ctx.moveTo(this.lut[start * 4], this.lut[start * 4 + 1]);
-    for (let i = start + 1; i < end; i += 1) {
-      ctx.lineTo(this.lut[i * 4], this.lut[i * 4 + 1]);
-    }
-  }
-
   /** Point + unit normal at normalized arc length t, written into `out`. */
   sample(t: number, out: Float32Array): void {
     const target = clamp01(t) * this.total;
@@ -307,14 +288,10 @@ interface PreparedBand {
   ribbon: Ribbon;
   crest: number;
   spec: BandSpec;
-  /** Static dust, stride 8: t, normalOffset, brightness, size, spriteIdx, r, g, b. */
-  dust: Float32Array;
   /** Live particles, stride 8: t, drift, normalOffset, size, phase, twinkle, alpha, bright. */
   live: Float32Array;
   /** Soft glow sprites: [crest-tinted, bright-tinted]. */
   sprites: HTMLCanvasElement[];
-  /** Dust sprites sampled along the arc; index = t bucket. */
-  dustSprites: HTMLCanvasElement[];
 }
 
 function makeSprite(rgb: Rgb, coreAlpha: number): HTMLCanvasElement {
@@ -331,11 +308,6 @@ function makeSprite(rgb: Rgb, coreAlpha: number): HTMLCanvasElement {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 32, 32);
   return sprite;
-}
-
-/** Width of the ribbon (relative to sigma) along t: narrow tails, wide crest. */
-function widthProfile(t: number): number {
-  return 0.45 + 0.55 * Math.pow(Math.sin(Math.PI * clamp01(t)), 0.75);
 }
 
 /** Alpha window: fade the ribbon ends in/out so drifting particles never pop. */
@@ -356,37 +328,9 @@ function buildBands(width: number, height: number, scale: number): PreparedBand[
     const ribbon = new Ribbon(spec.points, width, height);
     const crest = ribbon.crestT();
 
-    // Dust, stride 8: t, normalOffset, brightness, size, spriteIdx, r, g, b.
-    // Three components: a dense thread lying on the line (the luminous core),
-    // a filament hugging it, and a wide faint halo — matching the prototype's
-    // glowing-crest look.
-    const dustCount = Math.round(spec.dust * scale);
-    const dust = new Float32Array(dustCount * 8);
-    for (let i = 0; i < dust.length; i += 8) {
-      const t = random();
-      const roll = random();
-      const isThread = roll < 0.26;
-      const isFilament = !isThread && roll < 0.66;
-      const spreadPx = spec.sigma * height * widthProfile(t);
-      const offset = gaussian(random) * spreadPx * (isThread ? 0.16 : isFilament ? 0.32 : 2.2 + random() * 1.8);
-      const rgb = colorAt(spec.stops, t);
-      const boost = crestBoost(crest, t);
-      const lit = mixRgb(rgb, [235, 245, 255], Math.min(random() * 0.15 + boost * 0.25, 0.5));
-      // Brightness decays with distance from the core line.
-      const proximity = Math.exp(-(offset * offset) / (2 * spreadPx * spreadPx * 0.09));
-      dust[i] = t;
-      dust[i + 1] = offset;
-      dust[i + 2] =
-        (isThread ? 0.7 + random() * 0.5 : isFilament ? 0.7 + random() * 0.5 : 0.16 + random() * 0.24) *
-        (0.35 + 0.65 * proximity) *
-        (1 + 1.2 * boost);
-      dust[i + 3] = isThread ? 0.7 + random() * 0.7 : isFilament ? 0.8 + random() * 0.8 : 0.9 + random() * 1.0;
-      dust[i + 4] = isThread && boost > 0.4 && random() < 0.4 ? 1 : 0;
-      dust[i + 5] = lit[0];
-      dust[i + 6] = lit[1];
-      dust[i + 7] = lit[2];
-    }
-
+    // Live particles, stride 8: t, drift, normalOffset, size, phase, twinkle,
+    // alpha, bright. Base alpha is held low so the moving sparkle never shifts
+    // the artwork's overall tone or brightness.
     const live = new Float32Array(Math.round(spec.live * scale) * 8);
     for (let i = 0; i < live.length; i += 8) {
       live[i] = random(); // t
@@ -395,7 +339,7 @@ function buildBands(width: number, height: number, scale: number): PreparedBand[
       live[i + 3] = 0.9 + random() * 1.5; // core size, CSS px
       live[i + 4] = random() * Math.PI * 2; // twinkle phase
       live[i + 5] = 0.5 + random() * 1.7; // twinkle speed, rad/s
-      live[i + 6] = 0.35 + random() * 0.5; // base alpha
+      live[i + 6] = (0.35 + random() * 0.5) * 0.7; // base alpha
       live[i + 7] = random() < 0.3 ? 1 : 0; // bright sprite variant
     }
 
@@ -403,125 +347,28 @@ function buildBands(width: number, height: number, scale: number): PreparedBand[
       ribbon,
       crest,
       spec,
-      dust,
       live,
       sprites: [
         makeSprite(colorAt(spec.stops, crest), 0.9),
         makeSprite(mixRgb(colorAt(spec.stops, crest), [240, 250, 255], 0.55), 0.95),
       ],
-      dustSprites: [0, 0.25, 0.5, 0.75, 1].map((at) =>
-        makeSprite(colorAt(spec.stops, at), 0.8),
-      ),
     });
   }
   return bands;
 }
 
-/** Soft halo wash behind each crest, like the prototype's glowing core. */
-function paintCrestGlows(
+/** Static base layer: navy ground with the reference artwork stretched over it. */
+function paintBase(
   ctx: CanvasRenderingContext2D,
-  bands: readonly PreparedBand[],
   width: number,
   height: number,
+  artwork: HTMLImageElement | null,
 ): void {
-  const sample = new Float32Array(4);
-  const glows: readonly { rgb: Rgb; radius: number; alpha: number }[] = [
-    { rgb: [30, 120, 235], radius: 0.22, alpha: 0.23 },
-    { rgb: [255, 200, 80], radius: 0.15, alpha: 0.25 },
-    { rgb: [40, 205, 155], radius: 0.12, alpha: 0.17 },
-    { rgb: [235, 246, 255], radius: 0.14, alpha: 0.2 },
-  ];
-  for (let i = 0; i < glows.length; i += 1) {
-    bands[i].ribbon.sample(bands[i].crest, sample);
-    const gradient = ctx.createRadialGradient(sample[0], sample[1], 0, sample[0], sample[1], glows[i].radius * width);
-    gradient.addColorStop(0, rgba(glows[i].rgb, glows[i].alpha));
-    gradient.addColorStop(1, rgba(glows[i].rgb, 0));
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-  }
-}
-
-/** Luminous underwash: a soft stroke following each ribbon so the dust sits
-    on a continuous glowing band instead of floating on bare navy. Tails fade
-    via the same end window as the dust. */
-function paintRibbonWash(ctx: CanvasRenderingContext2D, bands: readonly PreparedBand[], height: number): void {
-  const chunkSize = 6;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  for (const band of bands) {
-    const samples = band.ribbon.sampleCount();
-    for (let start = 0; start < samples - 1; start += chunkSize) {
-      const end = Math.min(start + chunkSize, samples - 1);
-      const tMid = band.ribbon.tAt((start + end) / 2);
-      const boost = crestBoost(band.crest, tMid);
-      const spreadPx = band.spec.sigma * height * widthProfile(tMid);
-      const rgb = colorAt(band.spec.stops, tMid);
-      ctx.beginPath();
-      band.ribbon.pathSegment(ctx, start, end);
-      ctx.strokeStyle = rgba(mixRgb(rgb, [230, 242, 255], boost * 0.2), (0.05 + 0.09 * boost) * endWindow(tMid));
-      ctx.lineWidth = Math.max(spreadPx * (0.55 + 0.35 * widthProfile(tMid)), 6);
-      ctx.shadowBlur = spreadPx * 0.5;
-      ctx.shadowColor = rgba(rgb, 0.25);
-      ctx.stroke();
-    }
-    ctx.shadowBlur = 0;
-    ctx.shadowColor = "transparent";
-  }
-}
-
-/** Ambient star dust across the surface, densest on the artwork side. */
-function paintAmbient(ctx: CanvasRenderingContext2D, width: number, height: number, scale: number): void {
-  const random = createRandom(0xa7b13d);
-  const count = Math.round(750 * scale);
-  for (let i = 0; i < count; i += 1) {
-    const x = random() * width;
-    const y = random() * height;
-    const tint: Rgb = random() < 0.7 ? [140, 172, 214] : [196, 216, 240];
-    ctx.fillStyle = rgba(tint, 0.04 + random() * 0.13);
-    ctx.fillRect(x, y, 0.4 + random() * 0.9, 0.4 + random() * 0.9);
-  }
-}
-
-/** Paint the full static dust layer (background + bands) onto `ctx`. */
-function paintBase(ctx: CanvasRenderingContext2D, width: number, height: number, scale: number): PreparedBand[] {
-  const bands = buildBands(width, height, scale);
-
-  const backdrop = ctx.createLinearGradient(0, 0, width * 0.9, height);
-  backdrop.addColorStop(0, "#0e2d55");
-  backdrop.addColorStop(0.45, "#071d38");
-  backdrop.addColorStop(1, "#030d1c");
-  ctx.fillStyle = backdrop;
+  ctx.fillStyle = "#061a32";
   ctx.fillRect(0, 0, width, height);
-
-  paintCrestGlows(ctx, bands, width, height);
-  paintRibbonWash(ctx, bands, height);
-  paintAmbient(ctx, width, height, scale);
-
-  const sample = new Float32Array(4);
-  const random = createRandom(0x9e3779);
-  for (const band of bands) {
-    for (let i = 0; i < band.dust.length; i += 8) {
-      const t = band.dust[i];
-      band.ribbon.sample(t, sample);
-      const x = sample[0] + sample[2] * band.dust[i + 1];
-      const y = sample[1] + sample[3] * band.dust[i + 1];
-      const alpha =
-        band.dust[i + 2] * (0.7 + 0.6 * random()) * endWindow(t) * (0.62 + 0.38 * crestBoost(band.crest, t));
-      const rgb: Rgb = [band.dust[i + 5], band.dust[i + 6], band.dust[i + 7]];
-      const size = band.dust[i + 3];
-      if (band.dust[i + 4] > 0) {
-        // Crest filament sparkles get the soft sprite so they glow.
-        const bucket = Math.min(4, Math.floor(t * 5));
-        ctx.globalAlpha = Math.min(alpha, 0.9);
-        ctx.drawImage(band.dustSprites[bucket], x - size * 1.9, y - size * 1.9, size * 3.8, size * 3.8);
-      } else {
-        ctx.fillStyle = rgba(rgb, Math.min(alpha, 0.8));
-        ctx.fillRect(x, y, size, size);
-      }
-    }
-  }
-  ctx.globalAlpha = 1;
-  return bands;
+  // background-size: 100% 100%, the accepted rebrand behavior; drawing the
+  // artwork itself is what keeps tone, brightness, and ribbon geometry 1:1.
+  if (artwork) ctx.drawImage(artwork, 0, 0, width, height);
 }
 
 export default function ParticleBackdrop(): React.JSX.Element {
@@ -550,6 +397,14 @@ export default function ParticleBackdrop(): React.JSX.Element {
     let running = false;
     let lastTime = 0;
     let animationTime = 0;
+
+    const artwork = new Image();
+    let artworkReady = false;
+    artwork.onload = () => {
+      artworkReady = true;
+      rebuild();
+    };
+    artwork.src = ARTWORK_SRC;
 
     function drawFrame(time: number): void {
       paint.setTransform(1, 0, 0, 1, 0, 0);
@@ -587,9 +442,10 @@ export default function ParticleBackdrop(): React.JSX.Element {
       view.height = Math.round(height * dpr);
       baseCanvas.width = view.width;
       baseCanvas.height = view.height;
-      const scale = Math.min(Math.max(Math.sqrt((width * height) / REFERENCE_AREA), 0.55), 1.6);
+      const scale = Math.min(Math.max(Math.sqrt((width * height) / LIVE_AREA_REFERENCE), 0.55), 1.6);
       base.setTransform(dpr, 0, 0, dpr, 0, 0);
-      bands = paintBase(base, width, height, scale);
+      paintBase(base, width, height, artworkReady ? artwork : null);
+      bands = buildBands(width, height, scale);
       if (reduceMotion.matches) drawFrame(staticTime);
     }
 
@@ -638,6 +494,7 @@ export default function ParticleBackdrop(): React.JSX.Element {
 
     return () => {
       stop();
+      artwork.onload = null;
       window.clearTimeout(resizeTimer);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
