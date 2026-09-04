@@ -1,0 +1,2 @@
+{"file": ".trellis/tasks/09-04-login-rebrand/research/particle-login.html", "reason": "approved login prototype: exact DOM structure, spacing, colors and static artwork mode to replicate 1:1"}
+{"file": ".trellis/spec/frontend/components-style/components-and-style.md", "reason": "UI token and component conventions; must be updated for the new auth surface and --benchmark- token rename"}
