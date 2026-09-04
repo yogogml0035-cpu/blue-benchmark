@@ -25,6 +25,18 @@
   opacity: 0.55;
 }
 
+/* Children (icon + label) arrive inside one span; keep them on a flex row so
+   icons align with the text box instead of riding the text baseline. */
+.content {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.content svg {
+  flex: none;
+}
+
 .primary {
   background: var(--benchmark-action-purple);
   color: var(--benchmark-on-action);
