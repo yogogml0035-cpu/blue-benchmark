@@ -20,7 +20,6 @@ function LoginForm(): React.JSX.Element {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [revealed, setRevealed] = useState(false);
-  const [remember, setRemember] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [registrationOpen, setRegistrationOpen] = useState<boolean | null>(null);
@@ -119,23 +118,6 @@ function LoginForm(): React.JSX.Element {
               )}
             </button>
           </div>
-        </div>
-
-        <div className={styles.options}>
-          <label className={styles.remember}>
-            <input
-              type="checkbox"
-              name="remember"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-            />
-            记住我
-          </label>
-          {/* Local deployments have no password-recovery channel; the control
-              exists for prototype parity and intentionally goes nowhere. */}
-          <a href="#" onClick={(e) => e.preventDefault()}>
-            忘记密码？
-          </a>
         </div>
 
         <Button type="submit" loading={submitting} className={styles.submit}>

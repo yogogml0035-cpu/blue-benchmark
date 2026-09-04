@@ -25,9 +25,10 @@
 
 ## 认证面
 
-- 登录/注册共享 `(auth)` 布局：背景为已确认的原型静态粒子图（`frontend/public/particle-login-bg.png`，`background-size: 100% 100%` 铺满），左上角固定「汽车事业 BenchMark 平台」字标。旧的确定性粒子画布（`particle-field.tsx`）已删除，不再维护。
-- 登录面板由页面自身渲染（`auth-form.module.css` 的 `.panelHero`）：`top: 18.2vh / left: 62.5vw / width: 30.6vw / height: 65.5vh` 固定在背景图右侧预留区；视口高度 ≤839px 时放宽为内容自适应并内部滚动，保证 1280x720 不裁切。注册面板用 `.panelFlow`（465px、`margin: auto` 居中、超高时随页面滚动）。
+- 登录/注册共享 `(auth)` 布局：背景是 `ParticleBackdrop`（`src/features/auth/particle-backdrop.tsx`）用 Canvas 2D 实时重建的原型粒子画——四条嵌套尘埃弧带（外→内：电蓝/金黄/青绿/白），几何为按视口比例定位的 Catmull-Rom 弧带，控制点从原原型 PNG 量取。渲染分层：~24k 静态尘埃（确定性种子，resize 时重绘到离屏 canvas）+ ~2.3k 沿弧带流动闪烁的活粒子（sprite + `lighter` 合成）。`prefers-reduced-motion` 只渲染静态单帧；页签隐藏暂停 RAF；DPR 上限 1.5。背景组件是装饰性的（`aria-hidden`），UI 面板依旧只用 `--benchmark-auth-*` 令牌；旧的静态 `particle-login-bg.png` 已删除。
+- 登录面板由页面自身渲染（`auth-form.module.css` 的 `.panelHero`）：`top: 18.2vh / left: 62.5vw / width: 30.6vw / height: 65.5vh` 固定在背景右侧预留暗区；视口高度 ≤839px 时放宽为内容自适应并内部滚动，保证 1280x720 不裁切。注册面板用 `.panelFlow`（465px、`margin: auto` 居中、超高时随页面滚动）。
 - 认证面的原型精确色板收敛在 `globals.css` 的 `--benchmark-auth-*` 令牌块（页面底色、面板渐变、输入框、渐变按钮、链接、状态色），与工作台令牌并存；组件 CSS 依旧禁止裸色值。
+- 登录表单只有邮箱/密码字段；「记住我」「忘记密码？」没有后端能力（密码由后台 CLI 生效），不得凭原型还原重新引入死控件。E2E 用 `E2E_PORT` 可把整套 Playwright（webServer+baseURL）挪到其他端口，避免与手动预览的 3000 冲突。
 
 ## 可访问性与动效
 

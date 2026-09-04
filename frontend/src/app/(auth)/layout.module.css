@@ -3,13 +3,10 @@
   min-height: 100vh;
   min-width: 1280px;
   overflow-x: clip;
-  /* Static artwork mode: the approved prototype render is the visual source
-     of truth, so the backdrop is the prototype PNG stretched edge to edge. */
+  /* The particle artwork is painted live by ParticleBackdrop; this token is
+     the same deep navy as the artwork's base so the canvas blends in before
+     its first paint. */
   background-color: var(--benchmark-auth-page);
-  background-image: url("/particle-login-bg.png");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 100% 100%;
   color: var(--benchmark-auth-ink);
   font-family: Inter, "SF Pro Display", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }

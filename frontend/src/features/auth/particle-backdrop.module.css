@@ -1,0 +1,11 @@
+/* Decorative particle artwork canvas; the auth layout stacks the brand and
+   the panels above it. Sized by the absolutely-positioned inset so the bitmap
+   follows the surface on resize. */
+.canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
