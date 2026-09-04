@@ -1,0 +1,29 @@
+{
+  "id": "credential-binding-distribution",
+  "name": "credential-binding-distribution",
+  "title": "凭证绑定与分发机制改造",
+  "description": "让 ai-eval-push 技能以脚本内硬编码占位符承载场景凭证：绑定=直接替换脚本内值，删除环境变量链路；平台侧凭证与场景严格 1:1 并支持明文可见/核对，使技能可打包分发给同事零配置使用。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-09-04",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-04-skill-credential-binding",
+    "09-04-platform-credential-one-to-one"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
