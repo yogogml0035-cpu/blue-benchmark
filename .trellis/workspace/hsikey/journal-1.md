@@ -609,3 +609,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 27: 登录页动态粒子背景与死控件清理
+<!-- trellis-session: v=2 fp=dcd10aadc3b10800 -->
+
+**Date**: 2026-09-04
+**Task**: 登录页动态粒子背景与死控件清理
+**Branch**: `main`
+
+### Summary
+
+删除未实现的记住我/忘记密码（含样式与令牌）；ParticleBackdrop Canvas 2D 实时重建原型星图（四条嵌套粒子弧带，确定性种子静态尘埃+活粒子流动闪烁，reduced-motion 静态帧，页签隐藏暂停）；删除静态 particle-login-bg.png；重写 E2E 背景断言并支持 E2E_PORT。工作区并行会话切换分支，经独立 worktree 隔离完成闭环；E2E 03/04 两个失败经 main 基线比对确认为存量问题。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2c5af3e` | Merge branch 'main' into codex/login-particles |
+
+### Status
+
+[OK] **Completed**

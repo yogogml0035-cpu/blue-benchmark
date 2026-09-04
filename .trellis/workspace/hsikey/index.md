@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 26
+- **Total Sessions**: 27
 - **Last Active**: 2026-09-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~611 | Active |
+| `journal-1.md` | ~633 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 27 | 2026-09-04 | 登录页动态粒子背景与死控件清理 | `2c5af3e` | `main` |
 | 26 | 2026-09-04 | 登录页 1:1 还原与 BenchMark 品牌更名 | `95b8977`, `bb7d1d2` | `main` |
 | 25 | 2026-09-03 | 题目上传 Skill 文档中文化 | `4ba7518`, `f00e0a0` | `main` |
 | 24 | 2026-09-03 | 场景优先题库导航与接口收紧（父任务 + 两子任务串行闭环） | `f50037f`, `64a2726` | `main` |
