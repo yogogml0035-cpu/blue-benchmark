@@ -42,6 +42,7 @@ export function AppShell({ username, onLogout, loggingOut = false, children }: A
             type="button"
             className={styles.collapseToggle}
             aria-label={collapsed ? "展开侧栏" : "折叠侧栏"}
+            title={collapsed ? "展开侧栏" : "折叠侧栏"}
             aria-pressed={collapsed}
             onClick={() => setCollapsed((value) => !value)}
           >
@@ -57,6 +58,7 @@ export function AppShell({ username, onLogout, loggingOut = false, children }: A
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
+                title={collapsed ? item.label : undefined}
                 className={[styles.navItem, active ? styles.navItemActive : null].join(" ")}
               >
                 <item.icon size={18} aria-hidden="true" />

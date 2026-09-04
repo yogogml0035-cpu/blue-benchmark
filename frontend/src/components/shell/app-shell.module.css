@@ -54,11 +54,23 @@
   display: inline;
 }
 
-/* The CJK monogram is wider than the old single latin glyph; tighten the row
-   so the collapse toggle still fits inside the 80px rail. */
+/* Collapsed rail: the CJK monogram becomes a square logo badge and the toggle
+   stacks beneath it, both centered, so the 80px rail reads as an intentional
+   rail instead of a squeezed header row. */
 .collapsed .brandRow {
-  padding: 18px 10px;
-  gap: 4px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 8px 10px;
+}
+
+.collapsed .wordmark {
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--benchmark-radius-md);
+  background: var(--benchmark-action-purple);
+  color: var(--benchmark-on-action);
 }
 
 .collapseToggle {
@@ -72,6 +84,9 @@
   background: transparent;
   color: var(--benchmark-muted);
   cursor: pointer;
+  transition:
+    background-color var(--benchmark-duration-fast) var(--benchmark-ease),
+    color var(--benchmark-duration-fast) var(--benchmark-ease);
 }
 
 .collapseToggle:hover {
@@ -117,6 +132,14 @@
   color: var(--benchmark-action-purple-hover);
 }
 
+/* Collapsed rail: center the icon inside the pill; the label stays available
+   to assistive tech via .navLabelHidden and surfaces as a tooltip instead. */
+.collapsed .navItem {
+  justify-content: center;
+  gap: 0;
+  padding: 11px 0;
+}
+
 /* Visually hidden but still exposed to assistive tech when the rail collapses. */
 .navLabelHidden {
   position: absolute;
@@ -143,8 +166,8 @@
 .collapsed .identity {
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 14px 8px;
+  gap: 8px;
+  padding: 12px 8px 14px;
 }
 
 .avatar {
@@ -183,6 +206,9 @@
   background: transparent;
   color: var(--benchmark-muted);
   cursor: pointer;
+  transition:
+    background-color var(--benchmark-duration-fast) var(--benchmark-ease),
+    color var(--benchmark-duration-fast) var(--benchmark-ease);
 }
 
 .logout:hover:not(:disabled) {
