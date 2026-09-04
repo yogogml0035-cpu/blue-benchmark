@@ -118,12 +118,14 @@ test("replace revokes the old credential; only the newest connects", async ({ pa
   await page.goto("/evaluation-sets");
   await page.getByRole("link", { name: /媒体评测集·改名/ }).first().click();
 
-  // Create the first credential and capture its token.
-  await page.getByRole("button", { name: "创建凭证" }).click();
-  const firstPrompt = await page.getByRole("textbox", { name: "绑定提示词" }).inputValue();
-  const firstToken = firstPrompt.match(/sep_[A-Za-z0-9_-]+/)![0];
-  await page.getByRole("button", { name: "复制提示词" }).click();
-  await page.getByRole("button", { name: "关闭", exact: true }).click();
+  // The scene already holds the credential created in the first test of this
+  // serial chain; reveal it to capture the token that replacement must revoke
+  // (the masked preview contains an ellipsis, so only the plaintext matches a
+  // 40+ char run after the sep_ prefix).
+  await page.getByRole("button", { name: "查看完整凭证" }).click();
+  const revealedOld = page.getByText(/sep_[A-Za-z0-9_-]{40,}/);
+  await expect(revealedOld).toBeVisible();
+  const firstToken = (await revealedOld.textContent())!.match(/sep_[A-Za-z0-9_-]+/)![0];
 
   // Replace: confirm the destructive action.
   await page.getByRole("button", { name: "替换凭证" }).click();

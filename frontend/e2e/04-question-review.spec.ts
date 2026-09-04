@@ -44,10 +44,14 @@ async function seedQuestion(page: Page, request: APIRequestContext, sceneName: s
   await expect(page.getByRole("heading", { name: sceneName })).toBeVisible();
   const sceneId = page.url().split("/").pop()!;
 
-  await page.getByRole("button", { name: "生成上传凭证" }).click();
-  const prompt = await page.getByRole("textbox", { name: "绑定提示词" }).inputValue();
-  const token = prompt.match(/sep_[A-Za-z0-9_-]+/)![0];
+  // 1:1 credential model: one create button, then the one-time handoff prompt
+  // dialog. Copying is not needed here, so closing asks for confirmation.
+  await page.getByRole("button", { name: "创建凭证" }).click();
+  const promptBox = page.getByRole("textbox", { name: "绑定提示词" });
+  await expect(promptBox).toBeVisible();
+  const token = (await promptBox.inputValue()).match(/sep_[A-Za-z0-9_-]+/)![0];
   await page.getByRole("button", { name: "关闭", exact: true }).click();
+  await page.getByRole("button", { name: "不复制并关闭" }).click();
 
   const upload = await request.post("/api/external/question-batches", {
     headers: { Authorization: `Bearer ${token}` },
