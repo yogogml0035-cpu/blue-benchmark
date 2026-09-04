@@ -49,7 +49,7 @@ async function seedQuestion(page: Page, request: APIRequestContext, sceneName: s
   const token = prompt.match(/sep_[A-Za-z0-9_-]+/)![0];
   await page.getByRole("button", { name: "关闭", exact: true }).click();
 
-  const upload = await request.post("http://127.0.0.1:3000/api/external/question-batches", {
+  const upload = await request.post("/api/external/question-batches", {
     headers: { Authorization: `Bearer ${token}` },
     data: {
       schema_version: "1.0",
@@ -81,7 +81,7 @@ async function seedQuestion(page: Page, request: APIRequestContext, sceneName: s
   await expect
     .poll(
       async () => {
-        const r = await request.get(`http://127.0.0.1:3000/api/questions/${questionId}`, {
+        const r = await request.get(`/api/questions/${questionId}`, {
           headers: { Cookie: cookie },
         });
         return r.status() === 200 ? (await r.json()).status : "unknown";

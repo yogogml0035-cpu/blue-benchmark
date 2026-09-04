@@ -133,7 +133,7 @@ test("rotate revokes old credentials; only the newest connects", async ({ page, 
   await page.getByRole("button", { name: "复制提示词" }).click();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
 
-  const conn = "http://127.0.0.1:3000/api/external/connection";
+  const conn = "/api/external/connection";
   // The old credential no longer connects.
   const oldResp = await request.get(conn, { headers: { Authorization: `Bearer ${firstToken}` } });
   expect(oldResp.status()).toBe(401);
@@ -182,7 +182,7 @@ test("a non-empty evaluation set cannot be deleted", async ({ page, context, req
   await page.getByRole("button", { name: "关闭", exact: true }).click();
 
   const sceneId = page.url().split("/").pop();
-  const upload = await request.post("http://127.0.0.1:3000/api/external/question-batches", {
+  const upload = await request.post("/api/external/question-batches", {
     headers: { Authorization: `Bearer ${token}` },
     data: {
       schema_version: "1.0",
@@ -221,14 +221,14 @@ test("a non-empty evaluation set cannot be deleted", async ({ page, context, req
     .context()
     .cookies()
     .then((cookies) => cookies.map((c) => `${c.name}=${c.value}`).join("; "));
-  const del = await request.delete(`http://127.0.0.1:3000/api/scenes/${sceneId}`, {
+  const del = await request.delete(`/api/scenes/${sceneId}`, {
     headers: { Cookie: cookieHeader },
   });
   expect(del.status()).toBe(409);
 });
 
 test("unauthenticated scene access is rejected (401)", async ({ request }) => {
-  const resp = await request.get("http://127.0.0.1:3000/api/scenes");
+  const resp = await request.get("/api/scenes");
   expect(resp.status()).toBe(401);
 });
 
@@ -240,7 +240,7 @@ test("twenty evaluation-set folders render in a stable grid", async ({ page, req
     .cookies()
     .then((cookies) => cookies.map((c) => `${c.name}=${c.value}`).join("; "));
   for (let i = 0; i < 20; i += 1) {
-    const resp = await request.post("http://127.0.0.1:3000/api/scenes", {
+    const resp = await request.post("/api/scenes", {
       headers: { Cookie: cookieHeader },
       data: { name: `批量评测集 ${String(i + 1).padStart(2, "0")}` },
     });
