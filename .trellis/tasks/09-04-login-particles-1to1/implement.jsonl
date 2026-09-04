@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/components-style/components-and-style.md", "reason": "认证面现有约定：ParticleBackdrop 分层、面板几何、令牌约束，本次改动需同步此文档"}
+{"file": ".trellis/tasks/archive/2026-09/09-04-login-rebrand/prd.md", "reason": "参考画作的原始验收口径（100% 拉伸、面板几何、字标）"}
+{"file": ".trellis/tasks/archive/2026-09/09-04-login-particles/prd.md", "reason": "动态粒子层的既有需求（流动+闪烁、reduced-motion、DPR、粒子数上限）"}
