@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 29
+- **Total Sessions**: 30
 - **Last Active**: 2026-09-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~677 | Active |
+| `journal-1.md` | ~700 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 30 | 2026-09-04 | 服务器部署方案定稿与部署文件落地 | `b6f0c63`, `638979b` | `main` |
 | 29 | 2026-09-04 | 平台凭证 1:1 模型与明文可见 | `da1ddea` | `main` |
 | 28 | 2026-09-04 | ai-eval-push 凭证硬编码绑定机制 | `ec5d62d` | `main` |
 | 27 | 2026-09-04 | 登录页动态粒子背景与死控件清理 | `2c5af3e` | `main` |

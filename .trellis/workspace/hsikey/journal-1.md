@@ -675,3 +675,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 30: 服务器部署方案定稿与部署文件落地
+<!-- trellis-session: v=2 fp=f26707224855b758 -->
+
+**Date**: 2026-09-04
+**Task**: 服务器部署方案定稿与部署文件落地
+**Branch**: `main`
+
+### Summary
+
+苏格拉底式访谈定稿部署需求（单用户全公开、裸 IP HTTP 过渡、本地构建→ACR→服务器拉取、2GiB 基线）；重写任务 prd 并产出 design/implement；实现前后端 Dockerfile（standalone/uv 多阶段）、deploy/ 五服务 compose 编排、nginx 登录限流、push-images.sh 发布脚本、backup.sh 每日 OSS 备份与四份初学者手册；本地完成跨架构镜像构建与全链路冒烟（迁移/健康检查/注册登录/Worker 快速失败）；ff 合并回 main 并复验全部质量门。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b6f0c63` | chore(task): 08-30-server-deployment-planning 部署方案定稿（prd/design/implement） |
+| `638979b` | feat(deploy): 单机 Docker Compose 生产部署编排与发布手册 |
+
+### Status
+
+[OK] **Completed**
