@@ -17,30 +17,36 @@ export function MaterialsPanel({ draft, editing, onChange }: MaterialsPanelProps
 
   if (!editing) {
     return (
-      <div className={[styles.materials, styles.view].join(" ")}>
+      <div className={styles.materials}>
         <MaterialBlock label="题目">
-          <p className={styles.text}>{draft.task_prompt}</p>
+          <MaskBox>
+            <p className={styles.text}>{draft.task_prompt}</p>
+          </MaskBox>
         </MaterialBlock>
 
         <MaterialBlock label={`参考文本（${draft.reference_examples.length}）`}>
           {draft.reference_examples.length === 0 ? (
-            <p className={styles.empty}>无参考文本</p>
+            <MaskBox>
+              <p className={styles.empty}>无参考文本</p>
+            </MaskBox>
           ) : (
             draft.reference_examples.map((e, i) => (
-              <div key={e.client_ref_id || i} className={styles.subItem}>
+              <MaskBox key={e.client_ref_id || i}>
                 {e.source_name ? <p className={styles.subLabel}>{e.source_name}</p> : null}
                 <p className={styles.text}>{e.content_text}</p>
-              </div>
+              </MaskBox>
             ))
           )}
         </MaterialBlock>
 
         <MaterialBlock label={`Bad case（${draft.bad_cases.length}）`}>
           {draft.bad_cases.length === 0 ? (
-            <p className={styles.empty}>无 Bad case</p>
+            <MaskBox>
+              <p className={styles.empty}>无 Bad case</p>
+            </MaskBox>
           ) : (
             draft.bad_cases.map((b, i) => (
-              <div key={i} className={styles.subItem}>
+              <MaskBox key={i}>
                 <p className={styles.text}>{b.content_text}</p>
                 {b.teacher_feedback_texts.map((f, j) => (
                   <p key={j} className={styles.feedback}>
@@ -48,16 +54,18 @@ export function MaterialsPanel({ draft, editing, onChange }: MaterialsPanelProps
                   </p>
                 ))}
                 {b.reason_summary ? <p className={styles.subLabel}>原因：{b.reason_summary}</p> : null}
-              </div>
+              </MaskBox>
             ))
           )}
         </MaterialBlock>
 
         <MaterialBlock label="标准答案">
-          <p className={styles.text}>{draft.reference_answer}</p>
+          <MaskBox>
+            <p className={styles.text}>{draft.reference_answer}</p>
+          </MaskBox>
         </MaterialBlock>
 
-        <div className={[styles.materialBlock, memoryOpen ? null : styles.memoryClosed].join(" ")}>
+        <div className={styles.materialBlock}>
           <button
             type="button"
             className={styles.memoryToggle}
@@ -69,18 +77,18 @@ export function MaterialsPanel({ draft, editing, onChange }: MaterialsPanelProps
           </button>
           <p className={styles.memoryNote}>由 Agent 自动筛选，上传时未逐条确认。</p>
           {memoryOpen ? (
-            <div className={styles.blockScroll}>
-              {draft.memory_materials.length === 0 ? (
+            draft.memory_materials.length === 0 ? (
+              <MaskBox>
                 <p className={styles.empty}>无用户记忆</p>
-              ) : (
-                draft.memory_materials.map((m, i) => (
-                  <div key={m.client_ref_id || i} className={styles.subItem}>
-                    {m.source_label ? <p className={styles.subLabel}>{m.source_label}</p> : null}
-                    <p className={styles.text}>{m.content_text}</p>
-                  </div>
-                ))
-              )}
-            </div>
+              </MaskBox>
+            ) : (
+              draft.memory_materials.map((m, i) => (
+                <MaskBox key={m.client_ref_id || i}>
+                  {m.source_label ? <p className={styles.subLabel}>{m.source_label}</p> : null}
+                  <p className={styles.text}>{m.content_text}</p>
+                </MaskBox>
+              ))
+            )
           ) : null}
         </div>
       </div>
@@ -165,9 +173,15 @@ function MaterialBlock({ label, children }: { label: string; children: React.Rea
   return (
     <div className={styles.materialBlock}>
       <h3 className={styles.blockLabel}>{label}</h3>
-      <div className={styles.blockScroll}>{children}</div>
+      {children}
     </div>
   );
+}
+
+/* One fixed-height "mask box" per material item; content scrolls internally
+   when it overflows, so every module reads the same regardless of length. */
+function MaskBox({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return <div className={styles.maskBox}>{children}</div>;
 }
 
 function FieldArea({
