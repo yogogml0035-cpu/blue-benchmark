@@ -53,46 +53,58 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 - 必须运行任务规定的测试与构建检查，并至少执行 `git diff --check`、`make test`，适用时执行 `make build`。
 - 无法确认是否仍被使用的代码不得主观删除；应先追踪调用、数据流和运行入口。确认仍有当前依赖时，必须修正计划或完成依赖迁移后再删除，不得用兼容分支掩盖未完成迁移。
 
-## Git 与 Trellis 任务分支闭环
+## Git 与 Trellis 任务 worktree 闭环
 
 ### 基本原则
 
 - `main` 只保存已经集成并验证通过的状态，不直接承载日常业务开发。
-- 每个可以独立实施、检查和验收的 Trellis 子任务使用一条短生命周期分支，默认命名为 `codex/<task-slug>`，并从已经验证且干净的 `main` 创建。
-- 父任务负责规划、依赖顺序和最终集成，不默认长期占用一条覆盖全部子任务的大分支。只有多个子任务确实不可独立验收且用户明确批准时，才共用分支。
-- 一个子任务必须完成“分支开发 → 质量检查 → 提交 → 合并回 `main` → `main` 复验 → Trellis 收尾 → 删除旧分支”的完整闭环，才能从 `main` 启动下一个子任务。
+- 每个可以独立实施、检查和验收的 Trellis 子任务使用一条短生命周期分支，默认命名为 `codex/<task-slug>`，并配套一个专属 git worktree；分支从已经验证且干净的 `main` 创建，开发全程只在该 worktree 内进行。
+- 多个子任务允许并行开发，各自占用独立 worktree；任何任务都不得改动主工作区的检出分支、其他 worktree 的工作区，或触碰不属于自己的未提交改动。
+- 合并回 `main` 是串行门禁：同一时刻只允许一个任务执行“合并 → `main` 复验”，复验通过后才能合并下一个任务。
+- 一个子任务必须完成“worktree 开发 → 质量检查 → 提交 → 合并回 `main` → `main` 复验 → Trellis 收尾 → 删除 worktree 与分支”的完整闭环。
 
 ### 开始子任务
 
-1. 检查当前分支、工作区、所有 worktree、`main` 与 `origin/main` 的关系；不得覆盖、stash、reset 或混入不属于当前任务的改动。
+1. 运行 `git worktree list`、`git status --short`，确认 `main` 与 `origin/main` 的关系；不得覆盖、stash、reset 或混入不属于当前任务的改动。若发现他人的未提交改动，保持原样，不得用 `git stash -u` 抓取。
 2. 确认当前子任务已获实施批准，并读取对应 PRD、design、implement 和适用 `.trellis/spec/`。
-3. 从最新且验证通过的 `main` 创建任务分支；运行 `task.py start` 后，确保 `task.json.branch` 为任务分支、`base_branch` 为 `main`。
-4. 若 `main` 在开发期间前进，先把最新 `main` 集成回任务分支，解决冲突并重新运行完整质量检查；禁止用 force、hard reset 或跳过验证来制造可合并状态。
+3. 从最新且验证通过的 `main` 创建任务分支，并在主工作区之外创建专属 worktree，例如 `git worktree add ../skill-eval-platform-wt/<task-slug> codex/<task-slug>`；worktree 不得建在主工作区目录内部。
+4. 新 worktree 不含主工作区的 `.env`（gitignored）。运行任何测试前必须先从主工作区复制 `.env` 到新 worktree，否则后端测试会因 `SESSION_COOKIE_SECURE` 默认值批量失败。
+5. 在任务 worktree 内运行 `task.py start`，确保 `task.json.branch` 为任务分支、`base_branch` 为 `main`。
+6. 若 `main` 在开发期间前进，先把最新 `main` 集成回任务分支，解决冲突并在任务 worktree 内重新运行完整质量检查；禁止用 force、hard reset 或跳过验证来制造可合并状态。
 
-### 提交与合并门禁
+### worktree 内开发与提交纪律
 
-- 先在任务分支完成验收标准和 Trellis `trellis-check`。最低验证为 `git diff --check` 与 `make test`；涉及前端、生产构建或跨层运行路径时同时运行 `make build`，任务文档规定的其他命令也必须通过。
+- 所有改动、提交、质量检查都只发生在任务 worktree 内；提交前必须 `git status --short` 复查，防止混入与本任务无关的文件。
 - 按一个稳定职责一个提交批次组织 commit；不得提交已知失败、半完成迁移、未同步生成文件或无回滚边界的改动。
-- 任务分支提交完成且工作区干净后，切换到 `main`。若 `main` 没有分叉，使用 fast-forward 合并；若不能 fast-forward，返回任务分支集成最新 `main`、重新验证后再合并，不得强行改写 `main` 历史。
+- 需要临时起服务或跑 E2E 时，用 `E2E_PORT` 等机制避开其他 worktree 与主工作区占用的端口；不得强杀来源不明的监听进程。
+
+### 合并门禁
+
+- 先在任务 worktree 内完成验收标准和 Trellis `trellis-check`。最低验证为 `git diff --check` 与 `make test`；涉及前端、生产构建或跨层运行路径时同时运行 `make build`，任务文档规定的其他命令也必须通过。
+- 任务 worktree 工作区干净后，在一个临时 merge worktree 中检出 `main` 执行合并（主工作区可能被其他会话占用，不得直接切换它的分支）：例如 `git worktree add ../skill-eval-platform-wt/merge-main main`，在其中执行 `git merge --ff-only codex/<task-slug>`。
+- 若不能 fast-forward，返回任务 worktree 集成最新 `main`、重新跑完整质量检查后再合并，不得强行改写 `main` 历史。
+- `git branch -d` 等依赖 `main` 作为参照的命令必须在 `main` 被检出的 worktree（如上述临时 merge worktree）中执行，否则会按当前 HEAD 误判合并状态。
 - 若远端保护、团队评审或发布流程要求 PR，必须通过 PR 合并，不得绕过保护规则；本地结论不能替代远端合并状态。
 
 ### `main` 合并后复验
 
 合并命令成功不等于任务完成。必须在 `main` 上再次确认：
 
-1. 当前工作区干净，`main` 包含本任务的全部提交，且 `git log main..<task-branch>` 为空。
-2. 在合并后的 `main` 重新运行该任务的完整质量门；至少执行 `git diff --check`、`make test`，适用时执行 `make build`。
+1. `main` 包含本任务的全部提交，且 `git log main..<task-branch>` 为空。
+2. 在合并后的 `main`（临时 merge worktree 即可）重新运行该任务的完整质量门；至少执行 `git diff --check`、`make test`，适用时执行 `make build`。
 3. 若改动需要进入远端，确认本地 `main` 与 `origin/main` 指向同一已验证提交，并确认 PR/远端分支状态与本地结论一致。
 4. 质量门通过后再执行 Trellis 归档和会话记录；不得用 branch test、Preview、文档、HTTP 200 或监听端口冒充 `main` 的合并后验收。
 
-### 删除已合并分支
+### 删除 worktree 与分支
 
-- 只删除刚完成闭环的当前任务分支；不得使用通配符或批量删除其他分支。
-- 删除前必须确认：`main` 复验通过、任务提交已被 `main` 包含、`git log main..<task-branch>` 为空、分支不被任何 worktree 使用、工作区干净，并已识别精确的本地与远端删除目标。
-- 满足门禁后使用安全删除：本地使用 `git branch -d <task-branch>`；远端分支存在且不受保护时，再删除对应远端分支。不得删除 `main`、`origin/main` 或 `origin/HEAD`。
-- 任一门禁失败时保留分支，报告差异、未合并提交或占用它的 worktree，不得强删。
+- 只清理刚完成闭环的当前任务的 worktree 和分支；不得使用通配符或批量删除其他任务的 worktree、分支。
+- 删除前必须确认：`main` 复验通过、任务提交已被 `main` 包含、`git log main..<task-branch>` 为空、该 worktree 工作区干净且没有残留的未推送内容。
+- 执行顺序：先 `git worktree remove <path>`，再在检出 `main` 的 worktree 中 `git branch -d <task-branch>`；远端分支存在且不受保护时，再删除对应远端分支。不得删除 `main`、`origin/main` 或 `origin/HEAD`。
+- 任一门禁失败时保留 worktree 和分支，报告差异、未合并提交或残留改动，不得强删（不得随意使用 `git worktree remove --force` 或 `git branch -D`）。
 
-### 启动下一个子任务
+### 并行任务规则
 
-- 只有上一个子任务已经合并、`main` 复验通过、Trellis 收尾完成且旧任务分支按门禁处理后，才能从当前 `main` 创建下一条子任务分支。
-- 后续所有 M0 子任务都遵循同一闭环；不得把前一个子任务尚未验收的改动带入下一条分支。
+- 多个子任务可以同时处于“开发中”，每个任务独占一个 worktree 与一条分支，互不干扰。
+- 并行任务之间不得互相修改对方 worktree、不得共享未提交改动；若两个任务改动同一片代码产生冲突，后合并者负责在自己的任务分支内集成最新 `main` 并重新验证。
+- 启动新任务只要求存在已验证的 `main` 基线，不要求其他任务已完成；但合并与复验必须逐个串行执行。
+- 不得把某个任务尚未验收的改动带入另一个任务的 worktree 或提交。
