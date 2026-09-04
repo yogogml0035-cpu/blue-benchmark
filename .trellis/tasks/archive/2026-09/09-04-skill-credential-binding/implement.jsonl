@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "跨包收尾检查清单：不引入第二套配置/错误逻辑"}
+{"file": ".trellis/spec/backend/core/quality-and-tests.md", "reason": "Python 测试与质量门约定（pytest、make test）"}

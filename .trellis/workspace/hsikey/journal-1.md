@@ -631,3 +631,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 28: ai-eval-push 凭证硬编码绑定机制
+<!-- trellis-session: v=2 fp=1a4fd81f698af01f -->
+
+**Date**: 2026-09-04
+**Task**: ai-eval-push 凭证硬编码绑定机制
+**Branch**: `main`
+
+### Summary
+
+需求访谈六轮收敛：凭证承载从环境变量改为脚本内硬编码占位符，绑定=直接替换。实施：脚本绑定槽+未绑定保护、SKILL.md 绑定流程、测试 seam 改写、验收 harness 临时副本绑定、前端签发提示词同步；沉淀仓库副本永不绑定的铁律到后端规范。make test 全绿后合入 main 并复验。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ec5d62d` | feat(skill): ai-eval-push 凭证改为脚本内硬编码绑定，移除环境变量链路 |
+
+### Status
+
+[OK] **Completed**

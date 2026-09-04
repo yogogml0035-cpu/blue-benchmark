@@ -181,15 +181,20 @@ def _build_batch(extracted: dict) -> dict:
 
 
 def _run_client(args: list[str], base_url: str, token: str) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    env["AI_EVAL_BASE_URL"] = base_url
-    env["AI_EVAL_ACCESS_TOKEN"] = token
-    env.pop("AI_EVAL_CONFIG", None)
+    # Bind a scratch copy of the skill client and run it; the repository copy
+    # must keep its placeholders, so never bind it in place.
+    source = SKILL_CLIENT.read_text(encoding="utf-8")
+    bound = source.replace('BASE_URL = "***"', f'BASE_URL = "{base_url}"').replace(
+        'ACCESS_TOKEN = "sep_***"', f'ACCESS_TOKEN = "{token}"'
+    )
+    if bound == source:
+        raise RuntimeError("failed to bind scratch copy of the skill client")
+    scratch = Path(tempfile.mkdtemp(prefix="accept-skill-client-")) / "push_eval_cases.py"
+    scratch.write_text(bound, encoding="utf-8")
     return subprocess.run(
-        [sys.executable, str(SKILL_CLIENT), *args],
+        [sys.executable, str(scratch), *args],
         capture_output=True,
         text=True,
-        env=env,
         timeout=120,
     )
 

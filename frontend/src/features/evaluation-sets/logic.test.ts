@@ -91,7 +91,12 @@ describe("buildAgentBindingPrompt", () => {
     expect(prompt).toContain("ai-eval-push");
     expect(prompt).toContain("connection");
     expect(prompt).toContain("不要");
-    expect(prompt).toContain("AI_EVAL_CONFIG");
+    // New binding mechanism: replace in-script placeholders, never commit the
+    // bound deployed copy into a repository.
+    expect(prompt).toContain("BASE_URL");
+    expect(prompt).toContain("ACCESS_TOKEN");
+    expect(prompt).toContain("占位符");
+    expect(prompt).toContain("部署副本");
   });
 
   it("neutralizes newlines/control chars in the scene name", () => {

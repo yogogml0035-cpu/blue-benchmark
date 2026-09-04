@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "检查阶段的跨层一致性核对"}
+{"file": ".trellis/spec/backend/core/index.md", "reason": "质量门：make test、对外输出不得含明文凭证"}

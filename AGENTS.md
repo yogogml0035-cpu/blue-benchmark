@@ -53,24 +53,29 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 - 必须运行任务规定的测试与构建检查，并至少执行 `git diff --check`、`make test`，适用时执行 `make build`。
 - 无法确认是否仍被使用的代码不得主观删除；应先追踪调用、数据流和运行入口。确认仍有当前依赖时，必须修正计划或完成依赖迁移后再删除，不得用兼容分支掩盖未完成迁移。
 
-## Git 与 Trellis 任务 worktree 闭环
+## 所有仓库变更任务的 worktree 闭环
 
 ### 基本原则
 
 - `main` 只保存已经集成并验证通过的状态，不直接承载日常业务开发。
-- 每个可以独立实施、检查和验收的 Trellis 子任务使用一条短生命周期分支，默认命名为 `codex/<task-slug>`，并配套一个专属 git worktree；分支从已经验证且干净的 `main` 创建，开发全程只在该 worktree 内进行。
-- 多个子任务允许并行开发，各自占用独立 worktree；任何任务都不得改动主工作区的检出分支、其他 worktree 的工作区，或触碰不属于自己的未提交改动。
+- 任何会新增、修改、删除、移动或生成仓库文件的任务，都必须先创建独立分支和专属 git worktree，再开始实施。该要求不因任务很小、只改一个文件、只改文档或配置、属于紧急修复、未创建 Trellis 任务、用户要求“直接修改”而豁免。
+- 纯读取、搜索、分析、解释或评审且不会改动仓库文件的任务不需要创建 worktree；一旦准备产生文件变更，必须先停止当前操作并完成 worktree 创建与校验。
+- Trellis 决定是否需要建档、规划和运行 `task.py start`；本节只决定代码和文档在哪里修改。若其他项目内工作流允许“小任务直接做”或“不创建 Trellis 任务”，只能解释为可跳过 Trellis 建档，不得解释为可跳过 worktree。遇到其他表述冲突时，AI 必须按此边界自行判断并优先保证所有仓库变更发生在专属 worktree。
+- 每个变更任务使用一条短生命周期分支，默认命名为 `codex/<task-slug>`，并配套一个专属 git worktree；分支从已经验证且干净的 `main` 创建，实施全程只在该 worktree 内进行。
+- 多个任务允许并行开发，各自占用独立 worktree；任何任务都不得改动主工作区的检出分支、其他 worktree 的工作区，或触碰不属于自己的未提交改动。
 - 合并回 `main` 是串行门禁：同一时刻只允许一个任务执行“合并 → `main` 复验”，复验通过后才能合并下一个任务。
-- 一个子任务必须完成“worktree 开发 → 质量检查 → 提交 → 合并回 `main` → `main` 复验 → Trellis 收尾 → 删除 worktree 与分支”的完整闭环。
+- 一个变更任务必须完成“worktree 开发 → 质量检查 → 提交 → 合并回 `main` → `main` 复验 → 适用时完成 Trellis 收尾 → 删除 worktree 与分支”的完整闭环。
 
-### 开始子任务
+### 首次写入前的强制门禁
 
-1. 运行 `git worktree list`、`git status --short`，确认 `main` 与 `origin/main` 的关系；不得覆盖、stash、reset 或混入不属于当前任务的改动。若发现他人的未提交改动，保持原样，不得用 `git stash -u` 抓取。
-2. 确认当前子任务已获实施批准，并读取对应 PRD、design、implement 和适用 `.trellis/spec/`。
-3. 从最新且验证通过的 `main` 创建任务分支，并在主工作区之外创建专属 worktree，例如 `git worktree add ../skill-eval-platform-wt/<task-slug> codex/<task-slug>`；worktree 不得建在主工作区目录内部。
-4. 新 worktree 不含主工作区的 `.env`（gitignored）。运行任何测试前必须先从主工作区复制 `.env` 到新 worktree，否则后端测试会因 `SESSION_COOKIE_SECURE` 默认值批量失败。
-5. 在任务 worktree 内运行 `task.py start`，确保 `task.json.branch` 为任务分支、`base_branch` 为 `main`。
-6. 若 `main` 在开发期间前进，先把最新 `main` 集成回任务分支，解决冲突并在任务 worktree 内重新运行完整质量检查；禁止用 force、hard reset 或跳过验证来制造可合并状态。
+1. 在执行任何文件写入工具或会改变仓库状态的 shell 命令前，先运行 `git worktree list`、`git status --short`，确认主工作区、所有现有 worktree、`main` 与 `origin/main` 的关系；不得覆盖、stash、reset 或混入不属于当前任务的改动。若发现他人的未提交改动，保持原样，不得用 `git stash -u` 抓取。
+2. 确认当前任务已获实施批准；若任务已有 PRD、design、implement 或适用 `.trellis/spec/`，先读取这些材料。没有 Trellis 任务不构成跳过 worktree 的理由。
+3. 从最新且验证通过的 `main` 创建任务分支，并在主工作区之外创建专属 worktree，例如 `git worktree add ../skill-eval-platform-wt/<task-slug> -b codex/<task-slug> main`；worktree 不得建在主工作区目录内部。禁止在主工作区使用 `git switch -c`、`git checkout -b` 或等价操作直接开始任务。
+4. 创建后必须在专属 worktree 中再次运行 `pwd`、`git branch --show-current`、`git status --short` 和 `git worktree list`，确认当前目录是本任务 worktree、当前分支是本任务分支且未混入其他改动。完成这些校验之前，禁止调用写入、编辑、删除、移动、生成文件的工具或命令。
+5. 新 worktree 不含主工作区的 `.env`（gitignored）。运行任何测试前必须先从主工作区复制 `.env` 到新 worktree，否则后端测试会因 `SESSION_COOKIE_SECURE` 默认值批量失败。
+6. 只有当前任务使用 Trellis 时，才在任务 worktree 内运行 `task.py start`，并确保 `task.json.branch` 为任务分支、`base_branch` 为 `main`；未使用 Trellis 时直接在已校验的 worktree 内实施。
+7. 若发现已经在主工作区或错误 worktree 产生了本任务改动，必须立即停止继续修改，保留现场并报告违规状态；先核对改动归属，再将本任务迁移到专属 worktree。不得以“已经开始”为理由继续在错误位置实施。
+8. 若 `main` 在开发期间前进，先把最新 `main` 集成回任务分支，解决冲突并在任务 worktree 内重新运行完整质量检查；禁止用 force、hard reset 或跳过验证来制造可合并状态。
 
 ### worktree 内开发与提交纪律
 

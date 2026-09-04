@@ -78,7 +78,7 @@ python skills/ai-eval-push/scripts/push_eval_cases.py push --batch-file /path/to
 
 ### 7. 失败处理
 
-- `config-error` — 缺少 `AI_EVAL_BASE_URL` / `AI_EVAL_ACCESS_TOKEN`（或 `AI_EVAL_CONFIG`），或 base URL 不是 http/https；告诉用户需要设置什么。不要打印 token。
+- `config-error` — 凭证未绑定（脚本里的占位符还没被替换），或 `BASE_URL` 不是 http/https；按「绑定凭证」一节向老师要平台地址和凭证后绑定。不要打印 token。
 - `invalid` — 本地校验失败；未上传任何内容。修复脚本指出的题目 / 字段。
 - `upload-failed [BATCH_CASE_INVALID]` — 服务端拒绝了一道或多道题（隐私泄漏、`client_case_id` 重复等）；消息会逐条指明题目与问题。修复这些题目后重跑（载荷已变，会自动推导新的命令 id）。
 - `upload-failed [VALIDATION_ERROR]` — 载荷违反 schema（长度、必填文本为空、多余字段）；修复对应字段后重跑。
@@ -86,19 +86,28 @@ python skills/ai-eval-push/scripts/push_eval_cases.py push --batch-file /path/to
 - `upload-failed [CREDENTIAL_INVALID]` — 凭证无效 / 已吊销；请管理员通过后端管理员 CLI 重新签发 / 轮换。
 - 任何失败都是全成全败：不会创建部分批次。保留本地批次文件，方便老师修改后重试。
 
-## 配置
+## 绑定凭证
 
-脚本从环境变量读取 API base URL 和场景凭证：
+脚本的平台地址与场景凭证由 `scripts/push_eval_cases.py` 顶部的两个硬编码常量承载：
 
-- `AI_EVAL_BASE_URL`（例如 `http://127.0.0.1:8000`）
-- `AI_EVAL_ACCESS_TOKEN`（场景凭证，`sep_...`）
-- 或 `AI_EVAL_CONFIG` — 一个 JSON 文件的绝对路径，内含 `base_url` 与 `access_token`，放在**仓库之外**。
+- `BASE_URL`（平台地址，例如 `http://127.0.0.1:8000`），出厂值为 `"***"`
+- `ACCESS_TOKEN`（场景凭证，`sep_...`），出厂值为 `"sep_***"`
 
-绝不把 token 写进仓库、批次文件、日志或你的回复。先用以下命令确认绑定关系：
+当老师发送平台地址与凭证并要求绑定时，直接把脚本里这两个占位符替换为真实值（不读取、不设置任何环境变量，也不存在外部配置文件）。绑定后运行以下命令验证：
 
 ```bash
 python skills/ai-eval-push/scripts/push_eval_cases.py connection
 ```
+
+如果占位符还没被替换，任何命令都会报 `config-error`；此时向老师索取平台地址和凭证再绑定。绑定完成后 `connection` 会显示绑定的场景；绝不在任何输出里回显 token。
+
+三条铁律：
+
+- 仓库中的技能脚本永远保持占位符状态；绝不把绑定后的脚本提交进仓库（仓库会推送到远端，凭证一旦入库无法从历史中抹掉）。
+- 绑定只发生在部署副本（例如 `~/.agents/skills/ai-eval-push/`）和对外分发的打包副本上。
+- 绝不把 token 写进批次文件、日志或你的回复。
+
+分发：分发者绑定部署副本后打包发出，接收者零配置即用；接收者若要用自己的新场景，自建场景后用同样方式替换这两个常量。
 
 ## 合同参考
 

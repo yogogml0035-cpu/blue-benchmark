@@ -4,7 +4,7 @@
 This script is the mechanical half of the ``ai-eval-push`` skill. The agent
 organizes candidate questions and teacher confirmation; this script only:
 
-  * reads the API base URL and scene credential from the environment,
+  * reads the API base URL and scene credential from its binding slots below,
   * strictly validates a batch payload against the six-material contract,
   * applies the same privacy backstop the server enforces,
   * generates or reuses a stable ``command_id``,
@@ -21,11 +21,11 @@ Commands:
                               deterministically from the payload).
             [--dry-run]       Validate and show the derived command id only.
 
-Environment:
-  AI_EVAL_BASE_URL      e.g. http://127.0.0.1:8000
-  AI_EVAL_ACCESS_TOKEN  scene credential token (sep_...)
-  AI_EVAL_CONFIG        optional path to a JSON file {"base_url", "access_token"}
-                        kept OUTSIDE the repository.
+Binding:
+  BASE_URL and ACCESS_TOKEN at the top of this file ship as placeholders
+  ("***"). Binding replaces them with the real platform address and the scene
+  credential token. The repository copy must keep the placeholders; only
+  deployed copies that are distributed out of band ever get bound.
 
 Exit codes: 0 success, 1 validation/upload failure, 2 usage/config error.
 """
@@ -35,7 +35,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import sys
 import unicodedata
@@ -43,6 +42,20 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
+
+# ---------------------------------------------------------------------------
+# Scene binding slots.
+#
+# Credential binding replaces these two placeholders with the real platform
+# address and the scene credential token. The repository copy of this skill
+# must keep the placeholders; only deployed copies distributed out of band
+# get bound. Never commit real values here.
+# ---------------------------------------------------------------------------
+
+BASE_URL = "***"
+ACCESS_TOKEN = "sep_***"
+
+_PLACEHOLDER = "***"
 
 SCHEMA_VERSION = "1.0"
 MAX_CASES = 50
@@ -341,32 +354,16 @@ def derive_command_id(batch: dict) -> str:
 
 
 def load_config() -> tuple[str, str]:
-    base_url = os.environ.get("AI_EVAL_BASE_URL", "").strip()
-    token = os.environ.get("AI_EVAL_ACCESS_TOKEN", "").strip()
-    config_path = os.environ.get("AI_EVAL_CONFIG", "").strip()
-    if config_path and (not base_url or not token):
-        path = os.path.expanduser(config_path)
-        if not os.path.isabs(path):
-            _usage_error("AI_EVAL_CONFIG must be an absolute path outside the repository")
-        try:
-            with open(path, "r", encoding="utf-8") as handle:
-                data = json.load(handle)
-        except (OSError, json.JSONDecodeError) as exc:
-            _usage_error(f"cannot read AI_EVAL_CONFIG: {type(exc).__name__}")
-        if not isinstance(data, dict):
-            _usage_error("AI_EVAL_CONFIG must be a JSON object with base_url and access_token")
-        file_url = data.get("base_url")
-        file_token = data.get("access_token")
-        base_url = base_url or (str(file_url).strip() if isinstance(file_url, str) else "")
-        token = token or (str(file_token).strip() if isinstance(file_token, str) else "")
-    if not base_url:
-        _usage_error("AI_EVAL_BASE_URL is not set (e.g. http://127.0.0.1:8000)")
-    if not token:
-        _usage_error("AI_EVAL_ACCESS_TOKEN is not set (scene credential token)")
-    scheme = urllib.parse.urlsplit(base_url).scheme
+    if _PLACEHOLDER in BASE_URL or _PLACEHOLDER in ACCESS_TOKEN:
+        _usage_error(
+            "credential not bound: replace BASE_URL and ACCESS_TOKEN at the top "
+            "of scripts/push_eval_cases.py with the real platform address and "
+            "scene credential (ask your agent to bind them)"
+        )
+    scheme = urllib.parse.urlsplit(BASE_URL).scheme
     if scheme not in ("http", "https"):
-        _usage_error(f"AI_EVAL_BASE_URL must use http or https (got '{scheme or 'no scheme'}')")
-    return base_url.rstrip("/"), token
+        _usage_error(f"BASE_URL must use http or https (got '{scheme or 'no scheme'}')")
+    return BASE_URL.rstrip("/"), ACCESS_TOKEN
 
 
 def _usage_error(message: str) -> None:

@@ -146,9 +146,8 @@ def server(monkeypatch):
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     base_url = f"http://127.0.0.1:{httpd.server_address[1]}"
-    monkeypatch.setenv("AI_EVAL_BASE_URL", base_url)
-    monkeypatch.setenv("AI_EVAL_ACCESS_TOKEN", FakePlatform.token)
-    monkeypatch.delenv("AI_EVAL_CONFIG", raising=False)
+    monkeypatch.setattr(pec, "BASE_URL", base_url)
+    monkeypatch.setattr(pec, "ACCESS_TOKEN", FakePlatform.token)
     yield base_url
     httpd.shutdown()
     httpd.server_close()
@@ -290,14 +289,23 @@ def test_connection_success(server, capsys):
 
 
 def test_connection_invalid_token(server, monkeypatch, capsys):
-    monkeypatch.setenv("AI_EVAL_ACCESS_TOKEN", "sep_wrong")
+    monkeypatch.setattr(pec, "ACCESS_TOKEN", "sep_wrong")
     assert pec.main(["connection"]) == 1
     assert "CREDENTIAL_INVALID" in capsys.readouterr().err
 
 
-def test_missing_config_errors(monkeypatch):
-    monkeypatch.delenv("AI_EVAL_BASE_URL", raising=False)
-    monkeypatch.delenv("AI_EVAL_ACCESS_TOKEN", raising=False)
+def test_unbound_config_errors(monkeypatch):
+    monkeypatch.setattr(pec, "BASE_URL", pec._PLACEHOLDER)
+    monkeypatch.setattr(pec, "ACCESS_TOKEN", "sep_" + pec._PLACEHOLDER)
+    with pytest.raises(SystemExit) as exc:
+        pec.load_config()
+    assert exc.value.code == 2
+
+
+def test_partially_bound_config_errors(monkeypatch):
+    # Binding must replace BOTH slots; one remaining placeholder is unbound.
+    monkeypatch.setattr(pec, "BASE_URL", "http://127.0.0.1:8000")
+    monkeypatch.setattr(pec, "ACCESS_TOKEN", "sep_" + pec._PLACEHOLDER)
     with pytest.raises(SystemExit) as exc:
         pec.load_config()
     assert exc.value.code == 2
@@ -398,8 +406,8 @@ def test_blank_reason_summary_rejected():
 
 
 def test_non_http_scheme_rejected(monkeypatch):
-    monkeypatch.setenv("AI_EVAL_BASE_URL", "file:///tmp/whatever")
-    monkeypatch.setenv("AI_EVAL_ACCESS_TOKEN", "sep_x")
+    monkeypatch.setattr(pec, "BASE_URL", "file:///tmp/whatever")
+    monkeypatch.setattr(pec, "ACCESS_TOKEN", "sep_x")
     with pytest.raises(SystemExit) as exc:
         pec.load_config()
     assert exc.value.code == 2
@@ -463,8 +471,8 @@ def test_connection_only_prints_whitelisted_fields(server, monkeypatch, capsys):
         }
 
     monkeypatch.setattr(m, "http_request", fake_http)
-    monkeypatch.setenv("AI_EVAL_BASE_URL", "http://x")
-    monkeypatch.setenv("AI_EVAL_ACCESS_TOKEN", "sep_real")
+    monkeypatch.setattr(m, "BASE_URL", "http://x")
+    monkeypatch.setattr(m, "ACCESS_TOKEN", "sep_real")
     assert m.main(["connection"]) == 0
     out = capsys.readouterr().out
     assert "secret_extra" not in out
