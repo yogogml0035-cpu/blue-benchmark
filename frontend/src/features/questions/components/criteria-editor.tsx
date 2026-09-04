@@ -1,9 +1,35 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
+import { useLayoutEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { MAX_PASS_SCORE, newManualDraft, type CriterionDraft } from "../criterion-draft";
 import styles from "./criteria-editor.module.css";
+
+/**
+ * Textarea that always grows to fit its full content, so a criterion is never
+ * hidden behind a fixed-height scroll box. Re-measures on value changes and on
+ * element resizes (e.g. the sidebar width transition re-wrapping text).
+ */
+function AutoGrowTextarea({ value, ...rest }: React.TextareaHTMLAttributes<HTMLTextAreaElement>): React.JSX.Element {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const grow = () => {
+      el.style.height = "auto";
+      const border = el.offsetHeight - el.clientHeight;
+      el.style.height = `${el.scrollHeight + border}px`;
+    };
+    grow();
+    const observer = new ResizeObserver(grow);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [value]);
+
+  return <textarea ref={ref} value={value} {...rest} />;
+}
 
 export interface CriteriaEditorProps {
   drafts: CriterionDraft[];
@@ -74,10 +100,9 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
                 </Button>
               ) : null}
             </div>
-            <textarea
+            <AutoGrowTextarea
               className={styles.criterion}
               value={d.criterion}
-              rows={3}
               readOnly={readOnly || !d.selected}
               placeholder="完整、可执行的评分标准…"
               onChange={(e) => patchAt(i, { criterion: e.target.value })}

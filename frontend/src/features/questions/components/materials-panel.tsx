@@ -17,14 +17,14 @@ export function MaterialsPanel({ draft, editing, onChange }: MaterialsPanelProps
 
   if (!editing) {
     return (
-      <div className={styles.materials}>
+      <div className={[styles.materials, styles.view].join(" ")}>
         <MaterialBlock label="题目">
           <p className={styles.text}>{draft.task_prompt}</p>
         </MaterialBlock>
 
-        <MaterialBlock label={`参考样例（${draft.reference_examples.length}）`}>
+        <MaterialBlock label={`参考文本（${draft.reference_examples.length}）`}>
           {draft.reference_examples.length === 0 ? (
-            <p className={styles.empty}>无参考样例</p>
+            <p className={styles.empty}>无参考文本</p>
           ) : (
             draft.reference_examples.map((e, i) => (
               <div key={e.client_ref_id || i} className={styles.subItem}>
@@ -57,7 +57,7 @@ export function MaterialsPanel({ draft, editing, onChange }: MaterialsPanelProps
           <p className={styles.text}>{draft.reference_answer}</p>
         </MaterialBlock>
 
-        <div className={styles.materialBlock}>
+        <div className={[styles.materialBlock, memoryOpen ? null : styles.memoryClosed].join(" ")}>
           <button
             type="button"
             className={styles.memoryToggle}
@@ -65,20 +65,22 @@ export function MaterialsPanel({ draft, editing, onChange }: MaterialsPanelProps
             aria-expanded={memoryOpen}
           >
             {memoryOpen ? <ChevronDown size={15} aria-hidden="true" /> : <ChevronRight size={15} aria-hidden="true" />}
-            记忆材料（{draft.memory_materials.length}）
+            用户记忆（{draft.memory_materials.length}）
           </button>
           <p className={styles.memoryNote}>由 Agent 自动筛选，上传时未逐条确认。</p>
           {memoryOpen ? (
-            draft.memory_materials.length === 0 ? (
-              <p className={styles.empty}>无记忆材料</p>
-            ) : (
-              draft.memory_materials.map((m, i) => (
-                <div key={m.client_ref_id || i} className={styles.subItem}>
-                  {m.source_label ? <p className={styles.subLabel}>{m.source_label}</p> : null}
-                  <p className={styles.text}>{m.content_text}</p>
-                </div>
-              ))
-            )
+            <div className={styles.blockScroll}>
+              {draft.memory_materials.length === 0 ? (
+                <p className={styles.empty}>无用户记忆</p>
+              ) : (
+                draft.memory_materials.map((m, i) => (
+                  <div key={m.client_ref_id || i} className={styles.subItem}>
+                    {m.source_label ? <p className={styles.subLabel}>{m.source_label}</p> : null}
+                    <p className={styles.text}>{m.content_text}</p>
+                  </div>
+                ))
+              )}
+            </div>
           ) : null}
         </div>
       </div>
@@ -104,7 +106,7 @@ export function MaterialsPanel({ draft, editing, onChange }: MaterialsPanelProps
         onChange={(v) => onChange((d) => ({ ...d, reference_answer: v }))}
       />
 
-      <MaterialBlock label={`参考样例（${draft.reference_examples.length}）`}>
+      <MaterialBlock label={`参考文本（${draft.reference_examples.length}）`}>
         {draft.reference_examples.map((e, i) => (
           <FieldArea
             key={e.client_ref_id || i}
@@ -138,7 +140,7 @@ export function MaterialsPanel({ draft, editing, onChange }: MaterialsPanelProps
         ))}
       </MaterialBlock>
 
-      <MaterialBlock label={`记忆材料（${draft.memory_materials.length}）`}>
+      <MaterialBlock label={`用户记忆（${draft.memory_materials.length}）`}>
         {draft.memory_materials.map((m, i) => (
           <FieldArea
             key={m.client_ref_id || i}
@@ -163,7 +165,7 @@ function MaterialBlock({ label, children }: { label: string; children: React.Rea
   return (
     <div className={styles.materialBlock}>
       <h3 className={styles.blockLabel}>{label}</h3>
-      {children}
+      <div className={styles.blockScroll}>{children}</div>
     </div>
   );
 }

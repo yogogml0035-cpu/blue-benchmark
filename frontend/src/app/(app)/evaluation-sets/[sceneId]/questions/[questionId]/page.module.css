@@ -66,9 +66,9 @@
   min-width: 0;
 }
 
+/* Not sticky on purpose: criteria render at full content height, so the column
+   can exceed the viewport and must scroll naturally with the page. */
 .reviewInner {
-  position: sticky;
-  top: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -119,10 +119,4 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-@media (max-width: 1279px) {
-  .columns {
-    grid-template-columns: 1fr;
-  }
 }
