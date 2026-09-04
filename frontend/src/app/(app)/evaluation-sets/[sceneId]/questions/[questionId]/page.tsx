@@ -306,6 +306,18 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
         <div className={styles.headerMain}>
           <h1 className={styles.title}>{detail.title}</h1>
           <StatusBadge tone={STATUS_TONE[detail.status]}>{STATUS_LABEL[detail.status]}</StatusBadge>
+          {!published && !generating ? (
+            <Button
+              variant="danger"
+              onClick={() => {
+                setDeleteTitle("");
+                setDeleteOpen(true);
+              }}
+            >
+              <Trash2 size={15} aria-hidden="true" />
+              删除题目
+            </Button>
+          ) : null}
         </div>
         {!editingMaterials && !published ? (
           <Button variant="secondary" onClick={startEditMaterials}>
@@ -442,25 +454,6 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
                 </div>
               </>
             ) : null}
-
-            <div className={styles.dangerZone}>
-              {!published && !generating ? (
-                <Button
-                  variant="danger"
-                  onClick={() => {
-                    setDeleteTitle("");
-                    setDeleteOpen(true);
-                  }}
-                >
-                  <Trash2 size={15} aria-hidden="true" />
-                  删除题目
-                </Button>
-              ) : (
-                <p className={styles.deleteNote}>
-                  {published ? "已发布题目需先重新打开审改才能删除。" : "生成中的题目不能删除。"}
-                </p>
-              )}
-            </div>
           </div>
         </div>
       </div>

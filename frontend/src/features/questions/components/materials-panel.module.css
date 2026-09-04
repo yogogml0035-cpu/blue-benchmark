@@ -5,43 +5,26 @@
   min-width: 0;
 }
 
-.blockScroll {
+.materialBlock {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
 }
 
-/* View mode pins the panel inside the viewport: every material block takes a
-   fixed slice of the column height and scrolls internally once its content
-   overflows, so the page itself stops growing with material length. */
-.view {
-  position: sticky;
-  top: 16px;
-  height: calc(100vh - 32px);
-}
-
-.view .materialBlock {
-  flex: 1 1 0;
-  min-height: 0;
-}
-
-/* Collapsed 用户记忆 only shows its toggle row; it keeps its natural height
-   until expanded, then joins the equal-height distribution. */
-.view .memoryClosed {
-  flex: 0 0 auto;
-}
-
-.view .blockScroll {
-  flex: 1 1 0;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.materialBlock {
+/* Every module renders one fixed-height mask box per material item; the box
+   scrolls internally when its content overflows, so all modules share the
+   same visual rhythm no matter how many items they hold. */
+.maskBox {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  height: 280px;
+  padding: 12px;
+  border-radius: var(--benchmark-radius-md);
+  border: 1px solid var(--benchmark-line);
+  background: var(--benchmark-surface);
+  overflow-y: auto;
   min-width: 0;
 }
 
@@ -66,17 +49,6 @@
   margin: 0;
   font-size: 13px;
   color: var(--benchmark-faint);
-}
-
-.subItem {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  border-radius: var(--benchmark-radius-md);
-  border: 1px solid var(--benchmark-line);
-  background: var(--benchmark-surface);
-  min-width: 0;
 }
 
 .subLabel {
