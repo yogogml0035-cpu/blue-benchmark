@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/core/index.md", "reason": "后端结构/合同/错误/质量总入口"}
+{"file": ".trellis/spec/backend/core/stub-state-and-contracts.md", "reason": "凭证持久化与场景归属合同"}
+{"file": ".trellis/spec/backend/core/errors-and-api-responses.md", "reason": "新增 404/409 错误分支与响应合同"}
+{"file": ".trellis/spec/frontend/api-state/index.md", "reason": "前端 api.ts 单一入口与状态派生"}
+{"file": ".trellis/spec/frontend/components-style/index.md", "reason": "凭证面板组件与样式约定"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "API 字段/状态/错误跨层同步点"}

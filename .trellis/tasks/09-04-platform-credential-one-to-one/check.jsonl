@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/core/quality-and-tests.md", "reason": "后端质量门与测试约定"}
+{"file": ".trellis/spec/frontend/quality-testing/index.md", "reason": "前端测试与质量检查"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "收尾跨层一致性核对"}
