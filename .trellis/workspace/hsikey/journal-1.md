@@ -586,3 +586,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 26: 登录页 1:1 还原与 BenchMark 品牌更名
+<!-- trellis-session: v=2 fp=6b3333fa86420e0f -->
+
+**Date**: 2026-09-04
+**Task**: 登录页 1:1 还原与 BenchMark 品牌更名
+**Branch**: `main`
+
+### Summary
+
+按用户原型（静态粒子画作模式）1:1 还原登录页：修补背景 PNG 抹除烤入的 AURA 字标与旧面板，重写 (auth) 布局/登录页/注册页面板与表单样式；全项目 AURA 更名汽车事业 BenchMark 平台（--aura-*→--benchmark-* 令牌、字标、标题、注释、测试 fixture），删除 particle-field 画布旧方案；侧栏折叠态溢出截断一并修复。验证：typecheck/vitest 71/check:api/make build/make test、Playwright e2e 41/41、judge 视觉验收 7/7（两轮）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `95b8977` | feat(auth): 登录页按原型 1:1 还原并更名汽车事业 BenchMark 平台 |
+| `bb7d1d2` | chore(task): login-rebrand 任务记录（PRD/实施证据/上下文清单/参考原型归档） |
+
+### Status
+
+[OK] **Completed**
