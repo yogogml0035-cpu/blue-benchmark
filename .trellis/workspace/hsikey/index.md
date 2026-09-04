@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
+- **Total Sessions**: 29
 - **Last Active**: 2026-09-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~655 | Active |
+| `journal-1.md` | ~677 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 29 | 2026-09-04 | 平台凭证 1:1 模型与明文可见 | `da1ddea` | `main` |
 | 28 | 2026-09-04 | ai-eval-push 凭证硬编码绑定机制 | `ec5d62d` | `main` |
 | 27 | 2026-09-04 | 登录页动态粒子背景与死控件清理 | `2c5af3e` | `main` |
 | 26 | 2026-09-04 | 登录页 1:1 还原与 BenchMark 品牌更名 | `95b8977`, `bb7d1d2` | `main` |

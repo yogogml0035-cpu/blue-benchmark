@@ -653,3 +653,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 29: 平台凭证 1:1 模型与明文可见
+<!-- trellis-session: v=2 fp=7eeaf4a81603fdc7 -->
+
+**Date**: 2026-09-04
+**Task**: 平台凭证 1:1 模型与明文可见
+**Branch**: `main`
+
+### Summary
+
+凭证与场景严格 1:1：创建/轮换合并为单一动作（create_or_replace_credential），删除多凭证签发旧语义与 /credentials/rotation 端点；数据库持久化明文（撤销/替换即清空），场景页掩码+小眼睛查看，迁移 0020 存量归一（保留最新、其余作废 model-migration），admin CLI 合并为 credentials replace；BUSINESS_SCHEMA_HEAD 同步。开发期间 main 前进，先集成回任务分支重跑全部门禁后 fast-forward 合入。后端 84、前端 70、make build 全绿。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `da1ddea` | feat(scenes): 凭证 1:1 模型与明文查看，合并创建/轮换为单一动作 |
+
+### Status
+
+[OK] **Completed**
