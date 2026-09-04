@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/components-style/index.md", "reason": "认证面布局/令牌/动效规范（含静态 PNG 背景的现状描述，本任务要改掉）"}
+{"file": ".trellis/spec/frontend/components-style/components-and-style.md", "reason": "组件样式细则：令牌约束、reduced-motion、视口基线"}
+{"file": ".trellis/tasks/09-04-login-particles/research/particle-reference.md", "reason": "原型星图构图分析与动态粒子实现方案"}
