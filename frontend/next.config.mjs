@@ -1,5 +1,5 @@
 /**
- * Next.js configuration for the local admin console.
+ * Next.js configuration for the admin console.
  *
  * The browser only talks to the same-origin `/api` prefix; every request is
  * rewritten to the FastAPI backend so the HttpOnly session cookie stays
@@ -28,6 +28,9 @@ const BACKEND_URL = resolveBackendUrl(process.env.BACKEND_URL);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Self-contained production output (.next/standalone) so the Docker image
+  // can run `node server.js` without node_modules.
+  output: "standalone",
   // Do not advertise the framework.
   poweredByHeader: false,
   // Defense-in-depth headers applied to every page.

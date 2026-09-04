@@ -193,10 +193,23 @@ make frontend-generate-api   # 重新生成前端类型
   make accept-web    # 输出 M0_WEB_ACCEPTANCE=PASS
   ```
 
+## 服务器部署
+
+`deploy/` 目录包含单机 Docker Compose 生产部署的全部材料与手册：本地构建镜像推送到阿里云容器镜像服务（ACR），服务器拉取运行，全程服务器不接触源代码。
+
+- `deploy/README.md` — 运维总入口：架构一页图、发版、回滚、日常观察
+- `deploy/acr-guide.md` — ACR 开通与镜像推送（初学者版）
+- `deploy/server-setup.md` — 服务器初始化与首次部署（含安全组、swap、备份）
+- `deploy/restore.md` — 数据恢复与每月恢复演练
+- `deploy/compose.yaml` / `deploy/nginx/nginx.conf` / `deploy/.env.production.example` — 编排、反向代理与环境变量模板
+
+发版入口：`REGISTRY=<ACR地址> deploy/push-images.sh`（质量门 + 跨架构构建 + 推送）。
+
 ## 目录边界
 
 - `backend/`：FastAPI 应用、迁移、脚本、测试。
 - `frontend/`：Next.js 管理端（App Router + TypeScript + CSS Modules），类型由 `openapi.json` 生成；Vitest + Playwright 测试。
 - `skills/ai-eval-push/`：题目上传 Skill（`SKILL.md` + 标准库客户端脚本 + API 合同 reference + 隔离测试）。
+- `deploy/`：生产部署编排、发布/备份脚本与操作手册。
 
-平台仅面向当前本机：单管理员、单生产 Worker、本地数据库；不含公网部署、HTTPS、Docker/CI/CD、移动端。
+平台面向单管理员、恰好一个生产 Worker；生产部署为单机 Docker Compose + 裸 IP HTTP（域名与 HTTPS 为已规划的后续步骤），不含 Kubernetes、多实例扩容、CI/CD 自动发布与移动端。
