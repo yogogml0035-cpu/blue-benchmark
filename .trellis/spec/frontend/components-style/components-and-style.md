@@ -6,13 +6,13 @@
 
 - 全部语义色来自 `src/app/globals.css` 的 `--benchmark-*` 变量：基础（page/nav/surface/text/muted/action/focus/success/danger）、文件夹多色板、动作色上的前景 `on-action`、反馈色的半透明 `*-tint`/`*-line` 派生令牌，以及 `overlay`/`surface-translucent`。组件 CSS 只引用变量，禁止写裸色值。
 - 深色工作台：页面背景 `--benchmark-page`，表面 `--benchmark-surface`/`-elevated`/`-overlay`，低对比描边 `--benchmark-line`。
-- 正文 `letter-spacing: 0`；品牌字标（auth 面、侧栏）用 `letter-spacing` 表达宽字距；侧栏折叠时以首字 monogram 代替整段字标。
+- 正文 `letter-spacing: 0`；品牌字标（auth 面、侧栏）用 `letter-spacing` 表达宽字距。
 - 内页标题收敛为操作界面尺度（约 15–18px），不照搬原型 62–72px 展示型字号；认证面是唯一例外，标题用原型展示尺度（`clamp(30px, 3vw, 43px)`）。
 
 ## 组件
 
 - 共享控件在 `src/components/ui/`（Button、TextField、Dialog、StatusBadge、EmptyState、Skeleton、ErrorPanel），壳层在 `src/components/shell/`（AppShell）。页面优先复用，不另造一次性控件。
-- 每个控件一个 `.module.css`，类名语义化；动效优先用轻量属性（`opacity`/`transform`/颜色/描边/阴影），必须可被 reduced-motion 覆盖，且不得因内容或状态变化引起布局跳动。唯一允许的布局过渡是侧栏折叠的 `width` 动画（有意、有界、可中断）；新增任何会改变布局的动画前先在此登记理由。
+- 每个控件一个 `.module.css`，类名语义化；动效优先用轻量属性（`opacity`/`transform`/颜色/描边/阴影），必须可被 reduced-motion 覆盖，且不得因内容或状态变化引起布局跳动；新增任何会改变布局的动画前先在此登记理由。
 - 异步按钮用 `loading` 态：显示 spinner、禁用、保持尺寸稳定，布局不因状态跳动。
 - Dialog 负责焦点移入、Tab 循环、Escape 关闭与关闭后还原焦点。
 - 表单错误优先用 `TextField error` 关联 `aria-describedby`/`aria-invalid` 并以 `role="alert"` 呈现（如注册"两次输入的密码不一致"挂在确认密码字段）；跨字段的业务失败用表单级 `ErrorPanel`。错误留在操作上下文，不只靠全局 toast。
@@ -20,7 +20,7 @@
 ## 布局与视口
 
 - 桌面优先，最低 `1280px` 宽；`body`/壳层设置 `min-width: 1280px`。主视觉基线 `1440x900`，最低可操作 `1280x720`。
-- AppShell 侧栏 232px，可折叠到 80px；底部固定管理员身份与退出。
+- AppShell 侧栏固定 232px，不折叠；底部固定管理员身份与退出。
 - 内容可能超出视口高度时（如注册面板），用可滚动容器 + `margin:auto` 安全居中，避免 flex `justify-content:center` 在溢出时裁切顶部。
 
 ## 认证面

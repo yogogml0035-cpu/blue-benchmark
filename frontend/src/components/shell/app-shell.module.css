@@ -14,74 +14,22 @@
   flex-direction: column;
   background: var(--benchmark-nav);
   border-right: 1px solid var(--benchmark-line);
-  transition: width var(--benchmark-duration-base) var(--benchmark-ease);
-  overflow: hidden;
-}
-
-.collapsed {
-  width: 80px;
 }
 
 .brandRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
   padding: 18px 16px;
 }
 
 .wordmark {
   display: inline-flex;
-  align-items: baseline;
   min-width: 0;
   color: var(--benchmark-text);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
   white-space: nowrap;
-}
-
-/* Collapsed rail drops the logo entirely: the toggle and the nav icon carry
-   the rail. The full platform name stays in the accessibility tree via the
-   same visually-hidden pattern as .navLabelHidden. */
-.collapsed .wordmark {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-/* Collapsed rail: the toggle is the only header control, centered where the
-   brand used to sit, directly above the nav icons. */
-.collapsed .brandRow {
-  justify-content: center;
-  padding: 16px 8px 8px;
-}
-
-.collapseToggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: none;
-  border-radius: var(--benchmark-radius-sm);
-  background: transparent;
-  color: var(--benchmark-muted);
-  cursor: pointer;
-  transition:
-    background-color var(--benchmark-duration-fast) var(--benchmark-ease),
-    color var(--benchmark-duration-fast) var(--benchmark-ease);
-}
-
-.collapseToggle:hover {
-  background: var(--benchmark-surface-elevated);
-  color: var(--benchmark-text);
 }
 
 .nav {
@@ -122,42 +70,12 @@
   color: var(--benchmark-action-purple-hover);
 }
 
-/* Collapsed rail: center the icon inside the pill; the label stays available
-   to assistive tech via .navLabelHidden and surfaces as a tooltip instead. */
-.collapsed .navItem {
-  justify-content: center;
-  gap: 0;
-  padding: 11px 0;
-}
-
-/* Visually hidden but still exposed to assistive tech when the rail collapses. */
-.navLabelHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 .identity {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
   border-top: 1px solid var(--benchmark-line);
-}
-
-/* Collapsed rail stacks the identity vertically so the avatar and the logout
-   action both fit inside the 80px width instead of clipping. */
-.collapsed .identity {
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 8px 14px;
 }
 
 .avatar {
