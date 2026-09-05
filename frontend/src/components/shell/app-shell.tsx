@@ -34,9 +34,6 @@ export function AppShell({ username, onLogout, loggingOut = false, children }: A
             <span className={styles.wordmarkFull} aria-hidden="true">
               汽车事业 BenchMark 平台
             </span>
-            <span className={styles.wordmarkMark} aria-hidden="true">
-              汽
-            </span>
           </span>
           <button
             type="button"

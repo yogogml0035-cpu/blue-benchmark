@@ -41,36 +41,26 @@
   white-space: nowrap;
 }
 
-.wordmarkMark {
-  display: none;
-  font-size: 17px;
-}
-
-.collapsed .wordmarkFull {
-  display: none;
-}
-
-.collapsed .wordmarkMark {
-  display: inline;
-}
-
-/* Collapsed rail: the CJK monogram becomes a square logo badge and the toggle
-   stacks beneath it, both centered, so the 80px rail reads as an intentional
-   rail instead of a squeezed header row. */
-.collapsed .brandRow {
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px 8px 10px;
-}
-
+/* Collapsed rail drops the logo entirely: the toggle and the nav icon carry
+   the rail. The full platform name stays in the accessibility tree via the
+   same visually-hidden pattern as .navLabelHidden. */
 .collapsed .wordmark {
-  align-items: center;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Collapsed rail: the toggle is the only header control, centered where the
+   brand used to sit, directly above the nav icons. */
+.collapsed .brandRow {
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--benchmark-radius-md);
-  background: var(--benchmark-action-purple);
-  color: var(--benchmark-on-action);
+  padding: 16px 8px 8px;
 }
 
 .collapseToggle {
