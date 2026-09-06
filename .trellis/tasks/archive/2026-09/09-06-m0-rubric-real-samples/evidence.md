@@ -53,5 +53,7 @@ cd backend && uv run python -m scripts.m0_samples \
 
 ## 提交与合并
 
-- 代码提交 SHA：待填（本文件与代码同批提交后由 main 复验记录覆盖）。
-- main 合并与复验结果：待填。
+- 代码提交 SHA：97a595b（feat(scripts): rebuild real M0 session samples into traceable test inputs），基线 main@768a6bb。
+- 合并方式：主工作区 `git merge --ff-only codex/m0-rubric-real-samples`，`git log main..codex/m0-rubric-real-samples` 为空。
+- main 复验（合并后在主工作区执行）：`git diff --check` 通过；`make test` backend 116 passed + frontend 70 passed，EXIT=0（/tmp/c1-main-reverify.log）。
+- 规格同步：`.trellis/spec/backend/core/structure-and-boundaries.md` 已登记 m0_samples 脚本与真实语料提取纪律（收尾提交）。
