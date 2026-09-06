@@ -82,6 +82,8 @@ vi .env
 - `TAG`：`push-images.sh` 最后输出的标签（形如 `20260904-a1b2c3d`）
 - `POSTGRES_PASSWORD`：一个随机强密码（可以用 `openssl rand -hex 16` 生成）
 - `DATABASE_URL`：把里面的密码换成同一个强密码，其他照抄
+- `CHECKPOINT_DATABASE_URL`：把里面的密码也换成同一个强密码，其他照抄
+- `LANGGRAPH_AES_KEY`：在服务器上用 `openssl rand -hex 16` 生成后填入；生成后不可更换
 - `AI_*` 五项：照抄你本地开发 `.env` 里的值
 
 保存后收紧权限：
@@ -129,10 +131,14 @@ docker compose pull
 # 2) 初始化数据库结构（仅首次或版本带迁移时需要）
 docker compose run --rm api alembic upgrade head
 
-# 3) 启动全部服务
+# 3) 创建 checkpoint 数据库（持久 Agent 运行时用，只需一次；
+#    重复执行报 already exists 属正常）
+docker compose exec postgres createdb -U skill_eval skill_eval_checkpoint
+
+# 4) 启动全部服务
 docker compose up -d
 
-# 4) 等待并确认状态（首次启动约需 30-60 秒）
+# 5) 等待并确认状态（首次启动约需 30-60 秒）
 sleep 30 && docker compose ps
 ```
 
