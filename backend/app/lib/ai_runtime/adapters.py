@@ -533,15 +533,22 @@ class DeepAgentRubricGenerator:
                 )
 
             structured = deep_runtime.final_structured_response(agent, session)
-            result = self._coerce_result(structured)
+            result = self._coerce_result(structured, completed=state_kind == "complete")
             self._validate_citations(result, locator_texts)
             return result
         finally:
             session.close()
 
-    def _coerce_result(self, structured: Any) -> RubricGenerationResult:
+    def _coerce_result(self, structured: Any, *, completed: bool = False) -> RubricGenerationResult:
         if structured is None:
-            raise RubricGenerationFailure("AI_OUTPUT_EMPTY", "评分维度生成返回空结果。")
+            # On a COMPLETED thread an empty result is deterministic: retrying
+            # would just re-read the same empty state, so fail terminally
+            # instead of burning the attempt budget on a certainty.
+            raise RubricGenerationFailure(
+                "AI_OUTPUT_EMPTY",
+                "评分维度生成返回空结果。",
+                retryable=not completed,
+            )
         if isinstance(structured, RubricGenerationResult):
             result = structured
         else:

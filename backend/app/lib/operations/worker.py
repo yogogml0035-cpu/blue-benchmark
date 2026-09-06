@@ -123,6 +123,9 @@ class OperationWorker:
                 except ValueError:
                     pass
             except Exception as exc:
+                import os as _os, traceback as _tb
+                if _os.environ.get("WORKER_DEBUG_TRACEBACK"):
+                    _tb.print_exc()
                 from app.features.question_library import rubric_generation
                 from app.lib.ai_runtime.adapters import RubricGenerationFailure
                 from app.lib.ai_runtime.deep_runtime import DeepRuntimeError

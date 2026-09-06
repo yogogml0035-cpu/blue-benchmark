@@ -233,12 +233,26 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
             )
         except ValueError as exc:
             code = str(exc)
-            message = (
-                "运行上下文与已保存的线程不兼容（运行指纹变化），本轮拒绝续跑，请重新发起生成。"
-                if code == "THREAD_RUNTIME_MISMATCH"
-                else "材料与已保存的线程快照不一致，本轮拒绝续跑。"
-            )
-            raise RubricGenerationFailure(code, message, retryable=False) from exc
+            if code == "THREAD_RUNTIME_MISMATCH":
+                # The runtime contract (model/SDK) changed since this thread
+                # was written. The old checkpoint is incompatible garbage:
+                # purge it and start a fresh run on the SAME revision, so a
+                # teacher retry actually recovers instead of dead-ending.
+                _purge_incompatible_thread(thread_id)
+                run_streams.register_thread(
+                    run_streams.ThreadRegistration(
+                        thread_id=thread_id,
+                        question_id=question_id,
+                        operation_id=job.id,
+                        materials_revision=revision,
+                        materials_fingerprint=fingerprint,
+                        runtime_fingerprint=runtime_fingerprint(),
+                    )
+                )
+            else:
+                raise RubricGenerationFailure(
+                    code, "材料与已保存的线程快照不一致，本轮拒绝续跑。", retryable=False
+                ) from exc
 
     context = RunContext(
         thread_id=thread_id,
@@ -377,6 +391,33 @@ def commit_generation_result(
         job_row.updated_at = now
         _mark_attempt(session, job_row, "succeeded")
     return True
+
+
+def _purge_incompatible_thread(thread_id: str) -> None:
+    """Delete a runtime-incompatible thread's checkpoint and registration.
+
+    Checkpoint unavailability is retryable (the purge must complete before a
+    fresh run may start); a missing checkpoint configuration is terminal for
+    this attempt and surfaces honestly.
+    """
+    from app.features.question_library import run_streams
+    from app.lib.ai_runtime import deep_runtime
+
+    try:
+        session = deep_runtime.open_session(thread_id)
+        try:
+            deep_runtime.delete_thread_data(session)
+        finally:
+            session.close()
+    except deep_runtime.DeepRuntimeError as exc:
+        raise RubricGenerationFailure(exc.code, exc.message, retryable=exc.retryable) from exc
+    except Exception as exc:
+        raise RubricGenerationFailure(
+            "CHECKPOINT_UNAVAILABLE",
+            f"清理不兼容运行线程失败：{type(exc).__name__}",
+            retryable=True,
+        ) from exc
+    run_streams.delete_thread_registration(thread_id)
 
 
 def _record_precheck_terminal(job: Any, detail: str) -> None:

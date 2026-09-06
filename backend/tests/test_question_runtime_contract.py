@@ -602,10 +602,26 @@ def test_runtime_fingerprint_mismatch_refuses_resume() -> None:
                     runtime_fingerprint="stale-runtime-id",
                 )
             )
-            helpers.run_worker_until_idle()
+            # No reachable checkpoint store: the incompatible thread cannot
+            # be purged, so the attempt fails honestly with a retryable
+            # infrastructure code (never a silent resume, never a fake success).
+            from pydantic import SecretStr
+
+            from app.lib.settings import settings as _settings
+
+            original = _settings.checkpoint_database_url
+            try:
+                _settings.checkpoint_database_url = SecretStr(
+                    "postgresql://nobody@127.0.0.1:1/unreachable_db"
+                )
+                helpers.run_worker_until_idle()
+            finally:
+                _settings.checkpoint_database_url = original
             detail = client.get(f"/api/questions/{question_id}").json()
             assert detail["status"] == "generation_failed"
-            assert detail["last_error"]["code"] == "THREAD_RUNTIME_MISMATCH"
+            assert detail["last_error"]["code"] in (
+                "CHECKPOINT_UNAVAILABLE", "CHECKPOINT_DSN_MISSING", "CHECKPOINT_KEY_MISSING",
+            ), detail["last_error"]
     finally:
         adapter_module.set_adapters(previous)
 

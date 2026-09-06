@@ -102,6 +102,21 @@ def register_thread(registration: ThreadRegistration) -> ThreadRegistration:
     return registration
 
 
+def delete_thread_registration(thread_id: str) -> None:
+    """Drop a registry row whose checkpoint contract is incompatible.
+
+    Used only by the runtime-mismatch recovery path: the stale checkpoint is
+    purged first, then the registration, so a fresh run on the same materials
+    revision can start clean instead of dead-ending every retry.
+    """
+    with session_scope() as session:
+        session.execute(
+            delete(QuestionRunThreadRow).where(
+                QuestionRunThreadRow.thread_id == thread_id
+            )
+        )
+
+
 def list_question_threads(question_id: str) -> list[str]:
     with session_scope() as session:
         rows = session.execute(

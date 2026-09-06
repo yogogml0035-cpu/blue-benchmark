@@ -359,3 +359,141 @@ def test_completed_graph_recommits_without_model_call(pg_business_env) -> None:
         set_adapters(previous)
         if question_id:
             _clean_from_dsn(dsn, f"qgen-{question_id}-r1")
+
+
+def _materials_for(thread_case: str):
+    from app.lib.ai_runtime.adapters import RubricGenerationInput
+
+    return RubricGenerationInput(
+        task_prompt=f"{thread_case} 的任务材料。",
+        reference_examples=[],
+        bad_cases=[],
+        reference_answer=f"{thread_case} 的老师认可标准答案全文。",
+        memory_materials=[],
+    )
+
+
+def test_real_adapter_recommits_completed_thread_without_streaming(pg_business_env, monkeypatch) -> None:
+    """MAJ-1 regression: locks the PRODUCTION adapter's complete-skip branch.
+
+    If the fix is reverted (completed thread still streamed), run_streaming
+    yields zero events and raises RUNTIME_NO_EVENTS — this test goes red.
+    """
+    from app.lib.ai_runtime import deep_runtime as dr
+    from app.lib.ai_runtime.adapters import DeepAgentRubricGenerator, RunContext
+    from pydantic import SecretStr
+
+    dsn = pg_business_env
+    thread_id = "qgen-direct-recommit-r1"
+    _clean_from_dsn(dsn, thread_id)
+
+    class _Cfg:
+        checkpoint_database_url = SecretStr(dsn)
+        from app.lib.settings import settings as _s
+        langgraph_aes_key = _s.langgraph_aes_key
+
+    materials = _materials_for("direct-recommit")
+    context = RunContext(
+        thread_id=thread_id,
+        operation_id="op-direct",
+        attempt_number=1,
+        question_id="q-direct",
+        materials_revision=1,
+        materials_fingerprint="f" * 64,
+    )
+
+    # Phase 1: bring the thread to COMPLETE with the stub generator.
+    stub = _PgStubGenerator(dsn)
+    from app.lib.ai_runtime.deep_runtime import ListSink
+
+    stub.generate(materials, context=context, sink=ListSink())
+
+    # Phase 2: the REAL production adapter, with an empty model script (any
+    # model call or streaming attempt would blow up) and the structured read
+    # stubbed to return the stored-shaped result.
+    def _fake_structured(agent, session):
+        return _fixed_result(materials)
+
+    monkeypatch.setattr(dr, "final_structured_response", _fake_structured)
+
+    def _session_factory(ctx):
+        session = dr.open_session(ctx.thread_id, _Cfg())
+        return session
+
+    adapter = DeepAgentRubricGenerator(
+        model=ScriptedModel(messages=iter([])),
+        identity=IDENTITY,
+        session_factory=_session_factory,
+    )
+    sink = ListSink()
+    result = adapter.generate(materials, context=context, sink=sink)
+    assert result.criteria
+    # The completion path must have been taken without streaming: no
+    # message_delta events exist and the resume marker shows state=complete.
+    assert not [e for e in sink.events if e.kind == "message_delta"]
+    assert any(
+        e.kind == "run_resumed" and e.stage == "thread_state_complete" for e in sink.events
+    )
+    _clean_from_dsn(dsn, thread_id)
+
+
+def test_runtime_fingerprint_mismatch_purges_and_recovers(pg_business_env) -> None:
+    """MAJ-2 regression: after a runtime identity change, the incompatible
+    thread is purged and the retry starts a FRESH run on the same revision —
+    teacher retries recover instead of dead-ending."""
+    from sqlalchemy import select, update as sa_update
+
+    from app.features.question_library import run_streams
+    from app.lib.database.models import QuestionRunThreadRow
+
+    dsn = pg_business_env
+    previous = get_adapters()
+    question_id = None
+    try:
+        with TestClient(app) as client:
+            question_id = _upload(client, "case-pg-fingerprint")
+            thread_id = f"qgen-{question_id}-r1"
+            _clean_from_dsn(dsn, thread_id)
+
+            # Phase 1: a real checkpointed run that crashes (retryable).
+            crash_gen = _PgStubGenerator(dsn, crash_after=True)
+            set_adapters(RuntimeAdapters(rubric_generator=crash_gen))
+            helpers.run_worker_until_idle()
+            detail = client.get(f"/api/questions/{question_id}").json()
+            assert detail["status"] == "generation_failed"
+
+            # The deployment's runtime identity changes (model/SDK upgrade).
+            with session_scope() as session:
+                session.execute(
+                    sa_update(QuestionRunThreadRow)
+                    .where(QuestionRunThreadRow.thread_id == thread_id)
+                    .values(runtime_fingerprint="stale-runtime-id")
+                )
+
+            # Retry under a healthy generator: the stale thread must be purged
+            # and the run restarts fresh (state=new), then completes.
+            healthy = _PgStubGenerator(dsn)
+            set_adapters(RuntimeAdapters(rubric_generator=healthy))
+            retry = client.post(
+                f"/api/questions/{question_id}/generation-retry",
+                json={"command_id": "retry-fp", "content_revision": detail["content_revision"]},
+            )
+            assert retry.status_code == 200, retry.text
+            helpers.run_worker_until_idle()
+            detail = client.get(f"/api/questions/{question_id}").json()
+            assert detail["status"] == "pending_review", detail.get("last_error")
+            assert healthy.observations, "recovery run did not execute"
+            assert healthy.observations[-1]["state"] == "new", (
+                "清除不兼容线程后必须全新开跑，而不是续跑旧检查点"
+            )
+            with session_scope() as session:
+                row = session.execute(
+                    select(QuestionRunThreadRow).where(
+                        QuestionRunThreadRow.thread_id == thread_id
+                    )
+                ).scalar_one()
+            assert row.runtime_fingerprint != "stale-runtime-id"
+    finally:
+        set_adapters(previous)
+        if question_id:
+            _clean_from_dsn(dsn, f"qgen-{question_id}-r1")
