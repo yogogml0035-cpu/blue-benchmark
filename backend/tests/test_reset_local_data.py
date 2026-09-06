@@ -82,10 +82,29 @@ def test_verify_target_whitelist():
     "postgresql://u@127.0.0.1:5432/skill_eval",              # no password to verify
     "sqlite:///business.db",                                  # wrong engine
     "postgresql://u:p@127.0.0.1:5432/",                       # no dbname
+    # C-1 regressions: libpq query/fragment overrides must never pass.
+    "postgresql://u:p@127.0.0.1:5432/skill_eval?host=evil.example.com",
+    "postgresql://u:p@127.0.0.1:5432/skill_eval?hostaddr=93.184.216.34",
+    "postgresql://u:p@127.0.0.1:5432/skill_eval?dbname=postgres",
+    "postgresql://u:p@127.0.0.1:5432/skill_eval?port=6543",
+    "postgresql://u:p@127.0.0.1:5432/skill_eval#frag",
+    # Additional shape attacks verified refused.
+    "postgresql://u:p@127.0.0.1:5432/SkillEval",              # case mismatch
+    "postgresql://u:p@127.0.0.1:5432/skill%5Feval",           # percent-encoding
+    "postgresql://u:p@127.0.0.1:5432/skill_eval/extra",       # multi-segment path
+    "postgresql://u:p@[::1]:5432/skill_eval",                 # IPv6 literal
+    "postgresql+asyncpg://u:p@127.0.0.1:5432/skill_eval",     # other driver prefix
+    "postgresql://u:p@localhost:5432/skill_eval",             # non-IP hostname
 ])
 def test_verify_target_refuses(bad):
     with pytest.raises(rst.ResetRefused):
         rst.verify_target(bad)
+
+
+def test_connect_params_never_reparses_raw_dsn():
+    params = rst.connect_params("postgresql+psycopg://u:p@127.0.0.1:5432/skill_eval")
+    assert params == {"host": "127.0.0.1", "port": 5432, "dbname": "skill_eval",
+                      "user": "u", "password": "p"}
 
 
 def test_cli_execute_requires_exact_confirmation(dsn):
@@ -93,7 +112,7 @@ def test_cli_execute_requires_exact_confirmation(dsn):
         "--execute", "--confirm-targets", "skill_eval",
         "--business-dsn", dsn, "--checkpoint-dsn", dsn,
     ])
-    # Wrong confirm string OR non-whitelisted target: refused, nothing done.
+    # Wrong confirm string: refused before any DSN is even parsed.
     assert rc == 2
 
 
@@ -154,7 +173,7 @@ def test_reset_refuses_when_other_sessions_active(dsn):
 
 def test_container_identity_and_backup_roundtrip(dsn, tmp_path):
     container = rst.DEFAULT_CONTAINER
-    server_id = rst.verify_container_matches_endpoint(container, dsn)
+    server_id = rst.verify_container_matches_endpoint(container, dsn, allowed=ALLOWED)
     assert server_id
     import psycopg
 
