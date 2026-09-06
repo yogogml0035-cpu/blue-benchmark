@@ -86,10 +86,18 @@ def main() -> int:
 
     materials = RubricGenerationInput(
         task_prompt=case["task_prompt"],
-        reference_examples=case.get("reference_examples") or [],
+        # The batch contract carries client_ref_id for upload idempotency;
+        # the generation input only accepts the material content fields.
+        reference_examples=[
+            {"source_name": item.get("source_name"), "content_text": item["content_text"]}
+            for item in case.get("reference_examples") or []
+        ],
         bad_cases=case.get("bad_cases") or [],
         reference_answer=case["reference_answer"],
-        memory_materials=case.get("memory_materials") or [],
+        memory_materials=[
+            {"source_label": item.get("source_label"), "content_text": item["content_text"]}
+            for item in case.get("memory_materials") or []
+        ],
     )
     run_id = hashlib.sha256(f"smoke-{time.time()}".encode()).hexdigest()[:12]
     context = RunContext(
