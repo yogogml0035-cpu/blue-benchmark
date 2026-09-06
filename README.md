@@ -197,6 +197,26 @@ make frontend-generate-api   # 重新生成前端类型
   ACCEPT_BUSINESS_DSN=... ACCEPT_CHECKPOINT_DSN=... make accept-web    # 输出 M0_WEB_ACCEPTANCE=PASS
   ```
 
+## 本地数据一次性重置（受控运维入口）
+
+`backend/scripts/reset_local_data.py` 是本项目旧测试数据一次性切换的专用工具（C5 授权范围），**不是**日常维护命令：
+
+- 目标白名单固定为本地 Docker PostgreSQL（127.0.0.1:5432）的 `skill_eval` 与 `skill_eval_checkpoint`；任何其他库名、远端主机、缺凭证 DSN 一律拒绝；
+- 默认 dry-run：只输出脱敏计划（库名、掩码 DSN、逐表行数），不做任何修改；
+- `--execute` 必须附 `--confirm-targets skill_eval,skill_eval_checkpoint` 精确确认；
+- 执行前置：目标库存在第三方活动连接即拒绝（先停止本项目 API/Worker；工具不杀任何进程）；容器与 TCP 端点经 system_identifier 核验为同一实例；
+- 破坏性语句之前先经容器 pg_dump 双库备份到非 Git 产物目录（默认 `/Users/hsikey/Company/skill-eval-platform-wt/_artifacts/m0-rubric-anchors-evidence/c5/<UTC时间戳>/`），备份校验失败即中止；
+- 重置只重建两库内的 public schema：不删实例/volume/角色/其他库，不改 `.env` 密钥，不触碰 `.local-samples`；
+- 重置后自动执行 Alembic 到当前 head、准备加密 checkpointer 表，并核验空题库与 schema 就绪；失败时按备份与 Git 成套回退。
+
+```bash
+make reset-local            # dry-run 计划（安全默认）
+cd backend && uv run python -m scripts.reset_local_data --execute \
+  --confirm-targets skill_eval,skill_eval_checkpoint
+```
+
+该命令绝不接入 `make test`、应用启动或普通迁移；一次性授权不延伸至切换后新上传的数据。日常单题删除走产品内的受保护删除流程。
+
 ## 服务器部署
 
 `deploy/` 目录包含单机 Docker Compose 生产部署的全部材料与手册：本地构建镜像推送到阿里云容器镜像服务（ACR），服务器拉取运行，全程服务器不接触源代码。

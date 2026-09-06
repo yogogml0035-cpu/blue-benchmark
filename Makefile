@@ -1,6 +1,6 @@
 .PHONY: backend start-all openapi contract-check test build db-migrate db-check ai-smoke worker admin \
 	frontend-install frontend-dev frontend-build frontend-test frontend-typecheck \
-	frontend-check-api frontend-generate-api frontend-e2e accept-web
+	frontend-check-api frontend-generate-api frontend-e2e accept-web reset-local
 BACKEND_PORT ?= 8000
 FRONTEND_PORT ?= 3000
 
@@ -60,6 +60,11 @@ db-check:
 
 ai-smoke:
 	cd backend && uv run python -m scripts.smoke_ai_provider
+
+# One-shot local data reset (C5 authority). Dry-run only; execution requires
+# the explicit --execute --confirm-targets flags directly on the script.
+reset-local:
+	cd backend && uv run python -m scripts.reset_local_data --dry-run
 
 worker:
 	cd backend && uv run python -m app.lib.operations.worker
