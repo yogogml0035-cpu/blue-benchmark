@@ -608,3 +608,56 @@ def test_runtime_fingerprint_mismatch_refuses_resume() -> None:
             assert detail["last_error"]["code"] == "THREAD_RUNTIME_MISMATCH"
     finally:
         adapter_module.set_adapters(previous)
+
+
+def test_saved_citations_must_stay_verifiable() -> None:
+    """M-2 regression: the edit path cannot launder a fabricated citation
+    into a teacher-explicit claim."""
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _upload_and_settle(client, "case-citation")
+        detail = client.get(f"/api/questions/{question_id}").json()
+        criteria = json.loads(json.dumps(detail["criteria"]))
+
+        # Forged locator: rejected.
+        forged = json.loads(json.dumps(criteria))
+        forged[0]["criterion_basis"]["claims"][0]["citation"] = {
+            "locator": "bad_cases[9].feedback[3]",
+            "quote": "任何文本",
+        }
+        response = client.patch(
+            f"/api/questions/{question_id}/criteria",
+            json={"command_id": "patch-forge-1", "content_revision": detail["content_revision"],
+                  "criteria": forged},
+        )
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "CITATION_INVALID"
+
+        # Real locator, fabricated quote: rejected.
+        wrong_quote = json.loads(json.dumps(criteria))
+        wrong_quote[0]["criterion_basis"]["claims"][0]["citation"] = {
+            "locator": "reference_answer",
+            "quote": "材料中根本不存在的引文内容",
+        }
+        response = client.patch(
+            f"/api/questions/{question_id}/criteria",
+            json={"command_id": "patch-forge-2", "content_revision": detail["content_revision"],
+                  "criteria": wrong_quote},
+        )
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "CITATION_INVALID"
+
+        # A teacher-edited claim quoting a REAL fragment still saves.
+        answer = detail["reference_answer"]
+        edited = json.loads(json.dumps(criteria))
+        edited[0]["criterion_basis"]["claims"][0] = {
+            "claim": "老师改写过的主张文本。",
+            "kind": "ai_inferred",
+            "citation": {"locator": "reference_answer", "quote": answer[:10]},
+        }
+        response = client.patch(
+            f"/api/questions/{question_id}/criteria",
+            json={"command_id": "patch-legit", "content_revision": detail["content_revision"],
+                  "criteria": edited},
+        )
+        assert response.status_code == 200, response.text

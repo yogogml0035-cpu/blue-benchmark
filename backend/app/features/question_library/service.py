@@ -516,6 +516,46 @@ def save_and_regenerate(
     )
 
 
+def _validate_saved_citations(row, payload: CriteriaPatchRequest) -> None:
+    """Teacher-saved citations must stay verifiable against THIS question.
+
+    The revision gate above guarantees the stored materials are exactly the
+    snapshot the criteria were generated from, so every locator must belong to
+    it and every quote must appear verbatim — a fabricated or stale citation
+    cannot be laundered into a "老师明确要求 + 可核查引用" badge through the
+    edit path.
+    """
+    from app.lib.ai_runtime.adapters import build_locator_texts
+
+    locator_texts = build_locator_texts(rubric_generation.build_generation_input(row))
+    for index, item in enumerate(payload.criteria):
+        for basis_name, basis in (
+            ("criterion_basis", item.criterion_basis),
+            ("pass_score_basis", item.pass_score_basis),
+        ):
+            if basis is None:
+                continue
+            for claim_index, claim in enumerate(basis.claims):
+                citation = claim.citation
+                if citation is None:
+                    continue
+                where = f"criteria[{index}].{basis_name}.claims[{claim_index}]"
+                text = locator_texts.get(citation.locator)
+                if text is None:
+                    raise AppError(
+                        422,
+                        "CITATION_INVALID",
+                        f"{where} 引用了不属于本题材料的定位符。",
+                    )
+                quote = citation.quote.strip()
+                if not quote or quote not in text:
+                    raise AppError(
+                        422,
+                        "CITATION_INVALID",
+                        f"{where} 的引文必须逐字来自对应材料正文。",
+                    )
+
+
 def patch_criteria(question_id: str, payload: CriteriaPatchRequest) -> QuestionDetailResponse:
     now = _utc_now()
     criteria = [item.model_dump() for item in payload.criteria]
@@ -538,6 +578,7 @@ def patch_criteria(question_id: str, payload: CriteriaPatchRequest) -> QuestionD
                 "PUBLISHED_REOPEN_REQUIRED",
                 "已发布题目必须先重新打开审改，才能修改评分维度。",
             )
+        _validate_saved_citations(row, payload)
         values: dict[str, Any] = {
             "criteria_json": criteria,
             "criteria_confirmed": True,
