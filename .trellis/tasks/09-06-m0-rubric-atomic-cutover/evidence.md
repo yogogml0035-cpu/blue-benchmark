@@ -27,9 +27,23 @@
 - 定向检索 `ModelRubricGenerator`、两字段完成假设、`204` 删除语义、静态假进度/整题轮询、800 字截断、EvalData 布局、占位答案兜底：backend/app、backend/tests、backend/scripts、frontend/src、frontend/e2e、frontend/scripts、README、Makefile、.trellis/spec 无可执行残留；`criterion`/`pass_score` 字段名与删除状态轮询（新语义）为合法保留。
 - `accept_skill_push_evaldata.py` 更名为 `accept_skill_push.py`，旧标识符零命中。
 
-## 对抗式审查
+## 对抗式审查（两轮，多智能体）
 
-- 双审查代理（后端语义/删除链 + 前端UX/跨层合同）结论与修复：待补记。
+**第一轮**（后端语义/删除链 + 前端UX/跨层合同 双代理）：2 Critical + 6 Major，全部在提交 9eea638 / 26695cd 修复并加回归测试：
+- C-1（后端 Critical）：图完成但业务未提交的补提交路径会 RUNTIME_NO_EVENTS 死循环 → adapter 对 complete 线程跳过流式、直接补读结构化结果；PG 回归测试锁定。
+- C-2（后端 Critical）：superseded 提交路径发假 run_completed → commit_generation_result 三态化，被取代运行以 run_failed(superseded) 收尾；中途改材料竞态测试锁定。
+- C1-前端（Critical）：删除清理失败后重试按钮是安慰剂（deleting 分支提前 return，failed 作业永不重排队）→ deleting+failed 时走 accept_delete 重排队；回归测试锁定。
+- C2-前端（Critical）：web 验收 live-streaming 断言可被空态占位符满足 → 要求“已连接”+ 真实事件行（占位符无 testid）+ 生成中二次采样。
+- M-1 运行指纹只存不校 → register_thread 同时比对 runtime_fingerprint；M-2 编辑路径引用不校验 → patch_criteria 对每条 citation 校验 locator/quote（422 CITATION_INVALID，测试锁定）；M-3 旧同步硬删除函数残留 → 删除，测试改走受理流；M-4 删除回执死分支 → 删除并改正注释；前端 M1 滚动跟随失效/M2 operation 切换状态残留 → stick 追踪 + key 重挂载 + reset effect。
+- Minor 全数处理：空白引文拒绝、sink 冻结守卫、sequence 冲突重读游标重试、pre-check superseded 终态事件、schema 巡检唯一约束、迁移索引名对齐、aria-live 节流改 leading+trailing、elapsed 以首个持久事件校准、回放失败区分“已被取代/冻结”、手工维度不可取消勾选（删除即移除）、isOnlyTitleChanged 全字段深比较、RunEventView.kind 收紧为 Literal、保存/重生成后有界重载兜底。
+
+**第二轮**（修复提交复核代理，逐项突变体分析）：无 Critical；2 Major 已修复（提交 e2a96b9）：
+- MAJ-1：C-1 回归测试用 stub 镜像锁不死生产分支 → 新增直接驱动真实 DeepAgentRubricGenerator 的 PG 测试（空模型脚本 + 补读打桩；revert 生产修复即 RUNTIME_NO_EVENTS 变红）。
+- MAJ-2：THREAD_RUNTIME_MISMATCH 后教师重试死胡同且文案误导 → 失配时清除不兼容线程的检查点与登记（持锁、无模型、检查点不可达则 retryable），同 revision 全新开跑；完整恢复循环 PG 测试锁定（crash→陈旧指纹→重试→清除→全新完成）。
+- MIN-1：complete 状态下空结构化结果改 retryable=False（确定性失败不做无谓重试）。其余 8 项 Minor 复核结论为“成立/可接受”（含 superseded+deleting 事件被冻结守卫丢弃的语义分析、sequence 重试只跳号不重号、前端 reset/SSE 无竞态等），已记录不改。
+- 第二轮还实证发现并修复 purge 路径 NameError（run_streams 未导入，被 WORKER_DEBUG_TRACEBACK 定位）——该调试开关（默认静默）保留在 worker 通用异常分支。
+
+修复后全量：backend 161 passed（RUNTIME_PG_REQUIRED=1，0 skip）、frontend tsc/vitest 75、E2E 44、双真实验收在最终 HEAD 重跑（结果见下）。
 
 ## 提交与合并
 

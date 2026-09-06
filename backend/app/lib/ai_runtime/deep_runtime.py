@@ -760,6 +760,7 @@ def run_streaming(
     inputs: Any,
     sink: ProgressSink,
     durability: str = "sync",
+    allow_followup: bool = False,
 ) -> Any:
     """Execute one run, pushing normalized public events into ``sink``.
 
@@ -783,7 +784,9 @@ def run_streaming(
 
     _require_lock(session, "流式执行")
     config = session.thread_config()
-    is_fresh_input = inputs is not None and not isinstance(inputs, Command)
+    is_fresh_input = (
+        inputs is not None and not isinstance(inputs, Command) and not allow_followup
+    )
     if is_fresh_input:
         existing = agent.get_state(config)
         if getattr(existing, "values", None):

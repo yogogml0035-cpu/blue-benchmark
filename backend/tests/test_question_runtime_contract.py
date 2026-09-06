@@ -677,3 +677,98 @@ def test_saved_citations_must_stay_verifiable() -> None:
                   "criteria": edited},
         )
         assert response.status_code == 200, response.text
+
+
+def test_adapter_bounded_revision_round_fixes_bad_citation(monkeypatch) -> None:
+    """A candidate with a fabricated citation gets ONE in-thread revision
+    round; the revised candidate is re-validated and returned."""
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from app.lib.ai_runtime import deep_runtime as dr
+    from app.lib.ai_runtime.adapters import (
+        CriterionBasis,
+        BasisClaim,
+        DeepAgentRubricGenerator,
+        PassScoreBasis,
+        RubricGenerationFailure,
+        RubricGenerationInput,
+        RubricGenerationResult,
+        CriterionDraft,
+        RunContext,
+        ScoreAnchor,
+        SourceCitation,
+    )
+    from tests.test_deep_runtime import IDENTITY, ScriptedModel
+
+    materials = RubricGenerationInput(
+        task_prompt="任务材料。", reference_answer="老师认可的标准答案全文。"
+    )
+
+    def _result(quote: str) -> RubricGenerationResult:
+        return RubricGenerationResult(criteria=[CriterionDraft(
+            criterion="输出必须与标准答案一致，不得虚构材料之外的内容。",
+            pass_score=6,
+            score_anchors=[ScoreAnchor(score=6, description="与标准答案一致。")],
+            criterion_basis=CriterionBasis(
+                explanation="答案即基准。",
+                claims=[BasisClaim(claim="答案基准。", kind="ai_inferred",
+                                   citation=SourceCitation(locator="reference_answer", quote=quote))],
+            ),
+            pass_score_basis=PassScoreBasis(
+                explained_score=6, explanation="一致即合格。",
+                claims=[BasisClaim(claim="最低门槛。", kind="ai_inferred",
+                                   citation=SourceCitation(locator="reference_answer", quote=quote))],
+            ),
+        )])
+
+    calls = {"n": 0}
+
+    def _fake_structured(agent, session):
+        calls["n"] += 1
+        # First read: fabricated quote. Second read (after revision): verbatim.
+        return _result("编造的引文" if calls["n"] == 1 else "老师认可的标准答案全文。")
+
+    monkeypatch.setattr(dr, "final_structured_response", _fake_structured)
+
+    session = dr.CheckpointSession(None, InMemorySaver(), "t-revision")
+    session._lock_held = True  # in-memory protocol test; no PG lock needed
+    generator = DeepAgentRubricGenerator(
+        model=ScriptedModel(messages=iter([
+            __import__("langchain_core.messages", fromlist=["AIMessage"]).AIMessage(content="初稿完成。"),
+            __import__("langchain_core.messages", fromlist=["AIMessage"]).AIMessage(content="修订完成。"),
+        ])),
+        identity=IDENTITY,
+        session_factory=lambda ctx: session,
+    )
+    sink = dr.ListSink()
+    context = RunContext(
+        thread_id="t-revision", operation_id="op-rev", attempt_number=1,
+        question_id="q-rev", materials_revision=1, materials_fingerprint="f" * 64,
+    )
+    result = generator.generate(materials, context=context, sink=sink)
+    assert calls["n"] == 2
+    assert generator._revisions_used == 1
+    assert result.criteria[0].criterion_basis.claims[0].citation.quote == "老师认可的标准答案全文。"
+    assert any(e.stage == "revision_requested" for e in sink.events)
+
+    # With revisions disabled the same failure surfaces immediately.
+    calls["n"] = 0
+    session2 = dr.CheckpointSession(None, InMemorySaver(), "t-revision-2")
+    session2._lock_held = True
+    strict = DeepAgentRubricGenerator(
+        model=ScriptedModel(messages=iter([
+            __import__("langchain_core.messages", fromlist=["AIMessage"]).AIMessage(content="初稿完成。"),
+        ])),
+        identity=IDENTITY,
+        session_factory=lambda ctx: session2,
+        max_revisions=0,
+    )
+    context2 = RunContext(
+        thread_id="t-revision-2", operation_id="op-rev2", attempt_number=1,
+        question_id="q-rev2", materials_revision=1, materials_fingerprint="f" * 64,
+    )
+    import pytest as _pytest
+
+    with _pytest.raises(RubricGenerationFailure) as exc_info:
+        strict.generate(materials, context=context2, sink=dr.ListSink())
+    assert exc_info.value.code == "AI_CITATION_INVALID"

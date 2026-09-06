@@ -381,6 +381,24 @@ class FakeRubricGenerator:
 # Production generator: restricted Deep Agent on the durable runtime
 # ---------------------------------------------------------------------------
 
+_REVISION_PROMPT_PREFIX = (
+    "你上一次的候选集没有通过确定性校验，本次运行内给你一次修订机会。"
+    "请只修正下列被指出的问题，然后重新输出完整的结构化结果（不要输出散文）：\n"
+)
+
+
+def _revision_instruction(errors: list[str]) -> str:
+    listed = "\n".join(f"- {e}" for e in errors[:8])
+    return (
+        _REVISION_PROMPT_PREFIX
+        + listed
+        + "\n修订要求：citation.locator 必须使用材料文件头部标注的定位符原文；"
+        "citation.quote 必须是该定位符材料正文中逐字存在的连续片段（注意标点与空格完全一致，"
+        "不要使用省略号或改写）；teacher_explicit 主张必须附带引用；"
+        "建议通过分必须有对应锚点且 pass_score_basis.explained_score 等于建议分。"
+    )
+
+
 _SYSTEM_PROMPT = """你是评测平台的评分维度起草智能体。你只依据 /materials 目录下本题的材料工作。
 
 工作流程：
@@ -430,6 +448,7 @@ class DeepAgentRubricGenerator:
         *,
         session_factory: Any = None,
         budget: Any = None,
+        max_revisions: int = 1,
     ) -> None:
         # The model is built lazily on first generate() so a worker process
         # can serve model-free jobs (e.g. deletion cleanup) even when the
@@ -438,6 +457,8 @@ class DeepAgentRubricGenerator:
         self._identity = identity
         self._session_factory = session_factory
         self._budget = budget
+        self._max_revisions = max_revisions
+        self._revisions_used = 0
 
     def _ensure_model(self) -> None:
         if self._model is None or self._identity is None:
@@ -534,7 +555,52 @@ class DeepAgentRubricGenerator:
 
             structured = deep_runtime.final_structured_response(agent, session)
             result = self._coerce_result(structured, completed=state_kind == "complete")
-            self._validate_citations(result, locator_texts)
+            try:
+                self._validate(result, locator_texts)
+            except RubricGenerationFailure as exc:
+                if self._max_revisions <= 0 or exc.code != "AI_CITATION_INVALID":
+                    raise
+                # ONE bounded in-job revision round: feed the deterministic
+                # errors back through the same thread (a legitimate follow-up
+                # turn, not a re-submitted initial input) and re-validate the
+                # fresh candidate. Budget counters keep this bounded.
+                self._revisions_used += 1
+                sink.emit(PublicEvent(
+                    kind="stage", stage="revision_requested", detail=exc.message[:160]
+                ))
+                try:
+                    deep_runtime.run_streaming(
+                        agent,
+                        session,
+                        inputs={"messages": [{
+                            "role": "user",
+                            "content": _revision_instruction([exc.message]),
+                        }]},
+                        sink=sink,
+                        allow_followup=True,
+                    )
+                except deep_runtime.BudgetExceededError as b_exc:
+                    raise RubricGenerationFailure(
+                        b_exc.code, b_exc.message, retryable=False
+                    ) from b_exc
+                except deep_runtime.DeepRuntimeError as d_exc:
+                    raise RubricGenerationFailure(
+                        d_exc.code, d_exc.message, retryable=d_exc.retryable
+                    ) from d_exc
+                except Exception as g_exc:
+                    raise RubricGenerationFailure(
+                        "AI_CALL_FAILED",
+                        f"修订轮调用失败：{type(g_exc).__name__}",
+                    ) from g_exc
+                interrupted, _ = deep_runtime.inspect_interrupt(agent, session)
+                if interrupted:
+                    raise RubricGenerationFailure(
+                        "AI_RUN_INTERRUPTED", "修订轮意外暂停，未产出完整候选。", retryable=True
+                    )
+                revised = deep_runtime.final_structured_response(agent, session)
+                result = self._coerce_result(revised, completed=True)
+                # Final gate: no further revision rounds.
+                self._validate(result, locator_texts)
             return result
         finally:
             session.close()
@@ -562,10 +628,27 @@ class DeepAgentRubricGenerator:
             raise RubricGenerationFailure("AI_OUTPUT_INVALID", "评分维度不能为空。")
         return result
 
-    def _validate_citations(
-        self, result: RubricGenerationResult, locator_texts: dict[str, str]
-    ) -> None:
-        """Deterministic citation check against the immutable snapshot."""
+    def _validate(self, result: RubricGenerationResult, locator_texts: dict[str, str]) -> None:
+        """Deterministic full-candidate gate: contract shape + citations.
+
+        Raises AI_CITATION_INVALID (bounded-revision eligible) for citation
+        problems; contract-shape problems from _coerce_result/pydantic are
+        already raised as AI_OUTPUT_* before this point.
+        """
+        for index, item in enumerate(result.criteria):
+            scores = [a.score for a in item.score_anchors]
+            if item.pass_score not in scores:
+                raise RubricGenerationFailure(
+                    "AI_CITATION_INVALID",
+                    f"criteria[{index}] 建议分 {item.pass_score} 缺少对应锚点描述。",
+                    retryable=True,
+                )
+            if item.pass_score_basis.explained_score != item.pass_score:
+                raise RubricGenerationFailure(
+                    "AI_CITATION_INVALID",
+                    f"criteria[{index}] 通过分依据解释的分数与建议分不一致。",
+                    retryable=True,
+                )
         validate_result_citations(result, locator_texts)
 
 
