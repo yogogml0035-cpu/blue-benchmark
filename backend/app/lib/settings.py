@@ -27,6 +27,17 @@ class Settings(BaseSettings):
     ai_base_url: str = ""
     ai_request_timeout_seconds: float = Field(default=180.0, gt=0, le=900)
     ai_model_retries: int = 1
+    # Durable deep-agent runtime: PostgreSQL checkpoint database and the AES
+    # key for the encrypted checkpoint serializer. Consumed only by the
+    # explicit checkpoint session in app.lib.ai_runtime.deep_runtime.
+    checkpoint_database_url: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("CHECKPOINT_DATABASE_URL"),
+    )
+    langgraph_aes_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("LANGGRAPH_AES_KEY"),
+    )
     operation_lease_seconds: int = 60
     operation_max_attempts: int = 3
     database_schema_check_on_startup: bool = True
@@ -53,7 +64,7 @@ class Settings(BaseSettings):
     def normalize_model_name(cls, value: object) -> str:
         return str(value or "").strip()
 
-    @field_validator("ai_api_key", mode="before")
+    @field_validator("ai_api_key", "checkpoint_database_url", "langgraph_aes_key", mode="before")
     @classmethod
     def normalize_api_key(cls, value: object) -> SecretStr:
         if isinstance(value, SecretStr):

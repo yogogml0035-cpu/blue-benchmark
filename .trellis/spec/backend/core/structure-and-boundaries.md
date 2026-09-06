@@ -12,8 +12,8 @@ backend/
 │   │   ├── auth/{router,service,repository,schemas}.py
 │   │   ├── scenes/{router,service,repository,schemas}.py
 │   │   └── question_library/{router,external_router,service,repository,schemas,rubric_generation,rubric_rules}.py
-│   └── lib/{errors,schemas,settings,ai_runtime/{model,adapters},operations/,database/}
-├── scripts/{export_openapi,verify_openapi,check_schema,migrate,smoke_ai_provider,accept_real_ai_rubric,accept_skill_push_evaldata,m0_samples,admin_cli}.py
+│   └── lib/{errors,schemas,settings,ai_runtime/{model,adapters,deep_runtime},operations/,database/}
+├── scripts/{export_openapi,verify_openapi,check_schema,migrate,smoke_ai_provider,accept_real_ai_rubric,accept_skill_push_evaldata,m0_samples,probe_deep_runtime,admin_cli}.py
 ├── migrations/versions/
 ├── tests/
 ├── openapi.json

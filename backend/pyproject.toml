@@ -5,13 +5,18 @@ description = "Backend service for scene-scoped evaluation question management"
 requires-python = ">=3.12,<3.14"
 dependencies = [
   "alembic>=1.14,<2",
+  "deepagents==0.7.13",
   "email-validator>=2.2,<3",
   "fastapi>=0.115,<1",
   "httpx>=0.28,<1",
+  "langchain==1.4.0",
   "langchain-anthropic==1.7.0",
   "langchain-core==1.6.1",
   "langchain-openai==1.6.0",
+  "langgraph==1.2.11",
+  "langgraph-checkpoint-postgres==3.1.2",
   "psycopg[binary]==3.3.4",
+  "pycryptodome==3.23.0",
   "pydantic-settings>=2.7,<3",
   "sqlalchemy>=2.0,<3",
   "uvicorn[standard]>=0.34,<1",

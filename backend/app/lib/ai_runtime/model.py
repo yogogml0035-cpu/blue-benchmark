@@ -126,14 +126,21 @@ def runtime_model_identity(
 
 def build_runtime_model(
     config: Settings | object = settings,
+    *,
+    streaming: bool = False,
 ) -> tuple[Any, RuntimeModelIdentity]:
-    """Build the configured LangChain chat model and its safe identity."""
+    """Build the configured LangChain chat model and its safe identity.
+
+    ``streaming=True`` enables token streaming on the transport; the deep
+    runtime uses it for live progress. The default keeps the existing
+    single structured invoke path byte-identical for current callers.
+    """
 
     identity = runtime_model_identity(config)
     api_key = _secret_value(getattr(config, "ai_api_key", ""))
     kwargs: dict[str, Any] = {
         "api_key": api_key,
-        "streaming": False,
+        "streaming": streaming,
         "max_retries": int(getattr(config, "ai_model_retries", 1)),
     }
     request_timeout = float(getattr(config, "ai_request_timeout_seconds", 180.0))
