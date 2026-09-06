@@ -25,7 +25,7 @@
 ## 提交与合并
 
 - 分支提交：9ceb902（后端切换）、bfe021a（后端测试）、550a89e（前端切换）、3ea18f0（验收入口+文档+sequence 合同）、9eea638（第一轮审查修复）、26695cd（编辑路径引用校验）、e2a96b9（第二轮审查修复）、5f1b465（有界修订轮）。
-- main 合并与复验：待填（合并后补记）。
+- main 合并与复验：主工作区 `git merge --ff-only codex/m0-rubric-atomic-cutover` 至 dcc1a64，`git log main..codex/m0-rubric-atomic-cutover` 为空；main 上复验 `git diff --check` ✓、`make test` backend 162 passed + frontend 75 passed（TEST_EXIT=0）、`make build` ✓（BUILD_EXIT=0）、`make frontend-e2e` 44 passed（E2E_EXIT=0，E2E_PORT=3123）。worktree/分支已清理。
 
 ## 对抗式审查（两轮，多智能体）
 

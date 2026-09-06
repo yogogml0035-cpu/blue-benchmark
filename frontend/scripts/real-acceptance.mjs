@@ -167,14 +167,17 @@ print("checkpoint schema ready")
     AI_RUNTIME_MODE: "production",
     SESSION_COOKIE_SECURE: "false",
     DATABASE_SCHEMA_CHECK_ON_STARTUP: "false",
+    // Short lease so the worker-kill recovery phase requeues quickly.
+    OPERATION_LEASE_SECONDS: "20",
   };
 
   track(spawn("uv", ["run", "uvicorn", "app.main:app", "--port", String(apiPort)], {
     cwd: backendRoot, detached: true, env: childEnv, stdio: "ignore",
   }));
-  track(spawn("uv", ["run", "python", "-m", "app.lib.operations.worker"], {
+  const workerChild = spawn("uv", ["run", "python", "-m", "app.lib.operations.worker"], {
     cwd: backendRoot, detached: true, env: childEnv, stdio: "ignore",
-  }));
+  });
+  track(workerChild);
   log("api_worker_started");
   await waitFor(`${apiBase}/healthz`, 60000, "api");
 
@@ -283,6 +286,56 @@ print("checkpoint schema ready")
   if (!sawLiveIncrement) fail("生成完成前浏览器没有收到任何真实增量（假流式或代理缓冲）");
   log("live_streaming_observed");
 
+  // 5a. Late joiner catches up from the persisted log (cursor replay), and a
+  //     mid-generation page refresh restores the timeline without restarting
+  //     the job.
+  {
+    const det = (await getDetail()).body;
+    const opId = det.active_operation_id;
+    if (!opId) fail("生成中但缺少 active_operation_id");
+    const snap = await (await fetch(
+      `${apiBase}/api/questions/${questionId}/runs/${opId}/events`,
+      { headers: { Cookie: cookieHeader } },
+    )).json();
+    if (!snap.events.length) fail("晚订阅读取不到已持久化的事件");
+    log("late_join_replayed", `events=${snap.events.length}`);
+
+    await page.reload();
+    await page.getByTestId("generation-progress").waitFor({ timeout: 20000 });
+    const restoredDeadline = Date.now() + 60000;
+    for (;;) {
+      const lines = await page.getByTestId("timeline-body").locator(
+        '[data-testid="timeline-stream"], [data-testid="timeline-stage"], [data-testid="timeline-tool"]',
+      ).count();
+      if (lines > 0) break;
+      if (Date.now() > restoredDeadline) fail("刷新后时间线没有从持久化日志恢复");
+      await page.waitForTimeout(500);
+    }
+    const afterRefresh = (await getDetail()).body;
+    if (afterRefresh.status !== "generating") fail("刷新触发了第二次生成或状态异常");
+    log("refresh_restored_timeline");
+  }
+
+  // 5b. REAL worker restart recovery: kill the worker mid-run, wait for the
+  //     lease to expire, start a NEW worker; the run must resume on the same
+  //     thread without duplicating the initial input.
+  {
+    const det = (await getDetail()).body;
+    if (det.status !== "generating") fail("击杀 Worker 前生成已结束，无法验证重启恢复");
+    const opId = det.active_operation_id;
+    try { process.kill(-workerChild.pid, "SIGKILL"); } catch { workerChild.kill("SIGKILL"); }
+    log("worker_killed_midrun", `operation=${opId}`);
+    await new Promise((r) => setTimeout(r, 26000)); // lease 20s + margin
+    const restarted = spawn("uv", ["run", "python", "-m", "app.lib.operations.worker"], {
+      cwd: backendRoot, detached: true, env: childEnv, stdio: "ignore",
+    });
+    track(restarted);
+    log("worker_restarted");
+    // Recovery proof is asserted after settle: the persisted log must contain
+    // a run_resumed/thread_state_incomplete event for this operation.
+    globalThis.__resumedOpId = opId;
+  }
+
   // 6. Wait for the REAL generation to settle.
   let detail = null;
   const genDeadline = Date.now() + GENERATION_TIMEOUT_MS;
@@ -326,6 +379,32 @@ print("checkpoint schema ready")
     }
   }
   log("real_generation_done", `criteria=${criteria.length}`);
+
+  // Recovery evidence: the operation that survived the worker kill must show
+  // a checkpoint resume in its persisted public log.
+  {
+    const resumedOp = globalThis.__resumedOpId;
+    if (resumedOp) {
+      const allEvents = [];
+      let after = 0;
+      for (;;) {
+        const pageBody = await (await fetch(
+          `${apiBase}/api/questions/${questionId}/runs/${resumedOp}/events?after_sequence=${after}`,
+          { headers: { Cookie: cookieHeader } },
+        )).json();
+        allEvents.push(...pageBody.events);
+        if (!pageBody.events.length || pageBody.last_sequence <= after) break;
+        after = pageBody.last_sequence;
+      }
+      const resumed = allEvents.some(
+        (e) => e.kind === "run_resumed" && e.stage === "thread_state_incomplete",
+      );
+      if (!resumed) fail("Worker 重启后未观察到 thread_state_incomplete 的恢复事件");
+      const humanTurns = allEvents.filter((e) => e.kind === "run_started").length;
+      if (humanTurns > 1) fail("恢复过程重复提交了初始输入");
+      log("worker_restart_recovery_verified", `events=${allEvents.length}`);
+    }
+  }
 
   // Events API replay: the full public process is retained after completion.
   const eventsResp = await fetch(
