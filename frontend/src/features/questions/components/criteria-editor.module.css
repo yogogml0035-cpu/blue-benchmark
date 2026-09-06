@@ -134,3 +134,229 @@
 .criterion:read-only {
   opacity: 0.7;
 }
+
+/* --- Complete-contract additions: stale hint, anchors, basis disclosure --- */
+
+.staleNote {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--benchmark-radius-sm);
+  border: 1px solid var(--benchmark-warning-line, #e3c56a);
+  background: var(--benchmark-warning-tint, rgba(227, 197, 106, 0.12));
+  color: var(--benchmark-text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.anchors {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--benchmark-muted);
+}
+
+.addAnchor {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--benchmark-muted);
+}
+
+.anchorList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.anchorRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.anchorScore {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding-top: 4px;
+}
+
+.anchorScore input {
+  width: 48px;
+  min-height: 30px;
+  padding: 0 6px;
+  border-radius: var(--benchmark-radius-sm);
+  border: 1px solid var(--benchmark-line-strong);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-text);
+  font-size: 13px;
+  text-align: center;
+}
+
+.anchorScore input:disabled {
+  opacity: 0.5;
+}
+
+.anchorDescription {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: var(--benchmark-radius-sm);
+  border: 1px solid var(--benchmark-line-strong);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-text);
+  font-size: 12px;
+  line-height: 1.55;
+  resize: none;
+}
+
+.anchorDescription:focus {
+  outline: none;
+  border-color: var(--benchmark-focus-blue);
+  box-shadow: var(--benchmark-focus-ring);
+}
+
+.anchorDescription:read-only {
+  opacity: 0.7;
+}
+
+.anchorRow .deleteButton {
+  width: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+  color: var(--benchmark-faint);
+}
+
+.anchorRow .deleteButton:hover:not(:disabled) {
+  background: var(--benchmark-danger-tint);
+  color: var(--benchmark-danger);
+}
+
+.basis {
+  border-top: 1px dashed var(--benchmark-line);
+  padding-top: 8px;
+}
+
+.basisToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--benchmark-action-purple);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.basisToggle:hover {
+  text-decoration: underline;
+}
+
+.basisBody {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.basisBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.basisTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--benchmark-text);
+}
+
+.basisExplanation {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--benchmark-muted);
+}
+
+.claims {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.claim {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border-radius: var(--benchmark-radius-sm);
+  background: var(--benchmark-surface-elevated);
+  border: 1px solid var(--benchmark-line);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.claimTeacher,
+.claimInferred {
+  align-self: flex-start;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.claimTeacher {
+  background: var(--benchmark-purple-line);
+  color: var(--benchmark-text);
+}
+
+.claimInferred {
+  background: var(--benchmark-line-strong);
+  color: var(--benchmark-muted);
+}
+
+.claimText {
+  color: var(--benchmark-text);
+}
+
+.citation {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.citationLocator {
+  align-self: flex-start;
+  font-size: 11px;
+  color: var(--benchmark-faint);
+}
+
+.citationQuote {
+  color: var(--benchmark-muted);
+  font-style: italic;
+}

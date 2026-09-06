@@ -1,0 +1,156 @@
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--benchmark-radius-md);
+  border: 1px solid var(--benchmark-line);
+  background: var(--benchmark-surface);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--benchmark-muted);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--benchmark-faint);
+  flex: none;
+}
+
+.dot_open {
+  background: var(--benchmark-success, #34a853);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.dot_connecting,
+.dot_reconnecting {
+  background: var(--benchmark-warning, #e3a008);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+.dot_closed {
+  background: var(--benchmark-faint);
+}
+
+.dot_frozen,
+.dot_gone,
+.dot_error {
+  background: var(--benchmark-danger, #d33);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot_open,
+  .dot_connecting,
+  .dot_reconnecting {
+    animation: none;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.connection {
+  font-weight: 600;
+  color: var(--benchmark-text);
+}
+
+.elapsed {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.srStatus {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--benchmark-faint);
+}
+
+.stageLine {
+  margin: 0;
+  font-size: 12px;
+  color: var(--benchmark-muted);
+}
+
+.stageLine::before {
+  content: "· ";
+}
+
+.toolLine {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--benchmark-muted);
+  word-break: break-all;
+}
+
+.toolBadge {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--benchmark-line-strong);
+  font-size: 11px;
+  color: var(--benchmark-text);
+}
+
+.streamText {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--benchmark-radius-sm);
+  background: var(--benchmark-surface-elevated);
+  border: 1px solid var(--benchmark-line);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--benchmark-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.failLine {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--benchmark-danger, #d33);
+}
+
+.doneLine {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--benchmark-success, #188038);
+}

@@ -13,12 +13,21 @@ export type QuestionDetailResponse = components["schemas"]["QuestionDetailRespon
 export type QuestionStatus = components["schemas"]["QuestionStatus"];
 export type NextAction = components["schemas"]["NextAction"];
 export type CriterionView = components["schemas"]["CriterionView"];
+export type ScoreAnchorView = components["schemas"]["ScoreAnchorView"];
+export type CriterionBasisView = components["schemas"]["CriterionBasisView"];
+export type PassScoreBasisView = components["schemas"]["PassScoreBasisView"];
+export type BasisClaimView = components["schemas"]["BasisClaimView"];
+export type SourceCitationView = components["schemas"]["SourceCitationView"];
 export type CriteriaPatchRequest = components["schemas"]["CriteriaPatchRequest"];
 export type QuestionSaveRegenerateRequest = components["schemas"]["QuestionSaveRegenerateRequest"];
 export type QuestionDeleteRequest = components["schemas"]["QuestionDeleteRequest"];
 export type QuestionTitleRequest = components["schemas"]["QuestionTitleRequest"];
 export type QuestionCommandRequest = components["schemas"]["QuestionCommandRequest"];
 export type OperationAcceptedResponse = components["schemas"]["OperationAcceptedResponse"];
+export type DeleteAcceptedResponse = components["schemas"]["DeleteAcceptedResponse"];
+export type DeleteStateView = components["schemas"]["DeleteStateView"];
+export type RunEventView = components["schemas"]["RunEventView"];
+export type RunEventsResponse = components["schemas"]["RunEventsResponse"];
 
 export function listQuestions(
   sceneId: string,
@@ -105,10 +114,36 @@ export function deleteQuestion(
   questionId: string,
   payload: QuestionDeleteRequest,
   signal?: AbortSignal,
-): Promise<void> {
-  return request<void>(`/api/questions/${encodeURIComponent(questionId)}`, {
+): Promise<DeleteAcceptedResponse> {
+  // 202 = deletion ACCEPTED (freeze + durable cleanup operation), not done.
+  // Completion is observed through the detail projection / event stream; the
+  // old "response received = deleted" semantics no longer exist.
+  return request<DeleteAcceptedResponse>(`/api/questions/${encodeURIComponent(questionId)}`, {
     method: "DELETE",
     body: payload,
     signal,
   });
+}
+
+export function getRunEvents(
+  questionId: string,
+  operationId: string,
+  opts: { afterSequence?: number; signal?: AbortSignal } = {},
+): Promise<RunEventsResponse> {
+  const params = new URLSearchParams();
+  if (opts.afterSequence && opts.afterSequence > 0) {
+    params.set("after_sequence", String(opts.afterSequence));
+  }
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return request<RunEventsResponse>(
+    `/api/questions/${encodeURIComponent(questionId)}/runs/${encodeURIComponent(operationId)}/events${query}`,
+    { signal: opts.signal },
+  );
+}
+
+export function runEventsStreamUrl(questionId: string, operationId: string, afterSequence = 0): string {
+  const params = new URLSearchParams();
+  if (afterSequence > 0) params.set("after_sequence", String(afterSequence));
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return `/api/questions/${encodeURIComponent(questionId)}/runs/${encodeURIComponent(operationId)}/events/stream${query}`;
 }

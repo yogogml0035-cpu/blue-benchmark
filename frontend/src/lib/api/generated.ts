@@ -219,7 +219,14 @@ export interface paths {
         get: operations["get_question_api_questions__question_id__get"];
         put?: never;
         post?: never;
-        /** Delete Question */
+        /**
+         * Delete Question
+         * @description Accept a protected deletion: freeze + durable cross-store cleanup.
+         *
+         *     202 means ACCEPTED, not deleted. Completion is only observable through
+         *     the cleanup operation state (detail projection / event stream); the old
+         *     "204 = row deleted = success" early-exit semantics are removed.
+         */
         delete: operations["delete_question_api_questions__question_id__delete"];
         options?: never;
         head?: never;
@@ -328,6 +335,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/questions/{question_id}/runs/{operation_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run Events
+         * @description One page of the complete public event log (snapshot + cursor restore).
+         */
+        get: operations["get_run_events_api_questions__question_id__runs__operation_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/questions/{question_id}/runs/{operation_id}/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Run Events
+         * @description Same-origin SSE over the persisted event log.
+         *
+         *     The stream READS the database (events are persisted before they are sent),
+         *     so it never owns, starts or restarts the job: disconnects, refreshes and
+         *     late subscribers only move the read cursor. Terminal conditions: question
+         *     leaves ``generating`` (done), deletion freeze (frozen), superseded
+         *     operation (superseded), or missing question (gone).
+         */
+        get: operations["stream_run_events_api_questions__question_id__runs__operation_id__events_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/external/connection": {
         parameters: {
             query?: never;
@@ -386,6 +439,28 @@ export interface components {
             teacher_feedback_texts: string[];
             /** Reason Summary */
             reason_summary: string | null;
+        };
+        /** BasisClaimIn */
+        BasisClaimIn: {
+            /** Claim */
+            claim: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "teacher_explicit" | "ai_inferred";
+            citation?: components["schemas"]["SourceCitationIn"] | null;
+        };
+        /** BasisClaimView */
+        BasisClaimView: {
+            /** Claim */
+            claim: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "teacher_explicit" | "ai_inferred";
+            citation: components["schemas"]["SourceCitationView"] | null;
         };
         /** BatchUploadRequest */
         BatchUploadRequest: {
@@ -456,9 +531,31 @@ export interface components {
             /** Criteria */
             criteria: components["schemas"]["CriterionIn"][];
         };
+        /** CriterionBasisIn */
+        CriterionBasisIn: {
+            /** Explanation */
+            explanation: string;
+            /** Claims */
+            claims: components["schemas"]["BasisClaimIn"][];
+        };
+        /** CriterionBasisView */
+        CriterionBasisView: {
+            /** Explanation */
+            explanation: string;
+            /** Claims */
+            claims: components["schemas"]["BasisClaimView"][];
+        };
         /**
          * CriterionIn
          * @description Administrator-supplied criterion; identical shape to the AI output contract.
+         *
+         *     Teacher-edit semantics (deliberately weaker than the GENERATION contract):
+         *     ``pass_score`` accepts ANY integer 0-10 — anchors are explanatory, never a
+         *     whitelist; ``score_anchors`` may be empty or omit ``pass_score``; the two
+         *     bases may be ``None`` for manually created criteria (explicitly empty
+         *     auxiliary content, not a missing-field fallback). Editing the score does
+         *     NOT rewrite or auto-fill anchors/bases; the UI flags a stale
+         *     ``explained_score`` for the teacher to review.
          */
         CriterionIn: {
             /** Id */
@@ -467,6 +564,10 @@ export interface components {
             criterion: string;
             /** Pass Score */
             pass_score: number;
+            /** Score Anchors */
+            score_anchors?: components["schemas"]["ScoreAnchorIn"][];
+            criterion_basis?: components["schemas"]["CriterionBasisIn"] | null;
+            pass_score_basis?: components["schemas"]["PassScoreBasisIn"] | null;
         };
         /** CriterionView */
         CriterionView: {
@@ -476,6 +577,32 @@ export interface components {
             criterion: string;
             /** Pass Score */
             pass_score: number;
+            /** Score Anchors */
+            score_anchors: components["schemas"]["ScoreAnchorView"][];
+            criterion_basis: components["schemas"]["CriterionBasisView"] | null;
+            pass_score_basis: components["schemas"]["PassScoreBasisView"] | null;
+        };
+        /** DeleteAcceptedResponse */
+        DeleteAcceptedResponse: {
+            /** Question Id */
+            question_id: string;
+            status: components["schemas"]["QuestionStatus"];
+            /** Operation Id */
+            operation_id: string;
+        };
+        /**
+         * DeleteStateView
+         * @description Projection of the accepted deletion operation (no material content).
+         */
+        DeleteStateView: {
+            /** Operation Id */
+            operation_id: string;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "queued" | "running" | "succeeded" | "failed";
+            error?: components["schemas"]["GenerationErrorView"] | null;
         };
         /** ErrorPayload */
         ErrorPayload: {
@@ -553,7 +680,7 @@ export interface components {
          * NextAction
          * @enum {string}
          */
-        NextAction: "wait_for_generation" | "retry_generation" | "review_criteria" | "publish" | "published";
+        NextAction: "wait_for_generation" | "retry_generation" | "review_criteria" | "publish" | "published" | "wait_for_deletion";
         /** OperationAcceptedResponse */
         OperationAcceptedResponse: {
             /** Question Id */
@@ -561,6 +688,24 @@ export interface components {
             status: components["schemas"]["QuestionStatus"];
             /** Operation Id */
             operation_id: string | null;
+        };
+        /** PassScoreBasisIn */
+        PassScoreBasisIn: {
+            /** Explained Score */
+            explained_score: number;
+            /** Explanation */
+            explanation: string;
+            /** Claims */
+            claims: components["schemas"]["BasisClaimIn"][];
+        };
+        /** PassScoreBasisView */
+        PassScoreBasisView: {
+            /** Explained Score */
+            explained_score: number;
+            /** Explanation */
+            explanation: string;
+            /** Claims */
+            claims: components["schemas"]["BasisClaimView"][];
         };
         /** QuestionCommandRequest */
         QuestionCommandRequest: {
@@ -571,13 +716,17 @@ export interface components {
         };
         /**
          * QuestionDeleteRequest
-         * @description Protected hard-delete contract.
+         * @description Protected delete-acceptance contract.
          *
          *     ``confirmation_title`` is only required for questions that were ever
          *     published; it must match the current title exactly (after Unicode NFC
-         *     normalization and trimming) or the delete is rejected.
+         *     normalization and trimming) or the delete is rejected. Acceptance starts
+         *     a durable cleanup operation; success is only reported after every
+         *     cross-store trace of the question is gone.
          */
         QuestionDeleteRequest: {
+            /** Command Id */
+            command_id: string;
             /** Content Revision */
             content_revision: number;
             /** Confirmation Title */
@@ -615,7 +764,10 @@ export interface components {
             content_revision: number;
             /** Active Operation Id */
             active_operation_id: string | null;
+            /** Last Operation Id */
+            last_operation_id: string | null;
             last_error: components["schemas"]["GenerationErrorView"] | null;
+            deletion: components["schemas"]["DeleteStateView"] | null;
             /** Delete Confirmation Required */
             delete_confirmation_required: boolean;
             /** Created At */
@@ -680,7 +832,7 @@ export interface components {
          * QuestionStatus
          * @enum {string}
          */
-        QuestionStatus: "generating" | "pending_review" | "generation_failed" | "published";
+        QuestionStatus: "generating" | "pending_review" | "generation_failed" | "published" | "deleting";
         /** QuestionTitleRequest */
         QuestionTitleRequest: {
             /** Command Id */
@@ -719,6 +871,40 @@ export interface components {
             email?: string | null;
             /** Password */
             password: string;
+        };
+        /**
+         * RunEventView
+         * @description One persisted public progress event of a generation operation.
+         */
+        RunEventView: {
+            /** Sequence */
+            sequence: number;
+            /** Kind */
+            kind: string;
+            /** Stage */
+            stage?: string | null;
+            /** Text */
+            text?: string | null;
+            /** Tool */
+            tool?: string | null;
+            /** Detail */
+            detail?: string | null;
+            /** Attempt */
+            attempt: number;
+            /** Created At */
+            created_at: string;
+        };
+        /** RunEventsResponse */
+        RunEventsResponse: {
+            /** Question Id */
+            question_id: string;
+            /** Operation Id */
+            operation_id: string | null;
+            status: components["schemas"]["QuestionStatus"];
+            /** Events */
+            events: components["schemas"]["RunEventView"][];
+            /** Last Sequence */
+            last_sequence: number;
         };
         /**
          * SceneConnectionStatusView
@@ -844,6 +1030,37 @@ export interface components {
             question_count: number;
             /** Active Credential Count */
             active_credential_count: number;
+        };
+        /** ScoreAnchorIn */
+        ScoreAnchorIn: {
+            /** Score */
+            score: number;
+            /** Description */
+            description: string;
+        };
+        /** ScoreAnchorView */
+        ScoreAnchorView: {
+            /** Score */
+            score: number;
+            /** Description */
+            description: string;
+        };
+        /**
+         * SourceCitationIn
+         * @description Teacher-visible citation into this question's materials.
+         */
+        SourceCitationIn: {
+            /** Locator */
+            locator: string;
+            /** Quote */
+            quote: string;
+        };
+        /** SourceCitationView */
+        SourceCitationView: {
+            /** Locator */
+            locator: string;
+            /** Quote */
+            quote: string;
         };
         /** User */
         User: {
@@ -1569,11 +1786,13 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            204: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DeleteAcceptedResponse"];
+                };
             };
             /** @description 未登录 */
             401: {
@@ -1921,6 +2140,109 @@ export interface operations {
             };
             /** @description 状态或版本不允许重新打开 */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_events_api_questions__question_id__runs__operation_id__events_get: {
+        parameters: {
+            query?: {
+                after_sequence?: number;
+            };
+            header?: never;
+            path: {
+                question_id: string;
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunEventsResponse"];
+                };
+            };
+            /** @description 未登录 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 题目不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 运行已被取代或删除冻结 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_run_events_api_questions__question_id__runs__operation_id__events_stream_get: {
+        parameters: {
+            query?: {
+                after_sequence?: number;
+            };
+            header?: never;
+            path: {
+                question_id: string;
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 未登录 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 题目不存在 */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
