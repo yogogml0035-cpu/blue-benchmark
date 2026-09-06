@@ -3,7 +3,7 @@
   "name": "m0-rubric-anchors-evidence",
   "title": "M0 评分维度：分档辅助、可核查依据与生成链路重构",
   "description": "记录已确认的M0维度审改语义，规划Deep Agents生成、完整流式记录、当前Docker PostgreSQL检查点和M1恢复协议；只规划，未经最终批准不实施。",
-  "status": "planning",
+  "status": "completed",
   "dev_type": "fullstack",
   "scope": "question-library",
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "hsikey",
   "assignee": "hsikey",
   "createdAt": "2026-09-05",
-  "completedAt": null,
+  "completedAt": "2026-09-06",
   "branch": "codex/m0-rubric-anchors-evidence",
   "base_branch": "main",
   "worktree_path": "/Users/hsikey/Company/skill-eval-platform-wt/m0-rubric-anchors-evidence",
@@ -27,7 +27,7 @@
   ],
   "parent": null,
   "relatedFiles": [],
-  "notes": "Planning parent/coordinator for the M0 rubric refactor. Owns confirmed requirements, shared design, C1-C5 dependencies and final integrated acceptance; do not start it as a product implementation task. Native children were created with --no-start. No implementation approval, child checkout, product test or data deletion has occurred.",
+  "notes": "Parent coordinator for the M0 rubric refactor. All five children (C1 real samples, C2 deep runtime, C3 atomic cutover, C4 system validation, C5 local release) are completed, archived and contained in main. One-shot authorized reset of the local project databases executed by C5 on 2026-09-06 with verified backups; delivered local stack runs from the primary workspace. Final acceptance record: evidence.md.",
   "meta": {
     "planning_only": false,
     "implementation_approved": true,
@@ -62,7 +62,7 @@
     "future_question_history_deletion_policy_confirmed": true,
     "question_history_deletion_policy": "delete_all_live_question_runtime_data_preserve_existing_confirmation_gates",
     "business_requirements_converged": true,
-    "final_review_status": "approved_2026-09-06",
+    "final_review_status": "completed_2026-09-06",
     "final_review_file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/review.md",
     "m1_chat_implementation_approved": false,
     "checkpoint_postgres_version_verified": "3.1.2",
@@ -80,6 +80,10 @@
       "09-06-m0-rubric-system-validation",
       "09-06-m0-rubric-local-release"
     ],
-    "private_evidence_root": "/Users/hsikey/Company/skill-eval-platform-wt/_artifacts/m0-rubric-anchors-evidence"
+    "private_evidence_root": "/Users/hsikey/Company/skill-eval-platform-wt/_artifacts/m0-rubric-anchors-evidence",
+    "cutover_executed": true,
+    "cutover_executed_at": "2026-09-06T14:45:05Z",
+    "cutover_record": "/Users/hsikey/Company/skill-eval-platform-wt/_artifacts/m0-rubric-anchors-evidence/c5/20260906T144505Z/reset-record.json",
+    "delivered_local_url": "http://127.0.0.1:3000"
   }
 }
