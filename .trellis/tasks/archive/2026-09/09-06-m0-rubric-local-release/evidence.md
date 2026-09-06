@@ -24,17 +24,30 @@
 - main 复验（切换前最终验证 @2aef270，日志 /tmp/c5-main-*.log）：`git diff --check`=0；`RUNTIME_PG_REQUIRED=1 pytest` 182 passed（PYTEST_EXIT=0）；`make build`=0；`make frontend-e2e` 44 passed（E2E_PORT=3137）；`ai-smoke`（skill_eval_c5_smoke_ckpt）`AI_SMOKE=OK criteria=4 message_delta=3106 elapsed=74.3s`；API 真实验收（skill_eval_c5_accept{,_ckpt}）`ACCEPT_REAL_AI=PASS`；Web 真实验收（skill_eval_c5_web{,_ckpt}）`M0_WEB_ACCEPTANCE=PASS` 含 `worker_restart_recovery_verified events=161`。
 - 审查修复提交 d09f13d 合入后（改动仅重置工具与其测试，不触及产品路径）：main 重跑 `git diff --check`、`RUNTIME_PG_REQUIRED=1 pytest`（194 passed）、`make build`、`make ai-smoke`；e2e/API 验收/Web 验收沿用 2aef270 的本次运行证据（增量与产品链路零交集，15→27 个工具定向测试覆盖全部增量）。
 
-## 一次性切换执行记录（授权范围内）
+## 一次性切换执行记录（授权范围内，2026-09-06）
 
-- 前置状态（dry-run 实测）：skill_eval 4 题/1 场景/1 管理员/4 凭证/4 作业；skill_eval_checkpoint 4,415 checkpoints（blobs 1,573 / writes 6,845 / migrations 10）。
-- 停止的自有进程：待填（PID 清单，均为 2026-09-04 启动的 make start-all 树）。
-- 备份位置与 sha256：待填。
-- 执行输出与后核验：待填。
-- 源文件保护：待填（切换前后 6 个业务源文件 sha256 复核）。
+- 前置状态（dry-run 实测）：skill_eval 4 题/1 场景/1 管理员/2 会话/4 凭证/4 作业；skill_eval_checkpoint 12,843 行（checkpoints 4,415 / blobs 1,573 / writes 6,845 / migrations 10）。
+- 停止的自有进程（先复核身份再 TERM 顶层，其 trap 清理全树；未杀任何来源不明进程）：make start-all 树 sh=23992（2026-09-04 15:22 启动）→ uvicorn=23998(:8000)、worker=23997、next dev=24012/next-server=70444(:3000)。停止后 8000/3000 端口均已释放。
+- 容器核验：system_identifier=768003422693… 双目标一致（同一实例）。
+- 备份（破坏性语句之前完成并校验：容器内 stat 字节比对 + pg_restore --list TOC）：
+  - skill_eval：115,959 bytes，sha256=34e05f77c61bae75…
+  - skill_eval_checkpoint：10,847,603 bytes，sha256=d6e60139148d63f8…
+  - 位置（非 Git 持久目录，0600/0700 权限）：/Users/hsikey/Company/skill-eval-platform-wt/_artifacts/m0-rubric-anchors-evidence/c5/20260906T144505Z/（含 reset-record.json）
+- 执行：schema_rebuilt ×2 → business_schema_at_head（0021）→ checkpoint_prepared → `RESET=OK`；工具后核验通过（空题库、schema 就绪、checkpoint_migrations=10 且 checkpoints=0）。
+- 切换后独立复核：dry-run 显示 skill_eval 11 表共 1 行（仅 alembic_version）、skill_eval_checkpoint 4 表共 10 行（仅迁移表）；6 个业务源文件 sha256 前后 diff 为空（SOURCE_HASHES_UNCHANGED，/tmp/c5-source-hashes-{before,after}.txt）。
+- 未动：Docker volume、数据库角色、`.env` 密钥、其他库（18 个 c2-c5 验收/测试库保留）、`.local-samples`。
 
 ## 交付的运行环境
 
-- 待填：API/Worker/前端进程身份、端口、代码 SHA、本地 URL、首次注册与上传指引、失败诊断入口。
+- 代码身份：主工作区 /Users/hsikey/Company/skill-eval-platform @ main（C5 合并后 SHA 见下），生产构建前端（make build 产物 .next）。
+- 进程（nohup 脱离会话，日志在 gitignored 的 storage/runtime/）：
+  - API：uvicorn app.main:app :8000（uv 包装 72995 → python 72997），日志 storage/runtime/api.log；healthz 返回 `{"status":"ok","persistence":"business database","ai":"production"}`。
+  - Worker：python -m app.lib.operations.worker（73004 → 73006），日志 storage/runtime/worker.log（空闲轮询，无错误）。
+  - 前端：next-server v16.3.4 :3000（pnpm 73021 → 73032），日志 storage/runtime/frontend.log；GET /login = 200。
+- 本地 URL：<http://127.0.0.1:3000>（首次进入按 `/api/auth/bootstrap` 的 registration_available=true 引导创建新的唯一管理员；旧账号/会话/凭证已随授权重置失效）。
+- 上传准备：注册后创建评测集 → 「创建凭证」→ 用一次性绑定提示词在本地 Agent 配置 ai-eval-push 技能 → 按新合同批量上传（新维度合同自动生效）。
+- 失败诊断：API/Worker/前端日志路径如上；`make db-check` 校验 schema；`make reset-local` 只读复查两库状态；健康检查 `curl http://127.0.0.1:8000/healthz`。
+- 重启方式（如需）：杀掉上述三进程后 `make start-all`（开发形态）或按上述三条 nohup 命令（生产形态）。
 
 ## 对抗式审查
 
