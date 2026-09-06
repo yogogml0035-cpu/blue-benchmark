@@ -22,19 +22,28 @@
 
 ## 质量门与真实验收（本次运行证据）
 
-- `git diff --check` / `RUNTIME_PG_REQUIRED=1 pytest`（0 skip）/ `make build` / `make frontend-e2e`：待填。
-- `make ai-smoke`（真实 Provider + C1 真实 F case + 隔离检查点库 skill_eval_c4_smoke_ckpt）：待填。
-- API 真实验收（skill_eval_c4_accept{,_ckpt}）：待填。
-- Web 真实验收含 Worker 重启恢复（skill_eval_c4_web{,_ckpt}）：待填。
-- 源文件 hash 复核：待填。
+- `git diff --check`=0；`RUNTIME_PG_REQUIRED=1 pytest`：166 passed / 0 skip（含新增 4 个故障注入）；`make build`=0；`make frontend-e2e`（E2E_PORT=3131，生产构建）：44 passed。日志：/tmp/c4-{pytest,build,e2e}.log。
+- `make ai-smoke`（真实 Provider gpt-5.6-luna + C1 真实 F case + skill_eval_c4_smoke_ckpt）：`AI_SMOKE=OK criteria=4 pass_scores=[8,8,7,7] events={run_started:1, stage:18, tool_started:10, tool_finished:10, message_delta:2967, run_completed:1} elapsed=75.3s`；引用逐字核验通过、冒烟线程清理零残留。首跑暴露 smoke 脚本把上传合同字段（client_ref_id）直接喂生成合同 → 修复于 b8df472。
+- API 真实验收（skill_eval_c4_accept{,_ckpt}）：`ACCEPT_REAL_AI=PASS`（/tmp/c4-accept-api.log）。两组 case 各 4 维度；F 组预算截断→重试→thread_state_incomplete 恢复；受理式删除 threads=1 双库零残留、兄弟题完好。
+- Web 真实验收（skill_eval_c4_web{,_ckpt}）：`M0_WEB_ACCEPTANCE=PASS`（/tmp/c4-accept-web.log）。新增阶段全部通过：`late_join_replayed events=4`（生成中晚订阅读到已持久化事件）、`refresh_restored_timeline`（刷新恢复且不触发第二次生成）、`worker_killed_midrun → worker_restarted → worker_restart_recovery_verified events=180`（真实 Worker 进程 SIGKILL、租约过期、新 Worker 从检查点恢复、thread_state_incomplete 且 run_started≤1 证明初始输入未重复）。
+- 源文件 hash 复核：六个业务源文件 sha256 与 C1 登记一致（验收链每次运行经 m0_samples.run_extraction 前后双重校验，任何不一致会直接 FAIL）。
 
 ## 对抗式审查
 
-- 待填。
+单审查代理（矩阵覆盖映射 + 突变体强度 + 运行身份）结论：无 Critical；矩阵 7 类场景全部有强覆盖入口（映射表见上），4 个新故障注入测试对生产守卫逐一 mental-revert 均变红（除 Major-3）。发现并已修复：
+
+- Major-1：真实 Provider 链路"恢复不重复初始输入"只有间接事件证明 → 新增 PG 测试直接驱动真实 DeepAgentRubricGenerator：预算截断留下 incomplete 线程 → 真 adapter 恢复 → 检查点内 HumanMessage 恰为 1 条（直接证据，revert adapters 的 inputs=None 分支即红）。
+- Major-2：验收证据缺运行身份 → accept-evidence.json 增加 run_identity（git SHA、时间戳、模型 provider/model/fingerprint、SDK 四件套版本、业务/检查点库名、worker 标记），满足"不以配置 production 冒充运行身份"。
+- Major-3：跨题测试的 thread 隔离断言恒真（非 durable 生成器不登记线程）→ RecordingGenerator 改走 durable 登记路径，断言两题线程均非空、互斥、且包含各自题目 ID。
+- Minor 修复：mjs 删除残留核验改为删除前捕获 thread 清单再逐项核验（成功路径不再退化为空检查）；smoke 清理失败输出 AI_SMOKE_WARN 而非静默；失租测试补 job 归属与 fail 拒绝断言；task.json 行尾换行。
+- 记录为已知限制（不阻塞，如实单列）：① 隐藏/恢复页签无自动化覆盖（重连游标逻辑有测试，visibilitychange 行为未自动化）；② 摘要压缩后回放原文逐字一致性仅由"事件合并非丢弃"实现与计数断言弱覆盖，无逐字比对测试；③ SQLite 晚订阅测试同进程，跨进程读库证明由 mjs 5a 承担（late_join_replayed 日志）；④ mjs 刷新/击杀断言存在生成恰好完成的竞态窗口，失败方向诚实（误报 FAIL 而非假 PASS）；⑤ 26s 等待对 20s 租约的余量在最坏心跳时点略紧，无正确性影响。
+- 程序断言与业务语义审阅分栏：本文件全部为程序化/自动化证据；老师（用户）对生成维度业务质量的实际认可未发生，不在此声称。
+
+修复后：backend 全量 RUNTIME_PG_REQUIRED=1 167 passed / 0 skip（166+新增真实 adapter 直接恢复证据，另含既有套件），test_c4 三连跑无 flake。
 
 ## 提交与合并
 
-- 分支提交：2d2616e（故障注入+验收扩展）。
+- 分支提交：2d2616e（故障注入+验收扩展+C3 证据补记）、b8df472（smoke 合同映射修复，含真实冒烟证据）。
 - main 合并与复验：待填。
 
 ## 边界声明

@@ -82,9 +82,17 @@ def test_lease_lost_writer_cannot_commit_or_emit_completion() -> None:
                         OperationJobRow.target_id == question_id,
                     )
                 ).scalars().first()
+            assert job.worker_id == "worker-usurper", "测试前提：所有权已被夺走"
             events = run_streams.read_events(question_id, job.id)
             kinds = [e.kind for e in events]
             assert "run_completed" not in kinds, "失租写者不得发出完成事件"
+            # The old worker's own fail/supersede attempts are refused too.
+            from app.lib.operations import repository as ops_repository
+
+            with pytest.raises(ValueError):
+                ops_repository.fail(
+                    job.id, "not-the-owner", {"code": "X", "message": "x"}, retryable=False
+                )
     finally:
         adapter_module.set_adapters(previous)
 
@@ -97,7 +105,11 @@ def test_generation_inputs_never_cross_questions() -> None:
     seen: dict[str, str] = {}
 
     class RecordingGenerator(adapter_module.FakeRubricGenerator):
-        uses_durable_runtime = False
+        # Durable registration path: the handler registers per-question
+        # threads (business DB only), making the disjointness assertion below
+        # a real check instead of a vacuous one. The fake generate() never
+        # opens a checkpoint session, so no PG is required here.
+        uses_durable_runtime = True
 
         def generate(self, materials, *, context: RunContext, sink):
             blob = json.dumps(materials.model_dump(), ensure_ascii=False)
@@ -133,7 +145,10 @@ def test_generation_inputs_never_cross_questions() -> None:
 
             threads_a = run_streams.list_question_threads(ids["case-iso-a"])
             threads_b = run_streams.list_question_threads(ids["case-iso-b"])
+            assert threads_a and threads_b, "durable 路径必须登记每题线程"
             assert not (set(threads_a) & set(threads_b))
+            assert all(ids["case-iso-a"] in t for t in threads_a)
+            assert all(ids["case-iso-b"] in t for t in threads_b)
     finally:
         adapter_module.set_adapters(previous)
 

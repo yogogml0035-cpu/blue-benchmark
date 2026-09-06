@@ -146,8 +146,8 @@ def main() -> int:
                     deep_runtime.delete_thread_data(session)
                 finally:
                     session.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"AI_SMOKE_WARN=cleanup_failed {type(exc).__name__}")
     elapsed = time.monotonic() - started
 
     # Contract assertions on the complete result (structural facts only).

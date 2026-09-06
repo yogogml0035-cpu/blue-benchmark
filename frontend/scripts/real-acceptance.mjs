@@ -449,6 +449,22 @@ print("checkpoint schema ready")
   log("reopened");
 
   // 8. Accepted deletion: navigation only after the durable cleanup (404).
+  //     Thread ids are captured BEFORE deletion — the registry rows disappear
+  //     with the question, and residue must be checked against the captured
+  //     list, not an empty post-delete query.
+  const threadsBeforeDelete = JSON.parse(execFileSync("uv", ["run", "python", "-c", `
+import json, os
+from app.features.question_library import run_streams
+print(json.dumps(run_streams.list_question_threads(os.environ["ACCEPT_QUESTION_ID"])))
+`], {
+    cwd: backendRoot,
+    env: { ...process.env, DATABASE_URL: businessSqla, ACCEPT_QUESTION_ID: questionId },
+    stdio: ["ignore", "pipe", "ignore"],
+  }).toString().trim());
+  if (!Array.isArray(threadsBeforeDelete) || threadsBeforeDelete.length === 0) {
+    fail("删除前未捕获到任何运行线程登记，无法证明跨库清理范围");
+  }
+  log("threads_captured", `count=${threadsBeforeDelete.length}`);
   const threadCheck = async () => {
     const r = await fetch(`${apiBase}/api/questions/${questionId}`, { headers: { Cookie: cookieHeader } });
     return r.status;
@@ -474,7 +490,8 @@ class C:
 conn = psycopg.connect(os.environ["ACCEPT_CHECKPOINT_DSN"], autocommit=True)
 saver = deep_runtime.build_saver(conn, C())
 threads = run_streams.list_question_threads(os.environ["ACCEPT_QUESTION_ID"])
-residues = {t: deep_runtime.thread_data_residue(conn, t) for t in threads}
+captured = json.loads(os.environ["ACCEPT_CAPTURED_THREADS"])
+residues = {t: deep_runtime.thread_data_residue(conn, t) for t in captured}
 print(json.dumps({"threads": len(threads), "residues": residues}))
 `], {
     cwd: backendRoot,
@@ -483,18 +500,19 @@ print(json.dumps({"threads": len(threads), "residues": residues}))
       DATABASE_URL: businessSqla,
       ACCEPT_CHECKPOINT_DSN: checkpointPlain,
       ACCEPT_QUESTION_ID: questionId,
+      ACCEPT_CAPTURED_THREADS: JSON.stringify(threadsBeforeDelete),
     },
     stdio: ["ignore", "pipe", "ignore"],
   }).toString();
   const residue = JSON.parse(residueOut.trim().split("\n").pop());
   if (residue.threads !== 0) {
-    // Thread registry rows were removed with the question; a non-zero count
-    // here means business-side residue survived the final transaction.
-    for (const [thread, counts] of Object.entries(residue.residues)) {
-      if (Object.values(counts).some((v) => v !== 0)) fail(`检查点残留 ${thread}: ${JSON.stringify(counts)}`);
-    }
+    // Business-side registry rows must be gone with the question.
+    fail(`业务库线程登记残留 ${residue.threads} 行`);
   }
-  log("residue_verified", `threads_left=${residue.threads}`);
+  for (const [thread, counts] of Object.entries(residue.residues)) {
+    if (Object.values(counts).some((v) => v !== 0)) fail(`检查点残留 ${thread}: ${JSON.stringify(counts)}`);
+  }
+  log("residue_verified", `threads_checked=${Object.keys(residue.residues).length}`);
 
   await browser.close();
   log("done");

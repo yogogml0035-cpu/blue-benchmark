@@ -497,3 +497,95 @@ def test_runtime_fingerprint_mismatch_purges_and_recovers(pg_business_env) -> No
         set_adapters(previous)
         if question_id:
             _clean_from_dsn(dsn, f"qgen-{question_id}-r1")
+
+
+def test_real_adapter_resume_never_duplicates_initial_input(pg_business_env, monkeypatch) -> None:
+    """MAJ-1 (C4 round): DIRECT proof on the production adapter that an
+    incomplete thread resumes without re-appending the initial input — the
+    checkpoint ends with exactly one HumanMessage."""
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from app.lib.ai_runtime import deep_runtime as dr
+    from app.lib.ai_runtime.adapters import (
+        DeepAgentRubricGenerator,
+        RubricGenerationInput,
+        RunContext,
+    )
+    from app.lib.ai_runtime.deep_runtime import ListSink
+    from pydantic import SecretStr
+    from tests.test_question_runtime_postgres import _clean_from_dsn, _fixed_result
+
+    dsn = pg_business_env
+    thread_id = "qgen-direct-resume-r1"
+    _clean_from_dsn(dsn, thread_id)
+
+    class _Cfg:
+        checkpoint_database_url = SecretStr(dsn)
+        from app.lib.settings import settings as _s
+        langgraph_aes_key = _s.langgraph_aes_key
+
+    materials = RubricGenerationInput(
+        task_prompt="直接恢复测试任务。", reference_answer="直接恢复测试的标准答案。"
+    )
+    context = RunContext(
+        thread_id=thread_id, operation_id="op-direct-resume", attempt_number=1,
+        question_id="q-direct-resume", materials_revision=1,
+        materials_fingerprint="f" * 64,
+    )
+
+    def _session_factory(ctx):
+        return dr.open_session(ctx.thread_id, _Cfg())
+
+    # Phase 1: real adapter, budget capped at one model call — the scripted
+    # model issues a tool call, the tool round persists, then the budget
+    # kills the second model call: a genuinely incomplete thread.
+    tool_call = AIMessage(
+        content="",
+        tool_calls=[{"name": "write_file",
+                     "args": {"file_path": "/workspace/note.md", "content": "中途笔记"},
+                     "id": "w1", "type": "tool_call"}],
+    )
+    gen1 = DeepAgentRubricGenerator(
+        model=ScriptedModel(messages=iter([tool_call, AIMessage(content="不会到达")])),
+        identity=IDENTITY,
+        session_factory=_session_factory,
+        budget=dr.RuntimeBudget(max_model_calls=1),
+    )
+    from app.lib.ai_runtime.adapters import RubricGenerationFailure
+
+    with pytest.raises(RubricGenerationFailure) as exc_info:
+        gen1.generate(materials, context=context, sink=ListSink())
+    assert exc_info.value.code == "RUNTIME_BUDGET_EXCEEDED"
+
+    # Phase 2: real adapter resumes. The stored structured read is stubbed
+    # (ScriptedModel cannot produce response_format output), but the RESUME
+    # decision, input handling and message history are the real adapter's.
+    monkeypatch.setattr(dr, "final_structured_response",
+                        lambda agent, session: _fixed_result(materials))
+    gen2 = DeepAgentRubricGenerator(
+        model=ScriptedModel(messages=iter([AIMessage(content="恢复后完成。")])),
+        identity=IDENTITY,
+        session_factory=_session_factory,
+    )
+    sink2 = ListSink()
+    result = gen2.generate(materials, context=context, sink=sink2)
+    assert result.criteria
+    assert any(
+        e.kind == "run_resumed" and e.stage == "thread_state_incomplete" for e in sink2.events
+    )
+    # DIRECT evidence: the checkpointed conversation holds exactly ONE
+    # HumanMessage — the resume did not re-append the initial input.
+    session = _session_factory(context)
+    try:
+        agent = dr.build_restricted_agent(
+            ScriptedModel(messages=iter([])), IDENTITY,
+            system_prompt="x", budget=dr.RuntimeBudget(),
+            counters=dr.BudgetCounters(), sink=ListSink(),
+            checkpointer=session.saver,
+        )
+        state = agent.get_state(session.thread_config())
+        humans = [m for m in state.values["messages"] if isinstance(m, HumanMessage)]
+        assert len(humans) == 1, f"恢复后初始输入重复：{len(humans)} 条 HumanMessage"
+    finally:
+        session.close()
+    _clean_from_dsn(dsn, thread_id)

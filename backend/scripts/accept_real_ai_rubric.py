@@ -368,7 +368,37 @@ def main() -> int:
                         elif citation["quote"].strip() and citation["quote"].strip() not in text:
                             _fail("contract", "引用原文不在对应材料中")
 
-    evidence: dict[str, Any] = {"cases": {}}
+    import subprocess
+    from datetime import datetime, timezone
+
+    import importlib.metadata as importlib_md
+
+    try:
+        git_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+    except Exception:
+        git_sha = "unknown"
+    evidence: dict[str, Any] = {
+        "run_identity": {
+            "git_sha": git_sha,
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "model": {"provider": identity.provider, "model": identity.model,
+                      "fingerprint": identity.fingerprint,
+                      "base_url_set": bool(identity.base_url)},
+            "sdk_versions": {
+                "deepagents": importlib_md.version("deepagents"),
+                "langgraph": importlib_md.version("langgraph"),
+                "langgraph_checkpoint_postgres": importlib_md.version(
+                    "langgraph-checkpoint-postgres"),
+                "langchain": importlib_md.version("langchain"),
+            },
+            "business_db": business_sqla.rsplit("/", 1)[-1],
+            "checkpoint_db": ckpt_db,
+            "worker_runtime_marker": "production (asserted per settled job)",
+        },
+        "cases": {},
+    }
     case_by_id = {c["client_case_id"]: c for c in cases}
 
     for case_id, question_id in question_ids.items():
