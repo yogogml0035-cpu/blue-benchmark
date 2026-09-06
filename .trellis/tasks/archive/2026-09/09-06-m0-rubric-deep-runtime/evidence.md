@@ -75,5 +75,8 @@
 - `git diff --check`：通过（DIFFCHECK=0）。
 - `make test`：backend 138 passed + frontend 70 passed，TEST_EXIT=0。
 - `make build`：frontend 生产构建成功，BUILD_EXIT=0。
-- 改动文件清单（全部在 C2 边界内）：backend/app/lib/ai_runtime/{model.py(streaming 参数),deep_runtime.py(新增)}、backend/app/lib/settings.py（checkpoint 两字段）、backend/pyproject.toml + uv.lock（三个精确锁定新依赖）、backend/scripts/probe_deep_runtime.py、backend/tests/test_deep_runtime{,_postgres}.py、.env.example、.trellis/spec/backend/core/{structure-and-boundaries,stub-state-and-contracts}.md、本任务文档。features/、worker、router、前端、迁移零改动。
-- 提交 SHA 与 main 复验：待填。
+- 改动文件清单（全部在 C2 边界内）：backend/app/lib/ai_runtime/{model.py(streaming 参数),deep_runtime.py(新增)}、backend/app/lib/settings.py（checkpoint 两字段）、backend/pyproject.toml + uv.lock（精确锁定新依赖）、backend/scripts/probe_deep_runtime.py、backend/tests/test_deep_runtime{,_postgres}.py、.env.example、.trellis/spec/backend/core/{structure-and-boundaries,stub-state-and-contracts}.md、本任务文档。features/、worker、router、前端、迁移零改动。
+- 审查修复后最终门禁：`git diff --check` ✓；`RUNTIME_PG_REQUIRED=1` 下 27 passed / 0 skip；`make test` backend 143 passed + frontend 70 passed（TEST_EXIT=0）；`make build` ✓（BUILD_EXIT=0）。
+- 提交 SHA：cdf7aee（feat(ai-runtime): durable deep-agent runtime primitives (deepagents 0.7.13)），基线 main@f777492。
+- 合并：主工作区 `git merge --ff-only codex/m0-rubric-deep-runtime`，`git log main..codex/m0-rubric-deep-runtime` 为空。
+- main 复验（合并后主工作区执行）：`git diff --check` ✓、`make test` 143+70 passed（TEST_EXIT=0）、`make build` ✓（BUILD_EXIT=0）。
