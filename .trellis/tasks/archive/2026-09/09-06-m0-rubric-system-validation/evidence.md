@@ -43,8 +43,14 @@
 
 ## 提交与合并
 
-- 分支提交：2d2616e（故障注入+验收扩展+C3 证据补记）、b8df472（smoke 合同映射修复，含真实冒烟证据）。
-- main 合并与复验：待填。
+- 分支提交：2d2616e（故障注入+验收扩展+C3 证据补记）、b8df472（smoke 合同映射修复）、9db7eb4（审查修复：直接恢复证明+运行身份+真实线程隔离）。
+- main 合并：主工作区 `git merge --ff-only codex/m0-rubric-system-validation` 至 9db7eb4，`git log main..branch` 为空。
+- **main 上重跑系统验收（implement.md 第 6 步，本次运行证据，日志 /tmp/c4-main-*.log）**：
+  - `git diff --check`=0；`RUNTIME_PG_REQUIRED=1 pytest`：167 passed / 0 skip（PYTEST_EXIT=0）；`make build`=0；`make frontend-e2e`（E2E_PORT=3133）：44 passed。
+  - `ai-smoke`（skill_eval_c4_smoke_ckpt 重建后）：`AI_SMOKE=OK criteria=4 pass_scores=[7,8,7,7] message_delta=2961 tool_calls=10 elapsed=76.0s`。
+  - API 真实验收（skill_eval_c4_accept{,_ckpt} 重建后）：`ACCEPT_REAL_AI=PASS`（含 F 组预算截断→检查点恢复、双库删除零残留、run_identity 记录 git SHA=9db7eb4）。
+  - Web 真实验收（skill_eval_c4_web{,_ckpt} 重建后）：`M0_WEB_ACCEPTANCE=PASS`，`worker_restart_recovery_verified events=259`（真实 SIGKILL→租约过期→新 Worker→thread_state_incomplete 恢复、初始输入不重复）、晚订阅回放、刷新恢复、live 增量、删除以 404 为准、按删除前捕获的 thread 清单核验检查点零残留。
+- 测试对应提交：以上全部运行于 main@9db7eb4（与分支 HEAD 相同树），非历史结果复用。
 
 ## 边界声明
 
