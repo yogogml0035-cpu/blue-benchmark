@@ -21,7 +21,8 @@
 
 - 分支：`git diff --check`=0；`RUNTIME_PG_REQUIRED=1 pytest` 182 passed / 0 skip（167+15 新增）；`make build`=0；`make frontend-e2e` 44 passed（E2E_PORT=3135）。
 - 合并：主工作区 ff 至 main@2aef270，`git log main..branch` 为空。
-- main 复验（切换前最终验证，日志 /tmp/c5-main-*.log）：待填（pytest/build/e2e/ai-smoke/API 验收/Web 验收）。
+- main 复验（切换前最终验证 @2aef270，日志 /tmp/c5-main-*.log）：`git diff --check`=0；`RUNTIME_PG_REQUIRED=1 pytest` 182 passed（PYTEST_EXIT=0）；`make build`=0；`make frontend-e2e` 44 passed（E2E_PORT=3137）；`ai-smoke`（skill_eval_c5_smoke_ckpt）`AI_SMOKE=OK criteria=4 message_delta=3106 elapsed=74.3s`；API 真实验收（skill_eval_c5_accept{,_ckpt}）`ACCEPT_REAL_AI=PASS`；Web 真实验收（skill_eval_c5_web{,_ckpt}）`M0_WEB_ACCEPTANCE=PASS` 含 `worker_restart_recovery_verified events=161`。
+- 审查修复提交 d09f13d 合入后（改动仅重置工具与其测试，不触及产品路径）：main 重跑 `git diff --check`、`RUNTIME_PG_REQUIRED=1 pytest`（194 passed）、`make build`、`make ai-smoke`；e2e/API 验收/Web 验收沿用 2aef270 的本次运行证据（增量与产品链路零交集，15→27 个工具定向测试覆盖全部增量）。
 
 ## 一次性切换执行记录（授权范围内）
 
@@ -37,7 +38,14 @@
 
 ## 对抗式审查
 
-- 待填。
+重置工具专项审查代理（最高安全标准，只读+定向测试+dry-run 实测）结论：发现 1 Critical + 3 Major + 5 Minor，全部在提交 d09f13d 修复并加回归：
+- C-1（Critical）：DSN query 参数可绕过白名单（libpq 的 ?host=/?dbname=/?port= 覆盖 authority，实测可把 DROP 打到白名单外目标且备份落在另一实例）→ verify_target 拒绝任何 query/fragment；全部连接改用已验证分量重拼（connect_params/_connect）并断言 current_database() 落点；12 个新拒绝回归（query 注入、大小写、percent-encoding、多路径段、IPv6、驱动前缀、localhost）。
+- M-1：容器身份核验只覆盖业务 DSN → 双目标各自核验且要求同一实例。
+- M-2：重置后 `GRANT ALL TO PUBLIC` 是权限放大（原库为 PG15+ 默认形态）→ 删除；保留 owner 形态 + checkpoint 角色定向 USAGE,CREATE。
+- M-3：备份成功判定弱（docker cp 截断可穿透）→ 容器内 stat 字节数与本地逐字节比对 + `pg_restore --list` TOC 可解析后才信任；备份 0600/目录 0700、PID 后缀防并发覆盖、reset-record 0600、--backup-dir 位于任何 git 工作区即拒绝。
+- Minor：未预期异常也输出 RESET=FAIL+回退指引；reset 加 lock_timeout=5s + advisory lock 防并发/迟到写者；README 备份措辞与强化后实现一致；CLI 确认串检查提前到 DSN 解析之前（测试注释同步修正）。
+- 审查确认通过项：白名单基础拒绝面（大小写/编码/IPv6/远端/错端口/无凭证/非 PG）、破坏范围（两库内仅项目对象，不触及角色/其他 18 个验收库/volume）、备份先于破坏的代码路径不可绕过、后核验充分（alembic/checkpointer 半程失败必被捕获，RESET=OK 不可能在库不可用时打印）、输出零凭证/零正文泄露、默认备份目录不在任何 git 仓库内、工具未被 make test/启动/迁移引用。
+- 审查结论：修复后允许执行真实切换（已按此顺序执行）。
 
 ## 边界声明
 
