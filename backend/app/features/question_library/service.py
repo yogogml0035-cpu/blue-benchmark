@@ -102,6 +102,7 @@ def _detail_response(record: repository.QuestionRecord) -> QuestionDetailRespons
         next_action=_next_action(record.status, record.criteria_confirmed),
         content_revision=record.content_revision,
         active_operation_id=record.active_operation_id,
+        last_operation_id=_last_operation_id(record.id),
         last_error=(
             GenerationErrorView(
                 code=str(record.last_error.get("code", "")),
@@ -126,6 +127,19 @@ def _criterion_view(item: dict) -> CriterionView:
     two-field records are read or back-filled).
     """
     return CriterionView.model_validate(item)
+
+
+def _last_operation_id(question_id: str) -> str | None:
+    """Newest generation operation of this question (for post-completion replay)."""
+    from app.lib.operations import repository as ops_repository
+
+    jobs = [
+        job
+        for job in ops_repository.list_for_target("eval_question", question_id)
+    ]
+    if not jobs:
+        return None
+    return max(jobs, key=lambda job: job.created_at).id
 
 
 def _deletion_view(question_id: str) -> DeleteStateView | None:

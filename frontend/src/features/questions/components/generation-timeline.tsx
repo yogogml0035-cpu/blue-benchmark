@@ -165,8 +165,8 @@ export function GenerationTimeline({
   const appendEvents = useCallback((incoming: RunEventView[]) => {
     if (incoming.length === 0) return;
     setEvents((prev) => {
-      const seen = new Set(prev.map((e) => `${e.attempt}:${e.sequence}`));
-      const fresh = incoming.filter((e) => !seen.has(`${e.attempt}:${e.sequence}`));
+      const seen = new Set(prev.map((e) => e.sequence));
+      const fresh = incoming.filter((e) => !seen.has(e.sequence));
       if (fresh.length === 0) return prev;
       lastSequenceRef.current = Math.max(
         lastSequenceRef.current,

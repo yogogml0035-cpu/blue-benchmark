@@ -138,9 +138,14 @@ def read_events(
     operation_id: str,
     *,
     after_sequence: int = 0,
-    attempt: int | None = None,
     limit: int = 500,
 ) -> list[StoredEvent]:
+    """One page of the log, ordered by the per-operation monotonic sequence.
+
+    The sequence is continuous across attempts, so a single cursor is enough
+    for reconnects and pagination; ``attempt`` stays as an event attribute
+    that marks which try produced each entry.
+    """
     with session_scope() as session:
         statement = (
             select(QuestionRunEventRow)
@@ -149,21 +154,18 @@ def read_events(
                 QuestionRunEventRow.operation_id == operation_id,
                 QuestionRunEventRow.sequence > after_sequence,
             )
-            .order_by(QuestionRunEventRow.attempt_number, QuestionRunEventRow.sequence)
+            .order_by(QuestionRunEventRow.sequence)
             .limit(min(max(limit, 1), 1000))
         )
-        if attempt is not None:
-            statement = statement.where(QuestionRunEventRow.attempt_number == attempt)
         rows = session.execute(statement).scalars().all()
     return [_row_to_event(row) for row in rows]
 
 
-def last_sequence(operation_id: str, attempt_number: int) -> int:
+def last_sequence(operation_id: str) -> int:
     with session_scope() as session:
         value = session.execute(
             select(func.max(QuestionRunEventRow.sequence)).where(
                 QuestionRunEventRow.operation_id == operation_id,
-                QuestionRunEventRow.attempt_number == attempt_number,
             )
         ).scalar_one_or_none()
     return int(value or 0)
@@ -193,7 +195,9 @@ class PersistentEventSink:
         self.attempt_number = attempt_number
         self.thread_id = thread_id
         self._lock = threading.Lock()
-        self._sequence = last_sequence(operation_id, attempt_number)
+        # Sequence is per-OPERATION and continuous across attempts: a retry
+        # continues the log instead of restarting the cursor.
+        self._sequence = last_sequence(operation_id)
         self._pending_text: list[str] = []
         self._pending_since = 0.0
         self._buffered_rows: list[tuple[str, str | None, str | None, str | None, str | None]] = []

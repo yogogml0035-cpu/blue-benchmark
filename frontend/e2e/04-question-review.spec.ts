@@ -42,9 +42,12 @@ async function cookieHeader(page: Page): Promise<string> {
 async function seedQuestion(
   page: Page,
   request: APIRequestContext,
-  sceneName: string,
+  sceneNameBase: string,
   opts: { waitSettled?: boolean } = {},
 ): Promise<{ sceneId: string; questionId: string; token: string }> {
+  // Unique per attempt so serial-group retries never collide with the
+  // previous run's scene (uq_scene_name).
+  const sceneName = `${sceneNameBase}-${Date.now().toString(36)}`;
   await page.goto("/evaluation-sets");
   await page.getByRole("button", { name: "创建评测集" }).first().click();
   await page.getByLabel("名称").fill(sceneName);
@@ -186,7 +189,7 @@ test("material edit requires explicit replace-everything confirmation", async ({
   await page.goto(`/evaluation-sets/${sceneId}/questions/${questionId}`);
   await page.getByRole("button", { name: "编辑材料" }).click();
 
-  const prompt = page.getByLabel("题目", { exact: true });
+  const prompt = page.getByRole("textbox", { name: "题目", exact: true });
   await prompt.fill("请把提供的素材整理成一段正式说明，并补充审核要点。");
 
   // Cancel first: no write request, no generation, draft dialog just closes.

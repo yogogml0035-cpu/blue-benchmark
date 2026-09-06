@@ -72,5 +72,5 @@
 
 - 命令 ID 的数据库唯一范围必须按实现核对；`command_id + payload_hash` 决定幂等重放与冲突，跨场景的命令互不影响。
 - `/healthz` 的 `ai` 只报告 `AI_RUNTIME_MODE`，不代表 Provider 或 Worker readiness；README 必须把这几项分开描述。
-- 评分维度生成的结构化输出必须经过两字段合同与可执行性/隐私校验后才能提交；模型原文不进入响应或日志。
-- 真实 E2E 只输出阶段/计数/错误码；禁止把 `EvalData`、凭证、正文或 raw model output 写入 Git。
+- 评分维度生成的结构化输出必须经过完整评分项合同（锚点覆盖建议分、依据分类与引用存在性）与可执行性/隐私校验后才能提交；模型私有推理与原始工具输出不进入响应、事件日志或公开流。
+- 真实 E2E/验收只输出阶段/计数/错误码；真实样本经 `scripts.m0_samples` hash 门禁重建，禁止把语料正文、凭证或 raw model output 写入 Git；验收入口指向项目库（skill_eval / skill_eval_checkpoint）必须被拒绝。

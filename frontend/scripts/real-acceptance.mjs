@@ -1,23 +1,38 @@
 /**
- * Real-AI web acceptance runner (Child 5 / parent AC15).
+ * Real-AI web acceptance (C3 cutover contract).
  *
- * Boots an isolated environment — fresh SQLite DB, FastAPI on a dedicated port
- * in production mode (real provider from .env), exactly ONE production worker,
- * and a prebuilt Next.js console — then drives the full chain in a real
- * browser:
+ * Boots an ISOLATED environment — task-exclusive PostgreSQL business +
+ * checkpoint databases (project DBs are refused by name), FastAPI on a FREE
+ * port in production mode (real provider from .env), exactly ONE production
+ * worker, and a prebuilt Next.js console — then drives the full chain in a
+ * real browser with the C1 REAL sample materials:
  *
- *   register admin -> create evaluation set -> issue credential -> capture the
- *   one-time Agent prompt -> upload a question through the external endpoint ->
- *   REAL AI generates 2-6 criteria -> teacher selects & saves -> publish ->
- *   reopen review -> re-publish.
+ *   register admin -> create evaluation set -> issue credential -> upload the
+ *   real case through the external endpoint -> browser observes LIVE streaming
+ *   increments while generation is still running -> REAL AI produces complete
+ *   criteria (anchors + dual bases + verifiable citations) -> teacher opens
+ *   the basis panel, saves an unanchored integer -> publish -> reopen ->
+ *   accepted deletion -> navigation happens only after the durable cleanup
+ *   finished (authoritative 404) -> checkpoint residue verified zero.
  *
- * Output is sanitized: it prints stage markers, counts, ids and the final
- * M0_WEB_ACCEPTANCE=PASS/FAIL marker only. It never prints passwords, cookies,
- * tokens, the full prompt, material bodies, or raw model output.
+ * One-shot replacement of the old runner: SQLite, the built-in fake sample,
+ * fixed ports with kill-any-listener behavior and the two-field assertions
+ * are all removed. Only processes started by THIS run are ever killed.
+ *
+ * Required environment:
+ *   ACCEPT_BUSINESS_DSN=postgresql+psycopg://...@127.0.0.1:5432/skill_eval_c3_accept_web
+ *   ACCEPT_CHECKPOINT_DSN=postgresql://...@127.0.0.1:5432/skill_eval_c3_accept_web_ckpt
+ * Optional:
+ *   ACCEPT_CORPUS_ROOT (default /Users/hsikey/Company/skill-eval-platform/.local-samples/m0)
+ *   ACCEPT_CASE (default m0-real-f-financial-report)
+ *
+ * Output is sanitized: stage markers, counts, ids and the final
+ * M0_WEB_ACCEPTANCE=PASS/FAIL marker only — never material bodies or tokens.
  */
 
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,14 +40,15 @@ import { chromium } from "playwright";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const backendRoot = path.join(repoRoot, "backend");
 
-const API_PORT = 8200;
-const WEB_PORT = 3200;
-const API_BASE = `http://127.0.0.1:${API_PORT}`;
-const WEB_BASE = `http://127.0.0.1:${WEB_PORT}`;
+const FORBIDDEN_DB_NAMES = new Set(["skill_eval", "skill_eval_checkpoint", "postgres", "template1"]);
+const CORPUS_ROOT = process.env.ACCEPT_CORPUS_ROOT
+  ?? "/Users/hsikey/Company/skill-eval-platform/.local-samples/m0";
+const CASE_ID = process.env.ACCEPT_CASE ?? "m0-real-f-financial-report";
+const GENERATION_TIMEOUT_MS = 30 * 60 * 1000;
 
 const workDir = mkdtempSync(path.join(tmpdir(), "m0-web-acceptance-"));
-const databaseUrl = `sqlite:///${path.join(workDir, "business.db")}`;
 const procs = [];
 let browser = null;
 
@@ -40,18 +56,40 @@ function log(stage, extra = "") {
   console.log(`M0_WEB_ACCEPTANCE_STAGE=${stage}${extra ? ` ${extra}` : ""}`);
 }
 
-function freePort(port) {
-  try {
-    const out = execFileSync("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
-    for (const pid of out.split("\n")) if (pid) try { process.kill(Number(pid), "SIGKILL"); } catch {}
-  } catch {}
+function fail(reason) {
+  throw new Error(reason);
+}
+
+function dbNameOf(dsn) {
+  const raw = dsn.replace("postgresql+psycopg://", "postgresql://");
+  const withScheme = raw.includes("://") ? raw : `postgresql://${raw}`;
+  return new URL(withScheme).pathname.replace(/^\//, "").split("?")[0];
+}
+
+function requireIsolatedDsn(value, label) {
+  if (!value) fail(`必须提供 ${label}（隔离验收库）；SQLite/项目库/内存替代一律拒绝`);
+  const name = dbNameOf(value);
+  if (!name) fail(`${label} 缺少库名`);
+  if (FORBIDDEN_DB_NAMES.has(name)) fail(`${label} 指向受保护库 ${name}`);
+  return value;
+}
+
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
 }
 
 function track(child) {
   procs.push(child);
 }
 
-function killAll() {
+function killOwnProcesses() {
   if (browser) { try { browser.close(); } catch {} browser = null; }
   for (const child of procs) {
     try { if (child.pid) process.kill(-child.pid, "SIGTERM"); } catch { try { child.kill("SIGKILL"); } catch {} }
@@ -64,59 +102,101 @@ async function waitFor(url, timeoutMs, label) {
     try { if ((await fetch(url)).ok) return; } catch {}
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error(`timeout waiting for ${label} at ${url}`);
+  fail(`timeout waiting for ${label} at ${url}`);
 }
-
-const childEnv = {
-  ...process.env,
-  DATABASE_URL: databaseUrl,
-  AI_RUNTIME_MODE: "production",
-  SESSION_COOKIE_SECURE: "false",
-  DATABASE_SCHEMA_CHECK_ON_STARTUP: "false",
-  STORAGE_ROOT: path.join(workDir, "storage"),
-};
 
 async function main() {
   log("setup");
-  freePort(API_PORT);
-  freePort(WEB_PORT);
+  const businessDsn = requireIsolatedDsn(process.env.ACCEPT_BUSINESS_DSN, "ACCEPT_BUSINESS_DSN");
+  const checkpointDsn = requireIsolatedDsn(process.env.ACCEPT_CHECKPOINT_DSN, "ACCEPT_CHECKPOINT_DSN");
+  const checkpointPlain = checkpointDsn.replace("postgresql+psycopg://", "postgresql://");
+  const businessSqla = businessDsn.includes("+")
+    ? businessDsn
+    : businessDsn.replace("postgresql://", "postgresql+psycopg://");
 
+  const apiPort = await getFreePort();
+  const webPort = await getFreePort();
+  const apiBase = `http://127.0.0.1:${apiPort}`;
+  const webBase = `http://127.0.0.1:${webPort}`;
+  log("ports", `api=${apiPort} web=${webPort}`);
+
+  // Rebuild the real C1 case (hash-gated; fails loudly without the corpus).
+  execFileSync("uv", [
+    "run", "python", "-m", "scripts.m0_samples",
+    "--source-root", CORPUS_ROOT,
+    "--out", path.join(workDir, "samples"),
+    "--command-id", "web-acceptance",
+  ], { cwd: backendRoot, stdio: "pipe" });
+  const batch = JSON.parse(
+    readFileSync(path.join(workDir, "samples", "batch.json"), "utf-8"),
+  );
+  const realCase = batch.cases.find((c) => c.client_case_id === CASE_ID);
+  if (!realCase) fail(`case ${CASE_ID} 不在重建批次中`);
+  log("samples", `case=${CASE_ID} answer_chars=${realCase.reference_answer.length}`);
+
+  // Migrate the isolated business DB and prepare the checkpoint schema.
   execFileSync("uv", ["run", "alembic", "upgrade", "head"], {
-    cwd: path.join(repoRoot, "backend"),
-    env: { ...process.env, ALEMBIC_DATABASE_URL: databaseUrl },
+    cwd: backendRoot,
+    env: { ...process.env, ALEMBIC_DATABASE_URL: businessSqla },
+    stdio: "pipe",
+  });
+  execFileSync("uv", ["run", "python", "-c", `
+import os, psycopg
+from pydantic import SecretStr
+from app.lib.ai_runtime import deep_runtime
+from app.lib.settings import settings
+class C:
+    checkpoint_database_url = SecretStr(os.environ["ACCEPT_CHECKPOINT_DSN"])
+    langgraph_aes_key = settings.langgraph_aes_key
+assert settings.langgraph_aes_key.get_secret_value(), "LANGGRAPH_AES_KEY missing"
+conn = psycopg.connect(os.environ["ACCEPT_CHECKPOINT_DSN"], autocommit=True)
+deep_runtime.build_saver(conn, C()).setup()
+conn.close()
+print("checkpoint schema ready")
+`], {
+    cwd: backendRoot,
+    env: { ...process.env, ACCEPT_CHECKPOINT_DSN: checkpointPlain },
     stdio: "pipe",
   });
   log("migrated");
 
-  track(spawn("uv", ["run", "--project", "backend", "uvicorn", "app.main:app", "--app-dir", "backend", "--port", String(API_PORT)], {
-    cwd: repoRoot, detached: true, env: childEnv, stdio: "ignore",
+  const childEnv = {
+    ...process.env,
+    DATABASE_URL: businessSqla,
+    CHECKPOINT_DATABASE_URL: checkpointPlain,
+    AI_RUNTIME_MODE: "production",
+    SESSION_COOKIE_SECURE: "false",
+    DATABASE_SCHEMA_CHECK_ON_STARTUP: "false",
+  };
+
+  track(spawn("uv", ["run", "uvicorn", "app.main:app", "--port", String(apiPort)], {
+    cwd: backendRoot, detached: true, env: childEnv, stdio: "ignore",
   }));
   track(spawn("uv", ["run", "python", "-m", "app.lib.operations.worker"], {
-    cwd: path.join(repoRoot, "backend"), detached: true, env: childEnv, stdio: "ignore",
+    cwd: backendRoot, detached: true, env: childEnv, stdio: "ignore",
   }));
   log("api_worker_started");
-  await waitFor(`${API_BASE}/healthz`, 60000, "api");
+  await waitFor(`${apiBase}/healthz`, 60000, "api");
 
-  // Build the console pointing at the acceptance API.
   execFileSync("pnpm", ["build"], {
     cwd: frontendRoot,
-    env: { ...process.env, BACKEND_URL: API_BASE, NEXT_PUBLIC_AGENT_API_BASE_URL: API_BASE },
+    env: { ...process.env, BACKEND_URL: apiBase, NEXT_PUBLIC_AGENT_API_BASE_URL: apiBase },
     stdio: "pipe",
   });
   log("frontend_built");
-  track(spawn("pnpm", ["start", "--port", String(WEB_PORT)], {
+  track(spawn("pnpm", ["start", "--port", String(webPort)], {
     cwd: frontendRoot, detached: true,
-    env: { ...process.env, BACKEND_URL: API_BASE, NEXT_PUBLIC_AGENT_API_BASE_URL: API_BASE },
+    env: { ...process.env, BACKEND_URL: apiBase, NEXT_PUBLIC_AGENT_API_BASE_URL: apiBase },
     stdio: "ignore",
   }));
-  await waitFor(`${WEB_BASE}/login`, 60000, "frontend");
+  await waitFor(`${webBase}/login`, 60000, "frontend");
   log("frontend_started");
 
   browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
   // 1. Register the first admin.
-  await page.goto(`${WEB_BASE}/`);
+  await page.goto(`${webBase}/`);
   await page.waitForURL(/\/register$/, { timeout: 20000 });
   await page.getByLabel("用户名").fill("acceptance-admin");
   await page.getByLabel("密码", { exact: true }).fill("acceptance-admin-password-1");
@@ -133,71 +213,140 @@ async function main() {
   const sceneId = page.url().split("/").pop();
   log("scene_created", `scene_id=${sceneId}`);
 
-  // 3. Issue a credential and capture the one-time prompt's token.
-  await page.getByRole("button", { name: "生成上传凭证" }).click();
+  // 3. Issue the 1:1 credential and capture the one-time prompt's token.
+  await page.getByRole("button", { name: "创建凭证" }).click();
   const prompt = await page.getByRole("textbox", { name: "绑定提示词" }).inputValue();
   const tokenMatch = prompt.match(/sep_[A-Za-z0-9_-]+/);
-  if (!tokenMatch) throw new Error("no token in prompt");
+  if (!tokenMatch) fail("no token in prompt");
   const token = tokenMatch[0];
-  const tokenCount = prompt.split(token).length - 1;
-  log("credential_issued", `token_occurrences=${tokenCount}`);
-  // Close the one-time prompt for real: not copied, so the dialog asks to
-  // confirm discarding the prompt (exercising the "cannot recover" guard).
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await page.getByRole("button", { name: "不复制并关闭" }).click();
-  await page.getByRole("textbox", { name: "绑定提示词" }).waitFor({ state: "detached", timeout: 5000 });
+  log("credential_issued");
 
-  // 4. Upload a question through the external endpoint (as the Skill would).
-  const upload = await fetch(`${API_BASE}/api/external/question-batches`, {
+  // 4. Upload the REAL case (full materials, no truncation) via the external API.
+  const upload = await fetch(`${apiBase}/api/external/question-batches`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({
       schema_version: "1.0",
-      command_id: "real-acceptance-cmd",
-      cases: [{
-        client_case_id: "real-acceptance-case",
-        title: "真实验收用例",
-        task_prompt: "请把提供的素材整理成一段正式、准确、结构清晰的说明文字。",
-        reference_examples: [{ client_ref_id: "ref-1", source_name: "素材", content_text: "这是一段用于验收的参考素材，描述了整理说明的基本要求。" }],
-        bad_cases: [{ content_text: "这是被否定的示例输出。", teacher_feedback_texts: ["结构混乱，要点缺失。"], reason_summary: "结构与要点不达标。" }],
-        reference_answer: "应当输出一段结构清晰、要点完整、表述正式的说明文字。",
-        memory_materials: [{ client_ref_id: "mem-1", source_label: "记忆", content_text: "验收场景下优先保证结构清晰与要点完整。" }],
-      }],
+      command_id: `web-acceptance-${Date.now()}`,
+      cases: [realCase],
     }),
   });
-  if (upload.status !== 201) throw new Error(`upload failed ${upload.status}`);
+  if (upload.status !== 201) fail(`upload failed ${upload.status}`);
   const questionId = (await upload.json()).cases[0].question_id;
   log("question_uploaded", `question_id=${questionId}`);
 
-  // 5. Wait for REAL AI generation to reach pending_review.
   const cookies = await page.context().cookies();
   const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+  const getDetail = async () => {
+    const r = await fetch(`${apiBase}/api/questions/${questionId}`, { headers: { Cookie: cookieHeader } });
+    return { status: r.status, body: r.ok ? await r.json() : null };
+  };
+
+  // 5. LIVE streaming proof: the browser receives real increments WHILE the
+  //    generation is still running (before any completion).
+  await page.goto(`${webBase}/evaluation-sets/${sceneId}/questions/${questionId}`);
+  await page.getByTestId("generation-progress").waitFor({ timeout: 20000 });
+  const connection = page.getByTestId("timeline-connection");
+  {
+    const deadline = Date.now() + 20000;
+    for (;;) {
+      const text = await connection.textContent();
+      if (text && !text.includes("连接失败")) break;
+      if (Date.now() > deadline) fail("SSE 连接一直失败（代理缓冲或鉴权问题）");
+      await page.waitForTimeout(250);
+    }
+  }
+  let sawLiveIncrement = false;
+  const liveDeadline = Date.now() + GENERATION_TIMEOUT_MS;
+  while (Date.now() < liveDeadline && !sawLiveIncrement) {
+    const badge = await page.getByText("生成中", { exact: true }).count();
+    const lines = await page.getByTestId("timeline-body").locator("p, pre").count();
+    if (badge > 0 && lines > 0) sawLiveIncrement = true;
+    if (!sawLiveIncrement) await page.waitForTimeout(1000);
+  }
+  if (!sawLiveIncrement) fail("生成完成前浏览器没有收到任何真实增量（假流式或代理缓冲）");
+  log("live_streaming_observed");
+
+  // 6. Wait for the REAL generation to settle.
   let detail = null;
-  const genDeadline = Date.now() + 300000;
+  const genDeadline = Date.now() + GENERATION_TIMEOUT_MS;
   while (Date.now() < genDeadline) {
-    const r = await fetch(`${API_BASE}/api/questions/${questionId}`, { headers: { Cookie: cookieHeader } });
-    if (r.ok) {
-      detail = await r.json();
+    const r = await getDetail();
+    if (r.status === 200) {
+      detail = r.body;
       if (detail.status === "pending_review") break;
-      if (detail.status === "generation_failed") throw new Error(`generation failed: ${detail.last_error?.code}`);
+      if (detail.status === "generation_failed") fail(`generation failed: ${detail.last_error?.code}`);
     }
     await new Promise((res) => setTimeout(res, 3000));
   }
-  if (!detail || detail.status !== "pending_review") throw new Error("generation did not complete");
-  const criteriaCount = (detail.criteria || []).length;
-  if (criteriaCount < 2 || criteriaCount > 6) throw new Error(`criteria count out of range: ${criteriaCount}`);
-  log("real_generation_done", `criteria_count=${criteriaCount} confirmed=${detail.criteria_confirmed}`);
+  if (!detail || detail.status !== "pending_review") fail("generation did not complete");
+  const criteria = detail.criteria || [];
+  if (criteria.length < 2) fail(`criteria count out of range: ${criteria.length}`);
 
-  // 6. Open the workbench, select candidates, save, publish, reopen, re-publish.
-  await page.goto(`${WEB_BASE}/evaluation-sets/${sceneId}/questions/${questionId}`);
+  // Complete-contract + citation verification against the uploaded materials.
+  const locatorTexts = { task_prompt: realCase.task_prompt, reference_answer: realCase.reference_answer };
+  (realCase.reference_examples || []).forEach((x, i) => { locatorTexts[`reference_examples[${i}]`] = x.content_text; });
+  (realCase.bad_cases || []).forEach((bc, i) => {
+    locatorTexts[`bad_cases[${i}].content`] = bc.content_text;
+    (bc.teacher_feedback_texts || []).forEach((fb, j) => { locatorTexts[`bad_cases[${i}].feedback[${j}]`] = fb; });
+    if (bc.reason_summary) locatorTexts[`bad_cases[${i}].reason_summary`] = bc.reason_summary;
+  });
+  (realCase.memory_materials || []).forEach((m, i) => { locatorTexts[`memory_materials[${i}]`] = m.content_text; });
+  for (const item of criteria) {
+    if (!item.score_anchors.some((a) => a.score === item.pass_score)) fail("建议分缺少锚点描述");
+    if (item.pass_score_basis.explained_score !== item.pass_score) fail("通过分依据解释分数不一致");
+    for (const key of ["criterion_basis", "pass_score_basis"]) {
+      if (!item[key].claims.length) fail(`${key} 缺少主张`);
+      for (const claim of item[key].claims) {
+        if (!["teacher_explicit", "ai_inferred"].includes(claim.kind)) fail("主张分类非法");
+        if (claim.kind === "teacher_explicit" && !claim.citation) fail("老师明确要求缺少引用");
+        if (claim.citation) {
+          const text = locatorTexts[claim.citation.locator];
+          if (text === undefined) fail(`引用定位符不属于本题材料: ${claim.citation.locator}`);
+          const quote = claim.citation.quote.trim();
+          if (quote && !text.includes(quote)) fail("引用原文不在对应材料中");
+        }
+      }
+    }
+  }
+  log("real_generation_done", `criteria=${criteria.length}`);
+
+  // Events API replay: the full public process is retained after completion.
+  const eventsResp = await fetch(
+    `${apiBase}/api/questions/${questionId}/runs/${detail.last_operation_id}/events`,
+    { headers: { Cookie: cookieHeader } },
+  );
+  if (!eventsResp.ok) fail("events endpoint failed");
+  const eventsBody = await eventsResp.json();
+  const kinds = eventsBody.events.map((e) => e.kind);
+  if (!kinds.includes("run_completed")) fail("事件日志缺少 run_completed");
+  if (kinds[kinds.length - 1] !== "run_completed") fail("run_completed 不是最后一个事件");
+  if (!kinds.includes("tool_started")) fail("事件日志缺少真实工具事件");
+  log("events_replayed", `events=${eventsBody.events.length}`);
+
+  // 7. Teacher flow in the browser: basis panel, unanchored integer, save,
+  //    publish, reopen.
+  await page.goto(`${webBase}/evaluation-sets/${sceneId}/questions/${questionId}`);
   const checkboxes = page.locator('input[type="checkbox"][aria-label^="选择维度"]');
   await checkboxes.first().waitFor({ timeout: 20000 });
   const boxCount = await checkboxes.count();
-  if (boxCount !== criteriaCount) throw new Error(`workbench criteria mismatch ${boxCount} != ${criteriaCount}`);
+  if (boxCount !== criteria.length) fail(`workbench criteria mismatch ${boxCount} != ${criteria.length}`);
+
+  await page.getByRole("button", { name: "查看依据" }).first().click();
+  await page.getByText("为什么设这个维度").first().waitFor({ timeout: 10000 });
+  log("basis_panel_opened");
+
   await checkboxes.nth(0).check();
+  const scoreInput = page.locator('input[aria-label$="的通过分"]').first();
+  await scoreInput.fill("5");
   await page.getByRole("button", { name: "保存维度" }).click();
   await page.getByRole("button", { name: "确认保存" }).click();
   await page.getByRole("button", { name: "发布" }).waitFor({ timeout: 20000 });
+  const saved = (await getDetail()).body;
+  if (saved.criteria[0].pass_score !== 5) fail("任意整数 5 未保存成功");
+  if (saved.criteria[0].pass_score_basis.explained_score === 5) fail("依据被静默改写");
   await page.getByRole("button", { name: "发布" }).click();
   await page.getByText("已发布", { exact: true }).first().waitFor({ timeout: 20000 });
   log("published");
@@ -206,19 +355,68 @@ async function main() {
   await page.getByText("待审改", { exact: true }).first().waitFor({ timeout: 20000 });
   log("reopened");
 
-  await page.getByRole("button", { name: "发布" }).click();
-  await page.getByText("已发布", { exact: true }).first().waitFor({ timeout: 20000 });
-  log("republished");
+  // 8. Accepted deletion: navigation only after the durable cleanup (404).
+  const threadCheck = async () => {
+    const r = await fetch(`${apiBase}/api/questions/${questionId}`, { headers: { Cookie: cookieHeader } });
+    return r.status;
+  };
+  await page.getByRole("button", { name: "删除题目" }).click();
+  await page.getByLabel("题目标题").fill(detail.title);
+  await page.getByTestId("delete-confirm").click();
+  await page.waitForURL(/\/evaluation-sets\/[^/]+$/, { timeout: 180000 });
+  if ((await threadCheck()) !== 404) fail("删除导航后题目仍可读取");
+  log("deleted_and_navigated");
+
+  // 9. Checkpoint residue verified zero through the backend primitives.
+  const residueOut = execFileSync("uv", ["run", "python", "-c", `
+import json, os
+import psycopg
+from app.features.question_library import run_streams
+from app.lib.ai_runtime import deep_runtime
+from pydantic import SecretStr
+from app.lib.settings import settings
+class C:
+    checkpoint_database_url = SecretStr(os.environ["ACCEPT_CHECKPOINT_DSN"])
+    langgraph_aes_key = settings.langgraph_aes_key
+conn = psycopg.connect(os.environ["ACCEPT_CHECKPOINT_DSN"], autocommit=True)
+saver = deep_runtime.build_saver(conn, C())
+threads = run_streams.list_question_threads(os.environ["ACCEPT_QUESTION_ID"])
+residues = {t: deep_runtime.thread_data_residue(conn, t) for t in threads}
+print(json.dumps({"threads": len(threads), "residues": residues}))
+`], {
+    cwd: backendRoot,
+    env: {
+      ...process.env,
+      DATABASE_URL: businessSqla,
+      ACCEPT_CHECKPOINT_DSN: checkpointPlain,
+      ACCEPT_QUESTION_ID: questionId,
+    },
+    stdio: ["ignore", "pipe", "ignore"],
+  }).toString();
+  const residue = JSON.parse(residueOut.trim().split("\n").pop());
+  if (residue.threads !== 0) {
+    // Thread registry rows were removed with the question; a non-zero count
+    // here means business-side residue survived the final transaction.
+    for (const [thread, counts] of Object.entries(residue.residues)) {
+      if (Object.values(counts).some((v) => v !== 0)) fail(`检查点残留 ${thread}: ${JSON.stringify(counts)}`);
+    }
+  }
+  log("residue_verified", `threads_left=${residue.threads}`);
 
   await browser.close();
   log("done");
   console.log("M0_WEB_ACCEPTANCE=PASS");
 }
 
+function cleanup() {
+  killOwnProcesses();
+  rmSync(workDir, { recursive: true, force: true });
+}
+
 main()
-  .then(() => { killAll(); rmSync(workDir, { recursive: true, force: true }); freePort(API_PORT); freePort(WEB_PORT); process.exit(0); })
+  .then(() => { cleanup(); process.exit(0); })
   .catch((err) => {
     console.log(`M0_WEB_ACCEPTANCE=FAIL reason=${err.message}`);
-    killAll(); rmSync(workDir, { recursive: true, force: true }); freePort(API_PORT); freePort(WEB_PORT);
+    cleanup();
     process.exit(1);
   });

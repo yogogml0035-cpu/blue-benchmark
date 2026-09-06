@@ -2331,6 +2331,17 @@
             ],
             "title": "Active Operation Id"
           },
+          "last_operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Operation Id"
+          },
           "last_error": {
             "anyOf": [
               {
@@ -2393,6 +2404,7 @@
           "next_action",
           "content_revision",
           "active_operation_id",
+          "last_operation_id",
           "last_error",
           "deletion",
           "delete_confirmation_required",

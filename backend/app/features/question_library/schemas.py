@@ -374,6 +374,7 @@ class QuestionDetailResponse(BaseModel):
     next_action: NextAction
     content_revision: int
     active_operation_id: str | None
+    last_operation_id: str | None
     last_error: GenerationErrorView | None
     deletion: "DeleteStateView | None"
     delete_confirmation_required: bool

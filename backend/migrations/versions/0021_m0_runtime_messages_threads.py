@@ -78,7 +78,7 @@ def upgrade() -> None:
             sa.Column("detail", sa.String(length=500), nullable=True),
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
             sa.UniqueConstraint(
-                "operation_id", "attempt_number", "sequence", name="uq_question_run_event_seq"
+                "operation_id", "sequence", name="uq_question_run_event_seq"
             ),
         )
         op.create_index(

@@ -226,16 +226,15 @@ class QuestionRunEventRow(Base):
     """Complete public progress log of one generation operation.
 
     Persisted BEFORE events reach any browser (SSE reads from here), ordered
-    by (operation, attempt, sequence) for idempotent replay and reconnect.
-    Stores only authorized public content: no private reasoning, system
-    prompts, credentials or raw tool payloads.
+    by a per-operation monotonic ``sequence`` (continuous across attempts)
+    for idempotent replay and cursor reconnects. Stores only authorized
+    public content: no private reasoning, system prompts, credentials or raw
+    tool payloads.
     """
 
     __tablename__ = "question_run_events"
     __table_args__ = (
-        UniqueConstraint(
-            "operation_id", "attempt_number", "sequence", name="uq_question_run_event_seq"
-        ),
+        UniqueConstraint("operation_id", "sequence", name="uq_question_run_event_seq"),
         Index("ix_question_run_event_question", "question_id", "sequence"),
     )
 

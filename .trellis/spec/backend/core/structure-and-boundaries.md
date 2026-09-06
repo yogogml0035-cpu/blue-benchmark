@@ -13,7 +13,7 @@ backend/
 │   │   ├── scenes/{router,service,repository,schemas}.py
 │   │   └── question_library/{router,external_router,service,repository,schemas,rubric_generation,rubric_rules}.py
 │   └── lib/{errors,schemas,settings,ai_runtime/{model,adapters,deep_runtime},operations/,database/}
-├── scripts/{export_openapi,verify_openapi,check_schema,migrate,smoke_ai_provider,accept_real_ai_rubric,accept_skill_push_evaldata,m0_samples,probe_deep_runtime,admin_cli}.py
+├── scripts/{export_openapi,verify_openapi,check_schema,migrate,smoke_ai_provider,accept_real_ai_rubric,accept_skill_push,m0_samples,probe_deep_runtime,admin_cli}.py
 ├── migrations/versions/
 ├── tests/
 ├── openapi.json
@@ -69,5 +69,5 @@ schemas -> HTTP 输入、输出和领域枚举
 - 不要把业务状态转换写在 Router 或 Repository。
 - 不要让一个 Feature 直接修改另一个 Feature 的全局字典。
 - 不要把内部 `password_hash`、`token_hash`、`client_case_id` 明文凭证等字段自动暴露进响应模型。
-- 不要让评分维度生成 adapter 直接确认或发布题目；模型输出必须先经过两字段合同与可执行性/隐私校验，再由 `rubric_generation` 做 revision/ownership CAS 提交。
+- 不要让评分维度生成 adapter 直接确认或发布题目；模型输出必须先经过完整评分项合同、引用存在性与可执行性/隐私校验，再由 `rubric_generation` 做 revision/ownership/删除冻结 CAS 提交。adapter 不直接操作业务表；公开事件经服务注入的持久化 sink 先落库再外送。
 - 场景凭证明文按 1:1 模型持久化在 `token_plaintext`（撤销/替换即清空），但绝不进入日志与状态/列表响应（只给掩码预览）；携带明文的端点（创建/替换、`GET /scenes/{id}/credential`）必须带 `no-store` 头。
