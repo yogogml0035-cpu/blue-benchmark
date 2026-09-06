@@ -208,9 +208,11 @@ def test_materials_are_isolated_between_questions() -> None:
         deleted = client.request(
             "DELETE",
             f"/api/questions/{ids[0]}",
-            json={"content_revision": detail_a["content_revision"]},
+            json={"command_id": "del-iso", "content_revision": detail_a["content_revision"]},
         )
-        assert deleted.status_code == 204
+        assert deleted.status_code == 202
+        helpers.run_worker_until_idle()
+        assert client.get(f"/api/questions/{ids[0]}").status_code == 404
         assert client.get(f"/api/questions/{ids[1]}").status_code == 200
         assert client.get(f"/api/questions?scene_id={scene_id}").json()["total"] == 1
 

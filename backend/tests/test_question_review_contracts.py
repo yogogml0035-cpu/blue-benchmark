@@ -194,7 +194,7 @@ def test_delete_gate_for_ever_published_questions() -> None:
         blocked = client.request(
             "DELETE",
             f"/api/questions/{question_id}",
-            json={"content_revision": published["content_revision"]},
+            json={"command_id": "del-blocked", "content_revision": published["content_revision"]},
         )
         assert blocked.status_code == 409
         assert blocked.json()["error"]["code"] == "PUBLISHED_REOPEN_REQUIRED"
@@ -207,7 +207,8 @@ def test_delete_gate_for_ever_published_questions() -> None:
 
         # No confirmation title: rejected, even after a fresh reload.
         missing = client.request(
-            "DELETE", f"/api/questions/{question_id}", json={"content_revision": revision}
+            "DELETE", f"/api/questions/{question_id}",
+            json={"command_id": "del-missing", "content_revision": revision},
         )
         assert missing.status_code == 422
         assert missing.json()["error"]["code"] == "DELETE_CONFIRMATION_MISMATCH"
@@ -216,18 +217,23 @@ def test_delete_gate_for_ever_published_questions() -> None:
         wrong = client.request(
             "DELETE",
             f"/api/questions/{question_id}",
-            json={"content_revision": revision, "confirmation_title": title + "x"},
+            json={"command_id": "del-wrong", "content_revision": revision,
+                  "confirmation_title": title + "x"},
         )
         assert wrong.status_code == 422
         assert wrong.json()["error"]["code"] == "DELETE_CONFIRMATION_MISMATCH"
 
-        # Exact current title: allowed.
+        # Exact current title: accepted (202), then the cleanup worker
+        # completes the cross-store deletion before the question 404s.
         deleted = client.request(
             "DELETE",
             f"/api/questions/{question_id}",
-            json={"content_revision": revision, "confirmation_title": title},
+            json={"command_id": "del-exact", "content_revision": revision,
+                  "confirmation_title": title},
         )
-        assert deleted.status_code == 204
+        assert deleted.status_code == 202, deleted.text
+        assert deleted.json()["status"] == "deleting"
+        helpers.run_worker_until_idle()
         assert client.get(f"/api/questions/{question_id}").status_code == 404
 
 
@@ -258,9 +264,12 @@ def test_delete_confirmation_title_is_normalized() -> None:
         deleted = client.request(
             "DELETE",
             f"/api/questions/{question_id}",
-            json={"content_revision": reopened["content_revision"], "confirmation_title": padded_nfc},
+            json={"command_id": "del-nfc", "content_revision": reopened["content_revision"],
+                  "confirmation_title": padded_nfc},
         )
-        assert deleted.status_code == 204, deleted.text
+        assert deleted.status_code == 202, deleted.text
+        helpers.run_worker_until_idle()
+        assert client.get(f"/api/questions/{question_id}").status_code == 404
 
 
 def test_never_published_questions_delete_with_plain_confirmation() -> None:
@@ -273,9 +282,10 @@ def test_never_published_questions_delete_with_plain_confirmation() -> None:
         deleted = client.request(
             "DELETE",
             f"/api/questions/{question_id}",
-            json={"content_revision": detail["content_revision"]},
+            json={"command_id": "del-plain", "content_revision": detail["content_revision"]},
         )
-        assert deleted.status_code == 204
+        assert deleted.status_code == 202
+        helpers.run_worker_until_idle()
         assert client.get(f"/api/questions/{question_id}").status_code == 404
 
 
@@ -287,9 +297,13 @@ def test_delete_cleans_up_generation_jobs() -> None:
         deleted = client.request(
             "DELETE",
             f"/api/questions/{question_id}",
-            json={"content_revision": detail["content_revision"]},
+            json={"command_id": "del-jobs", "content_revision": detail["content_revision"]},
         )
-        assert deleted.status_code == 204
+        assert deleted.status_code == 202
+        cleanup_operation_id = deleted.json()["operation_id"]
+
+    helpers.run_worker_until_idle()
+    assert client.get(f"/api/questions/{question_id}").status_code == 404
 
     from sqlalchemy import select
 
@@ -297,14 +311,27 @@ def test_delete_cleans_up_generation_jobs() -> None:
     from app.lib.database.models import AgentRunAttemptRow, OperationJobRow
 
     with session_scope() as session:
-        jobs = session.execute(
-            select(OperationJobRow).where(OperationJobRow.target_id == question_id)
+        generation_jobs = session.execute(
+            select(OperationJobRow).where(
+                OperationJobRow.target_type == "eval_question",
+                OperationJobRow.target_id == question_id,
+            )
         ).scalars().all()
-        attempts = session.execute(
-            select(AgentRunAttemptRow).where(AgentRunAttemptRow.target_id == question_id)
+        generation_attempts = session.execute(
+            select(AgentRunAttemptRow).where(
+                AgentRunAttemptRow.target_type == "eval_question",
+                AgentRunAttemptRow.target_id == question_id,
+            )
         ).scalars().all()
-    assert jobs == []
-    assert attempts == []
+        receipts = session.execute(
+            select(OperationJobRow).where(OperationJobRow.id == cleanup_operation_id)
+        ).scalars().all()
+    assert generation_jobs == []
+    assert generation_attempts == []
+    # The minimal content-free cleanup receipt survives for idempotency/audit.
+    assert len(receipts) == 1 and receipts[0].status == "succeeded"
+    assert receipts[0].result_json is not None
+    assert "criteria" not in str(receipts[0].result_json)
 
 
 def test_delete_stale_revision_is_rejected() -> None:
@@ -312,7 +339,8 @@ def test_delete_stale_revision_is_rejected() -> None:
     with TestClient(app) as client:
         question_id = _setup_pending_review(client)
         stale = client.request(
-            "DELETE", f"/api/questions/{question_id}", json={"content_revision": 42}
+            "DELETE", f"/api/questions/{question_id}",
+            json={"command_id": "del-stale", "content_revision": 42},
         )
         assert stale.status_code == 409
         assert stale.json()["error"]["code"] == "STALE_REVISION"
@@ -388,11 +416,14 @@ def test_cas_backstops_reject_raced_state_transitions() -> None:
             "DELETE",
             f"/api/questions/{question_id}",
             json={
+                "command_id": "del-cas",
                 "content_revision": reopened.json()["content_revision"],
                 "confirmation_title": title,
             },
         )
-        assert deleted.status_code == 204
+        assert deleted.status_code == 202
+        helpers.run_worker_until_idle()
+        assert client.get(f"/api/questions/{question_id}").status_code == 404
 
 
 def test_publish_cas_requires_confirmation_facts() -> None:
@@ -582,7 +613,7 @@ def test_regeneration_after_publish_keeps_delete_gate() -> None:
         rejected = client.request(
             "DELETE",
             f"/api/questions/{question_id}",
-            json={"content_revision": detail["content_revision"]},
+            json={"command_id": "del-gate", "content_revision": detail["content_revision"]},
         )
         assert rejected.status_code == 422
         assert rejected.json()["error"]["code"] == "DELETE_CONFIRMATION_MISMATCH"

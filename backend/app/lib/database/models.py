@@ -191,3 +191,65 @@ class AgentRunAttemptRow(Base):
     attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class QuestionRunThreadRow(Base):
+    """Service-owned mapping from a question to its durable agent threads.
+
+    One thread per (question, materials revision) generation round; technical
+    retries reuse the thread so the checkpoint can resume. The registry is the
+    enumeration source for cross-store deletion (ALL historical threads of a
+    question must be cleaned before the business row goes away) — rows are
+    therefore kept until cleanup completes and are removed in the final
+    business delete transaction. Control data only: no material bodies.
+    """
+
+    __tablename__ = "question_run_threads"
+    __table_args__ = (
+        UniqueConstraint("thread_id", name="uq_question_run_thread_id"),
+        Index("ix_question_run_thread_question", "question_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    question_id: Mapped[str] = mapped_column(
+        ForeignKey("eval_questions.id", ondelete="CASCADE"), nullable=False
+    )
+    operation_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    thread_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    materials_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    materials_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    runtime_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class QuestionRunEventRow(Base):
+    """Complete public progress log of one generation operation.
+
+    Persisted BEFORE events reach any browser (SSE reads from here), ordered
+    by (operation, attempt, sequence) for idempotent replay and reconnect.
+    Stores only authorized public content: no private reasoning, system
+    prompts, credentials or raw tool payloads.
+    """
+
+    __tablename__ = "question_run_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "operation_id", "attempt_number", "sequence", name="uq_question_run_event_seq"
+        ),
+        Index("ix_question_run_event_question", "question_id", "sequence"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    question_id: Mapped[str] = mapped_column(
+        ForeignKey("eval_questions.id", ondelete="CASCADE"), nullable=False
+    )
+    operation_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    thread_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    stage: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tool: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    detail: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

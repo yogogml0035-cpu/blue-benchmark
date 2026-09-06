@@ -21,7 +21,7 @@ def _upload_one(client: TestClient, *, task_prompt: str | None = None) -> str:
     return response.json()["cases"][0]["question_id"]
 
 
-def test_generation_produces_two_field_criteria_only() -> None:
+def test_generation_produces_complete_criteria_contract() -> None:
     clear_business_data()
     with TestClient(app) as client:
         question_id = _upload_one(client)
@@ -33,11 +33,60 @@ def test_generation_produces_two_field_criteria_only() -> None:
         assert detail["criteria_confirmed"] is False
         assert detail["criteria"], "generated criteria must not be empty"
         for item in detail["criteria"]:
-            assert set(item.keys()) == {"id", "criterion", "pass_score"}
+            assert set(item.keys()) == {
+                "id", "criterion", "pass_score",
+                "score_anchors", "criterion_basis", "pass_score_basis",
+            }
             assert 0 <= item["pass_score"] <= 10
             # Vague isolated labels are not allowed through the contract.
             assert item["criterion"].strip() not in {"准确性", "创新性", "完整性"}
+            anchors = item["score_anchors"]
+            assert anchors, "initial generation must explain scores with anchors"
+            scores = [a["score"] for a in anchors]
+            assert len(scores) == len(set(scores))
+            assert scores == sorted(scores)
+            # The suggested pass score has its own performance description.
+            assert item["pass_score"] in scores
+            suggested = next(a for a in anchors if a["score"] == item["pass_score"])
+            assert suggested["description"].strip()
+            # The pass-score basis explains exactly the suggested integer and
+            # classifies every claim; teacher-explicit claims carry citations.
+            basis = item["pass_score_basis"]
+            assert basis["explained_score"] == item["pass_score"]
+            for key in ("criterion_basis", "pass_score_basis"):
+                claims = item[key]["claims"]
+                assert claims
+                for claim in claims:
+                    assert claim["kind"] in {"teacher_explicit", "ai_inferred"}
+                    if claim["kind"] == "teacher_explicit":
+                        assert claim["citation"] is not None
         assert detail["last_error"] is None
+
+
+def test_generated_citations_are_verifiable_against_materials() -> None:
+    """Every stored citation must quote the current question's own materials."""
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _upload_one(client)
+        helpers.run_worker_until_idle()
+        detail = client.get(f"/api/questions/{question_id}").json()
+        materials_text = "\n".join(
+            [detail["task_prompt"], detail["reference_answer"]]
+            + [item["content_text"] for item in detail["reference_examples"]]
+            + [item["content_text"] for item in detail["memory_materials"]]
+            + [
+                part
+                for item in detail["bad_cases"]
+                for part in [item["content_text"], *item["teacher_feedback_texts"]]
+                if part
+            ]
+        )
+        for item in detail["criteria"]:
+            for key in ("criterion_basis", "pass_score_basis"):
+                for claim in item[key]["claims"]:
+                    citation = claim.get("citation")
+                    if citation:
+                        assert citation["quote"] in materials_text
 
 
 def test_generation_failure_marks_question_and_supports_retry() -> None:

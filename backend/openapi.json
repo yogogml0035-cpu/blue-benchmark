@@ -728,6 +728,7 @@
           "question-library"
         ],
         "summary": "Delete Question",
+        "description": "Accept a protected deletion: freeze + durable cross-store cleanup.\n\n202 means ACCEPTED, not deleted. Completion is only observable through\nthe cleanup operation state (detail projection / event stream); the old\n\"204 = row deleted = success\" early-exit semantics are removed.",
         "operationId": "delete_question_api_questions__question_id__delete",
         "parameters": [
           {
@@ -751,8 +752,15 @@
           }
         },
         "responses": {
-          "204": {
-            "description": "Successful Response"
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAcceptedResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "未登录"
@@ -1121,6 +1129,145 @@
         }
       }
     },
+    "/api/questions/{question_id}/runs/{operation_id}/events": {
+      "get": {
+        "tags": [
+          "question-library"
+        ],
+        "summary": "Get Run Events",
+        "description": "One page of the complete public event log (snapshot + cursor restore).",
+        "operationId": "get_run_events_api_questions__question_id__runs__operation_id__events_get",
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Question Id"
+            }
+          },
+          {
+            "name": "operation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Operation Id"
+            }
+          },
+          {
+            "name": "after_sequence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After Sequence"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunEventsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "404": {
+            "description": "题目不存在"
+          },
+          "409": {
+            "description": "运行已被取代或删除冻结"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/questions/{question_id}/runs/{operation_id}/events/stream": {
+      "get": {
+        "tags": [
+          "question-library"
+        ],
+        "summary": "Stream Run Events",
+        "description": "Same-origin SSE over the persisted event log.\n\nThe stream READS the database (events are persisted before they are sent),\nso it never owns, starts or restarts the job: disconnects, refreshes and\nlate subscribers only move the read cursor. Terminal conditions: question\nleaves ``generating`` (done), deletion freeze (frozen), superseded\noperation (superseded), or missing question (gone).",
+        "operationId": "stream_run_events_api_questions__question_id__runs__operation_id__events_stream_get",
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Question Id"
+            }
+          },
+          {
+            "name": "operation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Operation Id"
+            }
+          },
+          {
+            "name": "after_sequence",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After Sequence"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "404": {
+            "description": "题目不存在"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/external/connection": {
       "get": {
         "tags": [
@@ -1271,6 +1418,74 @@
           "reason_summary"
         ],
         "title": "BadCaseView"
+      },
+      "BasisClaimIn": {
+        "properties": {
+          "claim": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Claim"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "teacher_explicit",
+              "ai_inferred"
+            ],
+            "title": "Kind"
+          },
+          "citation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceCitationIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "claim",
+          "kind"
+        ],
+        "title": "BasisClaimIn"
+      },
+      "BasisClaimView": {
+        "properties": {
+          "claim": {
+            "type": "string",
+            "title": "Claim"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "teacher_explicit",
+              "ai_inferred"
+            ],
+            "title": "Kind"
+          },
+          "citation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceCitationView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim",
+          "kind",
+          "citation"
+        ],
+        "title": "BasisClaimView"
       },
       "BatchUploadRequest": {
         "properties": {
@@ -1463,6 +1678,53 @@
         ],
         "title": "CriteriaPatchRequest"
       },
+      "CriterionBasisIn": {
+        "properties": {
+          "explanation": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Explanation"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/BasisClaimIn"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Claims"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "explanation",
+          "claims"
+        ],
+        "title": "CriterionBasisIn"
+      },
+      "CriterionBasisView": {
+        "properties": {
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/BasisClaimView"
+            },
+            "type": "array",
+            "title": "Claims"
+          }
+        },
+        "type": "object",
+        "required": [
+          "explanation",
+          "claims"
+        ],
+        "title": "CriterionBasisView"
+      },
       "CriterionIn": {
         "properties": {
           "id": {
@@ -1483,6 +1745,34 @@
             "maximum": 10.0,
             "minimum": 0.0,
             "title": "Pass Score"
+          },
+          "score_anchors": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreAnchorIn"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Score Anchors"
+          },
+          "criterion_basis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CriterionBasisIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pass_score_basis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PassScoreBasisIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -1493,7 +1783,7 @@
           "pass_score"
         ],
         "title": "CriterionIn",
-        "description": "Administrator-supplied criterion; identical shape to the AI output contract."
+        "description": "Administrator-supplied criterion; identical shape to the AI output contract.\n\nTeacher-edit semantics (deliberately weaker than the GENERATION contract):\n``pass_score`` accepts ANY integer 0-10 — anchors are explanatory, never a\nwhitelist; ``score_anchors`` may be empty or omit ``pass_score``; the two\nbases may be ``None`` for manually created criteria (explicitly empty\nauxiliary content, not a missing-field fallback). Editing the score does\nNOT rewrite or auto-fill anchors/bases; the UI flags a stale\n``explained_score`` for the teacher to review."
       },
       "CriterionView": {
         "properties": {
@@ -1508,15 +1798,102 @@
           "pass_score": {
             "type": "integer",
             "title": "Pass Score"
+          },
+          "score_anchors": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreAnchorView"
+            },
+            "type": "array",
+            "title": "Score Anchors"
+          },
+          "criterion_basis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CriterionBasisView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pass_score_basis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PassScoreBasisView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "required": [
           "id",
           "criterion",
-          "pass_score"
+          "pass_score",
+          "score_anchors",
+          "criterion_basis",
+          "pass_score_basis"
         ],
         "title": "CriterionView"
+      },
+      "DeleteAcceptedResponse": {
+        "properties": {
+          "question_id": {
+            "type": "string",
+            "title": "Question Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/QuestionStatus"
+          },
+          "operation_id": {
+            "type": "string",
+            "title": "Operation Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question_id",
+          "status",
+          "operation_id"
+        ],
+        "title": "DeleteAcceptedResponse"
+      },
+      "DeleteStateView": {
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "title": "Operation Id"
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ],
+            "title": "Phase"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GenerationErrorView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_id",
+          "phase"
+        ],
+        "title": "DeleteStateView",
+        "description": "Projection of the accepted deletion operation (no material content)."
       },
       "ErrorPayload": {
         "properties": {
@@ -1714,7 +2091,8 @@
           "retry_generation",
           "review_criteria",
           "publish",
-          "published"
+          "published",
+          "wait_for_deletion"
         ],
         "title": "NextAction"
       },
@@ -1747,6 +2125,65 @@
         ],
         "title": "OperationAcceptedResponse"
       },
+      "PassScoreBasisIn": {
+        "properties": {
+          "explained_score": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Explained Score"
+          },
+          "explanation": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Explanation"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/BasisClaimIn"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Claims"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "explained_score",
+          "explanation",
+          "claims"
+        ],
+        "title": "PassScoreBasisIn"
+      },
+      "PassScoreBasisView": {
+        "properties": {
+          "explained_score": {
+            "type": "integer",
+            "title": "Explained Score"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/BasisClaimView"
+            },
+            "type": "array",
+            "title": "Claims"
+          }
+        },
+        "type": "object",
+        "required": [
+          "explained_score",
+          "explanation",
+          "claims"
+        ],
+        "title": "PassScoreBasisView"
+      },
       "QuestionCommandRequest": {
         "properties": {
           "command_id": {
@@ -1771,6 +2208,12 @@
       },
       "QuestionDeleteRequest": {
         "properties": {
+          "command_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Id"
+          },
           "content_revision": {
             "type": "integer",
             "minimum": 1.0,
@@ -1792,10 +2235,11 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "command_id",
           "content_revision"
         ],
         "title": "QuestionDeleteRequest",
-        "description": "Protected hard-delete contract.\n\n``confirmation_title`` is only required for questions that were ever\npublished; it must match the current title exactly (after Unicode NFC\nnormalization and trimming) or the delete is rejected."
+        "description": "Protected delete-acceptance contract.\n\n``confirmation_title`` is only required for questions that were ever\npublished; it must match the current title exactly (after Unicode NFC\nnormalization and trimming) or the delete is rejected. Acceptance starts\na durable cleanup operation; success is only reported after every\ncross-store trace of the question is gone."
       },
       "QuestionDetailResponse": {
         "properties": {
@@ -1897,6 +2341,16 @@
               }
             ]
           },
+          "deletion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeleteStateView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "delete_confirmation_required": {
             "type": "boolean",
             "title": "Delete Confirmation Required"
@@ -1940,6 +2394,7 @@
           "content_revision",
           "active_operation_id",
           "last_error",
+          "deletion",
           "delete_confirmation_required",
           "created_at",
           "updated_at",
@@ -2160,7 +2615,8 @@
           "generating",
           "pending_review",
           "generation_failed",
-          "published"
+          "published",
+          "deleting"
         ],
         "title": "QuestionStatus"
       },
@@ -2292,6 +2748,121 @@
           "password"
         ],
         "title": "RegisterRequest"
+      },
+      "RunEventView": {
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sequence",
+          "kind",
+          "attempt",
+          "created_at"
+        ],
+        "title": "RunEventView",
+        "description": "One persisted public progress event of a generation operation."
+      },
+      "RunEventsResponse": {
+        "properties": {
+          "question_id": {
+            "type": "string",
+            "title": "Question Id"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/QuestionStatus"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/RunEventView"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "last_sequence": {
+            "type": "integer",
+            "title": "Last Sequence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question_id",
+          "operation_id",
+          "status",
+          "events",
+          "last_sequence"
+        ],
+        "title": "RunEventsResponse"
       },
       "SceneConnectionStatusView": {
         "properties": {
@@ -2641,6 +3212,89 @@
           "active_credential_count"
         ],
         "title": "SceneView"
+      },
+      "ScoreAnchorIn": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Score"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "score",
+          "description"
+        ],
+        "title": "ScoreAnchorIn"
+      },
+      "ScoreAnchorView": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "description"
+        ],
+        "title": "ScoreAnchorView"
+      },
+      "SourceCitationIn": {
+        "properties": {
+          "locator": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Locator"
+          },
+          "quote": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Quote"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "locator",
+          "quote"
+        ],
+        "title": "SourceCitationIn",
+        "description": "Teacher-visible citation into this question's materials."
+      },
+      "SourceCitationView": {
+        "properties": {
+          "locator": {
+            "type": "string",
+            "title": "Locator"
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote"
+          }
+        },
+        "type": "object",
+        "required": [
+          "locator",
+          "quote"
+        ],
+        "title": "SourceCitationView"
       },
       "User": {
         "properties": {

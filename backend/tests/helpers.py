@@ -106,3 +106,42 @@ def run_worker_until_idle() -> int:
         if rounds > 100:  # pragma: no cover - defensive
             raise RuntimeError("worker did not reach idle state")
     return rounds
+
+
+def delete_payload(
+    content_revision: int,
+    confirmation_title: str | None = None,
+    command_id: str | None = None,
+) -> dict[str, Any]:
+    """DELETE body under the accepted-cleanup contract (command_id required)."""
+    return {
+        "command_id": command_id or f"del-{uuid.uuid4()}",
+        "content_revision": content_revision,
+        "confirmation_title": confirmation_title,
+    }
+
+
+def complete_deletion(
+    client: TestClient,
+    question_id: str,
+    *,
+    content_revision: int,
+    confirmation_title: str | None = None,
+) -> dict[str, Any]:
+    """Accept deletion (202), drive the cleanup worker, assert final 404.
+
+    The old "204 = deleted" early-success path no longer exists: 202 only
+    means the freeze + cleanup operation were accepted.
+    """
+    response = client.request(
+        "DELETE",
+        f"/api/questions/{question_id}",
+        json=delete_payload(content_revision, confirmation_title),
+    )
+    assert response.status_code == 202, response.text
+    body = response.json()
+    assert body["status"] == "deleting"
+    assert body["operation_id"]
+    run_worker_until_idle()
+    assert client.get(f"/api/questions/{question_id}").status_code == 404
+    return body

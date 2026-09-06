@@ -14,6 +14,8 @@ from app.lib.database.models import (
     BatchUploadCommandRow,
     EvalQuestionRow,
     OperationJobRow,
+    QuestionRunEventRow,
+    QuestionRunThreadRow,
     SceneCredentialRow,
     SceneRow,
     SessionRow,
@@ -22,7 +24,7 @@ from app.lib.database.models import (
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0020_credential_one_to_one"
+BUSINESS_SCHEMA_HEAD = "0021_m0_runtime_messages_threads"
 
 
 def as_utc(value: datetime) -> datetime:
@@ -101,6 +103,14 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             },
             "batch_upload_commands": {"id", "scene_id", "command_id", "payload_hash", "status", "result_json"},
             "operation_jobs": {"id", "kind", "command_id", "status", "lease_until", "business_revision"},
+            "question_run_threads": {
+                "id", "question_id", "operation_id", "thread_id",
+                "materials_revision", "materials_fingerprint", "runtime_fingerprint",
+            },
+            "question_run_events": {
+                "id", "question_id", "operation_id", "thread_id",
+                "attempt_number", "sequence", "kind",
+            },
         }
         columns_ready = all(
             columns.issubset({item["name"] for item in inspect(connection).get_columns(table)})
@@ -131,6 +141,8 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             "scene_credentials": {"ix_scene_credential_active"},
             "eval_questions": {"ix_eval_question_status"},
             "operation_jobs": {"ix_operation_claim"},
+            "question_run_threads": {"ix_question_run_thread_question"},
+            "question_run_events": {"ix_question_run_event_question"},
         }
         indexes_ready = all(
             names.issubset(
@@ -167,6 +179,8 @@ def create_schema_for_tests(database_engine: Engine = engine) -> None:
 def clear_business_data() -> None:
     create_schema_for_tests()
     tables = [
+        QuestionRunEventRow,
+        QuestionRunThreadRow,
         AgentRunAttemptRow,
         OperationJobRow,
         BatchUploadCommandRow,

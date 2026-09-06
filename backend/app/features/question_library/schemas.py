@@ -20,6 +20,10 @@ class QuestionStatus(StrEnum):
     pending_review = "pending_review"
     generation_failed = "generation_failed"
     published = "published"
+    # Deletion accepted: the question is frozen (no edits, generation,
+    # publish, resume or event replay) until cross-store cleanup finishes
+    # and the row is removed in the final business transaction.
+    deleting = "deleting"
 
 
 class NextAction(StrEnum):
@@ -28,12 +32,14 @@ class NextAction(StrEnum):
     review_criteria = "review_criteria"
     publish = "publish"
     published = "published"
+    wait_for_deletion = "wait_for_deletion"
 
 
 NEXT_ACTION_BY_STATUS = {
     QuestionStatus.generating: NextAction.wait_for_generation,
     QuestionStatus.generation_failed: NextAction.retry_generation,
     QuestionStatus.published: NextAction.published,
+    QuestionStatus.deleting: NextAction.wait_for_deletion,
 }
 
 
@@ -169,14 +175,71 @@ def assert_public_material_text(value: str, *, field_label: str) -> None:
         raise AppError(422, "PRIVATE_CONTENT_REJECTED", str(exc)) from exc
 
 
+class SourceCitationIn(BaseModel):
+    """Teacher-visible citation into this question's materials."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    locator: str = Field(min_length=1, max_length=200)
+    quote: str = Field(min_length=1, max_length=500)
+
+
+class BasisClaimIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    claim: str = Field(min_length=1, max_length=1_000)
+    kind: Literal["teacher_explicit", "ai_inferred"]
+    citation: SourceCitationIn | None = None
+
+    @model_validator(mode="after")
+    def _explicit_requires_citation(self) -> "BasisClaimIn":
+        if self.kind == "teacher_explicit" and self.citation is None:
+            raise ValueError("老师明确要求必须附带可核查的材料引用。")
+        return self
+
+
+class CriterionBasisIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    explanation: str = Field(min_length=1, max_length=2_000)
+    claims: list[BasisClaimIn] = Field(min_length=1, max_length=8)
+
+
+class PassScoreBasisIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    explained_score: int = Field(ge=0, le=10)
+    explanation: str = Field(min_length=1, max_length=2_000)
+    claims: list[BasisClaimIn] = Field(min_length=1, max_length=8)
+
+
+class ScoreAnchorIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    score: int = Field(ge=0, le=10)
+    description: str = Field(min_length=1, max_length=1_000)
+
+
 class CriterionIn(BaseModel):
-    """Administrator-supplied criterion; identical shape to the AI output contract."""
+    """Administrator-supplied criterion; identical shape to the AI output contract.
+
+    Teacher-edit semantics (deliberately weaker than the GENERATION contract):
+    ``pass_score`` accepts ANY integer 0-10 — anchors are explanatory, never a
+    whitelist; ``score_anchors`` may be empty or omit ``pass_score``; the two
+    bases may be ``None`` for manually created criteria (explicitly empty
+    auxiliary content, not a missing-field fallback). Editing the score does
+    NOT rewrite or auto-fill anchors/bases; the UI flags a stale
+    ``explained_score`` for the teacher to review.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=2, max_length=64, pattern=r"^[a-z][a-z0-9_-]*$")
     criterion: str = Field(min_length=rubric_rules.MIN_CRITERION_LENGTH, max_length=2_000)
     pass_score: int = Field(ge=0, le=10)
+    score_anchors: list[ScoreAnchorIn] = Field(default_factory=list, max_length=6)
+    criterion_basis: CriterionBasisIn | None = None
+    pass_score_basis: PassScoreBasisIn | None = None
 
     @field_validator("criterion")
     @classmethod
@@ -186,6 +249,14 @@ class CriterionIn(BaseModel):
             raise ValueError("评分标准不能为空白。")
         rubric_rules.validate_criterion_text(stripped)
         return stripped
+
+    @field_validator("score_anchors")
+    @classmethod
+    def _anchors_unique_sorted(cls, value: list[ScoreAnchorIn]) -> list[ScoreAnchorIn]:
+        scores = [a.score for a in value]
+        if len(scores) != len(set(scores)):
+            raise ValueError("分数锚点必须唯一。")
+        return sorted(value, key=lambda a: a.score)
 
 
 class CriteriaPatchRequest(BaseModel):
@@ -225,10 +296,40 @@ class BadCaseView(BaseModel):
     reason_summary: str | None
 
 
+class SourceCitationView(BaseModel):
+    locator: str
+    quote: str
+
+
+class BasisClaimView(BaseModel):
+    claim: str
+    kind: Literal["teacher_explicit", "ai_inferred"]
+    citation: SourceCitationView | None
+
+
+class CriterionBasisView(BaseModel):
+    explanation: str
+    claims: list[BasisClaimView]
+
+
+class PassScoreBasisView(BaseModel):
+    explained_score: int
+    explanation: str
+    claims: list[BasisClaimView]
+
+
+class ScoreAnchorView(BaseModel):
+    score: int
+    description: str
+
+
 class CriterionView(BaseModel):
     id: str
     criterion: str
     pass_score: int
+    score_anchors: list[ScoreAnchorView]
+    criterion_basis: CriterionBasisView | None
+    pass_score_basis: PassScoreBasisView | None
 
 
 class GenerationErrorView(BaseModel):
@@ -274,6 +375,7 @@ class QuestionDetailResponse(BaseModel):
     content_revision: int
     active_operation_id: str | None
     last_error: GenerationErrorView | None
+    deletion: "DeleteStateView | None"
     delete_confirmation_required: bool
     created_at: str
     updated_at: str
@@ -322,17 +424,55 @@ class QuestionCommandRequest(BaseModel):
 
 
 class QuestionDeleteRequest(BaseModel):
-    """Protected hard-delete contract.
+    """Protected delete-acceptance contract.
 
     ``confirmation_title`` is only required for questions that were ever
     published; it must match the current title exactly (after Unicode NFC
-    normalization and trimming) or the delete is rejected.
+    normalization and trimming) or the delete is rejected. Acceptance starts
+    a durable cleanup operation; success is only reported after every
+    cross-store trace of the question is gone.
     """
 
     model_config = ConfigDict(extra="forbid")
 
+    command_id: str = Field(min_length=1, max_length=255)
     content_revision: int = Field(ge=1)
     confirmation_title: str | None = Field(default=None, max_length=200)
+
+
+class DeleteStateView(BaseModel):
+    """Projection of the accepted deletion operation (no material content)."""
+
+    operation_id: str
+    phase: Literal["queued", "running", "succeeded", "failed"]
+    error: GenerationErrorView | None = None
+
+
+class DeleteAcceptedResponse(BaseModel):
+    question_id: str
+    status: QuestionStatus
+    operation_id: str
+
+
+class RunEventView(BaseModel):
+    """One persisted public progress event of a generation operation."""
+
+    sequence: int
+    kind: str
+    stage: str | None = None
+    text: str | None = None
+    tool: str | None = None
+    detail: str | None = None
+    attempt: int
+    created_at: str
+
+
+class RunEventsResponse(BaseModel):
+    question_id: str
+    operation_id: str | None
+    status: QuestionStatus
+    events: list[RunEventView]
+    last_sequence: int
 
 
 class OperationAcceptedResponse(BaseModel):

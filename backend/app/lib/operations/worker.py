@@ -125,20 +125,28 @@ class OperationWorker:
             except Exception as exc:
                 from app.features.question_library import rubric_generation
                 from app.lib.ai_runtime.adapters import RubricGenerationFailure
+                from app.lib.ai_runtime.deep_runtime import DeepRuntimeError
 
-                retryable = isinstance(exc, RubricGenerationFailure) and exc.retryable
-                error = (
-                    {"code": exc.code, "message": exc.message}
-                    if isinstance(exc, RubricGenerationFailure)
-                    else {"code": "OPERATION_FAILED", "message": "评分维度生成失败。"}
-                )
+                known = isinstance(exc, (RubricGenerationFailure, DeepRuntimeError))
+                retryable = bool(getattr(exc, "retryable", False)) if known else False
+                if known:
+                    error = {"code": exc.code, "message": exc.message}
+                elif job.kind == "question_cleanup":
+                    # Cleanup failures must never be projected as rubric
+                    # generation failures.
+                    error = {"code": "OPERATION_FAILED", "message": "题目删除清理失败。"}
+                else:
+                    error = {"code": "OPERATION_FAILED", "message": "评分维度生成失败。"}
                 try:
                     updated = repository.fail(
                         job.id, self.worker_id, _clean_error(error), retryable=retryable
                     )
                 except ValueError:
                     return True
-                if updated.status == repository.OperationJobStatus.failed:
+                if (
+                    updated.status == repository.OperationJobStatus.failed
+                    and job.kind == "rubric_generation"
+                ):
                     rubric_generation.mark_generation_failed(
                         job, _clean_error(error), worker_id=self.worker_id
                     )
@@ -172,10 +180,11 @@ class OperationWorker:
 
 
 def _build_worker(runtime_mode: str) -> OperationWorker:
-    from app.features.question_library import rubric_generation
+    from app.features.question_library import deletion, rubric_generation
 
     worker = OperationWorker(runtime_mode=runtime_mode)
     worker.register("rubric_generation", rubric_generation.process_rubric_generation)
+    worker.register("question_cleanup", deletion.process_question_cleanup)
     return worker
 
 
@@ -192,14 +201,18 @@ def default_worker() -> OperationWorker:
 
 @contextmanager
 def production_worker() -> Iterator[OperationWorker]:
-    """Install real AI adapters for the context lifetime, then restore them."""
+    """Install real AI adapters for the context lifetime, then restore them.
+
+    The provider model is built LAZILY inside the deep-agent generator: a
+    missing or broken provider configuration must fail only the generation
+    jobs that need it, never block model-free jobs (deletion cleanup) or
+    worker startup.
+    """
 
     from app.lib.ai_runtime import adapters as adapter_module
-    from app.lib.ai_runtime.model import build_runtime_model
 
-    model, _identity = build_runtime_model()
     previous = adapter_module.get_adapters()
-    adapter_module.set_adapters(adapter_module.production_adapters(model=model))
+    adapter_module.set_adapters(adapter_module.production_adapters())
     try:
         yield _build_worker("production")
     finally:

@@ -236,7 +236,8 @@ def test_delete_is_blocked_while_generating() -> None:
         question_id = response.json()["cases"][0]["question_id"]
         # Status is generating; deletion must be refused until it settles.
         delete = client.request(
-            "DELETE", f"/api/questions/{question_id}", json={"content_revision": 1}
+            "DELETE", f"/api/questions/{question_id}",
+            json={"command_id": "del-adv-1", "content_revision": 1},
         )
         assert delete.status_code == 409
         assert delete.json()["error"]["code"] == "RUBRIC_GENERATING"
@@ -245,9 +246,11 @@ def test_delete_is_blocked_while_generating() -> None:
         deleted = client.request(
             "DELETE",
             f"/api/questions/{question_id}",
-            json={"content_revision": detail["content_revision"]},
+            json={"command_id": "del-adv-2", "content_revision": detail["content_revision"]},
         )
-        assert deleted.status_code == 204
+        assert deleted.status_code == 202
+        helpers.run_worker_until_idle()
+        assert client.get(f"/api/questions/{question_id}").status_code == 404
 
 
 def test_pass_semantics_clamp_to_the_fixed_ten_point_scale() -> None:

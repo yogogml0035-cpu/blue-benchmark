@@ -1,8 +1,19 @@
-"""Worker-side rubric generation: adapter call, business validation, CAS commit."""
+"""Worker-side rubric generation: durable run, business validation, CAS commit.
+
+One generation attempt owns: freeze/fencing checks, the immutable material
+snapshot fingerprint, run-thread registration (durable runtime only), a
+persist-before-send public event sink, the restricted deep-agent call through
+the adapter registry, deterministic normalization of the COMPLETE criterion
+contract, and the atomic CAS commit. Success is only reported after the
+business save; a graph completion is recorded as a stage, never as the final
+``run_completed`` event.
+"""
 
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata as importlib_metadata
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -11,11 +22,11 @@ from app.lib.ai_runtime.adapters import (
     RubricGenerationFailure,
     RubricGenerationInput,
     RubricGenerationResult,
+    RunContext,
     get_adapters,
 )
 from app.lib.database import session_scope
 from app.lib.database.models import EvalQuestionRow, OperationJobRow
-from app.lib.operations import repository
 
 TARGET_TYPE = "eval_question"
 
@@ -67,28 +78,108 @@ def build_generation_input(row: EvalQuestionRow) -> RubricGenerationInput:
     )
 
 
+def materials_fingerprint(materials: RubricGenerationInput) -> str:
+    """Stable hash of the immutable material snapshot this run is bound to."""
+    canonical = json.dumps(
+        materials.model_dump(mode="json"), sort_keys=True, ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def runtime_fingerprint() -> str:
+    """Non-secret runtime identity used to refuse incompatible resumptions."""
+    from app.lib.ai_runtime.model import runtime_model_identity
+    from app.lib.settings import settings
+
+    try:
+        identity = runtime_model_identity(settings, require_credentials=False)
+        model_part = identity.fingerprint
+    except Exception:
+        model_part = settings.ai_runtime_mode
+    try:
+        sdk_part = importlib_metadata.version("deepagents")
+    except importlib_metadata.PackageNotFoundError:  # pragma: no cover
+        sdk_part = "deepagents-missing"
+    return hashlib.sha256(f"{model_part}|{sdk_part}".encode()).hexdigest()[:16]
+
+
+class _CompletionGatedSink:
+    """Persists public events; ``run_completed`` is gated on the business save.
+
+    The deep runtime reports graph completion; teachers must only see
+    completion after the criteria are atomically saved. This sink downgrades
+    the primitive's ``run_completed`` to a ``graph_completed`` stage and the
+    worker emits the authoritative terminal event itself.
+    """
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+
+    def emit(self, event: Any) -> None:
+        from app.lib.ai_runtime.deep_runtime import PublicEvent
+
+        if event.kind == "run_completed":
+            self._inner.emit(PublicEvent(kind="stage", stage="graph_completed"))
+            return
+        self._inner.emit(event)
+
+    def emit_terminal(self, kind: str, detail: str | None = None) -> None:
+        from app.lib.ai_runtime.deep_runtime import PublicEvent
+
+        self._inner.emit(PublicEvent(kind=kind, detail=detail))
+
+    def close(self) -> None:
+        close = getattr(self._inner, "close", None)
+        if close is not None:
+            close()
+
+
 def normalize_criteria(result: RubricGenerationResult) -> list[dict[str, Any]]:
-    """Assign stable ids and apply deterministic business validation."""
+    """Assign stable ids and apply deterministic business validation.
+
+    Enforces the COMPLETE contract: actionable criterion text, privacy
+    backstop on every public string, and the generation-side rule that the
+    suggested pass score has its own anchor and its basis explains exactly
+    that score (already guaranteed by CriterionDraft's validator; re-checked
+    here so a hand-assembled result cannot slip through).
+    """
 
     from app.features.question_library import rubric_rules
+    from app.features.question_library.schemas import assert_public_material_text
 
     criteria: list[dict[str, Any]] = []
     for index, item in enumerate(result.criteria):
         criterion = item.criterion.strip()
         rubric_rules.validate_criterion_text(criterion)
+        scores = [anchor.score for anchor in item.score_anchors]
+        if len(scores) != len(set(scores)):
+            raise ValueError("分数锚点必须唯一。")
+        if item.pass_score not in scores:
+            raise ValueError("初始生成必须为建议通过分提供对应的表现描述锚点。")
+        if item.pass_score_basis.explained_score != item.pass_score:
+            raise ValueError("通过分依据必须解释所建议的通过分。")
+        for anchor in item.score_anchors:
+            assert_public_material_text(anchor.description, field_label="分数锚点说明")
+        for basis in (item.criterion_basis, item.pass_score_basis):
+            assert_public_material_text(basis.explanation, field_label="依据说明")
+            for claim in basis.claims:
+                assert_public_material_text(claim.claim, field_label="依据主张")
+                if claim.citation is not None:
+                    assert_public_material_text(claim.citation.quote, field_label="依据引用")
         criteria.append(
             {
                 "id": f"criterion-{index + 1}",
-                "criterion": criterion,
-                "pass_score": int(item.pass_score),
+                **item.model_dump(mode="json"),
             }
         )
     return criteria
 
 
-def process_rubric_generation(job: repository.OperationJob) -> dict[str, Any]:
+def process_rubric_generation(job: Any) -> dict[str, Any]:
     from sqlalchemy import select
 
+    from app.features.question_library import run_streams
     from app.lib.database.models import OperationJobRow
 
     # Fencing check before the (expensive) AI call: a job that is no longer
@@ -97,10 +188,7 @@ def process_rubric_generation(job: repository.OperationJob) -> dict[str, Any]:
         job_row = session.execute(
             select(OperationJobRow).where(OperationJobRow.id == job.id)
         ).scalar_one_or_none()
-        if (
-            job_row is None
-            or job_row.status not in ("queued", "running")
-        ):
+        if job_row is None or job_row.status not in ("queued", "running"):
             from app.lib.operations.worker import SupersededOperation
 
             raise SupersededOperation("任务已经被取代。")
@@ -109,32 +197,88 @@ def process_rubric_generation(job: repository.OperationJob) -> dict[str, Any]:
             from app.lib.operations.worker import SupersededOperation
 
             raise SupersededOperation("题目已经更新或删除。")
+        if row.status == "deleting":
+            from app.lib.operations.worker import SupersededOperation
+
+            raise SupersededOperation("题目已进入删除冻结，停止生成。")
         materials = build_generation_input(row)
+        fingerprint = materials_fingerprint(materials)
+        revision = row.content_revision
+        question_id = row.id
 
-    result = get_adapters().rubric_generator.generate(materials)
+    thread_id = run_streams.generation_thread_id(question_id, revision)
+    generator = get_adapters().rubric_generator
+    if getattr(generator, "uses_durable_runtime", False):
+        run_streams.register_thread(
+            run_streams.ThreadRegistration(
+                thread_id=thread_id,
+                question_id=question_id,
+                operation_id=job.id,
+                materials_revision=revision,
+                materials_fingerprint=fingerprint,
+                runtime_fingerprint=runtime_fingerprint(),
+            )
+        )
+
+    context = RunContext(
+        thread_id=thread_id,
+        operation_id=job.id,
+        attempt_number=job.attempts,
+        question_id=question_id,
+        materials_revision=revision,
+        materials_fingerprint=fingerprint,
+    )
+    store_sink = run_streams.PersistentEventSink(
+        question_id=question_id,
+        operation_id=job.id,
+        attempt_number=job.attempts,
+        thread_id=thread_id,
+    )
+    sink = _CompletionGatedSink(store_sink)
     try:
-        criteria = normalize_criteria(result)
-    except ValueError as exc:
-        raise RubricGenerationFailure(
-            "AI_OUTPUT_INVALID", f"AI 输出的评分标准不可执行：{exc}", retryable=True
-        ) from exc
+        try:
+            result = generator.generate(materials, context=context, sink=sink)
+        except RubricGenerationFailure:
+            sink.emit_terminal("run_failed")
+            raise
+        except Exception:
+            sink.emit_terminal("run_failed")
+            raise
+        try:
+            criteria = normalize_criteria(result)
+        except ValueError as exc:
+            sink.emit_terminal("run_failed")
+            raise RubricGenerationFailure(
+                "AI_OUTPUT_INVALID", f"AI 输出的评分标准不可执行：{exc}", retryable=True
+            ) from exc
+        except Exception as exc:
+            sink.emit_terminal("run_failed")
+            raise RubricGenerationFailure(
+                "AI_OUTPUT_INVALID", f"AI 输出校验失败：{type(exc).__name__}", retryable=True
+            ) from exc
 
-    if not commit_generation_result(job, criteria):
-        from app.lib.operations.worker import SupersededOperation
+        if not commit_generation_result(job, criteria):
+            from app.lib.operations.worker import SupersededOperation
 
-        raise SupersededOperation("题目材料已经更新，本轮生成作废。")
+            sink.emit_terminal("run_failed", "superseded")
+            raise SupersededOperation("题目材料已经更新，本轮生成作废。")
+        # Authoritative completion: emitted only after the atomic business save.
+        sink.emit_terminal("run_completed")
+    finally:
+        sink.close()
     return {"criteria_count": len(criteria)}
 
 
 def commit_generation_result(
-    job: repository.OperationJob, criteria: list[dict[str, Any]]
+    job: Any, criteria: list[dict[str, Any]]
 ) -> bool:
     """Atomically commit criteria and complete the job in ONE transaction.
 
     The fencing predicate requires the job to still be ``running`` under the
     current worker AND the question to still point at this job with the same
-    content revision, so a lease-expired duplicate or a stale generation can
-    never overwrite committed criteria or later admin edits.
+    content revision and NOT be delete-frozen, so a lease-expired duplicate or
+    a stale generation can never overwrite committed criteria or later admin
+    edits, and a late writer can never resurrect a frozen question.
     """
 
     from sqlalchemy import select
@@ -160,7 +304,7 @@ def commit_generation_result(
         ).scalar_one_or_none()
         if (
             job_row is None
-            or job_row.status != repository.OperationJobStatus.running.value
+            or job_row.status != repository_status_running()
             or job_row.worker_id != job.worker_id
             or job_row.business_revision != job.business_revision
         ):
@@ -168,10 +312,11 @@ def commit_generation_result(
         row = session.get(EvalQuestionRow, job.target_id, with_for_update=True)
         if (
             row is None
+            or row.status == "deleting"
             or row.content_revision != job.business_revision
             or row.active_operation_id != job.id
         ):
-            job_row.status = repository.OperationJobStatus.superseded.value
+            job_row.status = "superseded"
             job_row.last_error_json = {"code": "SUPERSEDED", "message": "业务版本已经更新。"}
             job_row.lease_until = None
             job_row.worker_id = None
@@ -185,7 +330,7 @@ def commit_generation_result(
         row.last_error_json = None
         row.active_operation_id = None
         row.updated_at = now
-        job_row.status = repository.OperationJobStatus.succeeded.value
+        job_row.status = "succeeded"
         job_row.result_json = {
             "criteria_count": len(criteria),
             "__worker_runtime_mode": _runtime_mode_marker(),
@@ -198,6 +343,12 @@ def commit_generation_result(
     return True
 
 
+def repository_status_running() -> str:
+    from app.lib.operations import repository
+
+    return repository.OperationJobStatus.running.value
+
+
 def _runtime_mode_marker() -> str:
     from app.lib.settings import settings
 
@@ -205,12 +356,13 @@ def _runtime_mode_marker() -> str:
 
 
 def mark_generation_failed(
-    job: repository.OperationJob, error: dict[str, Any], *, worker_id: str
+    job: Any, error: dict[str, Any], *, worker_id: str
 ) -> None:
     """Best-effort projection: flip the question to generation_failed.
 
     Only applies when the question still points at this exact job and content
-    revision, so a newer round is never overwritten by an older failure.
+    revision and is not delete-frozen, so a newer round or an accepted
+    deletion is never overwritten by an older failure.
     """
 
     try:
@@ -219,6 +371,7 @@ def mark_generation_failed(
             row = session.get(EvalQuestionRow, job.target_id, with_for_update=True)
             if (
                 row is None
+                or row.status == "deleting"
                 or row.active_operation_id != job.id
                 or row.content_revision != job.business_revision
             ):
@@ -255,10 +408,7 @@ def enqueue_generation(
         select(OperationJobRow).where(OperationJobRow.id == job_id)
     ).scalar_one_or_none()
     if existing is not None:
-        if existing.status in (
-            repository.OperationJobStatus.failed.value,
-            repository.OperationJobStatus.superseded.value,
-        ):
+        if existing.status in ("failed", "superseded"):
             # A revived round starts from a clean attempt budget, so its
             # historical attempt rows must go: ``claim_next`` re-derives
             # attempt numbers from zero and the (job_id, attempt_number)
@@ -268,7 +418,7 @@ def enqueue_generation(
                     AgentRunAttemptRow.operation_job_id == job_id
                 )
             )
-            existing.status = repository.OperationJobStatus.queued.value
+            existing.status = "queued"
             existing.attempts = 0
             existing.available_at = now
             existing.last_error_json = None
@@ -276,10 +426,7 @@ def enqueue_generation(
             existing.updated_at = now
             session.flush()
             return job_id
-        if existing.status in (
-            repository.OperationJobStatus.queued.value,
-            repository.OperationJobStatus.running.value,
-        ):
+        if existing.status in ("queued", "running"):
             return job_id
         raise ValueError("GENERATION_JOB_CONFLICT")
     row = OperationJobRow(
@@ -289,7 +436,7 @@ def enqueue_generation(
         target_id=question_id,
         command_id=command_id,
         business_revision=content_revision,
-        status=repository.OperationJobStatus.queued.value,
+        status="queued",
         attempts=0,
         max_attempts=_max_attempts(),
         available_at=now,

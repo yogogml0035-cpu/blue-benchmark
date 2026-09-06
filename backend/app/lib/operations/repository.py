@@ -21,7 +21,7 @@ class OperationJobStatus(StrEnum):
     superseded = "superseded"
 
 
-OPERATION_KINDS = ("rubric_generation",)
+OPERATION_KINDS = ("rubric_generation", "question_cleanup")
 
 
 @dataclass(frozen=True, slots=True)

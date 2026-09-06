@@ -9,13 +9,15 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.features.question_library import repository, rubric_generation
+from app.features.question_library import deletion, repository, rubric_generation
 from app.features.question_library.schemas import (
     BatchUploadRequest,
     BatchUploadResponse,
     CaseReceipt,
     CriteriaPatchRequest,
     CriterionView,
+    DeleteAcceptedResponse,
+    DeleteStateView,
     GenerationErrorView,
     NextAction,
     OperationAcceptedResponse,
@@ -27,6 +29,8 @@ from app.features.question_library.schemas import (
     QuestionSaveRegenerateRequest,
     QuestionStatus,
     QuestionTitleRequest,
+    RunEventView,
+    RunEventsResponse,
     assert_case_materials_private,
     assert_public_material_text,
     canonical_payload_hash,
@@ -90,14 +94,7 @@ def _detail_response(record: repository.QuestionRecord) -> QuestionDetailRespons
             for item in record.memory_materials
         ],
         criteria=(
-            [
-                CriterionView(
-                    id=item.get("id", ""),
-                    criterion=item.get("criterion", ""),
-                    pass_score=int(item.get("pass_score", 0)),
-                )
-                for item in record.criteria
-            ]
+            [_criterion_view(item) for item in record.criteria]
             if record.criteria is not None
             else None
         ),
@@ -113,12 +110,44 @@ def _detail_response(record: repository.QuestionRecord) -> QuestionDetailRespons
             if record.last_error
             else None
         ),
+        deletion=_deletion_view(record.id),
         criteria_confirmed=record.criteria_confirmed,
         delete_confirmation_required=record.ever_published,
         created_at=_iso(record.created_at) or "",
         updated_at=_iso(record.updated_at) or "",
         published_at=_iso(record.published_at),
     )
+
+
+def _criterion_view(item: dict) -> CriterionView:
+    """Project one stored criterion dict onto the complete view contract.
+
+    The stored shape IS the contract shape (one-shot cutover; no legacy
+    two-field records are read or back-filled).
+    """
+    return CriterionView.model_validate(item)
+
+
+def _deletion_view(question_id: str) -> DeleteStateView | None:
+    job = deletion.get_active_cleanup(question_id)
+    if job is None:
+        return None
+    error = None
+    if job.last_error and job.status.value == "failed":
+        error = GenerationErrorView(
+            code=str(job.last_error.get("code", "")),
+            message=str(job.last_error.get("message", "")),
+        )
+    return DeleteStateView(operation_id=job.id, phase=job.status.value, error=error)
+
+
+def _ensure_not_frozen(row, operation: str) -> None:
+    if row.status == QuestionStatus.deleting.value:
+        raise AppError(
+            409,
+            "QUESTION_DELETING",
+            f"题目删除清理中，{operation}已被冻结；清理完成前不可继续。",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -336,6 +365,10 @@ def update_title(question_id: str, payload: QuestionTitleRequest) -> QuestionDet
     assert_public_material_text(title, field_label="用例标题")
     now = _utc_now()
     with session_scope() as session:
+        existing = session.get(EvalQuestionRow, question_id)
+        if existing is None:
+            raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+        _ensure_not_frozen(existing, "标题修改")
         record = repository.update_fields(
             session,
             question_id,
@@ -367,6 +400,7 @@ def save_and_regenerate(
             raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
         if row.content_revision != payload.content_revision:
             raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+        _ensure_not_frozen(row, "材料保存与重新生成")
 
         new_title = payload.title.strip() if payload.title is not None else row.title
         new_prompt = payload.task_prompt.strip() if payload.task_prompt is not None else row.task_prompt
@@ -477,6 +511,7 @@ def patch_criteria(question_id: str, payload: CriteriaPatchRequest) -> QuestionD
             raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
         if row.content_revision != payload.content_revision:
             raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+        _ensure_not_frozen(row, "评分维度修改")
         if row.status == QuestionStatus.generating.value:
             raise AppError(
                 409,
@@ -523,6 +558,7 @@ def retry_generation(question_id: str, payload: QuestionCommandRequest) -> Opera
         row = session.get(EvalQuestionRow, question_id)
         if row is None:
             raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+        _ensure_not_frozen(row, "生成重试")
         if row.status != QuestionStatus.generation_failed.value:
             raise AppError(
                 409,
@@ -566,6 +602,7 @@ def publish(question_id: str, payload: QuestionCommandRequest) -> QuestionDetail
             raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
         if payload.content_revision != row.content_revision:
             raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+        _ensure_not_frozen(row, "发布")
         if row.status == QuestionStatus.generating.value:
             raise AppError(409, "RUBRIC_GENERATING", "评分维度生成中，无法发布。")
         if row.status == QuestionStatus.generation_failed.value:
@@ -617,6 +654,7 @@ def review_reopen(question_id: str, payload: QuestionCommandRequest) -> Question
             raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
         if payload.content_revision != row.content_revision:
             raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+        _ensure_not_frozen(row, "重新打开审改")
         if row.status != QuestionStatus.published.value:
             raise AppError(
                 409,
@@ -637,19 +675,42 @@ def review_reopen(question_id: str, payload: QuestionCommandRequest) -> Question
     return get_detail(question_id)
 
 
-def delete_question(question_id: str, payload: QuestionDeleteRequest) -> None:
-    """Protected hard delete.
+def delete_question(question_id: str, payload: QuestionDeleteRequest) -> DeleteAcceptedResponse:
+    """Protected delete ACCEPTANCE: freeze + durable cleanup operation.
 
-    Gates, in order: stale revision, generating, still published, and — for
-    any question that was ever published — an exact title confirmation that
-    survives page reloads because it is checked against the persisted
-    ``ever_published`` fact, not client state.
+    Gates, in order: stale revision, already deleting, generating, still
+    published, and — for any question that was ever published — an exact title
+    confirmation checked against the persisted ``ever_published`` fact.
+    Acceptance atomically freezes the question and enqueues the cross-store
+    cleanup in ONE business transaction; success is reported only after every
+    online trace is verified gone (the old "204 = deleted" early-success path
+    is removed, not wrapped).
     """
 
+    now = _utc_now()
     with session_scope() as session:
         row = session.get(EvalQuestionRow, question_id)
         if row is None:
+            existing = deletion.get_active_cleanup(question_id)
+            if existing is not None:
+                # The question row is already gone but the receipt survives:
+                # replay the acceptance idempotently instead of 404-ing a
+                # client that is still polling cleanup status.
+                raise AppError(
+                    404,
+                    "RESOURCE_NOT_FOUND",
+                    "题目不存在。",
+                )
             raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+        if row.status == QuestionStatus.deleting.value:
+            active = deletion.get_active_cleanup(question_id)
+            if active is None:
+                raise AppError(500, "INTERNAL_ERROR", "删除状态不一致，请联系管理员。")
+            return DeleteAcceptedResponse(
+                question_id=question_id,
+                status=QuestionStatus.deleting,
+                operation_id=active.id,
+            )
         if payload.content_revision != row.content_revision:
             raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
         if row.status == QuestionStatus.generating.value:
@@ -677,28 +738,67 @@ def delete_question(question_id: str, payload: QuestionDeleteRequest) -> None:
                     "DELETE_CONFIRMATION_MISMATCH",
                     "该题目曾经发布过，必须输入当前完整题目标题确认删除。",
                 )
-        # The conditional DELETE re-checks revision and protected status
-        # atomically, so a concurrent publish that commits after the snapshot
-        # above still blocks the removal.
-        if not repository.delete_question_and_generation_history(
-            session, question_id, expected_revision=payload.content_revision
-        ):
-            current_row = session.get(EvalQuestionRow, question_id)
-            if current_row is None:
-                raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
-            if current_row.content_revision != payload.content_revision:
-                raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
-            if current_row.status == QuestionStatus.generating.value:
-                raise AppError(
-                    409,
-                    "RUBRIC_GENERATING",
-                    "评分维度生成中，等待生成完成或失败后再删除。",
-                )
-            raise AppError(
-                409,
-                "PUBLISHED_REOPEN_REQUIRED",
-                "已发布题目必须先重新打开审改，才能删除。",
+        try:
+            operation_id = deletion.accept_delete(
+                session, question_row=row, command_id=payload.command_id, now=now
             )
+        except ValueError as exc:
+            if str(exc) == "CLEANUP_ALREADY_SUCCEEDED":
+                raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。") from exc
+            raise
+    return DeleteAcceptedResponse(
+        question_id=question_id,
+        status=QuestionStatus.deleting,
+        operation_id=operation_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Public run events (persisted log; SSE reads from the database)
+# ---------------------------------------------------------------------------
+
+
+def get_run_events(
+    question_id: str, operation_id: str, *, after_sequence: int = 0
+) -> RunEventsResponse:
+    """One page of the complete public event log for an operation.
+
+    Authorization: admin session (enforced by the router). Replay is frozen
+    once deletion is accepted — cleanup must not keep serving originals.
+    """
+    with session_scope() as session:
+        row = session.get(EvalQuestionRow, question_id)
+        if row is None:
+            raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+        if row.status == QuestionStatus.deleting.value:
+            raise AppError(409, "QUESTION_DELETING", "题目删除清理中，运行记录已冻结。")
+        status = QuestionStatus(row.status)
+        if row.active_operation_id is not None and row.active_operation_id != operation_id:
+            raise AppError(409, "OPERATION_SUPERSEDED", "该运行已被新一轮任务取代。")
+    from app.features.question_library import run_streams
+
+    events = run_streams.read_events(
+        question_id, operation_id, after_sequence=after_sequence
+    )
+    return RunEventsResponse(
+        question_id=question_id,
+        operation_id=operation_id,
+        status=status,
+        events=[
+            RunEventView(
+                sequence=event.sequence,
+                kind=event.kind,
+                stage=event.stage,
+                text=event.text,
+                tool=event.tool,
+                detail=event.detail,
+                attempt=event.attempt,
+                created_at=event.created_at,
+            )
+            for event in events
+        ],
+        last_sequence=events[-1].sequence if events else after_sequence,
+    )
 
 
 def _raise_stale_or_missing(question_id: str) -> None:

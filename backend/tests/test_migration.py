@@ -33,7 +33,10 @@ def test_fresh_database_reaches_new_head(tmp_path) -> None:
     command.upgrade(_alembic_config(database_url), "head")
     engine = sa.create_engine(database_url)
     tables = _table_names(engine)
-    for expected in ["scenes", "scene_credentials", "eval_questions", "batch_upload_commands"]:
+    for expected in [
+        "scenes", "scene_credentials", "eval_questions", "batch_upload_commands",
+        "question_run_threads", "question_run_events",
+    ]:
         assert expected in tables, expected
     for legacy in ["cases", "workspaces", "benchmark_question_drafts", "human_scores"]:
         assert legacy not in tables, legacy
@@ -41,7 +44,7 @@ def test_fresh_database_reaches_new_head(tmp_path) -> None:
         revisions = connection.execute(
             sa.text("SELECT version_num FROM alembic_version")
         ).scalars().all()
-    assert revisions == ["0020_credential_one_to_one"]
+    assert revisions == ["0021_m0_runtime_messages_threads"]
     question_columns = {item["name"] for item in sa.inspect(engine).get_columns("eval_questions")}
     assert {"criteria_confirmed", "ever_published"}.issubset(question_columns)
     credential_columns = {
@@ -214,6 +217,13 @@ def test_downgrade_restores_executable_schema(tmp_path) -> None:
     config = _alembic_config(database_url)
     command.upgrade(config, "head")
     engine = sa.create_engine(database_url)
+
+    # 0021 -> 0020: the runtime log/registry tables disappear, nothing else.
+    command.downgrade(config, "-1")
+    tables_after_runtime = _table_names(engine)
+    assert "question_run_threads" not in tables_after_runtime
+    assert "question_run_events" not in tables_after_runtime
+    assert "eval_questions" in tables_after_runtime
 
     # 0020 -> 0019: the plaintext column disappears, tables stay.
     command.downgrade(config, "-1")
