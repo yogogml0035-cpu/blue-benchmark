@@ -13,7 +13,7 @@ backend/
 │   │   ├── scenes/{router,service,repository,schemas}.py
 │   │   └── question_library/{router,external_router,service,repository,schemas,rubric_generation,rubric_rules}.py
 │   └── lib/{errors,schemas,settings,ai_runtime/{model,adapters},operations/,database/}
-├── scripts/{export_openapi,verify_openapi,check_schema,migrate,smoke_ai_provider,accept_real_ai_rubric,admin_cli}.py
+├── scripts/{export_openapi,verify_openapi,check_schema,migrate,smoke_ai_provider,accept_real_ai_rubric,accept_skill_push_evaldata,m0_samples,admin_cli}.py
 ├── migrations/versions/
 ├── tests/
 ├── openapi.json
@@ -61,6 +61,7 @@ schemas -> HTTP 输入、输出和领域枚举
 - 新接口先放入所属 Feature 的现有四层；只有出现新的独立业务所有权时才新增 Feature。
 - 新的请求/响应字段先进入 `schemas.py`，再由 Service 填充，最后重新生成 `backend/openapi.json` 并运行漂移检查。
 - 脚本放在 `backend/scripts/`，测试放在 `backend/tests/`；不要在生产模块 import 测试或预演数据。
+- 真实会话语料（`.local-samples/`，仓库外只读）只能经 `scripts/m0_samples.py` 的 hash 门禁提取；重建产物写入 gitignored 的 `backend/storage/acceptance/`，真实正文、完整模型输出与凭证一律不进 Git，提交物只含代码、非敏感取样元数据（路径/hash/uuid/行号/字符数）与合成负例。
 
 ## 不要这样做
 
