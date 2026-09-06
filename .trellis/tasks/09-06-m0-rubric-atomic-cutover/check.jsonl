@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"Backend and real-worker/PostgreSQL evidence"}
+{"file":".trellis/spec/frontend/quality-testing/quality-and-testing.md","reason":"Frontend unit, E2E and real browser acceptance"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"No lost fields, compatibility readers or half-cutover"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/task-map.md","reason":"C3 owns full production switch and minimum real acceptance"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/prd.md","reason":"Teacher controls and scope invariants"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/runtime-design.md","reason":"Persisted messages, recovery and deletion guarantees"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/real-sample-validation.md","reason":"No placeholder samples or fake production evidence"}

@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/backend/core/quality-and-tests.md", "reason": "Backend, contract and real-provider acceptance boundaries"}
+{"file": ".trellis/spec/frontend/quality-testing/quality-and-testing.md", "reason": "Frontend unit and review-flow E2E expectations"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "No missing fields or duplicate DTO/legacy contract paths"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/prd.md", "reason": "Integer input, editable evidence, non-destructive ordinary edits and M0 scope"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/implement.md", "reason": "Planned removal, validation and merge gates, not execution evidence"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/streaming-progress.md", "reason": "Verify actual incremental delivery, reconnect, fencing, privacy and final-save authority"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/runtime-design.md", "reason": "Real checkpoint recovery, no transcript loss, concurrency fencing and M1 protocol boundaries"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/persistence-middleware.md", "reason": "Do not mistake existing DB/key or outdated skill snippets for verified integration"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/real-sample-validation.md", "reason": "Require real source coverage, immutable corpus, PostgreSQL production-worker evidence and no placeholder acceptance"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/review.md", "reason": "Final scope, exclusions and honest verification boundaries for review and delivery"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/task-map.md", "reason": "Verify native parent-child links, explicit dependency delivery and no deferred core cutover or early reset"}

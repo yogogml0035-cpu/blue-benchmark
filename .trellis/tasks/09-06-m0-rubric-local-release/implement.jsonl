@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"PostgreSQL migration and real-worker verification boundaries"}
+{"file":".trellis/spec/frontend/quality-testing/quality-and-testing.md","reason":"Production-build environment and real browser checks"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/task-map.md","reason":"C5 is the sole owner of shared local reset after all prerequisites"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/prd.md","reason":"One-time reset authorization, source preservation and no compatibility"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/design.md","reason":"Scoped database reset and rollout/rollback design"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/runtime-design.md","reason":"Checkpoint lifecycle, deletion and source/backup boundaries"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/real-sample-validation.md","reason":"Immutable corpus and real integration/smoke evidence"}

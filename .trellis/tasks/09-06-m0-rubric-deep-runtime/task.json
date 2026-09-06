@@ -1,0 +1,47 @@
+{
+  "id": "m0-rubric-deep-runtime",
+  "name": "m0-rubric-deep-runtime",
+  "title": "M0 评分重构：Deep Agents 持久运行基础",
+  "description": "验证最新 Deep Agents、受限工具、流式事件、PostgreSQL checkpoint、恢复与删除原语；不提前切换生产题目链路。",
+  "status": "planning",
+  "dev_type": "backend",
+  "scope": "ai-runtime",
+  "package": null,
+  "priority": "P2",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-09-06",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-05-m0-rubric-anchors-evidence",
+  "relatedFiles": [
+    "backend/pyproject.toml",
+    "backend/uv.lock",
+    "backend/app/lib/ai_runtime",
+    "backend/tests",
+    "backend/scripts"
+  ],
+  "notes": "Planning child C2; verify reusable runtime primitives after C1. Production rubric, API and UI cutover belongs exclusively to C3.",
+  "meta": {
+    "task_role": "child",
+    "task_key": "C2",
+    "planning_only": true,
+    "implementation_approved": false,
+    "depends_on": [
+      "09-06-m0-rubric-real-samples"
+    ],
+    "parent_prd": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/prd.md",
+    "planned_branch": "codex/m0-rubric-deep-runtime",
+    "planned_worktree_path": "/Users/hsikey/Company/skill-eval-platform-wt/m0-rubric-deep-runtime",
+    "merge_target": "main",
+    "approval_gate": "final_task_tree_review_then_explicit_implementation_approval",
+    "production_cutover_allowed": false,
+    "shared_database_reset_allowed": false
+  }
+}

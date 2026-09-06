@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"No fake or SQLite proof substituted for PostgreSQL/provider evidence"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/task-map.md","reason":"No business API, production generator switch or shared database reset in C2"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/runtime-design.md","reason":"Recovery, locking, cleanup and middleware invariants"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/persistence-middleware.md","reason":"Verify actual SDK API, keys and connection lifecycle"}

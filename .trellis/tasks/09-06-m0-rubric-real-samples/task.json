@@ -1,0 +1,42 @@
+{
+  "id": "m0-rubric-real-samples",
+  "name": "m0-rubric-real-samples",
+  "title": "M0 评分重构：真实会话样本与独立回归基线",
+  "description": "从 .local-samples 整理可追溯六材料输入、独立预期与派生反例，保护原始样本；仅规划，未经批准不实施。",
+  "status": "planning",
+  "dev_type": "backend",
+  "scope": "question-library",
+  "package": null,
+  "priority": "P2",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-09-06",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-05-m0-rubric-anchors-evidence",
+  "relatedFiles": [
+    "backend/scripts",
+    "backend/tests",
+    ".gitignore"
+  ],
+  "notes": "Planning child C1; produce reproducible real-sample inputs and independent checks only. No implementation checkout or approval exists.",
+  "meta": {
+    "task_role": "child",
+    "task_key": "C1",
+    "planning_only": true,
+    "implementation_approved": false,
+    "depends_on": [],
+    "parent_prd": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/prd.md",
+    "planned_branch": "codex/m0-rubric-real-samples",
+    "planned_worktree_path": "/Users/hsikey/Company/skill-eval-platform-wt/m0-rubric-real-samples",
+    "merge_target": "main",
+    "approval_gate": "final_task_tree_review_then_explicit_implementation_approval",
+    "delivery_scope": "sample_preparation_not_product_cutover"
+  }
+}

@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/core/structure-and-boundaries.md","reason":"Keep AI runtime primitives separate from business services"}
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"Dependency, real-provider and PostgreSQL verification rules"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/task-map.md","reason":"C2 dependency, ownership and no premature production cutover"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/runtime-design.md","reason":"Thread, saver/backend, middleware and recovery primitives"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/persistence-middleware.md","reason":"Inspected Docker/API facts and outdated skill pitfalls"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/streaming-progress.md","reason":"Native event streaming and current relay verification needs"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/real-sample-validation.md","reason":"Real corpus provenance and immutable inputs"}

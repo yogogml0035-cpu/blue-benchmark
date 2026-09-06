@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"Use existing Python/pytest patterns and protect real materials"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/task-map.md","reason":"Parent-child ownership, dependencies and worktree gates"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/prd.md","reason":"Confirmed six-material and source-authority requirements"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/real-sample-validation.md","reason":"Verified corpus, source locations and no-placeholder acceptance"}

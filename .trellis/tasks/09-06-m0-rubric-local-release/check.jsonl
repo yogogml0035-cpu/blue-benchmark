@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"No false migration or provider acceptance"}
+{"file":".trellis/spec/frontend/quality-testing/quality-and-testing.md","reason":"Verify actual deployed code and browser runtime"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/task-map.md","reason":"Dependency main gates, one-time operation and parent final review"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/design.md","reason":"No shared data deletion outside authorized scope or legacy runtime rollback"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/real-sample-validation.md","reason":"Source hashes, evidence retention and no placeholder tests"}

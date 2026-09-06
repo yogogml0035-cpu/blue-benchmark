@@ -1,0 +1,56 @@
+{
+  "id": "m0-rubric-local-release",
+  "name": "m0-rubric-local-release",
+  "title": "M0 评分重构：本地数据切换与最终交付",
+  "description": "完成显式安全重置工具、main 最终复验及当前本地两库的一次性切换，保留源样本并交付可重新上传的环境。",
+  "status": "planning",
+  "dev_type": "fullstack",
+  "scope": "local-release",
+  "package": null,
+  "priority": "P2",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-09-06",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-05-m0-rubric-anchors-evidence",
+  "relatedFiles": [
+    "backend/scripts",
+    "backend/app/lib/database",
+    "backend/tests/test_migration.py",
+    "backend/tests",
+    "deploy",
+    "frontend/scripts",
+    "README.md",
+    "Makefile",
+    ".trellis/spec"
+  ],
+  "notes": "Planning child C5; sole owner of the approved one-time current local project test database reset after system/main validation. Preserve raw corpus, credentials and unrelated data. No execution yet.",
+  "meta": {
+    "task_role": "child",
+    "task_key": "C5",
+    "planning_only": true,
+    "implementation_approved": false,
+    "depends_on": [
+      "09-06-m0-rubric-system-validation"
+    ],
+    "parent_prd": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/prd.md",
+    "planned_branch": "codex/m0-rubric-local-release",
+    "planned_worktree_path": "/Users/hsikey/Company/skill-eval-platform-wt/m0-rubric-local-release",
+    "merge_target": "main",
+    "approval_gate": "final_task_tree_review_then_explicit_implementation_approval",
+    "shared_database_reset_allowed_after_approval": true,
+    "reset_targets": [
+      "skill_eval",
+      "skill_eval_checkpoint"
+    ],
+    "reset_requires_upstream_main_acceptance": true,
+    "raw_samples_must_be_preserved": true
+  }
+}

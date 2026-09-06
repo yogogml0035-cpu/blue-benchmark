@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/backend/core/structure-and-boundaries.md", "reason": "Preserve service, adapter and worker ownership boundaries"}
+{"file": ".trellis/spec/backend/core/stub-state-and-contracts.md", "reason": "Replace the two-field rubric contract once, without legacy readers"}
+{"file": ".trellis/spec/frontend/api-state/api-and-state.md", "reason": "Preserve OpenAPI-generated types and conflict-aware mutations"}
+{"file": ".trellis/spec/frontend/components-style/components-and-style.md", "reason": "Keep existing teacher review interactions and accessible controls"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "Carry all rubric fields through database, API and frontend"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/decision-log.md", "reason": "Confirmed user decisions take precedence over earlier interview assumptions"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/generation-strategy.md", "reason": "Verified current call path, framework evidence and untested hypotheses"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/design.md", "reason": "Planning-only candidate design; final approval required before implementation"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/streaming-progress.md", "reason": "Latest SDK policy, real event streaming, worker-to-UI bridge and confirmed full public history retention"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/runtime-design.md", "reason": "Authoritative full-message, checkpoint/backend, thread ownership, recovery and middleware design"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/persistence-middleware.md", "reason": "Read-only Docker/PG facts and latest SDK versus requested skill pitfalls"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/real-sample-validation.md", "reason": "Authorized one-time local reset, immutable real sources, traceable test data and real integration/smoke acceptance"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/review.md", "reason": "Final proposed scope and acceptance; subsequent user implementation approval remains required"}
+{"file": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/task-map.md", "reason": "Parent coordinates only; child DAG, atomic C3 ownership and independent worktree/main gates"}

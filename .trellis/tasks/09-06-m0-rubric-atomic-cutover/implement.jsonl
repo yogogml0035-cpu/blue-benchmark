@@ -1,0 +1,10 @@
+{"file":".trellis/spec/backend/core/structure-and-boundaries.md","reason":"Service/repository, operations and adapter responsibilities"}
+{"file":".trellis/spec/backend/core/stub-state-and-contracts.md","reason":"One-time rubric and state contract replacement"}
+{"file":".trellis/spec/frontend/api-state/api-and-state.md","reason":"Generated API types and conflict-aware UI state"}
+{"file":".trellis/spec/frontend/components-style/components-and-style.md","reason":"Preserve teacher controls and existing design language"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"One contract across storage, API and frontend"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/task-map.md","reason":"Atomic cutover owner and prerequisite main commits"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/prd.md","reason":"D01-D23 confirmed behavior without M1 scope creep"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/design.md","reason":"Complete rubric, evidence and UI contract"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/runtime-design.md","reason":"Durable execution, SSE, fencing and full deletion"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/real-sample-validation.md","reason":"Real-source fixtures and removal of false acceptance shortcuts"}

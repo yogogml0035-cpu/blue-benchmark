@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"Backend, PostgreSQL and real-worker evidence rules"}
+{"file":".trellis/spec/frontend/quality-testing/quality-and-testing.md","reason":"Production-build browser verification and isolation"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"Maintain one coherent contract during defect fixes"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/task-map.md","reason":"C4 extends validation after C3; no deferred core implementation"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/prd.md","reason":"Independent confirmed acceptance requirements"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/runtime-design.md","reason":"Recovery, fencing, message and deletion fault scenarios"}
+{"file":".trellis/tasks/09-05-m0-rubric-anchors-evidence/research/real-sample-validation.md","reason":"Source provenance, immutable data and no fake acceptance"}

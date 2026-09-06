@@ -1,0 +1,53 @@
+{
+  "id": "m0-rubric-system-validation",
+  "name": "m0-rubric-system-validation",
+  "title": "M0 评分重构：真实集成、冒烟与故障恢复验收",
+  "description": "基于两组真实来源验证 production Worker、PostgreSQL、浏览器、恢复和完整删除，扩展系统回归并形成可核查证据。",
+  "status": "planning",
+  "dev_type": "fullstack",
+  "scope": "acceptance",
+  "package": null,
+  "priority": "P2",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-09-06",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-05-m0-rubric-anchors-evidence",
+  "relatedFiles": [
+    "backend/tests",
+    "backend/scripts",
+    "frontend/e2e",
+    "frontend/scripts",
+    "frontend/src/features/questions",
+    "backend/app/features/question_library",
+    "backend/app/lib/ai_runtime",
+    "backend/app/lib/operations",
+    "README.md",
+    "Makefile",
+    ".trellis/spec"
+  ],
+  "notes": "Planning child C4; systematic real-data/fault validation and scoped defect fixes after C3 core acceptance. No shared old database reset or deployment.",
+  "meta": {
+    "task_role": "child",
+    "task_key": "C4",
+    "planning_only": true,
+    "implementation_approved": false,
+    "depends_on": [
+      "09-06-m0-rubric-atomic-cutover"
+    ],
+    "parent_prd": ".trellis/tasks/09-05-m0-rubric-anchors-evidence/prd.md",
+    "planned_branch": "codex/m0-rubric-system-validation",
+    "planned_worktree_path": "/Users/hsikey/Company/skill-eval-platform-wt/m0-rubric-system-validation",
+    "merge_target": "main",
+    "approval_gate": "final_task_tree_review_then_explicit_implementation_approval",
+    "core_implementation_must_already_be_complete": true,
+    "shared_database_reset_allowed": false
+  }
+}
