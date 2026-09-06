@@ -2769,6 +2769,19 @@
           },
           "kind": {
             "type": "string",
+            "enum": [
+              "run_started",
+              "run_resumed",
+              "stage",
+              "message_delta",
+              "message",
+              "tool_started",
+              "tool_finished",
+              "tool_failed",
+              "interrupted",
+              "run_completed",
+              "run_failed"
+            ],
             "title": "Kind"
           },
           "stage": {

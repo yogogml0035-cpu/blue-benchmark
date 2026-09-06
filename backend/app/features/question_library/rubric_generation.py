@@ -135,18 +135,25 @@ class _CompletionGatedSink:
             close()
 
 
-def normalize_criteria(result: RubricGenerationResult) -> list[dict[str, Any]]:
+def normalize_criteria(
+    result: RubricGenerationResult, materials: RubricGenerationInput | None = None
+) -> list[dict[str, Any]]:
     """Assign stable ids and apply deterministic business validation.
 
     Enforces the COMPLETE contract: actionable criterion text, privacy
-    backstop on every public string, and the generation-side rule that the
+    backstop on every public string, the generation-side rule that the
     suggested pass score has its own anchor and its basis explains exactly
-    that score (already guaranteed by CriterionDraft's validator; re-checked
-    here so a hand-assembled result cannot slip through).
+    that score, and — when the material snapshot is provided — citation
+    existence at the WORKER layer, so the gate survives any future generator
+    implementation instead of living only inside one adapter.
     """
 
     from app.features.question_library import rubric_rules
     from app.features.question_library.schemas import assert_public_material_text
+    from app.lib.ai_runtime.adapters import build_locator_texts, validate_result_citations
+
+    if materials is not None:
+        validate_result_citations(result, build_locator_texts(materials))
 
     criteria: list[dict[str, Any]] = []
     for index, item in enumerate(result.criteria):
@@ -184,6 +191,7 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
 
     # Fencing check before the (expensive) AI call: a job that is no longer
     # queued/running was superseded while waiting and must not spend a call.
+    _precheck_terminal = lambda detail: _record_precheck_terminal(job, detail)  # noqa: E731
     with session_scope() as session:
         job_row = session.execute(
             select(OperationJobRow).where(OperationJobRow.id == job.id)
@@ -191,15 +199,18 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
         if job_row is None or job_row.status not in ("queued", "running"):
             from app.lib.operations.worker import SupersededOperation
 
+            _precheck_terminal("superseded")
             raise SupersededOperation("任务已经被取代。")
         row = session.get(EvalQuestionRow, job.target_id)
         if row is None or row.active_operation_id != job.id:
             from app.lib.operations.worker import SupersededOperation
 
+            _precheck_terminal("superseded")
             raise SupersededOperation("题目已经更新或删除。")
         if row.status == "deleting":
             from app.lib.operations.worker import SupersededOperation
 
+            _precheck_terminal("superseded")
             raise SupersededOperation("题目已进入删除冻结，停止生成。")
         materials = build_generation_input(row)
         fingerprint = materials_fingerprint(materials)
@@ -209,16 +220,25 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
     thread_id = run_streams.generation_thread_id(question_id, revision)
     generator = get_adapters().rubric_generator
     if getattr(generator, "uses_durable_runtime", False):
-        run_streams.register_thread(
-            run_streams.ThreadRegistration(
-                thread_id=thread_id,
-                question_id=question_id,
-                operation_id=job.id,
-                materials_revision=revision,
-                materials_fingerprint=fingerprint,
-                runtime_fingerprint=runtime_fingerprint(),
+        try:
+            run_streams.register_thread(
+                run_streams.ThreadRegistration(
+                    thread_id=thread_id,
+                    question_id=question_id,
+                    operation_id=job.id,
+                    materials_revision=revision,
+                    materials_fingerprint=fingerprint,
+                    runtime_fingerprint=runtime_fingerprint(),
+                )
             )
-        )
+        except ValueError as exc:
+            code = str(exc)
+            message = (
+                "运行上下文与已保存的线程不兼容（运行指纹变化），本轮拒绝续跑，请重新发起生成。"
+                if code == "THREAD_RUNTIME_MISMATCH"
+                else "材料与已保存的线程快照不一致，本轮拒绝续跑。"
+            )
+            raise RubricGenerationFailure(code, message, retryable=False) from exc
 
     context = RunContext(
         thread_id=thread_id,
@@ -245,7 +265,7 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
             sink.emit_terminal("run_failed")
             raise
         try:
-            criteria = normalize_criteria(result)
+            criteria = normalize_criteria(result, materials)
         except ValueError as exc:
             sink.emit_terminal("run_failed")
             raise RubricGenerationFailure(
@@ -257,11 +277,21 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
                 "AI_OUTPUT_INVALID", f"AI 输出校验失败：{type(exc).__name__}", retryable=True
             ) from exc
 
-        if not commit_generation_result(job, criteria):
+        outcome = commit_generation_result(job, criteria)
+        if outcome == "superseded":
+            # The business row moved on (materials edited mid-run, or the
+            # question was delete-frozen). The old round must end visibly as
+            # failed/superseded in its own event log — NEVER as a completion.
             from app.lib.operations.worker import SupersededOperation
 
             sink.emit_terminal("run_failed", "superseded")
             raise SupersededOperation("题目材料已经更新，本轮生成作废。")
+        if outcome is not True:
+            # Ownership lost to a lease-expired duplicate: the current owner
+            # decides the terminal events; this writer stays silent.
+            from app.lib.operations.worker import SupersededOperation
+
+            raise SupersededOperation("任务所有权已经失效。")
         # Authoritative completion: emitted only after the atomic business save.
         sink.emit_terminal("run_completed")
     finally:
@@ -271,7 +301,7 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
 
 def commit_generation_result(
     job: Any, criteria: list[dict[str, Any]]
-) -> bool:
+) -> Any:
     """Atomically commit criteria and complete the job in ONE transaction.
 
     The fencing predicate requires the job to still be ``running`` under the
@@ -279,6 +309,12 @@ def commit_generation_result(
     content revision and NOT be delete-frozen, so a lease-expired duplicate or
     a stale generation can never overwrite committed criteria or later admin
     edits, and a late writer can never resurrect a frozen question.
+
+    Returns ``True`` when THIS writer committed the result, ``"superseded"``
+    when the business row moved on and the job was marked superseded (the
+    caller must record a visible failure in the event log — never a
+    completion), and ``False`` when ownership was lost to another worker
+    (that owner decides the terminal events).
     """
 
     from sqlalchemy import select
@@ -323,7 +359,7 @@ def commit_generation_result(
             job_row.finished_at = now
             job_row.updated_at = now
             _mark_attempt(session, job_row, "superseded")
-            return True
+            return "superseded"
         row.criteria_json = criteria
         row.criteria_confirmed = False
         row.status = "pending_review"
@@ -341,6 +377,35 @@ def commit_generation_result(
         job_row.updated_at = now
         _mark_attempt(session, job_row, "succeeded")
     return True
+
+
+def _record_precheck_terminal(job: Any, detail: str) -> None:
+    """Best-effort terminal event for pre-check rejections.
+
+    The sink does not exist yet at pre-check time; record directly so the
+    public log of a superseded round still ends with a visible terminal
+    marker instead of trailing off mid-stream. Never raises.
+    """
+    try:
+        from app.features.question_library import run_streams
+
+        with session_scope() as session:
+            row = session.get(EvalQuestionRow, job.target_id)
+            if row is None or row.status == "deleting":
+                return
+            revision = row.content_revision
+        from app.lib.ai_runtime.deep_runtime import PublicEvent
+
+        sink = run_streams.PersistentEventSink(
+            question_id=job.target_id,
+            operation_id=job.id,
+            attempt_number=job.attempts,
+            thread_id=run_streams.generation_thread_id(job.target_id, revision),
+        )
+        sink.emit(PublicEvent(kind="run_failed", detail=detail))
+        sink.close()
+    except Exception:
+        pass
 
 
 def repository_status_running() -> str:

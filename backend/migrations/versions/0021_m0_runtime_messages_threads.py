@@ -54,7 +54,7 @@ def upgrade() -> None:
             "ix_question_run_thread_question", "question_run_threads", ["question_id"]
         )
         op.create_index(
-            "ix_question_run_thread_operation", "question_run_threads", ["operation_id"]
+            "ix_question_run_threads_operation_id", "question_run_threads", ["operation_id"]
         )
 
     if "question_run_events" not in existing_tables:

@@ -705,21 +705,27 @@ def delete_question(question_id: str, payload: QuestionDeleteRequest) -> DeleteA
     with session_scope() as session:
         row = session.get(EvalQuestionRow, question_id)
         if row is None:
-            existing = deletion.get_active_cleanup(question_id)
-            if existing is not None:
-                # The question row is already gone but the receipt survives:
-                # replay the acceptance idempotently instead of 404-ing a
-                # client that is still polling cleanup status.
-                raise AppError(
-                    404,
-                    "RESOURCE_NOT_FOUND",
-                    "题目不存在。",
-                )
+            # The question is gone. The content-free cleanup receipt may still
+            # exist for audit; deletion completion is observable as this 404
+            # plus the receipt's succeeded state — there is no readable row to
+            # replay against, and a late DELETE never resurrects anything.
             raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
         if row.status == QuestionStatus.deleting.value:
             active = deletion.get_active_cleanup(question_id)
             if active is None:
                 raise AppError(500, "INTERNAL_ERROR", "删除状态不一致，请联系管理员。")
+            if active.status.value == "failed":
+                # A terminally failed cleanup must be requeueable through the
+                # same accepted entrypoint — the retry button has to actually
+                # restart the durable cleanup, never a placebo 202.
+                operation_id = deletion.accept_delete(
+                    session, question_row=row, command_id=payload.command_id, now=_utc_now()
+                )
+                return DeleteAcceptedResponse(
+                    question_id=question_id,
+                    status=QuestionStatus.deleting,
+                    operation_id=operation_id,
+                )
             return DeleteAcceptedResponse(
                 question_id=question_id,
                 status=QuestionStatus.deleting,

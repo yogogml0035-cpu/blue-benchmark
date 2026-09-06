@@ -46,7 +46,7 @@ def _events(client: TestClient, question_id: str, operation_id: str) -> dict:
 # Complete criteria contract: teacher editing
 # ---------------------------------------------------------------------------
 
-def test_generated_criteria_carry_complete_contract(client=None) -> None:
+def test_generated_criteria_carry_complete_contract() -> None:
     clear_business_data()
     with TestClient(app) as client:
         question_id = _upload_and_settle(client)
@@ -308,6 +308,9 @@ def test_cleanup_failure_is_visible_and_retryable_not_generation_failure() -> No
         assert job.last_error["code"] in ("CHECKPOINT_DSN_MISSING", "THREAD_LOCK_BUSY",
                                           "THREAD_CLEANUP_INCOMPLETE", "OPERATION_FAILED")
         assert "评分维度生成失败" not in str(job.last_error.get("message", ""))
+        if job.last_error["code"] == "OPERATION_FAILED":
+            # Generic worker errors must still be dispatched by job kind.
+            assert "删除清理失败" in job.last_error["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -396,3 +399,212 @@ def test_failed_generation_records_run_failed_event() -> None:
         kinds = [e["kind"] for e in page["events"]]
         assert "run_failed" in kinds
         assert "run_completed" not in kinds
+
+
+def test_failed_cleanup_retry_requeues_the_durable_job() -> None:
+    """C1 regression: after a terminal cleanup failure, the UI retry (same
+    DELETE endpoint) must actually requeue the job — never a placebo 202 that
+    leaves the question frozen forever."""
+    from app.features.question_library import run_streams
+    from app.lib.operations import repository as ops_repository
+
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _upload_and_settle(client, "case-cleanup-retry")
+        detail = client.get(f"/api/questions/{question_id}").json()
+        run_streams.register_thread(
+            run_streams.ThreadRegistration(
+                thread_id=f"qgen-{question_id}-r{detail['content_revision']}",
+                question_id=question_id,
+                operation_id=_generation_operation(question_id),
+                materials_revision=detail["content_revision"],
+                materials_fingerprint="f" * 64,
+                runtime_fingerprint="r" * 16,
+            )
+        )
+        accepted = client.request(
+            "DELETE",
+            f"/api/questions/{question_id}",
+            json={"command_id": "del-retry", "content_revision": detail["content_revision"]},
+        )
+        assert accepted.status_code == 202
+        operation_id = accepted.json()["operation_id"]
+
+        from pydantic import SecretStr
+
+        from app.lib.settings import settings
+
+        original = settings.checkpoint_database_url
+        try:
+            settings.checkpoint_database_url = SecretStr(
+                "postgresql://nobody@127.0.0.1:1/unreachable_db"
+            )
+            helpers.run_worker_until_idle()
+            job = ops_repository.get(operation_id)
+            assert job is not None and job.status == ops_repository.OperationJobStatus.failed
+
+            # The teacher-visible retry: same DELETE with the same command id.
+            retried = client.request(
+                "DELETE",
+                f"/api/questions/{question_id}",
+                json={"command_id": "del-retry", "content_revision": detail["content_revision"]},
+            )
+            assert retried.status_code == 202
+            assert retried.json()["operation_id"] == operation_id
+            job = ops_repository.get(operation_id)
+            assert job is not None
+            assert job.status == ops_repository.OperationJobStatus.queued, (
+                f"重试必须重新排队清理作业，实际状态 {job.status}"
+            )
+            assert job.attempts == 0  # fresh attempt budget, not yet claimed
+        finally:
+            settings.checkpoint_database_url = original
+
+
+def test_midrun_material_edit_ends_old_operation_with_run_failed() -> None:
+    """C-2 regression: when materials change mid-run, the old operation's log
+    must end with a visible run_failed — never a completion for criteria that
+    were not saved."""
+    from app.lib.ai_runtime import adapters as adapter_module
+    from app.lib.ai_runtime.adapters import (
+        RubricGenerationInput,
+        RunContext,
+        RuntimeAdapters,
+    )
+    from app.features.question_library import service
+
+    class SabotageGenerator(adapter_module.FakeRubricGenerator):
+        uses_durable_runtime = False
+
+        def __init__(self) -> None:
+            self._sabotaged = False
+
+        def generate(self, materials, *, context: RunContext, sink):
+            if self._sabotaged:
+                # Later rounds behave normally; the race is a one-shot event.
+                return super().generate(materials, context=context, sink=sink)
+            self._sabotaged = True
+            # Teacher edits materials WHILE this run is in flight.
+            service.save_and_regenerate(
+                context.question_id,
+                __import__(
+                    "app.features.question_library.schemas", fromlist=["QuestionSaveRegenerateRequest"]
+                ).QuestionSaveRegenerateRequest(
+                    command_id="sabotage-regen",
+                    content_revision=context.materials_revision,
+                    task_prompt="运行中被老师修改的材料。",
+                ),
+            )
+            return super().generate(materials, context=context, sink=sink)
+
+    clear_business_data()
+    previous = adapter_module.get_adapters()
+    try:
+        adapter_module.set_adapters(RuntimeAdapters(rubric_generator=SabotageGenerator()))
+        with TestClient(app) as client:
+            question_id = _upload_and_settle_first_attempt(client, "case-sabotage")
+            # The worker keeps running the new job with the SAME adapters; let
+            # it settle (the new round uses untouched materials and succeeds).
+            helpers.run_worker_until_idle()
+            detail = client.get(f"/api/questions/{question_id}").json()
+            assert detail["status"] == "pending_review", detail
+            old_operation = _all_operations(question_id)[0]
+            new_operation = detail["last_operation_id"]
+            assert old_operation != new_operation
+            events = _events(client, question_id, old_operation)
+            kinds = [e["kind"] for e in events["events"]]
+            assert "run_completed" not in kinds, "被取代的运行不得记录完成事件"
+            assert kinds[-1] == "run_failed"
+            assert events["events"][-1]["detail"] == "superseded"
+    finally:
+        adapter_module.set_adapters(previous)
+
+
+def _upload_and_settle_first_attempt(client: TestClient, case_id: str) -> str:
+    """Upload and drive exactly ONE worker round (the sabotaged attempt)."""
+    helpers.register_admin(client)
+    scene = helpers.create_scene(client)
+    credential = helpers.create_credential(client, scene["id"])
+    response = helpers.upload_batch(
+        client, credential["token"], helpers.make_batch(f"cmd-{case_id}", [helpers.make_case(case_id)])
+    )
+    assert response.status_code == 201, response.text
+    question_id = response.json()["cases"][0]["question_id"]
+    from app.lib.operations.worker import default_worker
+
+    worker = default_worker()
+    worker.run_once()
+    return question_id
+
+
+def _all_operations(question_id: str) -> list[str]:
+    from sqlalchemy import select
+
+    from app.lib.database.models import OperationJobRow
+
+    with session_scope() as session:
+        rows = session.execute(
+            select(OperationJobRow.id).where(
+                OperationJobRow.target_type == "eval_question",
+                OperationJobRow.target_id == question_id,
+            ).order_by(OperationJobRow.created_at)
+        ).scalars().all()
+    return list(rows)
+
+
+def test_runtime_fingerprint_mismatch_refuses_resume() -> None:
+    """M-1 regression: a thread registered under a different runtime identity
+    must be refused loudly, never resumed on an incompatible graph contract."""
+    from app.lib.ai_runtime import adapters as adapter_module
+    from app.lib.ai_runtime.adapters import RuntimeAdapters
+    from app.features.question_library import run_streams
+
+    class DurableStub:
+        uses_durable_runtime = True
+
+        def generate(self, materials, *, context, sink):
+            raise AssertionError("fingerprint mismatch must fail before generation")
+
+    clear_business_data()
+    previous = adapter_module.get_adapters()
+    try:
+        adapter_module.set_adapters(RuntimeAdapters(rubric_generator=DurableStub()))
+        with TestClient(app) as client:
+            helpers.register_admin(client)
+            scene = helpers.create_scene(client)
+            credential = helpers.create_credential(client, scene["id"])
+            response = helpers.upload_batch(
+                client, credential["token"],
+                helpers.make_batch("cmd-fp", [helpers.make_case("case-fp")]),
+            )
+            question_id = response.json()["cases"][0]["question_id"]
+            # Pre-register the deterministic thread with the REAL materials
+            # fingerprint but a STALE runtime identity, so only the runtime
+            # check can fire.
+            from sqlalchemy import select as _select
+
+            from app.features.question_library import rubric_generation
+            from app.lib.database.models import EvalQuestionRow
+
+            with session_scope() as _session:
+                _row = _session.execute(
+                    _select(EvalQuestionRow).where(EvalQuestionRow.id == question_id)
+                ).scalar_one()
+                _materials = rubric_generation.build_generation_input(_row)
+                _fp = rubric_generation.materials_fingerprint(_materials)
+            run_streams.register_thread(
+                run_streams.ThreadRegistration(
+                    thread_id=run_streams.generation_thread_id(question_id, 1),
+                    question_id=question_id,
+                    operation_id="op-fp",
+                    materials_revision=1,
+                    materials_fingerprint=_fp,
+                    runtime_fingerprint="stale-runtime-id",
+                )
+            )
+            helpers.run_worker_until_idle()
+            detail = client.get(f"/api/questions/{question_id}").json()
+            assert detail["status"] == "generation_failed"
+            assert detail["last_error"]["code"] == "THREAD_RUNTIME_MISMATCH"
+    finally:
+        adapter_module.set_adapters(previous)

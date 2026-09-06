@@ -250,20 +250,34 @@ print("checkpoint schema ready")
   await page.getByTestId("generation-progress").waitFor({ timeout: 20000 });
   const connection = page.getByTestId("timeline-connection");
   {
-    const deadline = Date.now() + 20000;
+    // The stream must actually reach "已连接" — a perpetual connecting state
+    // (proxy buffering / auth) must not pass as live streaming.
+    const deadline = Date.now() + 30000;
     for (;;) {
       const text = await connection.textContent();
-      if (text && !text.includes("连接失败")) break;
-      if (Date.now() > deadline) fail("SSE 连接一直失败（代理缓冲或鉴权问题）");
+      if (text && text.includes("已连接")) break;
+      if (Date.now() > deadline) fail(`SSE 未进入已连接状态（当前：${text}），疑似代理缓冲或鉴权问题`);
       await page.waitForTimeout(250);
     }
   }
+  // Real event lines only — the empty-state placeholder carries no testid, so
+  // it can never satisfy this count. Observing lines WHILE the status badge
+  // still says 生成中 proves increments arrived before completion.
+  const contentLines = page.getByTestId("timeline-body").locator(
+    '[data-testid="timeline-stream"], [data-testid="timeline-stage"], [data-testid="timeline-tool"]',
+  );
   let sawLiveIncrement = false;
   const liveDeadline = Date.now() + GENERATION_TIMEOUT_MS;
   while (Date.now() < liveDeadline && !sawLiveIncrement) {
     const badge = await page.getByText("生成中", { exact: true }).count();
-    const lines = await page.getByTestId("timeline-body").locator("p, pre").count();
-    if (badge > 0 && lines > 0) sawLiveIncrement = true;
+    const lines = await contentLines.count();
+    if (badge > 0 && lines > 0) {
+      // Sample once more after a beat: still generating + still non-empty is
+      // a live observation, not a post-completion snapshot.
+      await page.waitForTimeout(1500);
+      const stillGenerating = await page.getByText("生成中", { exact: true }).count();
+      if (stillGenerating > 0) sawLiveIncrement = true;
+    }
     if (!sawLiveIncrement) await page.waitForTimeout(1000);
   }
   if (!sawLiveIncrement) fail("生成完成前浏览器没有收到任何真实增量（假流式或代理缓冲）");

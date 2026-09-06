@@ -455,11 +455,26 @@ class DeleteAcceptedResponse(BaseModel):
     operation_id: str
 
 
+RunEventKind = Literal[
+    "run_started",
+    "run_resumed",
+    "stage",
+    "message_delta",
+    "message",
+    "tool_started",
+    "tool_finished",
+    "tool_failed",
+    "interrupted",
+    "run_completed",
+    "run_failed",
+]
+
+
 class RunEventView(BaseModel):
     """One persisted public progress event of a generation operation."""
 
     sequence: int
-    kind: str
+    kind: RunEventKind
     stage: str | None = None
     text: str | None = None
     tool: str | None = None

@@ -154,6 +154,19 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
     return err instanceof ApiError ? err.message : fallback;
   }
 
+  /**
+   * Bounded authoritative-detail refetch: if a reload right after a state
+   * transition fails (transient network), retry a few times instead of
+   * stranding the page on stale detail with no way back.
+   */
+  async function reloadUntilSettled(attempts = 4): Promise<void> {
+    for (let i = 0; i < attempts; i += 1) {
+      const d = await load();
+      if (d) return;
+      await new Promise((resolve) => setTimeout(resolve, 1200 * (i + 1)));
+    }
+  }
+
   // --- Materials ---
   function startEditMaterials(): void {
     if (!detail) return;
@@ -196,7 +209,7 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
         setMaterialDraft(null);
         setHistoryOpen(false);
         void accepted;
-        await load();
+        await reloadUntilSettled();
       }
     } catch (err) {
       if (err instanceof ApiError && err.code === "STALE_REVISION") {
@@ -423,10 +436,11 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
               {generating && detail.active_operation_id ? (
                 <div className={styles.statusBox} data-testid="generation-progress">
                   <GenerationTimeline
+                    key={detail.active_operation_id}
                     questionId={detail.id}
                     operationId={detail.active_operation_id}
                     live
-                    onDone={() => void load()}
+                    onDone={() => void reloadUntilSettled()}
                     onFrozen={() => void load()}
                     onGone={() => router.replace(`/evaluation-sets/${detail.scene_id}`)}
                   />
@@ -456,6 +470,7 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
                   />
                   {detail.last_operation_id ? (
                     <GenerationTimeline
+                      key={detail.last_operation_id}
                       questionId={detail.id}
                       operationId={detail.last_operation_id}
                       live={false}
@@ -477,6 +492,7 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
                   ) : null}
                   {historyOpen && detail.last_operation_id ? (
                     <GenerationTimeline
+                      key={detail.last_operation_id}
                       questionId={detail.id}
                       operationId={detail.last_operation_id}
                       live={false}

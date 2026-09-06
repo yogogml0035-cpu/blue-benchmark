@@ -63,7 +63,7 @@ function cloneBasis(basis: CriterionBasisView | null | undefined): CriterionBasi
     explanation: basis.explanation,
     claims: basis.claims.map((c) => ({
       claim: c.claim,
-      kind: c.kind,
+      kind: c.kind === "teacher_explicit" ? ("teacher_explicit" as const) : ("ai_inferred" as const),
       citation: c.citation ? { ...c.citation } : null,
     })),
   };
@@ -76,7 +76,7 @@ function clonePassBasis(basis: PassScoreBasisView | null | undefined): PassScore
     explanation: basis.explanation,
     claims: basis.claims.map((c) => ({
       claim: c.claim,
-      kind: c.kind,
+      kind: c.kind === "teacher_explicit" ? ("teacher_explicit" as const) : ("ai_inferred" as const),
       citation: c.citation ? { ...c.citation } : null,
     })),
   };

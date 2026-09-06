@@ -85,9 +85,11 @@ class _PgStubGenerator:
 
     uses_durable_runtime = True
 
-    def __init__(self, dsn: str, *, crash_after: bool = False) -> None:
+    def __init__(self, dsn: str, *, crash_after: bool = False,
+                 crash_after_complete: bool = False) -> None:
         self._dsn = dsn
         self._crash = crash_after
+        self._crash_after_complete = crash_after_complete
         self.observations: list[dict[str, Any]] = []
 
     def _cfg(self) -> Any:
@@ -139,6 +141,11 @@ class _PgStubGenerator:
             else:
                 inputs = None
             self.observations.append({"state": state_kind, "inputs_none": inputs is None})
+            if state_kind == "complete":
+                # Mirror the production adapter: a completed graph is re-read
+                # for the business re-commit, never re-streamed (streaming a
+                # completed thread yields zero events).
+                return _fixed_result(materials)
             if self._crash:
                 if state_kind == "new":
                     try:
@@ -151,6 +158,13 @@ class _PgStubGenerator:
                         pass  # died mid-run exactly like a crashed worker
                 raise RubricGenerationFailure("SIMULATED_CRASH", "模拟 Worker 崩溃。", retryable=True)
             dr.run_streaming(agent, session, inputs=inputs, sink=sink)
+            if self._crash_after_complete and state_kind != "complete":
+                # Graph finished and checkpointed, but the business commit
+                # never happened (worker died in the window): the next attempt
+                # must re-commit from the stored result WITHOUT any model call.
+                raise RubricGenerationFailure(
+                    "SIMULATED_COMMIT_CRASH", "模拟业务提交前崩溃。", retryable=True
+                )
             return _fixed_result(materials)
         finally:
             session.close()
@@ -312,3 +326,36 @@ def _clean_from_dsn(dsn: str, thread_id: str) -> None:
                 session.close()
     except dr.ThreadLockBusyError:
         pass
+
+
+def test_completed_graph_recommits_without_model_call(pg_business_env) -> None:
+    """C-1 regression: a thread whose graph COMPLETED but whose business save
+    never happened must be re-committed from the stored checkpoint result —
+    streaming a completed thread is skipped entirely (no RUNTIME_NO_EVENTS,
+    no model call), and the retry lands the criteria."""
+    dsn = pg_business_env
+    previous = get_adapters()
+    question_id = None
+    try:
+        with TestClient(app) as client:
+            question_id = _upload(client, "case-pg-recommit")
+            thread_id = f"qgen-{question_id}-r1"
+            _clean_from_dsn(dsn, thread_id)
+
+            # Attempt 1 completes the graph then "crashes" before the business
+            # commit; attempt 2 finds state=complete and re-commits from the
+            # stored result without streaming or any model call.
+            crash_gen = _PgStubGenerator(dsn, crash_after_complete=True)
+            set_adapters(RuntimeAdapters(rubric_generator=crash_gen))
+            helpers.run_worker_until_idle()
+            detail = client.get(f"/api/questions/{question_id}").json()
+            assert detail["status"] == "pending_review", detail
+            assert detail["criteria"], "补提交必须落库完整候选"
+            states = [o["state"] for o in crash_gen.observations]
+            assert states[0] == "new"
+            assert states[-1] == "complete"
+            assert crash_gen.observations[-1]["inputs_none"] is True
+    finally:
+        set_adapters(previous)
+        if question_id:
+            _clean_from_dsn(dsn, f"qgen-{question_id}-r1")

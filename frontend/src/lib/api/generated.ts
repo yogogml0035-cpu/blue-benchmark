@@ -879,8 +879,11 @@ export interface components {
         RunEventView: {
             /** Sequence */
             sequence: number;
-            /** Kind */
-            kind: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "run_started" | "run_resumed" | "stage" | "message_delta" | "message" | "tool_started" | "tool_finished" | "tool_failed" | "interrupted" | "run_completed" | "run_failed";
             /** Stage */
             stage?: string | null;
             /** Text */

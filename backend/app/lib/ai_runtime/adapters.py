@@ -489,32 +489,40 @@ class DeepAgentRubricGenerator:
                 kind="run_resumed" if state_kind != "new" else "run_started",
                 stage=f"thread_state_{state_kind}",
             ))
-            if state_kind == "new":
-                inputs: Any = {
-                    "messages": [{
-                        "role": "user",
-                        "content": (
-                            "请核查本题材料并起草完整评分维度候选集。"
-                            f"本题材料修订号 {context.materials_revision}。"
-                        ),
-                    }],
-                    "files": files,
-                }
+            if state_kind == "complete":
+                # The graph finished but the business commit did not (worker
+                # crashed in between). Streaming a completed thread yields no
+                # events, so SKIP the run entirely and re-read the stored
+                # structured result for the business re-commit — no model
+                # call, no duplicate input.
+                pass
             else:
-                # incomplete -> resume from checkpoint; complete -> re-read the
-                # stored result. Neither may re-append the initial input.
-                inputs = None
+                inputs: Any
+                if state_kind == "new":
+                    inputs = {
+                        "messages": [{
+                            "role": "user",
+                            "content": (
+                                "请核查本题材料并起草完整评分维度候选集。"
+                                f"本题材料修订号 {context.materials_revision}。"
+                            ),
+                        }],
+                        "files": files,
+                    }
+                else:
+                    # incomplete -> resume from checkpoint; never re-append input
+                    inputs = None
 
-            try:
-                deep_runtime.run_streaming(agent, session, inputs=inputs, sink=sink)
-            except deep_runtime.BudgetExceededError as exc:
-                raise RubricGenerationFailure(exc.code, exc.message, retryable=False) from exc
-            except deep_runtime.DeepRuntimeError as exc:
-                raise RubricGenerationFailure(exc.code, exc.message, retryable=exc.retryable) from exc
-            except Exception as exc:  # provider/transport errors: never leak raw details
-                raise RubricGenerationFailure(
-                    "AI_CALL_FAILED", f"评分维度生成调用失败：{type(exc).__name__}"
-                ) from exc
+                try:
+                    deep_runtime.run_streaming(agent, session, inputs=inputs, sink=sink)
+                except deep_runtime.BudgetExceededError as exc:
+                    raise RubricGenerationFailure(exc.code, exc.message, retryable=False) from exc
+                except deep_runtime.DeepRuntimeError as exc:
+                    raise RubricGenerationFailure(exc.code, exc.message, retryable=exc.retryable) from exc
+                except Exception as exc:  # provider/transport errors: never leak raw details
+                    raise RubricGenerationFailure(
+                        "AI_CALL_FAILED", f"评分维度生成调用失败：{type(exc).__name__}"
+                    ) from exc
 
             interrupted, _payloads = deep_runtime.inspect_interrupt(agent, session)
             if interrupted:
@@ -551,29 +559,48 @@ class DeepAgentRubricGenerator:
         self, result: RubricGenerationResult, locator_texts: dict[str, str]
     ) -> None:
         """Deterministic citation check against the immutable snapshot."""
-        for index, item in enumerate(result.criteria):
-            for basis_name, basis in (
-                ("criterion_basis", item.criterion_basis),
-                ("pass_score_basis", item.pass_score_basis),
-            ):
-                for claim_index, claim in enumerate(basis.claims):
-                    where = f"criteria[{index}].{basis_name}.claims[{claim_index}]"
-                    citation = claim.citation
-                    if citation is None:
-                        continue
-                    text = locator_texts.get(citation.locator)
-                    if text is None:
-                        raise RubricGenerationFailure(
-                            "AI_CITATION_INVALID",
-                            f"{where} 引用了不属于本题材料的定位符。",
-                            retryable=True,
-                        )
-                    if citation.quote.strip() and citation.quote.strip() not in text:
-                        raise RubricGenerationFailure(
-                            "AI_CITATION_INVALID",
-                            f"{where} 的引文不在对应材料正文中。",
-                            retryable=True,
-                        )
+        validate_result_citations(result, locator_texts)
+
+
+def validate_result_citations(
+    result: RubricGenerationResult, locator_texts: dict[str, str]
+) -> None:
+    """Shared deterministic citation gate (generation AND worker re-check).
+
+    A citation is valid only when its locator belongs to this question's
+    material snapshot and its quote appears VERBATIM in that text; blank or
+    whitespace-only quotes are rejected outright.
+    """
+    for index, item in enumerate(result.criteria):
+        for basis_name, basis in (
+            ("criterion_basis", item.criterion_basis),
+            ("pass_score_basis", item.pass_score_basis),
+        ):
+            for claim_index, claim in enumerate(basis.claims):
+                where = f"criteria[{index}].{basis_name}.claims[{claim_index}]"
+                citation = claim.citation
+                if citation is None:
+                    continue
+                text = locator_texts.get(citation.locator)
+                if text is None:
+                    raise RubricGenerationFailure(
+                        "AI_CITATION_INVALID",
+                        f"{where} 引用了不属于本题材料的定位符。",
+                        retryable=True,
+                    )
+                quote = citation.quote.strip()
+                if not quote:
+                    raise RubricGenerationFailure(
+                        "AI_CITATION_INVALID",
+                        f"{where} 的引文为空白。",
+                        retryable=True,
+                    )
+                if quote not in text:
+                    raise RubricGenerationFailure(
+                        "AI_CITATION_INVALID",
+                        f"{where} 的引文不在对应材料正文中。",
+                        retryable=True,
+                    )
 
 
 # ---------------------------------------------------------------------------

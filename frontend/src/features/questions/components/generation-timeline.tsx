@@ -14,18 +14,22 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ApiError } from "@/lib/api/client";
 import { getRunEvents, runEventsStreamUrl, type RunEventView } from "../api";
 import styles from "./generation-timeline.module.css";
 
-type ConnectionState = "connecting" | "open" | "reconnecting" | "closed" | "frozen" | "gone" | "error";
+type ConnectionState =
+  | "connecting" | "open" | "reconnecting" | "closed"
+  | "frozen" | "gone" | "unavailable" | "error";
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
   connecting: "连接中…",
   open: "已连接",
   reconnecting: "连接中断，重连中…（生成在后台继续）",
-  closed: "已结束",
+  closed: "运行已结束",
   frozen: "题目删除清理中，记录已冻结",
   gone: "题目已删除",
+  unavailable: "记录不可用（运行已被取代或题目已冻结）",
   error: "连接失败",
 };
 
@@ -156,6 +160,8 @@ export function GenerationTimeline({
   const [elapsedMs, setElapsedMs] = useState(0);
   const lastSequenceRef = useRef(0);
   const startedAtRef = useRef<number>(Date.now());
+  const stickToBottomRef = useRef(true);
+  const lastAnnounceRef = useRef(0);
   const sourceRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -172,9 +178,25 @@ export function GenerationTimeline({
         lastSequenceRef.current,
         ...fresh.map((e) => e.sequence),
       );
+      // Calibrate the elapsed clock on the first persisted event: a page
+      // refreshed mid-run must not restart the timer from zero.
+      const firstCreated = Date.parse(fresh[0].created_at);
+      if (prev.length === 0 && Number.isFinite(firstCreated) && firstCreated < startedAtRef.current) {
+        startedAtRef.current = firstCreated;
+      }
       return [...prev, ...fresh];
     });
   }, []);
+
+  // A different operation is a different log: reset cursor, events and flags.
+  useEffect(() => {
+    setEvents([]);
+    lastSequenceRef.current = 0;
+    doneFiredRef.current = false;
+    startedAtRef.current = Date.now();
+    setElapsedMs(0);
+    setConnection(live ? "connecting" : "closed");
+  }, [operationId, live]);
 
   // Elapsed timer while live and not finished.
   useEffect(() => {
@@ -197,7 +219,14 @@ export function GenerationTimeline({
         after = page.last_sequence;
       }
     };
-    loadAll().catch(() => setConnection("error"));
+    loadAll().catch((err: unknown) => {
+      if (err instanceof ApiError &&
+          ["OPERATION_SUPERSEDED", "QUESTION_DELETING", "RESOURCE_NOT_FOUND"].includes(err.code)) {
+        setConnection("unavailable");
+      } else {
+        setConnection("error");
+      }
+    });
     return () => {
       cancelled = true;
     };
@@ -277,27 +306,36 @@ export function GenerationTimeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, questionId, operationId]);
 
-  // Follow the tail only when the teacher is already at the bottom: never
-  // steal the scroll position while older feedback is being read.
+  // Follow the tail only while the teacher is at the bottom. Stickiness is
+  // tracked from scroll events (measured BEFORE new content lands), so a big
+  // batch of new lines never permanently loses the follow position — and
+  // scrolling up to read older feedback is never stolen back.
   useEffect(() => {
+    if (!stickToBottomRef.current) return;
     const el = scrollRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 32;
-    if (atBottom) el.scrollTop = el.scrollHeight;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [events]);
 
-  // Throttled screen-reader status (never per-token).
+  // Screen-reader status: at most one update per 3s, but continuous streaming
+  // can never starve it (leading edge fires immediately, trailing catches up).
   useEffect(() => {
     const el = statusRef.current;
     if (!el) return;
-    const timer = setTimeout(() => {
+    const announce = () => {
+      lastAnnounceRef.current = Date.now();
       const lastStage = [...events].reverse().find((e) => e.kind === "stage");
       el.textContent = lastStage
         ? `当前阶段：${stageLabel(lastStage.stage)}`
         : connection === "open"
           ? "生成进行中"
           : CONNECTION_LABEL[connection];
-    }, 3000);
+    };
+    const since = Date.now() - lastAnnounceRef.current;
+    if (since >= 3000) {
+      announce();
+      return;
+    }
+    const timer = setTimeout(announce, 3000 - since);
     return () => clearTimeout(timer);
   }, [events, connection]);
 
@@ -318,7 +356,15 @@ export function GenerationTimeline({
         ) : null}
       </div>
       <p ref={statusRef} className={styles.srStatus} aria-live="polite" />
-      <div className={styles.body} ref={scrollRef} data-testid="timeline-body">
+      <div
+        className={styles.body}
+        ref={scrollRef}
+        data-testid="timeline-body"
+        onScroll={() => {
+          const el = scrollRef.current;
+          if (el) stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 32;
+        }}
+      >
         {blocks.length === 0 ? (
           <p className={styles.empty}>
             {live ? "等待第一批过程反馈…（模型响应前会显示真实等待状态）" : "本次运行没有公开过程记录。"}
@@ -334,7 +380,7 @@ export function GenerationTimeline({
           }
           if (block.kind === "tool") {
             return (
-              <p key={block.key} className={styles.toolLine}>
+              <p key={block.key} className={styles.toolLine} data-testid="timeline-tool">
                 <span className={styles.toolBadge} aria-hidden="true">工具</span>
                 {block.label}
               </p>

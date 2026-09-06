@@ -207,54 +207,6 @@ def question_exists(session: Session, question_id: str) -> bool:
     return session.get(EvalQuestionRow, question_id) is not None
 
 
-def delete_question_and_generation_history(
-    session: Session, question_id: str, *, expected_revision: int
-) -> bool:
-    """Hard-delete a question plus its generation jobs and attempt records.
-
-    The state gates ride inside one conditional DELETE: a concurrent publish
-    that commits between the service snapshot and this statement still blocks
-    the removal, because the row no longer satisfies the predicate. Returns
-    ``False`` when no row matched (missing, stale revision, or a protected
-    status won the race).
-
-    ``operation_jobs`` references the question only through a loose
-    ``target_id`` string, so the cleanup is explicit and scoped to this single
-    question; it never touches sibling questions or batch receipts. Attempts
-    are removed before their jobs to stay independent of FK cascade timing.
-    """
-
-    from sqlalchemy import delete
-
-    deleted = session.execute(
-        delete(EvalQuestionRow).where(
-            EvalQuestionRow.id == question_id,
-            EvalQuestionRow.content_revision == expected_revision,
-            EvalQuestionRow.status.not_in(["generating", "published"]),
-        )
-    ).rowcount
-    if deleted != 1:
-        session.rollback()
-        return False
-    job_ids = (
-        session.execute(
-            select(OperationJobRow.id).where(
-                OperationJobRow.target_type == "eval_question",
-                OperationJobRow.target_id == question_id,
-            )
-        )
-        .scalars()
-        .all()
-    )
-    if job_ids:
-        session.execute(
-            delete(AgentRunAttemptRow).where(AgentRunAttemptRow.operation_job_id.in_(job_ids))
-        )
-        session.execute(delete(OperationJobRow).where(OperationJobRow.id.in_(job_ids)))
-    session.expire_all()
-    return True
-
-
 # ---------------------------------------------------------------------------
 # Batch command receipts
 # ---------------------------------------------------------------------------

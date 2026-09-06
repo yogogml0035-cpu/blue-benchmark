@@ -67,6 +67,12 @@ def register_thread(registration: ThreadRegistration) -> ThreadRegistration:
         if existing is not None:
             if existing.materials_fingerprint != registration.materials_fingerprint:
                 raise ValueError("THREAD_MATERIALS_MISMATCH")
+            if existing.runtime_fingerprint != registration.runtime_fingerprint:
+                # SDK/model contract changed since the checkpoint was written:
+                # resuming on an incompatible graph contract is refused, the
+                # question needs a fresh generation round — never a silent
+                # best-effort resume.
+                raise ValueError("THREAD_RUNTIME_MISMATCH")
             return registration
         session.add(
             QuestionRunThreadRow(
@@ -91,6 +97,8 @@ def register_thread(registration: ThreadRegistration) -> ThreadRegistration:
             ).scalar_one_or_none()
             if row is None or row.materials_fingerprint != registration.materials_fingerprint:
                 raise ValueError("THREAD_MATERIALS_MISMATCH") from None
+            if row.runtime_fingerprint != registration.runtime_fingerprint:
+                raise ValueError("THREAD_RUNTIME_MISMATCH") from None
     return registration
 
 
@@ -241,31 +249,50 @@ class PersistentEventSink:
                 self._buffered_rows.append(("message_delta", None, text, None, None))
         self._pending_text = []
 
+    def _question_accepts_events(self, session) -> bool:
+        """Late/zombie writers must not append to a frozen or gone question."""
+        from app.lib.database.models import EvalQuestionRow
+
+        row = session.get(EvalQuestionRow, self.question_id)
+        return row is not None and row.status != "deleting"
+
     def _flush_rows_locked(self) -> None:
         if not self._buffered_rows:
             return
         rows = self._buffered_rows
         self._buffered_rows = []
         now = _utc_now()
-        with session_scope() as session:
-            for kind, stage, text, tool, detail in rows:
-                self._sequence += 1
-                session.add(
-                    QuestionRunEventRow(
-                        id=new_id(),
-                        question_id=self.question_id,
-                        operation_id=self.operation_id,
-                        thread_id=self.thread_id,
-                        attempt_number=self.attempt_number,
-                        sequence=self._sequence,
-                        kind=kind[:32],
-                        stage=stage[:120] if stage else None,
-                        text=text,
-                        tool=tool[:64] if tool else None,
-                        detail=detail[:500] if detail else None,
-                        created_at=now,
-                    )
-                )
+        for attempt in (1, 2):
+            try:
+                with session_scope() as session:
+                    if not self._question_accepts_events(session):
+                        return
+                    for kind, stage, text, tool, detail in rows:
+                        self._sequence += 1
+                        session.add(
+                            QuestionRunEventRow(
+                                id=new_id(),
+                                question_id=self.question_id,
+                                operation_id=self.operation_id,
+                                thread_id=self.thread_id,
+                                attempt_number=self.attempt_number,
+                                sequence=self._sequence,
+                                kind=kind[:32],
+                                stage=stage[:120] if stage else None,
+                                text=text,
+                                tool=tool[:64] if tool else None,
+                                detail=detail[:500] if detail else None,
+                                created_at=now,
+                            )
+                        )
+                return
+            except IntegrityError:
+                # A concurrent sink (e.g. a lease-expired duplicate) took the
+                # sequence first. Re-read the authoritative cursor and retry
+                # once; if it fails again the job fencing decides the outcome.
+                if attempt == 2:
+                    raise
+                self._sequence = last_sequence(self.operation_id)
 
 
 def delete_question_run_rows(session, question_id: str) -> None:

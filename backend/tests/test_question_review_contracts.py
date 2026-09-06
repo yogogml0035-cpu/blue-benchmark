@@ -389,12 +389,23 @@ def test_cas_backstops_reject_raced_state_transitions() -> None:
         still = repository.get_question(session, question_id)
     assert still is not None and still.status == "published"
 
-    # Conditional delete refuses a published row even with the right revision.
-    with session_scope() as session:
-        deleted = repository.delete_question_and_generation_history(
-            session, question_id, expected_revision=revision
+    # A published row refuses deletion at the API gate even with the right
+    # revision (the old synchronous hard-delete repository path is gone; the
+    # accepted-deletion flow is the only delete route).
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/auth/login",
+            json={"identifier": "admin", "password": "platform-admin-password"},
         )
-    assert deleted is False
+        assert login.status_code == 200, login.text
+        refused = client.request(
+            "DELETE",
+            f"/api/questions/{question_id}",
+            json={"command_id": "del-cas-pub", "content_revision": revision},
+        )
+        assert refused.status_code == 409
+        assert refused.json()["error"]["code"] == "PUBLISHED_REOPEN_REQUIRED"
+        assert repository is not None  # repository import still used above
     with session_scope() as session:
         assert repository.question_exists(session, question_id)
 

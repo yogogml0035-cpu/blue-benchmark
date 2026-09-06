@@ -97,18 +97,41 @@ export function draftToPayload(
  * per the contract that title edits do not burn an AI call.
  */
 export function isOnlyTitleChanged(detail: QuestionDetailResponse, draft: MaterialDraft): boolean {
-  const sameScalar =
-    draft.task_prompt === detail.task_prompt && draft.reference_answer === detail.reference_answer;
-  const sameList = (a: readonly { content_text: string }[], b: readonly { content_text: string }[]) =>
-    a.length === b.length && a.every((item, i) => item.content_text === b[i].content_text);
+  // FULL-field comparison: if any non-title material differs (including
+  // feedback texts, summaries and source labels), this is a material change
+  // that must go through the confirmed replace-everything regeneration —
+  // never a silent title-only patch that drops the other edits.
   const sameExamples =
     detail.reference_examples.length === draft.reference_examples.length &&
-    sameList(detail.reference_examples, draft.reference_examples);
+    detail.reference_examples.every(
+      (e, i) =>
+        e.content_text === draft.reference_examples[i].content_text &&
+        e.source_name === draft.reference_examples[i].source_name &&
+        e.client_ref_id === draft.reference_examples[i].client_ref_id,
+    );
   const sameBadCases =
     detail.bad_cases.length === draft.bad_cases.length &&
-    sameList(detail.bad_cases, draft.bad_cases);
+    detail.bad_cases.every(
+      (b, i) =>
+        b.content_text === draft.bad_cases[i].content_text &&
+        b.reason_summary === draft.bad_cases[i].reason_summary &&
+        b.teacher_feedback_texts.length === draft.bad_cases[i].teacher_feedback_texts.length &&
+        b.teacher_feedback_texts.every((t, j) => t === draft.bad_cases[i].teacher_feedback_texts[j]),
+    );
   const sameMemory =
     detail.memory_materials.length === draft.memory_materials.length &&
-    sameList(detail.memory_materials, draft.memory_materials);
-  return draft.title !== detail.title && sameScalar && sameExamples && sameBadCases && sameMemory;
+    detail.memory_materials.every(
+      (m, i) =>
+        m.content_text === draft.memory_materials[i].content_text &&
+        m.source_label === draft.memory_materials[i].source_label &&
+        m.client_ref_id === draft.memory_materials[i].client_ref_id,
+    );
+  return (
+    draft.title !== detail.title &&
+    draft.task_prompt === detail.task_prompt &&
+    draft.reference_answer === detail.reference_answer &&
+    sameExamples &&
+    sameBadCases &&
+    sameMemory
+  );
 }

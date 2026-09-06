@@ -121,6 +121,8 @@ def check_schema_ready(database_engine: Engine = engine) -> bool:
             "scene_credentials": {"uq_scene_credential_token_hash"},
             "eval_questions": {"uq_eval_question_scene_client_case"},
             "batch_upload_commands": {"uq_batch_upload_command"},
+            "question_run_threads": {"uq_question_run_thread_id"},
+            "question_run_events": {"uq_question_run_event_seq"},
         }
         unique_ready = all(
             names.issubset(

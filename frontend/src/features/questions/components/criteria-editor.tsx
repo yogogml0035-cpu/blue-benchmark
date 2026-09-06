@@ -131,11 +131,13 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
                   <input
                     type="checkbox"
                     checked={d.selected}
-                    disabled={readOnly}
+                    disabled={readOnly || d.source === "manual"}
                     onChange={(e) => patchAt(i, { selected: e.target.checked })}
                     aria-label={`选择维度 ${d.id}`}
                   />
-                  <span className={styles.source}>{d.source === "ai" ? "AI 候选" : "手工"}</span>
+                  <span className={styles.source}>
+                    {d.source === "ai" ? "AI 候选" : "手工（不参与勾选，删除即移除）"}
+                  </span>
                 </label>
                 <label className={styles.score}>
                   <span className={styles.scoreLabel}>通过分</span>
