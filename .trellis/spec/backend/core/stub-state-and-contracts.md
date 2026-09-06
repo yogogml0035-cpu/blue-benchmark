@@ -64,7 +64,7 @@ published -> pending_review（review-reopen，保留材料/维度/确认事实�
 
 ## 评分维度合同
 
-每个维度只有 `criterion` 与 `pass_score`（0..10 整数），固定满分 10 分，逐项必须及格，任意一项不及格整题不通过（`rubric_rules.evaluate_question_pass`）。`criterion` 必须写明判断对象、合格表现和主要问题；孤立标签（“准确性”“创新性”等，含标点/括号包裹与列表组合）与过短文本被拒绝。管理员增删改维度与 AI 生成共用同一可执行性/隐私校验。
+每个维度是完整评分项：`criterion`、`pass_score`（0..10 任意整数）、`score_anchors`（稀疏分数表现说明，对编辑永不构成白名单）、`criterion_basis` 与 `pass_score_basis`（主张分类 teacher_explicit/ai_inferred + 可核查引用）。固定满分 10 分，逐项必须及格，任意一项不及格整题不通过（`rubric_rules.evaluate_question_pass`）。`criterion` 必须写明判断对象、合格表现和主要问题；孤立标签（“准确性”“创新性”等，含标点/括号包裹与列表组合）与过短文本被拒绝。生成层强制“建议分有锚点、依据解释建议分、引用逐字存在”；管理员编辑共用可执行性/隐私校验，且保存路径对每条引用重新校验（422 CITATION_INVALID），人工新增维度可显式携带空锚点与空依据。
 
 ## 批量收题与幂等
 
@@ -93,7 +93,7 @@ published -> pending_review（review-reopen，保留材料/维度/确认事实�
 - Worker 通过 `worker_process_lock` 保证同一业务库单消费者；心跳续租容忍瞬时失败，持续失败才放弃。
 - 评分维度提交必须原子：`rubric_generation.commit_generation_result` 在同一事务内校验“任务仍归当前 Worker 且业务版本一致”与“题目仍指向该任务且 `content_revision` 一致”，同时写入维度与任务终态，防止旧任务/重复执行覆盖新材料或管理员编辑。
 - 材料被编辑后旧任务在提交时被 fencing 判为 `superseded`，不得覆盖新版本。
-- lease 过期导致的终态失败必须把题目投影为 `generation_failed`，不能留下永久 `generating`。
+- lease 过期导致的终态失败按任务类型分派投影：`rubric_generation` 把题目投影为 `generation_failed`（`deleting` 冻结中的题目除外），`question_cleanup` 失败只体现在删除作业投影上，绝不误标为生成失败；不能留下永久 `generating`。
 
 ## 不要这样做
 

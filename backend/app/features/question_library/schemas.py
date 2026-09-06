@@ -160,7 +160,7 @@ class BatchUploadRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Two-field rubric criteria
+# Complete rubric criteria contract
 # ---------------------------------------------------------------------------
 
 CRITERION_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
