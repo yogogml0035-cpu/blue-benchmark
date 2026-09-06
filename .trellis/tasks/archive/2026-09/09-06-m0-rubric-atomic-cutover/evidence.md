@@ -12,20 +12,20 @@
 - **真实验收入口重写**：accept_real_ai_rubric（两组真实样本+恢复+删除+双库零残留）、accept_skill_push（技能客户端+C1 批次+隔离 PG）、smoke_ai_provider（真实数据+合同校验）、real-acceptance.mjs（浏览器+live 增量断言+空闲端口+只清理自有进程）。EvalData ZIP 强依赖、800 字截断、占位答案、假 Bad case 兜底全部删除；验收入口对项目库 fail-closed。
 - **文档/规格/生成文件**：README、5 个规格文档、openapi.json、generated.ts 同步；BUSINESS_SCHEMA_HEAD=0021。
 
-## 质量门（本次证据）
+## 质量门与合并（最终 HEAD 5f1b465）
 
 - `git diff --check`：0。
-- `make openapi` + `make contract-check` + `make frontend-check-api`：一致。
-- 后端 `RUNTIME_PG_REQUIRED=1 uv run pytest`：154 passed / 0 skipped（含 PG 崩溃恢复+跨库删除业务集成、删除冻结、事件/SSE、任意整数编辑合同）。
-- 前端：tsc 0 错、vitest 75 passed、Playwright E2E 41 passed（生产构建，E2E_PORT=3117/3118）。
-- `make build`：EXIT=0。
-- **真实 AI API 验收**：`ACCEPT_REAL_AI=PASS`（/tmp/c3-accept-real5.log，隔离库 skill_eval_c3_accept{,_ckpt}）。两组 C1 真实 case 均产出 4 维度、149/175 条事件；F 组经历预算截断→重试→`thread_state_incomplete` 检查点恢复（不重复初始输入）；M 组经历 1 次真实自动重试后恢复成功；引用逐字核验通过；5 分任意整数保存且依据未被改写；发布/重开；受理式删除后双库零残留、兄弟题完好。
-- **真实浏览器 Web 验收**：`M0_WEB_ACCEPTANCE=PASS`（/tmp/c3-accept-web.log，隔离库 skill_eval_c3_accept_web{,_ckpt}）。关键阶段：live_streaming_observed（生成完成前浏览器已收到真实增量，经实际 Next rewrite 链路）、real_generation_done criteria=4、events_replayed=173、basis_panel_opened、published、reopened、deleted_and_navigated（404 为准）、residue_verified threads_left=0。
+- `make test`：backend 162 passed（RUNTIME_PG_REQUIRED=1，0 skip）+ frontend tsc/vitest 75 passed，TEST_EXIT=0。
+- `make build`：BUILD_EXIT=0。
+- `make frontend-e2e`（生产构建，E2E_PORT=3121）：44 passed，E2E_EXIT=0。
+- **API 真实验收（最终 HEAD）**：`ACCEPT_REAL_AI=PASS`，API_EXIT=0（/tmp/c3-head-accept-api.log，隔离库 skill_eval_c3_accept{,_ckpt}）。F 组：预算截断→重试→thread_state_incomplete 检查点恢复；M 组：真实生成 4 维度/201 事件；两组引用逐字核验、5 分任意整数保存、发布/重开；受理式删除 threads=1 清理后双库零残留、兄弟题完好。
+- **Web 真实验收（最终 HEAD）**：`M0_WEB_ACCEPTANCE=PASS`，WEB_EXIT=0（/tmp/c3-head-accept-web.log，隔离库 skill_eval_c3_accept_web{,_ckpt}）。live_streaming_observed（“已连接”+ 生成中真实事件行两次采样）、criteria=4、events 回放、依据面板、任意整数、发布/重开、删除以 404 为准导航、residue_verified threads_left=0。
+- 合同链：make openapi / contract-check / frontend-generate-api / frontend-check-api 全部一致。
 
-## 旧语义删除核查
+## 提交与合并
 
-- 定向检索 `ModelRubricGenerator`、两字段完成假设、`204` 删除语义、静态假进度/整题轮询、800 字截断、EvalData 布局、占位答案兜底：backend/app、backend/tests、backend/scripts、frontend/src、frontend/e2e、frontend/scripts、README、Makefile、.trellis/spec 无可执行残留；`criterion`/`pass_score` 字段名与删除状态轮询（新语义）为合法保留。
-- `accept_skill_push_evaldata.py` 更名为 `accept_skill_push.py`，旧标识符零命中。
+- 分支提交：9ceb902（后端切换）、bfe021a（后端测试）、550a89e（前端切换）、3ea18f0（验收入口+文档+sequence 合同）、9eea638（第一轮审查修复）、26695cd（编辑路径引用校验）、e2a96b9（第二轮审查修复）、5f1b465（有界修订轮）。
+- main 合并与复验：待填（合并后补记）。
 
 ## 对抗式审查（两轮，多智能体）
 
@@ -45,10 +45,13 @@
 
 修复后全量：backend 161 passed（RUNTIME_PG_REQUIRED=1，0 skip）、frontend tsc/vitest 75、E2E 44、双真实验收在最终 HEAD 重跑（结果见下）。
 
-## 提交与合并
+**最终 HEAD 验证链中真实验收暴露的第三个缺口（已修复，提交 5f1b465）**：API 验收在真实模型上出现 `AI_CITATION_INVALID`（模型偶发产出非逐字引文），当时整轮尝试直接失败——设计规定的“同一 job 受限预算内修订”尚未实现。修复：确定性校验失败（引用/锚点覆盖/解释分一致性）触发**一次**同 thread 跟进修订轮（`run_streaming` 新增显式 `allow_followup`，业务恢复路径仍只走 None/Command），修订后重读重校验、无第二次修订；预算计数覆盖修订轮；`revision_requested` 为公开阶段事件；单元测试锁定“无效引用→一次修订→有效结果”与“max_revisions=0 立即失败”。修复后 backend 162 passed。
 
-- 分支提交：9ceb902（后端切换）、bfe021a（后端测试）、550a89e（前端切换）、3ea18f0（验收入口+文档+sequence 合同修正）。
-- main 合并与复验：待填。
+## 旧语义删除核查
+
+- 定向检索 `ModelRubricGenerator`、两字段完成假设、`204` 删除语义、静态假进度/整题轮询、800 字截断、EvalData 布局、占位答案兜底：backend/app、backend/tests、backend/scripts、frontend/src、frontend/e2e、frontend/scripts、README、Makefile、.trellis/spec 无可执行残留；`criterion`/`pass_score` 字段名与删除状态轮询（新语义）为合法保留。
+- `accept_skill_push_evaldata.py` 更名为 `accept_skill_push.py`，旧标识符零命中。
+- 前端确认：无“正在生成…自动刷新”静态提示、无 204 即跳转、`selectedToPayload` 为完整六字段投影、无假流式/打字动画（两轮审查代理独立复核通过）。
 
 ## 边界声明
 
