@@ -698,3 +698,11 @@
 ### Status
 
 [OK] **Completed**
+
+## 2026-09-06 · M0 评分维度重构任务树完成（C1-C5 + 父任务总验收）
+
+- 任务树 09-05-m0-rubric-anchors-evidence 获实施批准后单日串行交付：C1 真实样本基线（f777492）→ C2 Deep Agents 0.7.13 持久运行原语（e68e9a1）→ C3 完整评分项合同+流式+受理式删除一次性切换（dcc1a64）→ C4 故障注入矩阵+真实 Worker 重启恢复验收（7b59736）→ C5 安全重置工具+两库一次性切换+本地交付（64d1003）→ 父任务收尾（191db44）。
+- 每子任务均走：独立 worktree → 实施 → 多智能体对抗审查（合计发现并修复 4 Critical + 18 Major，全部回归锁定）→ 质量门 → 串行合并 → main 复验 → 归档清理。
+- 真实 AI 证据：ACCEPT_REAL_AI=PASS ×3、M0_WEB_ACCEPTANCE=PASS ×3（含 SIGKILL Worker 重启恢复、live 增量反假流式断言）、AI_SMOKE=OK ×4；全部走真实 Provider + production Worker + 隔离 PostgreSQL + C1 真实样本，RUNTIME_PG_REQUIRED=1 硬门禁。
+- 一次性切换 2026-09-06T14:45Z 执行：双库备份（sha256+TOC 校验）→ 重置 → head 0021 → 空库核验；源样本 hash 不变。交付栈运行于主工作区：API :8000 / Worker / 前端 :3000（日志 storage/runtime/），首次注册可用。
+- 已知技术债登记于父任务 evidence.md 第 5 节（langgraph 反序列化警告、隐藏页签自动化缺口、摘要逐字回放弱覆盖等）。
