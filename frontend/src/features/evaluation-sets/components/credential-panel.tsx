@@ -57,7 +57,7 @@ export function CredentialPanel({
     setBusy("replace");
     setError(null);
     try {
-      const issued = await createOrReplaceCredential(sceneId, {});
+      const issued = await createOrReplaceCredential(sceneId);
       onChanged();
       onIssued(issued);
     } catch (err) {
@@ -131,7 +131,6 @@ export function CredentialPanel({
         <ul className={styles.list}>
           <li className={styles.item}>
             <div className={styles.itemMain}>
-              <div className={styles.itemLabel}>{credential.label || "未命名凭证"}</div>
               <div className={styles.tokenLine}>
                 {canReveal ? (
                   <>
@@ -173,7 +172,7 @@ export function CredentialPanel({
                   variant="ghost"
                   onClick={() => setConfirmRevoke(true)}
                   disabled={busy !== null}
-                  aria-label={`停用凭证 ${credential.label || credential.credential_id}`}
+                  aria-label={`停用凭证 ${credential.token_preview ?? credential.credential_id}`}
                 >
                   <Trash2 size={16} aria-hidden="true" />
                   停用

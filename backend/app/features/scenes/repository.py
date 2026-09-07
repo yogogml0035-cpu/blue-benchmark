@@ -40,7 +40,6 @@ class SceneRecord:
 class SceneCredentialRecord:
     id: str
     scene_id: str
-    label: str | None
     token_plaintext: str | None
     created_at: datetime
     last_used_at: datetime | None
@@ -69,7 +68,6 @@ def _credential_record(row: SceneCredentialRow) -> SceneCredentialRecord:
     return SceneCredentialRecord(
         id=row.id,
         scene_id=row.scene_id,
-        label=row.label,
         token_plaintext=row.token_plaintext,
         created_at=as_utc(row.created_at),
         last_used_at=as_utc(row.last_used_at) if row.last_used_at else None,
@@ -160,14 +158,13 @@ def list_scene_summaries(session: Session) -> list[SceneSummary]:
 
 
 def create_credential(
-    session: Session, *, scene_id: str, hashed: str, plaintext: str, label: str | None, now: datetime
+    session: Session, *, scene_id: str, hashed: str, plaintext: str, now: datetime
 ) -> SceneCredentialRecord:
     row = SceneCredentialRow(
         id=new_id(),
         scene_id=scene_id,
         token_hash=hashed,
         token_plaintext=plaintext,
-        label=label,
         created_at=now,
     )
     session.add(row)

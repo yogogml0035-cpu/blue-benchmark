@@ -48,7 +48,7 @@ def test_scene_lifecycle_and_credential_one_to_one_rules() -> None:
         assert duplicate.status_code == 409
         assert duplicate.json()["error"]["code"] == "SCENE_NAME_EXISTS"
 
-        created = helpers.create_credential(client, scene["id"], label="首次凭证")
+        created = helpers.create_credential(client, scene["id"])
         assert created["token"].startswith("sep_")
         plaintext = created["token"]
 
@@ -59,7 +59,7 @@ def test_scene_lifecycle_and_credential_one_to_one_rules() -> None:
         assert plaintext not in status.text
         assert body["scene"]["active_credential_count"] == 1
         assert body["credential"]["status"] == "active"
-        assert body["credential"]["label"] == "首次凭证"
+        assert "label" not in body["credential"]
         assert body["credential"]["token_preview"].startswith("sep_")
         assert "…" in body["credential"]["token_preview"]
         assert "token" not in body["credential"]
@@ -71,9 +71,7 @@ def test_scene_lifecycle_and_credential_one_to_one_rules() -> None:
         assert revealed.headers.get("cache-control") == "no-store"
 
         # Replacing revokes the current credential and issues a new one.
-        replaced = client.post(
-            f"/api/scenes/{scene['id']}/credentials", json={"label": "替换"}
-        )
+        replaced = client.post(f"/api/scenes/{scene['id']}/credentials")
         assert replaced.status_code == 201
         new_token = replaced.json()["token"]
         assert new_token != plaintext
@@ -81,7 +79,7 @@ def test_scene_lifecycle_and_credential_one_to_one_rules() -> None:
         status = client.get(f"/api/scenes/{scene['id']}").json()
         # Only the current credential is exposed; no revoked history.
         assert status["credential"]["credential_id"] == replaced.json()["credential_id"]
-        assert status["credential"]["label"] == "替换"
+        assert "label" not in status["credential"]
         assert status["scene"]["active_credential_count"] == 1
         assert plaintext not in str(status)
 
@@ -134,7 +132,10 @@ def test_blank_scene_name_is_rejected() -> None:
             assert response.status_code == 422, response.text
 
 
-def test_credential_label_length_is_enforced() -> None:
+def test_legacy_label_request_body_is_ignored() -> None:
+    """Old clients may still POST a label field; it must be accepted but have
+    no effect (the label column no longer exists anywhere in the contract)."""
+
     clear_business_data()
     with TestClient(app) as client:
         helpers.login_admin(client)
@@ -143,7 +144,9 @@ def test_credential_label_length_is_enforced() -> None:
             f"/api/scenes/{scene['id']}/credentials",
             json={"label": "x" * 201},
         )
-        assert response.status_code == 422, response.text
+        assert response.status_code == 201, response.text
+        status = client.get(f"/api/scenes/{scene['id']}").json()
+        assert "label" not in status["credential"]
 
 
 def test_external_connection_status_reports_scene_without_token() -> None:
@@ -151,7 +154,7 @@ def test_external_connection_status_reports_scene_without_token() -> None:
     with TestClient(app) as client:
         helpers.login_admin(client)
         scene = helpers.create_scene(client, name="连接场景")
-        credential = helpers.create_credential(client, scene["id"], label="ci")
+        credential = helpers.create_credential(client, scene["id"])
         headers = {"Authorization": f"Bearer {credential['token']}"}
 
         response = client.get("/api/external/connection", headers=headers)
@@ -160,7 +163,7 @@ def test_external_connection_status_reports_scene_without_token() -> None:
         assert body["status"] == "connected"
         assert body["scene_id"] == scene["id"]
         assert body["scene_name"] == "连接场景"
-        assert body["label"] == "ci"
+        assert "label" not in body
         # The token (and its hash) must never be echoed.
         assert credential["token"] not in response.text
         assert "token" not in body
@@ -218,7 +221,7 @@ def test_empty_scene_delete_cascades_credentials() -> None:
     with TestClient(app) as client:
         helpers.login_admin(client)
         scene = helpers.create_scene(client, name="待删除场景")
-        helpers.create_credential(client, scene["id"], label="将随场景失效")
+        helpers.create_credential(client, scene["id"])
 
         deleted = client.delete(f"/api/scenes/{scene['id']}")
         assert deleted.status_code == 204
@@ -256,7 +259,7 @@ def test_credential_create_and_reveal_responses_are_not_cacheable() -> None:
         helpers.login_admin(client)
         scene = helpers.create_scene(client, name="缓存控制场景")
 
-        created = client.post(f"/api/scenes/{scene['id']}/credentials", json={"label": "a"})
+        created = client.post(f"/api/scenes/{scene['id']}/credentials")
         assert created.status_code == 201
         assert created.headers.get("cache-control") == "no-store"
         assert created.headers.get("pragma") == "no-cache"

@@ -876,8 +876,6 @@ export interface components {
             scene_name: string;
             /** Credential Id */
             credential_id: string;
-            /** Label */
-            label: string | null;
             /** Last Used At */
             last_used_at: string | null;
         };
@@ -887,11 +885,6 @@ export interface components {
             name: string;
             /** Description */
             description?: string | null;
-        };
-        /** SceneCredentialIssueRequest */
-        SceneCredentialIssueRequest: {
-            /** Label */
-            label?: string | null;
         };
         /**
          * SceneCredentialIssuedView
@@ -927,8 +920,6 @@ export interface components {
         SceneCredentialStatusView: {
             /** Credential Id */
             credential_id: string;
-            /** Label */
-            label: string | null;
             /**
              * Status
              * @enum {string}
@@ -1415,11 +1406,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SceneCredentialIssueRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             201: {

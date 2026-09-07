@@ -39,11 +39,9 @@ def create_scene(client: TestClient, name: str | None = None) -> dict[str, Any]:
     return response.json()
 
 
-def create_credential(client: TestClient, scene_id: str, label: str = "ci") -> dict[str, Any]:
+def create_credential(client: TestClient, scene_id: str) -> dict[str, Any]:
     """Create-or-replace the scene's single credential (1:1 model)."""
-    response = client.post(
-        f"/api/scenes/{scene_id}/credentials", json={"label": label}
-    )
+    response = client.post(f"/api/scenes/{scene_id}/credentials")
     assert response.status_code == 201, response.text
     return response.json()
 

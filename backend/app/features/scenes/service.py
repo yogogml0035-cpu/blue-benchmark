@@ -11,7 +11,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.features.scenes import repository
 from app.features.scenes.schemas import (
-    CREDENTIAL_LABEL_MAX_LENGTH,
     SceneConnectionStatusView,
     SceneCredentialIssuedView,
     SceneCredentialPlaintextView,
@@ -138,7 +137,6 @@ def _token_preview(plaintext: str | None) -> str | None:
 def _credential_status_view(item: repository.SceneCredentialRecord) -> SceneCredentialStatusView:
     return SceneCredentialStatusView(
         credential_id=item.id,
-        label=item.label,
         status="revoked" if item.revoked_at else "active",
         created_at=_iso(item.created_at) or "",
         last_used_at=_iso(item.last_used_at),
@@ -177,25 +175,13 @@ def ensure_scene_exists(scene_id: str) -> None:
             raise AppError(404, "RESOURCE_NOT_FOUND", "场景不存在。")
 
 
-def _validate_label(label: str | None) -> str | None:
-    if label is None:
-        return None
-    stripped = label.strip()
-    if not stripped:
-        return None
-    if len(stripped) > CREDENTIAL_LABEL_MAX_LENGTH:
-        raise AppError(422, "VALIDATION_ERROR", "凭证标签过长。")
-    return stripped
-
-
-def create_or_replace_credential(scene_id: str, label: str | None) -> SceneCredentialIssuedView:
+def create_or_replace_credential(scene_id: str) -> SceneCredentialIssuedView:
     """The single credential action under the 1:1 model.
 
     Creates the scene's credential when it has none, or replaces the current
     one (revoking it immediately) when it already has one.
     """
 
-    label = _validate_label(label)
     now = datetime.now(timezone.utc)
     plaintext = f"sep_{secrets.token_urlsafe(36)}"
     hashed = repository.token_hash(plaintext)
@@ -204,7 +190,7 @@ def create_or_replace_credential(scene_id: str, label: str | None) -> SceneCrede
             raise AppError(404, "RESOURCE_NOT_FOUND", "场景不存在。")
         repository.revoke_scene_credentials(session, scene_id, reason="replaced", now=now)
         record = repository.create_credential(
-            session, scene_id=scene_id, hashed=hashed, plaintext=plaintext, label=label, now=now
+            session, scene_id=scene_id, hashed=hashed, plaintext=plaintext, now=now
         )
     return SceneCredentialIssuedView(
         credential_id=record.id,
@@ -275,6 +261,5 @@ def connection_status(principal: ScenePrincipal) -> SceneConnectionStatusView:
         scene_id=scene.id,
         scene_name=scene.name,
         credential_id=principal.credential_id,
-        label=credential.label if credential else None,
         last_used_at=_iso(credential.last_used_at) if credential else None,
     )

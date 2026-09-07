@@ -23,7 +23,7 @@ memory_materials?: list[MemoryMaterialIn]
 ```
 
 - item 模型复用现有 `ReferenceExampleIn`（含 client_ref_id/source_name）/`BadCaseIn`/`MemoryMaterialIn`，校验（strip、长度、id 唯一）全部继承。
-- 行为：`_ensure_not_frozen` + 与现 save_and_regenerate 相同的状态资格门（生成中禁止编辑）；CAS `expected_revision=content_revision` 原地更新，**revision 不变**；不入队。
+- 行为：`_ensure_not_frozen` + 资格门：`generating` 拒绝（409 RUBRIC_GENERATING，生成轮绑定材料修订，避免写入被 fencing 判 superseded）；`published` 拒绝（409 PUBLISHED_REOPEN_REQUIRED，维持"已发布内容不可变"不变量，先 review-reopen 再编辑）；其余状态（pending_review/generation_failed）允许。CAS `expected_revision=content_revision` 原地更新，**revision 不变**；不入队；无实际变化时幂等返回当前 detail（不报 NO_MATERIAL_CHANGE）。
 - 响应：`QuestionDetailResponse`（新增 `criteria_basis_stale` 字段，见 D4）。
 
 ### 新增 `PATCH /api/questions/{question_id}/criteria/{criterion_id}`
@@ -39,13 +39,14 @@ score_anchors?: list[ScoreAnchorIn]   # 分数表现说明整组替换
 
 - 按 `criterion_id` 在 `criteria_json` 列表内定位（id 即 `CriterionView.id`/候选 `client_ref_id`）；找不到 → 404。
 - 只更新出现字段；**不改 selected 标志、不动 `criteria_confirmed`、不丢未入选候选**；`criterion_basis`/`pass_score_basis` 本任务不可编辑（与现状一致）。
-- 资格门与 materials 相同；CAS 同上；revision 不变。
+- 校验边界：只校验被编辑字段（criterion 文本可执行性/隐私、pass_score 0–10、锚点隐私），**不重验未编辑字段的 basis 引用**——引用过期由 `criteria_basis_stale` 软提醒呈现（R6），不在此处 422；`POST /criteria`（保存维度/最终确认）保持现状的逐引用重校验（422 CITATION_INVALID）不变，软提醒条正是该硬校验的提前预警。
+- 资格门与 materials PATCH 相同（frozen/generating/published 拒绝）；CAS 同上；revision 不变。
 - 响应：`QuestionDetailResponse`。
 
 ### 新增 `POST /api/questions/{question_id}/regenerate`
 
 - 请求复用 `QuestionCommandRequest`（command_id + content_revision，与 retry/publish 同款）。
-- 行为 = 现 `save_and_regenerate` 的生成半段：资格门 → `new_revision = content_revision + 1` → 清空 `criteria_json`/`criteria_confirmed` → `enqueue_generation(command_id=derived_command_id("regenerate", question_id, str(new_revision), payload.command_id))` → status=generating。
+- 行为 = 现 `save_and_regenerate` 的生成半段：资格门（frozen/generating 拒绝，`published` 允许并沿用现语义：回 generating、清 published_at、保留 ever_published）→ `new_revision = content_revision + 1` → 清空 `criteria_json`/`criteria_confirmed` → `enqueue_generation(command_id=derived_command_id("regenerate", question_id, str(new_revision), payload.command_id))` → status=generating。
 - 响应：`OperationAcceptedResponse`（与 retry 一致）。
 
 ### 删除 `POST /api/questions/{question_id}/save-regenerate`

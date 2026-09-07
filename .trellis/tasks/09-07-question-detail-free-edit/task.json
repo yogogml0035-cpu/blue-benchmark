@@ -3,7 +3,7 @@
   "name": "question-detail-free-edit",
   "title": "题目详情自由编辑与全站字体改版",
   "description": "题目详情页改为自由编辑模型：材料逐模块自动保存、重新生成独立成按钮只重跑评分维度、维度勾选只承担绑定职责、依据失配软提醒；凭证 label 死字段整条删除；全站字号 token 化并整体 +2px、正文行距 1.7。删除旧的保存并重新生成合并接口与页面级编辑模式。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

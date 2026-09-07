@@ -6,10 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-# Shared bound for the credential label, enforced by the service so both the
-# HTTP route and the admin CLI apply the same limit.
-CREDENTIAL_LABEL_MAX_LENGTH = 200
-
 
 class SceneCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -74,12 +70,6 @@ class SceneListResponse(BaseModel):
     items: list[SceneView]
 
 
-class SceneCredentialIssueRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    label: str | None = Field(default=None, max_length=CREDENTIAL_LABEL_MAX_LENGTH)
-
-
 class SceneConnectionStatusView(BaseModel):
     """What a scene credential holder may learn about its own connection.
 
@@ -90,7 +80,6 @@ class SceneConnectionStatusView(BaseModel):
     scene_id: str
     scene_name: str
     credential_id: str
-    label: str | None
     last_used_at: str | None
 
 
@@ -109,7 +98,6 @@ class SceneCredentialIssuedView(BaseModel):
 
 class SceneCredentialStatusView(BaseModel):
     credential_id: str
-    label: str | None
     status: Literal["active", "revoked"]
     created_at: str
     last_used_at: str | None

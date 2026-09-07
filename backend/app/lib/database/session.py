@@ -24,7 +24,7 @@ from app.lib.database.models import (
 from app.lib.settings import settings
 
 
-BUSINESS_SCHEMA_HEAD = "0021_m0_runtime_messages_threads"
+BUSINESS_SCHEMA_HEAD = "0022_drop_scene_credential_label"
 
 
 def as_utc(value: datetime) -> datetime:

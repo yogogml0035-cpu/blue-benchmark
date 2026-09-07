@@ -44,13 +44,14 @@ def test_fresh_database_reaches_new_head(tmp_path) -> None:
         revisions = connection.execute(
             sa.text("SELECT version_num FROM alembic_version")
         ).scalars().all()
-    assert revisions == ["0021_m0_runtime_messages_threads"]
+    assert revisions == ["0022_drop_scene_credential_label"]
     question_columns = {item["name"] for item in sa.inspect(engine).get_columns("eval_questions")}
     assert {"criteria_confirmed", "ever_published"}.issubset(question_columns)
     credential_columns = {
         item["name"] for item in sa.inspect(engine).get_columns("scene_credentials")
     }
     assert "token_plaintext" in credential_columns
+    assert "label" not in credential_columns
 
 
 def test_review_contracts_upgrade_backfills_published(tmp_path) -> None:
@@ -130,8 +131,8 @@ def test_credential_one_to_one_upgrade_normalizes_duplicates(tmp_path) -> None:
             connection.execute(
                 sa.text(
                     "INSERT INTO scene_credentials "
-                    "(id, scene_id, token_hash, label, created_at, revoked_at) "
-                    "VALUES (:id, 's1', :hash, '旧', :created, :revoked)"
+                    "(id, scene_id, token_hash, created_at, revoked_at) "
+                    "VALUES (:id, 's1', :hash, :created, :revoked)"
                 ),
                 {
                     "id": credential_id,
@@ -156,6 +157,55 @@ def test_credential_one_to_one_upgrade_normalizes_duplicates(tmp_path) -> None:
     assert rows["c-new"] is None, "newest active credential must survive"
     assert rows["c-old"] == "model-migration"
     assert rows["c-ancient"] is None, "pre-revoked history keeps its original state"
+
+
+def test_credential_label_upgrade_drops_and_downgrade_restores(tmp_path) -> None:
+    """0021 -> 0022: the unused ``label`` column is dropped; downgrade restores
+    it as nullable. Existing rows survive both directions."""
+
+    database_url = f"sqlite:///{tmp_path / 'label-drop.db'}"
+    config = _alembic_config(database_url)
+    command.upgrade(config, "0021_m0_runtime_messages_threads")
+    engine = sa.create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                "INSERT INTO scenes (id, name, created_at, updated_at) "
+                "VALUES ('s1', '场景', '2026-09-07 00:00:00', '2026-09-07 00:00:00')"
+            )
+        )
+        # 0001 builds the schema from the current ORM metadata (label already
+        # gone), so a legacy-head database is simulated by adding it back.
+        connection.execute(
+            sa.text("ALTER TABLE scene_credentials ADD COLUMN label VARCHAR(200)")
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO scene_credentials "
+                "(id, scene_id, token_hash, label, created_at) "
+                "VALUES ('c1', 's1', 'hash-c1', '旧名称', '2026-09-07 01:00:00')"
+            )
+        )
+
+    command.upgrade(config, "head")
+
+    with engine.connect() as connection:
+        columns = {item["name"] for item in sa.inspect(engine).get_columns("scene_credentials")}
+        kept = connection.execute(
+            sa.text("SELECT token_hash FROM scene_credentials WHERE id='c1'")
+        ).scalar_one()
+    assert "label" not in columns
+    assert kept == "hash-c1", "dropping the dead column must keep the credential row"
+
+    command.downgrade(config, "0021_m0_runtime_messages_threads")
+
+    with engine.connect() as connection:
+        columns = {item["name"] for item in sa.inspect(engine).get_columns("scene_credentials")}
+        label_value = connection.execute(
+            sa.text("SELECT label FROM scene_credentials WHERE id='c1'")
+        ).scalar_one()
+    assert "label" in columns
+    assert label_value is None, "restored column has no backfill; NULL is the contract"
 
 
 def test_legacy_head_upgrade_drops_old_business_tables(tmp_path) -> None:
@@ -217,6 +267,14 @@ def test_downgrade_restores_executable_schema(tmp_path) -> None:
     config = _alembic_config(database_url)
     command.upgrade(config, "head")
     engine = sa.create_engine(database_url)
+
+    # 0022 -> 0021: the dropped label column is restored, nothing else moves.
+    command.downgrade(config, "-1")
+    credential_columns = {
+        item["name"] for item in sa.inspect(engine).get_columns("scene_credentials")
+    }
+    assert "label" in credential_columns
+    assert "question_run_threads" in _table_names(engine)
 
     # 0021 -> 0020: the runtime log/registry tables disappear, nothing else.
     command.downgrade(config, "-1")

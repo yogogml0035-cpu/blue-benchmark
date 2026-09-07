@@ -18,7 +18,6 @@ export type SceneListResponse = components["schemas"]["SceneListResponse"];
 export type SceneStatusResponse = components["schemas"]["SceneStatusResponse"];
 export type SceneCreateRequest = components["schemas"]["SceneCreateRequest"];
 export type SceneUpdateRequest = components["schemas"]["SceneUpdateRequest"];
-export type SceneCredentialIssueRequest = components["schemas"]["SceneCredentialIssueRequest"];
 export type SceneCredentialIssuedView = components["schemas"]["SceneCredentialIssuedView"];
 export type SceneCredentialStatusView = components["schemas"]["SceneCredentialStatusView"];
 export type SceneCredentialPlaintextView = components["schemas"]["SceneCredentialPlaintextView"];
@@ -53,12 +52,11 @@ export function deleteScene(sceneId: string, signal?: AbortSignal): Promise<void
 
 export function createOrReplaceCredential(
   sceneId: string,
-  payload: SceneCredentialIssueRequest,
   signal?: AbortSignal,
 ): Promise<SceneCredentialIssuedView> {
   return request<SceneCredentialIssuedView>(
     `/api/scenes/${encodeURIComponent(sceneId)}/credentials`,
-    { method: "POST", body: payload, signal },
+    { method: "POST", signal },
   );
 }
 

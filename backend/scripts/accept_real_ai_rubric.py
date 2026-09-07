@@ -206,7 +206,7 @@ def main() -> int:
     from app.features.scenes.schemas import SceneCreateRequest
 
     scene = scene_service.create_scene(SceneCreateRequest(name="真实验收场景"))
-    issued = scene_service.create_or_replace_credential(scene.id, label="accept")
+    issued = scene_service.create_or_replace_credential(scene.id)
     print(f"ACCEPT_REAL_AI_STAGE=scene scene_id={scene.id}")
 
     base_url = _start_server()

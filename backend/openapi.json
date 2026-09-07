@@ -379,16 +379,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SceneCredentialIssueRequest"
-              }
-            }
-          }
-        },
         "responses": {
           "201": {
             "description": "Successful Response",
@@ -2778,17 +2768,6 @@
             "type": "string",
             "title": "Credential Id"
           },
-          "label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label"
-          },
           "last_used_at": {
             "anyOf": [
               {
@@ -2807,7 +2786,6 @@
           "scene_id",
           "scene_name",
           "credential_id",
-          "label",
           "last_used_at"
         ],
         "title": "SceneConnectionStatusView",
@@ -2840,25 +2818,6 @@
           "name"
         ],
         "title": "SceneCreateRequest"
-      },
-      "SceneCredentialIssueRequest": {
-        "properties": {
-          "label": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "title": "SceneCredentialIssueRequest"
       },
       "SceneCredentialIssuedView": {
         "properties": {
@@ -2913,17 +2872,6 @@
           "credential_id": {
             "type": "string",
             "title": "Credential Id"
-          },
-          "label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label"
           },
           "status": {
             "type": "string",
@@ -2985,7 +2933,6 @@
         "type": "object",
         "required": [
           "credential_id",
-          "label",
           "status",
           "created_at",
           "last_used_at",

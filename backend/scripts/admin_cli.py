@@ -17,7 +17,7 @@ Usage:
     uv run python -m scripts.admin_cli scenes create --name "媒体场景" [--description ...]
     uv run python -m scripts.admin_cli scenes list
     uv run python -m scripts.admin_cli scenes status --scene-id <id>
-    uv run python -m scripts.admin_cli credentials replace --scene-id <id> [--label ...]
+    uv run python -m scripts.admin_cli credentials replace --scene-id <id>
     uv run python -m scripts.admin_cli credentials revoke --scene-id <id> --credential-id <id>
 
 Or through the Makefile:
@@ -101,7 +101,7 @@ def _scenes_delete(args: argparse.Namespace) -> None:
 
 
 def _credentials_replace(args: argparse.Namespace) -> None:
-    issued = scene_service.create_or_replace_credential(args.scene_id, args.label)
+    issued = scene_service.create_or_replace_credential(args.scene_id)
     _print_json(issued.model_dump())
     print(
         "\nnote: the token above is also persisted and can be revealed from the "
@@ -159,7 +159,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Create the scene's credential, or replace the current one (old token stops working).",
     )
     cred_replace.add_argument("--scene-id", required=True)
-    cred_replace.add_argument("--label", default=None)
     cred_replace.set_defaults(func=_credentials_replace)
 
     cred_revoke = credentials_sub.add_parser("revoke", help="Revoke the credential.")

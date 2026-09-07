@@ -23,7 +23,6 @@ describe("sceneColorVar", () => {
 function credential(partial: Partial<SceneCredentialStatus> = {}): SceneCredentialStatus {
   return {
     credential_id: "c1",
-    label: null,
     status: "active",
     created_at: "2026-01-01T00:00:00Z",
     last_used_at: null,

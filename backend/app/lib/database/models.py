@@ -88,7 +88,6 @@ class SceneCredentialRow(Base):
     scene_id: Mapped[str] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     token_plaintext: Mapped[str | None] = mapped_column(Text, nullable=True)
-    label: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

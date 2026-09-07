@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, Response, status
 from app.features.auth import service as auth_service
 from app.features.scenes import service as scene_service
 from app.features.scenes.schemas import (
-    SceneCredentialIssueRequest,
     SceneCredentialIssuedView,
     SceneCredentialPlaintextView,
     SceneCredentialStatusView,
@@ -94,12 +93,11 @@ def delete_scene(
 )
 def create_or_replace_credential(
     scene_id: str,
-    payload: SceneCredentialIssueRequest,
     response: Response,
     _user=Depends(auth_service.require_current_user),
 ) -> SceneCredentialIssuedView:
     response.headers.update(_NO_STORE_HEADERS)
-    return scene_service.create_or_replace_credential(scene_id, payload.label)
+    return scene_service.create_or_replace_credential(scene_id)
 
 
 @router.get(
