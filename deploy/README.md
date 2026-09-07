@@ -174,7 +174,7 @@ tail -30 /opt/blue-benchmark/backup.log  # 最近备份是否"完整备份成功
 ## 重启服务器之后
 
 Docker 容器配置了 `restart: unless-stopped`，服务器重启后会自动拉起，
-无需人工干预。重启完成后执行一次 `docker compose ps` 确认全部健康；
+无需人工干预。重启完成后执行一次 `docker compose ps`，确认 api/postgres/web 为 (healthy)、worker/nginx 为 Up（无 healthcheck）；
 如果发现 `backups/backup-state.json` 残留（重启打断了备份），按
 `restore.md` 第 2 步的说明人工核查后删除。
 

@@ -191,9 +191,10 @@ docker run --rm \
 > 默认部署目录 /opt/blue-benchmark 对应 `blue-benchmark_appdata`）。
 > `docker volume rm` 会丢失卷中当前全部文件——这正是第 4 步确认过的后果。
 > **绝不要用 `docker compose down -v` 绕过 "volume is in use"**：它会连
-> `pgdata` 卷一起删除，第 5 步将在全新空实例上重建两库，第 8 步
-> `alembic check` 的报错语义会与本文档预期完全对不上，首次恢复者无从
-> 诊断。正确做法就是上面的 `docker compose rm -f api worker`。
+> `pgdata` 卷一起删除——第 6 步刚导入的数据随之丢失，只能回到第 5 步在
+> 全新空实例上重做；若未察觉而继续，第 8 步 `alembic check` 的报错语义会
+> 与本文档预期完全对不上，首次恢复者无从诊断。正确做法就是上面的
+> `docker compose rm -f api worker`。
 
 ### 8. 启动前验证（任一失败保持未开放写入）
 
