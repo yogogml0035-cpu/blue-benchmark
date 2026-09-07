@@ -731,3 +731,13 @@
 - 改名任务对抗审查登记的 8 条 main 既有部署缺陷当日立项当日闭环:restore.md 假表名 questions→eval_questions、第 7 步补 `docker compose rm -f api worker`+down -v 禁令、backup.py schema 版本探测从"仓库路径扫描(服务器恒失败)"改为停写窗口内查库 alembic_version(失败记"未知"不中止,DeployConfig 死字段删除,fake docker+2 新断言,66 passed)、"等待全部 healthy"统一为逐服务口径、acr-guide 假验证段改真实 push/删流程、REGISTRY 留空叙述修正、compose 2.17 硬下限/2.20+ 基线注释统一、alembic.ini 死配置注释;spec backup-and-runtime.md 同步。
 - 对抗审查 2 轮:R1 代码侧 7 项全 PASS 可合并、文档侧揪出 README:177「确认全部健康」中文变体漏网(检索式只查了英文)→f27e21f 修正+检索式补变体;R2 收敛验证零新发现。
 - ff 合并 main@811519a,main 复验全绿(diff --check/make test 264+75/make build),归档。第 9 条 sep_ 前缀按既定豁免未动。首次发版实操的文档障碍已清除。
+
+## 2026-09-07 · 管理员账号环境变量化+首注流程删除(09-07-admin-credential-from-env)
+
+- 用户决策:内部工具不需要首注流程,单管理员由 ADMIN_USERNAME/ADMIN_PASSWORD 写死(env 唯一权威);.env.example 只放占位符、实值只在 gitignored .env 与服务器 .env.production;每次启动以 env 为准自动覆盖(改密=改 env 重启);注册入口整个删除不留备用。
+- 后端:settings 加 admin_username/admin_password(SecretStr,导入期可空以兼容 admin_cli/export 脚本);lifespan 在 schema 门禁后调 ensure_admin_from_env()——空库建号(admin_slot 唯一约束+IntegrityError 竞态回落更新路径)、用户名变只改名保会话、密码变重哈希+bump generation+同事务清会话、一致零写入;缺配置/超128字符 fail fast 指明键名。删除 register/bootstrap 路由、RegisterRequest/BootstrapResponse、count_users、assert_valid_password、service+CLI 的 reset-password(admin_cli account 组整个移除)、PASSWORD_MIN/MAX;无新迁移(只写数据)。
+- 前端:删 /register 页、getBootstrap/registerAdmin、根路由 bootstrap 分流(未登录直达 /login)、登录页注册链接与 ADMIN_EXISTS 弹跳;账号输入改「用户名」type=text(env 账号无 email);死 CSS(.footnote/.signup/.panelFlow)与死令牌(auth-note/auth-link)同删;buildAuthUrl 收窄为 "/login"。e2e:共享 e2e/admin.ts 凭据由 global-setup 注入,01-auth-register 删除,02-04 改直接登录;验收脚本(accept_skill_push/accept_real_ai_rubric/real-acceptance/两个 screenshot 脚本)改 env seed+login。
+- 合同:openapi.json 与 generated.ts 再生成;conftest 注入测试 ADMIN_* 默认值,helpers.register_admin→login_admin(幂等 seed+登录),约 47 处调用点批改;auth 合同测试重写为 seed 三行为+否定回归(旧路由 404、CLI account exit 2)+generation gate 保留。
+- 对抗审查(trellis-check):7 项核查,揪出 2 必修(screenshot-auth.mjs 残留 /register 截图路由、server-setup.md §5 填写清单缺 ADMIN_* 与 §9「第五步已填写」自相矛盾)+1 建议(128 上限无测试)→ f781db9 全修。
+- 门禁:分支 267 passed/5 skipped+75 vitest+contract/check:api+build(路由表无 /register)+e2e 38 passed;ff 合并 main@f781db9 后复验全绿(main 首跑 build 因陈旧 .next 缓存引用已删 register 页报 TS2307,清缓存即过——构建产物非代码问题);归档 a30713b。
+- 本地 .env 已规范化为 ADMIN_USERNAME/ADMIN_PASSWORD(保留用户选定实值,不入库);主工作区与 worktree 副本同步。origin/main 旧备份不推送。服务器侧待发版时按新 server-setup §5/§9 填 ADMIN_* 即可。
