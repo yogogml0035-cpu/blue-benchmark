@@ -715,3 +715,13 @@
 - 验证证据：默认层 test_deploy_backup 65 passed + test_deploy_runtime 4 passed/5 skipped；DEPLOY_INTEGRATION_REQUIRED=1 集成层 9 passed 两次实跑（阶段4 + trellis-check 独立重跑，461s），含静态 IP 两阶段强制换 IP 证明 nginx 重启后请求到达新实例、代理回归（URI/查询、X-Forwarded-*、Cookie、限流 429、SSE 分批）、真实 postgres 备份→verify→恢复回环；make test（后端 263 passed + 前端 75 passed + OpenAPI 漂移）与 make build 全过；trellis-check 对抗审查结论"可合并"，两项文档级建议（OSS 失败汇总措辞、server-setup 文件数）已修复并回归。
 - 未验证边界（部署阶段核验）：真实 ossutil/阿里云鉴权与计费、内网 Endpoint 免流量费、服务器 40GiB 实际可用空间、生产实际恢复；本任务未连接任何真实服务器/云资源，未推送远端。
 - 新增 `.trellis/spec/deploy/` 规格层（index + backup-and-runtime.md 七节合同），backend 质量规格补部署两层测试基线。
+
+## 2026-09-07 · 项目全局重命名为 blue-benchmark(09-07-rename-blue-benchmark)
+
+- 任务获批后单日交付:本地库/容器保数据改名 → 全仓 44 文件标识替换 + 锁文件/OpenAPI 重生成 → UI 品牌统一「蓝标汽车事业 BenchMark 平台」→ trellis-check 全 PASS → ff 合并回 main(96469cc)→ main 复验全绿(diff --check / make test 263+75 passed / make build)→ 归档(7274527)。
+- 本地数据处置:pg_dump 备份后 ALTER ROLE/DATABASE(临时超级用户中转,用后即删)+ docker rename 为 blue-benchmark-postgres;实测业务库为空(design 假设"含真实数据"已过时,evidence 记录 0/0 零丢失口径,冒烟走注册首管理员路径);21 个旧名测试/验收遗留库逐一 dump 存档后 DROP,pg_database 仅剩新名;两个门控测试前置库(c2_runtime_test/c5_reset_test)按测试 docstring 以新名重建,重建后后端套件 0 个改名相关 skip。
+- 一次性切换(D8):cookie blue_benchmark_session、app_name "Blue Benchmark API"、advisory-lock salt、备份格式 blue-benchmark-backup/v1、BLUE_BENCHMARK_BACKUP_AES_KEY、/opt/blue-benchmark/、镜像 blue-benchmark-web/api、包名前后端、FORBIDDEN_DB_NAMES、验收/测试库名全部换新;脚本硬编码家目录路径全部改为仓库根相对解析;无任何兼容分支/旧名读取路径;扩展检索式(含 %5F 编码、空格、大小写变体)全仓零命中。
+- 多智能体对抗审查 3 轮:R1(3 代理:运行时/部署/一致性)发现编码攻击串残留旧名+backup.py docstring 密钥变量漂移等,已修;R2(2 代理)揪出 R1 修正自身引入的 restore.md 错误陈述(restore-check 并不读环境变量)并核实 sep_ 凭证前缀问题,已修+决策记录;R3 验证 9/9 PASS、零新发现,收敛。
+- 显式决策:sep_ 凭证前缀(旧英文名缩写)属跨层安全合同且有在途凭证资产,本任务豁免不改,理由与后续路径记入归档 followups.md 第 9 条;8 条 main 既有部署文档/工具缺陷(restore.md 假表名 questions、卷删除被 exited 容器阻挡、schema 版本探测路径错误、"全部 healthy"口径等)登记 followups.md 留待独立任务。
+- 任务后用户手动动作已写入归档 cutover-checklist.md:GitHub 改名+remote set-url、关会话、mv 目录至 /Users/hsikey/Company/blue-benchmark、ZCode 记忆目录迁移、DBeaver 连接更新、合并窗口期无 Worker 进程门禁;服务器发版实操在目录切换后按新版 deploy 文档继续。
+- 备份 dump 存于仓库外产物区 /Users/hsikey/Company/skill-eval-platform-wt/_artifacts/rename-blue-benchmark-backups/(23 个文件,未入库)。origin/main 仍为旧备份基线,按既定约定未推送。
