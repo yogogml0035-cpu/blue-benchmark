@@ -13,13 +13,13 @@
 
 .title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--font-size-2xl);
   font-weight: 800;
 }
 
 .subtitle {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--benchmark-muted);
 }
 

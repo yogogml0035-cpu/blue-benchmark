@@ -17,7 +17,7 @@
   top: clamp(28px, 5vh, 56px);
   left: clamp(26px, 4vw, 64px);
   color: rgba(255, 255, 255, 0.94);
-  font-size: 20px;
+  font-size: var(--font-size-3xl);
   font-weight: 500;
   letter-spacing: 0.5em;
   user-select: none;

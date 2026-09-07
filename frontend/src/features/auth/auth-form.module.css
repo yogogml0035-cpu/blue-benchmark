@@ -50,7 +50,7 @@
   outline: none;
   background: var(--benchmark-auth-input-bg);
   color: var(--benchmark-auth-ink);
-  font-size: 15px;
+  font-size: var(--font-size-lg);
   transition: border-color 0.22s, background 0.22s, box-shadow 0.22s;
 }
 
@@ -73,7 +73,7 @@
   display: block;
   margin: 0 0 9px;
   color: var(--benchmark-auth-label);
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 
@@ -88,7 +88,7 @@
 .subtitle {
   margin: 0 0 30px;
   color: var(--benchmark-auth-muted);
-  font-size: 15px;
+  font-size: var(--font-size-lg);
 }
 
 .form {
@@ -159,7 +159,7 @@
   background: linear-gradient(100deg, var(--benchmark-auth-accent-deep), var(--benchmark-auth-accent));
   box-shadow: var(--benchmark-auth-button-shadow);
   color: #fff;
-  font-size: 16px;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   letter-spacing: 0.16em;
   transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
@@ -202,7 +202,7 @@
   min-height: 20px;
   margin: -6px 0 0;
   color: var(--benchmark-auth-success);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   text-align: center;
 }
 

@@ -6,13 +6,13 @@
 
 .hint {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--benchmark-muted);
 }
 
 .copyFailed {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--benchmark-warning);
 }
 
@@ -24,8 +24,8 @@
   border: 1px solid var(--benchmark-line-strong);
   background: var(--benchmark-surface-elevated);
   color: var(--benchmark-text);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--font-size-md);
+  line-height: 1.7;
   resize: vertical;
 }
 
@@ -37,6 +37,6 @@
 
 .notice {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   color: var(--benchmark-text);
 }

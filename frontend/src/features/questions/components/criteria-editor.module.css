@@ -5,13 +5,13 @@
 }
 
 .summary {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-muted);
 }
 
 .empty {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--benchmark-faint);
 }
 
@@ -60,7 +60,7 @@
 }
 
 .source {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-muted);
 }
 
@@ -71,7 +71,7 @@
 }
 
 .scoreLabel {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-muted);
 }
 
@@ -83,7 +83,7 @@
   border: 1px solid var(--benchmark-line-strong);
   background: var(--benchmark-surface-elevated);
   color: var(--benchmark-text);
-  font-size: 13px;
+  font-size: var(--font-size-md);
   text-align: center;
 }
 
@@ -92,7 +92,7 @@
 }
 
 .scoreMax {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-faint);
 }
 
@@ -119,8 +119,8 @@
   border: 1px solid var(--benchmark-line-strong);
   background: var(--benchmark-surface-elevated);
   color: var(--benchmark-text);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--font-size-md);
+  line-height: 1.7;
   /* Height is driven by AutoGrowTextarea to show the full criterion. */
   resize: none;
 }
@@ -144,8 +144,8 @@
   border: 1px solid var(--benchmark-warning-line, #e3c56a);
   background: var(--benchmark-warning-tint, rgba(227, 197, 106, 0.12));
   color: var(--benchmark-text);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
 }
 
 .anchors {
@@ -163,7 +163,7 @@
 
 .sectionTitle {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--benchmark-muted);
 }
@@ -172,7 +172,7 @@
   height: 26px;
   min-height: 26px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-muted);
 }
 
@@ -207,7 +207,7 @@
   border: 1px solid var(--benchmark-line-strong);
   background: var(--benchmark-surface-elevated);
   color: var(--benchmark-text);
-  font-size: 13px;
+  font-size: var(--font-size-md);
   text-align: center;
 }
 
@@ -224,8 +224,8 @@
   border: 1px solid var(--benchmark-line-strong);
   background: var(--benchmark-surface-elevated);
   color: var(--benchmark-text);
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
   resize: none;
 }
 
@@ -265,7 +265,7 @@
   border: none;
   background: none;
   color: var(--benchmark-action-purple);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
@@ -288,15 +288,15 @@
 
 .basisTitle {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--benchmark-text);
 }
 
 .basisExplanation {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
   color: var(--benchmark-muted);
 }
 
@@ -317,8 +317,8 @@
   border-radius: var(--benchmark-radius-sm);
   background: var(--benchmark-surface-elevated);
   border: 1px solid var(--benchmark-line);
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
 }
 
 .claimTeacher,
@@ -326,7 +326,7 @@
   align-self: flex-start;
   padding: 1px 6px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 
@@ -352,7 +352,7 @@
 
 .citationLocator {
   align-self: flex-start;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--benchmark-faint);
 }
 
@@ -364,6 +364,6 @@
 /* Per-criterion autosave failure line (soft, retryable via the field). */
 .fieldError {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-warning);
 }

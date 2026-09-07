@@ -12,7 +12,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-muted);
 }
 
@@ -94,13 +94,13 @@
 
 .empty {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-faint);
 }
 
 .stageLine {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-muted);
 }
 
@@ -113,7 +113,7 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-muted);
   word-break: break-all;
 }
@@ -123,7 +123,7 @@
   padding: 0 6px;
   border-radius: 999px;
   background: var(--benchmark-line-strong);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--benchmark-text);
 }
 
@@ -134,8 +134,8 @@
   background: var(--benchmark-surface-elevated);
   border: 1px solid var(--benchmark-line);
   font-family: inherit;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
   color: var(--benchmark-text);
   white-space: pre-wrap;
   word-break: break-word;
@@ -143,14 +143,14 @@
 
 .failLine {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--benchmark-danger, #d33);
 }
 
 .doneLine {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--benchmark-success, #188038);
 }

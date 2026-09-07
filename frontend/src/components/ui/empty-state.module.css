@@ -22,7 +22,7 @@
 
 .title {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
 }
 
@@ -30,7 +30,7 @@
   margin: 0;
   max-width: 420px;
   color: var(--benchmark-muted);
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 .action {

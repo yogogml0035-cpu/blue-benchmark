@@ -19,6 +19,6 @@
 
 .error {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--benchmark-danger);
 }

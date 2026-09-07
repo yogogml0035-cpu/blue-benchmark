@@ -26,7 +26,7 @@
   display: inline-flex;
   min-width: 0;
   color: var(--benchmark-text);
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -47,7 +47,7 @@
   padding: 10px 12px;
   border-radius: var(--benchmark-radius-md);
   color: var(--benchmark-muted);
-  font-size: 14px;
+  font-size: var(--font-size-base);
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
@@ -89,7 +89,7 @@
   background: var(--benchmark-action-purple);
   color: var(--benchmark-on-action);
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .username {
@@ -98,7 +98,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 

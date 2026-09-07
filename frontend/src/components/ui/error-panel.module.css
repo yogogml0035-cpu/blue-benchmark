@@ -21,14 +21,14 @@
 
 .title {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--benchmark-text);
 }
 
 .message {
   margin: 2px 0 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--benchmark-muted);
 }
 

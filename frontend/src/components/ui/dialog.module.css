@@ -34,7 +34,7 @@
 
 .title {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
 }
 
@@ -60,7 +60,7 @@
   padding: 20px;
   overflow-y: auto;
   color: var(--benchmark-text);
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .footer {

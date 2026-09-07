@@ -6,7 +6,7 @@
 }
 
 .label {
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--benchmark-text);
 }
@@ -24,7 +24,7 @@
   border: 1px solid var(--benchmark-line-strong);
   background: var(--benchmark-surface-elevated);
   color: var(--benchmark-text);
-  font-size: 14px;
+  font-size: var(--font-size-base);
   transition:
     border-color var(--benchmark-duration-fast) var(--benchmark-ease),
     box-shadow var(--benchmark-duration-fast) var(--benchmark-ease);
@@ -68,12 +68,12 @@
 
 .hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-muted);
 }
 
 .error {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-danger);
 }

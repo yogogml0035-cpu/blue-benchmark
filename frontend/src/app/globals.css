@@ -8,6 +8,18 @@
 :root {
   color-scheme: dark;
 
+  /* Type scale: one lever for the whole console. Components reference these
+   * tokens instead of hard-coded px; the +2px shift (14px base) keeps every
+   * tier's relative hierarchy intact. */
+  --font-size-xs: 13px;   /* dense meta/badges (was 11px) */
+  --font-size-sm: 14px;   /* secondary labels (was 12px) */
+  --font-size-md: 15px;   /* compact body/controls (was 13px) */
+  --font-size-base: 16px; /* body copy (was 14px) */
+  --font-size-lg: 17px;   /* emphasized body (was 15px) */
+  --font-size-xl: 18px;   /* section titles (was 16px) */
+  --font-size-2xl: 20px;  /* page titles (was 18px) */
+  --font-size-3xl: 22px;  /* display numbers (was 20px) */
+
   /* Surfaces */
   --benchmark-page: #15161a;
   --benchmark-nav: #1e1f23;
@@ -129,8 +141,10 @@ body {
   /* BenchMark body copy keeps neutral tracking; display wordmarks opt in to
    * their own spacing instead of relying on negative letter-spacing. */
   letter-spacing: 0;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--font-size-base);
+  /* Chinese body copy needs looser leading than the Latin default; 1.7 is
+   * the readability floor for the dense workbench layouts. */
+  line-height: 1.7;
   -webkit-font-smoothing: antialiased;
 }
 

@@ -9,7 +9,7 @@
   align-items: center;
   gap: 6px;
   align-self: flex-start;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--benchmark-muted);
   text-decoration: none;
 }
@@ -42,7 +42,7 @@
 
 .title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--font-size-2xl);
   font-weight: 800;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -51,13 +51,13 @@
 
 .description {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--benchmark-muted);
 }
 
 .meta {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--benchmark-faint);
 }
 
@@ -70,6 +70,6 @@
 
 .dialogText {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--font-size-base);
+  line-height: 1.7;
 }
