@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/core/quality-and-tests.md", "reason": "质量门与测试覆盖核查基准"}
+{"file": ".trellis/spec/backend/core/stub-state-and-contracts.md", "reason": "核查 seed 幂等、会话失效与单管理员约束未被削弱"}
+{"file": ".trellis/spec/frontend/quality-testing/index.md", "reason": "核查前端质量门与 E2E 覆盖"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "核查合同再生成一致性（contract-check / check:api）"}
+{"file": ".trellis/spec/deploy/backup-and-runtime.md", "reason": "核查部署侧 env 注入与发版前置文档一致"}

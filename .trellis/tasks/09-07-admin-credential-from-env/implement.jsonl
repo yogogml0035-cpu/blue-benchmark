@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/core/structure-and-boundaries.md", "reason": "改动 auth feature 的 router/service/repository/schema 分层与 admin_cli 脚本删除"}
+{"file": ".trellis/spec/backend/core/stub-state-and-contracts.md", "reason": "认证归属与持久化合同：env→users 表 seed、password_generation 会话失效语义"}
+{"file": ".trellis/spec/backend/core/errors-and-api-responses.md", "reason": "删除 register/bootstrap 路由与新增启动 RuntimeError 的错误口径"}
+{"file": ".trellis/spec/backend/core/quality-and-tests.md", "reason": "helpers.login_admin 改写与约 47 处测试调用点、否定回归测试要求"}
+{"file": ".trellis/spec/frontend/api-state/index.md", "reason": "前端 auth.ts/page.tsx/redirect.ts 的 401 与会话跳转边界"}
+{"file": ".trellis/spec/frontend/quality-testing/index.md", "reason": "Vitest 改写与 Playwright E2E 隔离后端 env 注入"}
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "openapi.json 再生成与 generated.ts 同步顺序"}
+{"file": ".trellis/spec/deploy/index.md", "reason": "deploy/.env.production.example 与 server-setup.md 适配口径"}
