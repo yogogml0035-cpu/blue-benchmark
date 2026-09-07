@@ -2,7 +2,7 @@
 
 Runs ONE bounded execution against the configured real provider using the C1
 real-sample materials, on the task-exclusive PostgreSQL test database — never
-the project's skill_eval / skill_eval_checkpoint databases.
+the project's blue_benchmark / blue_benchmark_checkpoint databases.
 
 Proven gates (all must pass, no stub substitution):
 
@@ -21,7 +21,7 @@ never material bodies or model output text.
 
 Usage:
     cd backend && uv run python -m scripts.probe_deep_runtime \
-        --corpus-root /Users/hsikey/Company/skill-eval-platform/.local-samples/m0 \
+        --corpus-root <repo-root>/.local-samples/m0 \
         --out storage/acceptance/m0-deep-runtime-probe
 """
 
@@ -46,7 +46,7 @@ from app.lib.ai_runtime import deep_runtime as dr  # noqa: E402
 from app.lib.ai_runtime.model import build_runtime_model  # noqa: E402
 from scripts import m0_samples  # noqa: E402
 
-TEST_DB_NAME = "skill_eval_c2_runtime_test"
+TEST_DB_NAME = "blue_benchmark_c2_runtime_test"
 PROBE_THREAD = "probe-deep-runtime-m0"
 
 
@@ -161,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--corpus-root",
-        default="/Users/hsikey/Company/skill-eval-platform/.local-samples/m0",
+        default=str(Path(__file__).resolve().parents[2] / ".local-samples" / "m0"),
     )
     parser.add_argument("--case", default="m0-real-m-mega-press-release")
     parser.add_argument("--out", default="storage/acceptance/m0-deep-runtime-probe")

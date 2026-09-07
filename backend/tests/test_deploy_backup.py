@@ -31,13 +31,13 @@ if str(DEPLOY_DIR) not in sys.path:
 import backup  # noqa: E402
 
 TEST_AES_KEY = "ab" * 16
-OSS_BUCKET_DIR = "skill-eval-backup-bucket"
+OSS_BUCKET_DIR = "blue-benchmark-backup-bucket"
 # fake ossutil 的本地对象布局为 <OSS_LOCAL>/<bucket>/<prefix>/...
-OSS_BASE = f"{OSS_BUCKET_DIR}/skill-eval-backups"
+OSS_BASE = f"{OSS_BUCKET_DIR}/blue-benchmark-backups"
 WRONG_AES_KEY = "cd" * 16
 PASSWORD = "super-secret-pass"
-BUSINESS_DSN = f"postgresql+psycopg://skill_eval:{PASSWORD}@postgres:5432/skill_eval"
-CHECKPOINT_DSN = f"postgresql://skill_eval:{PASSWORD}@postgres:5432/skill_eval_checkpoint"
+BUSINESS_DSN = f"postgresql+psycopg://blue_benchmark:{PASSWORD}@postgres:5432/blue_benchmark"
+CHECKPOINT_DSN = f"postgresql://blue_benchmark:{PASSWORD}@postgres:5432/blue_benchmark_checkpoint"
 
 # ---------------------------------------------------------------------------
 # fake docker / ossutil / ssh / scp 脚本
@@ -90,8 +90,8 @@ case "$sub" in
         if [ -n "${FAIL_DUMP_DB:-}" ] && [ "$dbname" = "$FAIL_DUMP_DB" ]; then
           echo "pg_dump: error: could not connect to database" >&2; exit 1
         fi
-        if [ "$dbname" = "skill_eval" ]; then cat "${FAKE_DUMP_BUSINESS:?}";
-        elif [ "$dbname" = "skill_eval_checkpoint" ]; then cat "${FAKE_DUMP_CHECKPOINT:?}";
+        if [ "$dbname" = "blue_benchmark" ]; then cat "${FAKE_DUMP_BUSINESS:?}";
+        elif [ "$dbname" = "blue_benchmark_checkpoint" ]; then cat "${FAKE_DUMP_CHECKPOINT:?}";
         else echo "pg_dump: unknown database $dbname" >&2; exit 1; fi
         exit 0 ;;
       *) echo "unexpected exec tool $tool" >&2; exit 92 ;;
@@ -240,35 +240,35 @@ def fake_bin(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.Monke
 # ---------------------------------------------------------------------------
 
 
-def compose_config_json(*, checkpoint_db: str = "skill_eval_checkpoint", extra_env: dict[str, str] | None = None) -> dict[str, Any]:
+def compose_config_json(*, checkpoint_db: str = "blue_benchmark_checkpoint", extra_env: dict[str, str] | None = None) -> dict[str, Any]:
     env: dict[str, str] = {
         "DATABASE_URL": BUSINESS_DSN,
-        "CHECKPOINT_DATABASE_URL": f"postgresql://skill_eval:{PASSWORD}@postgres:5432/{checkpoint_db}",
+        "CHECKPOINT_DATABASE_URL": f"postgresql://blue_benchmark:{PASSWORD}@postgres:5432/{checkpoint_db}",
         "LANGGRAPH_AES_KEY": TEST_AES_KEY,
-        "OSS_BUCKET": "skill-eval-backup-bucket",
-        "OSS_PREFIX": "skill-eval-backups",
+        "OSS_BUCKET": "blue-benchmark-backup-bucket",
+        "OSS_PREFIX": "blue-benchmark-backups",
         "OSS_ENDPOINT": "oss-cn-beijing-internal.aliyuncs.com",
     }
     env.update(extra_env or {})
     return {
-        "name": "skill-eval",
+        "name": "blue-benchmark",
         "services": {
             "api": {
-                "image": "registry.example.invalid/skill-eval-api:20260907-abc1234",
+                "image": "registry.example.invalid/blue-benchmark-api:20260907-abc1234",
                 "environment": dict(env),
                 "volumes": [{"type": "volume", "source": "appdata", "target": "/app/storage"}],
             },
             "worker": {
-                "image": "registry.example.invalid/skill-eval-api:20260907-abc1234",
+                "image": "registry.example.invalid/blue-benchmark-api:20260907-abc1234",
                 "environment": dict(env),
                 "volumes": [{"type": "volume", "source": "appdata", "target": "/app/storage"}],
             },
             "postgres": {
                 "image": "postgres:16-alpine",
                 "environment": {
-                    "POSTGRES_USER": "skill_eval",
+                    "POSTGRES_USER": "blue_benchmark",
                     "POSTGRES_PASSWORD": PASSWORD,
-                    "POSTGRES_DB": "skill_eval",
+                    "POSTGRES_DB": "blue_benchmark",
                 },
             },
         },
@@ -278,7 +278,7 @@ def compose_config_json(*, checkpoint_db: str = "skill_eval_checkpoint", extra_e
 @pytest.fixture()
 def env(tmp_path: Path, fake_bin: Path) -> dict[str, Any]:
     """一个可用的合成部署环境；返回测试可控的开关字典。"""
-    compose_dir = tmp_path / "opt" / "skill-eval"
+    compose_dir = tmp_path / "opt" / "blue-benchmark"
     compose_dir.mkdir(parents=True)
     (compose_dir / "compose.yaml").write_text("services: {}\n", encoding="utf-8")
     backups_dir = compose_dir / "backups"
@@ -291,7 +291,7 @@ def env(tmp_path: Path, fake_bin: Path) -> dict[str, Any]:
     state = work / "services.state"
     state.write_text("api=running\nworker=running\npostgres=running\n", encoding="utf-8")
     (work / "compose-config.json").write_text(json.dumps(compose_config_json()), encoding="utf-8")
-    (work / "databases.txt").write_text("skill_eval\nskill_eval_checkpoint\npostgres\n", encoding="utf-8")
+    (work / "databases.txt").write_text("blue_benchmark\nblue_benchmark_checkpoint\npostgres\n", encoding="utf-8")
     (work / "business.sql").write_bytes(b"-- synthetic business dump\nCREATE TABLE questions (id int);\n")
     (work / "checkpoint.sql").write_bytes(b"-- synthetic checkpoint dump\n")
 
@@ -344,7 +344,7 @@ def _clean_env_keys():
         "FAKE_PGDATA_SIZE", "FAKE_CONN_COUNT", "FAIL_START", "FAIL_DUMP_DB",
         "FAIL_FILES", "FAIL_CP", "FAIL_RM", "FAIL_CAT", "FAIL_SCP", "DROP_TAIL",
         "CORRUPT_CP", "DROP_CP", "FAKE_VERSIONING", "FAKE_MULTIPART",
-        "OSS_LOCAL", "HOME", "SKILL_EVAL_BACKUP_AES_KEY",
+        "OSS_LOCAL", "HOME", "BLUE_BENCHMARK_BACKUP_AES_KEY",
     ]
     saved = {key: os.environ.get(key) for key in added}
     yield
@@ -404,7 +404,7 @@ def run_success_all(env: dict[str, Any], capsys: pytest.CaptureFixture[str]) -> 
 def assert_no_secrets(text: str) -> None:
     assert PASSWORD not in text, "输出泄漏了数据库密码"
     assert TEST_AES_KEY not in text, "输出泄漏了 AES 密钥"
-    assert f"skill_eval:{PASSWORD}@" not in text, "输出泄漏了含凭证的 DSN"
+    assert f"blue_benchmark:{PASSWORD}@" not in text, "输出泄漏了含凭证的 DSN"
 
 
 def service_states(env: dict[str, Any]) -> dict[str, str]:
@@ -519,7 +519,7 @@ class TestArchiveFormat:
 
     def test_unknown_format_version_rejected(self, tmp_path: Path) -> None:
         def tamper(manifest: dict[str, Any]) -> dict[str, Any]:
-            manifest["format"] = "skill-eval-backup/v0"
+            manifest["format"] = "blue-benchmark-backup/v0"
             return manifest
 
         archive = backup.build_synthetic_archive(tmp_path / "latest.tar.gz", tamper_manifest=tamper)
@@ -554,22 +554,22 @@ class TestConfigParsing:
 
     def test_valid_config(self, env: dict[str, Any]) -> None:
         config = backup.load_deploy_config(env["compose_dir"])
-        assert config.business.dbname == "skill_eval"
-        assert config.checkpoint.dbname == "skill_eval_checkpoint"
-        assert config.oss is not None and config.oss.prefix == "skill-eval-backups"
+        assert config.business.dbname == "blue_benchmark"
+        assert config.checkpoint.dbname == "blue_benchmark_checkpoint"
+        assert config.oss is not None and config.oss.prefix == "blue-benchmark-backups"
         assert_no_secrets(config.safe_summary())
 
     def test_api_worker_mismatch_rejected(self, env: dict[str, Any]) -> None:
         config = compose_config_json()
         config["services"]["worker"]["environment"]["CHECKPOINT_DATABASE_URL"] = (
-            f"postgresql://skill_eval:{PASSWORD}@postgres:5432/other_checkpoint"
+            f"postgresql://blue_benchmark:{PASSWORD}@postgres:5432/other_checkpoint"
         )
         self.write_config(env, config)
         with pytest.raises(backup.ConfigError, match="不一致"):
             backup.load_deploy_config(env["compose_dir"])
 
     def test_same_database_name_rejected(self, env: dict[str, Any]) -> None:
-        config = compose_config_json(checkpoint_db="skill_eval")
+        config = compose_config_json(checkpoint_db="blue_benchmark")
         self.write_config(env, config)
         with pytest.raises(backup.ConfigError, match="同名"):
             backup.load_deploy_config(env["compose_dir"])
@@ -584,7 +584,7 @@ class TestConfigParsing:
     def test_dsn_query_override_rejected(self, env: dict[str, Any]) -> None:
         config = compose_config_json()
         config["services"]["api"]["environment"]["DATABASE_URL"] = (
-            f"postgresql://skill_eval:{PASSWORD}@postgres:5432/skill_eval?host=evil.example.com"
+            f"postgresql://blue_benchmark:{PASSWORD}@postgres:5432/blue_benchmark?host=evil.example.com"
         )
         config["services"]["worker"]["environment"]["DATABASE_URL"] = config["services"]["api"]["environment"]["DATABASE_URL"]
         self.write_config(env, config)
@@ -595,7 +595,7 @@ class TestConfigParsing:
         config = compose_config_json()
         for service in ("api", "worker"):
             config["services"][service]["environment"]["DATABASE_URL"] = (
-                f"postgresql://skill_eval:{PASSWORD}@evil.example.com:5432/skill_eval"
+                f"postgresql://blue_benchmark:{PASSWORD}@evil.example.com:5432/blue_benchmark"
             )
         self.write_config(env, config)
         with pytest.raises(backup.ConfigError, match="postgres 服务"):
@@ -658,7 +658,7 @@ class TestRunFlow:
         bundles = [name for name in objects if name.startswith(OSS_BASE + "/bundles/")]
         assert len(bundles) == 1
         assert OSS_BASE + "/latest.json" in objects
-        pointer = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "skill-eval-backups" / "latest.json").read_text(encoding="utf-8"))
+        pointer = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "blue-benchmark-backups" / "latest.json").read_text(encoding="utf-8"))
         assert OSS_BASE + "/" + pointer["object"] == bundles[0]
         assert pointer["backup_id"]
         assert pointer["sha256"]
@@ -675,7 +675,7 @@ class TestRunFlow:
         bundles = [name for name in objects if name.startswith(OSS_BASE + "/bundles/")]
         assert len(bundles) == 1
         assert OSS_BASE + "/latest.json" in objects
-        pointer = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "skill-eval-backups" / "latest.json").read_text(encoding="utf-8"))
+        pointer = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "blue-benchmark-backups" / "latest.json").read_text(encoding="utf-8"))
         assert pointer["backup_id"] == second_id
         assert bundles[0] == f"{OSS_BASE}/bundles/{second_id}.tar.gz"
         # 第一轮对象已被精确删除：events 中有一次针对旧对象的 rm
@@ -688,7 +688,7 @@ class TestRunFlow:
     ) -> None:
         old = backup.build_synthetic_archive(env["backups_dir"] / "latest.tar.gz", backup_id="old-id-00000000")
         old_bytes = old.read_bytes()
-        set_switch("FAIL_DUMP_DB", "skill_eval_checkpoint")
+        set_switch("FAIL_DUMP_DB", "blue_benchmark_checkpoint")
         code, output = run_cli(
             ["run", "--compose-dir", str(env["compose_dir"]), "--backups-dir", str(env["backups_dir"])], capsys
         )
@@ -740,7 +740,7 @@ class TestRunFlow:
     def test_missing_checkpoint_database_refused_before_stop(
         self, env: dict[str, Any], capsys: pytest.CaptureFixture[str]
     ) -> None:
-        Path(os.environ["FAKE_DATABASES"]).write_text("skill_eval\npostgres\n", encoding="utf-8")
+        Path(os.environ["FAKE_DATABASES"]).write_text("blue_benchmark\npostgres\n", encoding="utf-8")
         code, output = run_cli(
             ["run", "--compose-dir", str(env["compose_dir"]), "--backups-dir", str(env["backups_dir"])], capsys
         )
@@ -800,7 +800,7 @@ class TestRunFlow:
 
         def interrupting_dump(compose_dir: Path, target: backup.DatabaseTarget, destination: Path) -> None:
             real_pg_dump(compose_dir, target, destination)
-            if target.dbname == "skill_eval_checkpoint":
+            if target.dbname == "blue_benchmark_checkpoint":
                 raise KeyboardInterrupt
 
         env["backups_dir"].mkdir(parents=True, exist_ok=True)
@@ -849,14 +849,14 @@ class TestOssFlow:
         self, env: dict[str, Any], capsys: pytest.CaptureFixture[str]
     ) -> None:
         first = run_success_all(env, capsys)
-        pointer_before = (env["oss_local"] / OSS_BUCKET_DIR / "skill-eval-backups" / "latest.json").read_bytes()
+        pointer_before = (env["oss_local"] / OSS_BUCKET_DIR / "blue-benchmark-backups" / "latest.json").read_bytes()
         set_switch("FAIL_CP", "1")
         output = run_success(env, capsys)  # 服务器副本仍然成功
         assert "服务器副本已更新" in output
         assert "OSS 副本：本次更新失败" in output
         # 服务器完整备份成立，云端失败单独如实报告，不伪称三处同步完成
         assert "服务器完整备份成功；OSS 本次更新失败" in output
-        assert (env["oss_local"] / OSS_BUCKET_DIR / "skill-eval-backups" / "latest.json").read_bytes() == pointer_before
+        assert (env["oss_local"] / OSS_BUCKET_DIR / "blue-benchmark-backups" / "latest.json").read_bytes() == pointer_before
         assert first
 
     def test_readback_mismatch_rejects_candidate(
@@ -870,7 +870,7 @@ class TestOssFlow:
         assert "回读摘要" in output
         bundles_after = [name for name in oss_objects(env) if "bundles/" in name]
         assert bundles_after == bundles_before, "候选失败保留旧对象，坏候选已删除"
-        pointer = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "skill-eval-backups" / "latest.json").read_text(encoding="utf-8"))
+        pointer = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "blue-benchmark-backups" / "latest.json").read_text(encoding="utf-8"))
         assert OSS_BASE + "/" + pointer["object"] == bundles_before[0]
 
     def test_lost_readback_response_rejected(self, env: dict[str, Any], capsys: pytest.CaptureFixture[str]) -> None:
@@ -878,7 +878,7 @@ class TestOssFlow:
         output = run_success(env, capsys)
         assert "OSS 副本：本次更新失败" in output
         assert [name for name in oss_objects(env) if "bundles/" in name] == []
-        assert not (env["oss_local"] / OSS_BUCKET_DIR / "skill-eval-backups" / "latest.json").exists()
+        assert not (env["oss_local"] / OSS_BUCKET_DIR / "blue-benchmark-backups" / "latest.json").exists()
 
     def test_old_object_cleanup_failure_is_diagnosable(
         self, env: dict[str, Any], capsys: pytest.CaptureFixture[str]
@@ -910,7 +910,7 @@ class TestOssFlow:
         bundles = [name for name in oss_objects(env) if "bundles/" in name]
         assert len(bundles) == 2, "清理失败时两套短暂共存，必须如实报告而不是假称一套"
         assert first_bundles[0] in bundles
-        pointer = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "skill-eval-backups" / "latest.json").read_text(encoding="utf-8"))
+        pointer = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "blue-benchmark-backups" / "latest.json").read_text(encoding="utf-8"))
         assert OSS_BASE + "/" + pointer["object"] != first_bundles[0], "指针必须已指向新候选"
 
         # 第三轮：先处理上一轮残留（未发布/过期候选被清理），指针对象保留
@@ -924,7 +924,7 @@ class TestOssFlow:
         self, env: dict[str, Any], capsys: pytest.CaptureFixture[str]
     ) -> None:
         run_success_all(env, capsys)
-        pointer_before = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "skill-eval-backups" / "latest.json").read_text(encoding="utf-8"))
+        pointer_before = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "blue-benchmark-backups" / "latest.json").read_text(encoding="utf-8"))
 
         original_run_cmd = backup.run_cmd
         calls = {"pointer_cp_timed_out": False}
@@ -949,7 +949,7 @@ class TestOssFlow:
             output = run_success_all(env, capsys)
         assert calls["pointer_cp_timed_out"]
         # 结果不明先回读：指针已指向新候选 => 发布成功并删除旧对象
-        pointer_after = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "skill-eval-backups" / "latest.json").read_text(encoding="utf-8"))
+        pointer_after = json.loads((env["oss_local"] / OSS_BUCKET_DIR / "blue-benchmark-backups" / "latest.json").read_text(encoding="utf-8"))
         assert pointer_after["object"] != pointer_before["object"]
         assert "已发布" in output
         bundles = [name for name in oss_objects(env) if "bundles/" in name]
@@ -970,7 +970,7 @@ class TestOssFlow:
     def test_multipart_residue_terminated(self, env: dict[str, Any], capsys: pytest.CaptureFixture[str]) -> None:
         multipart = env["tmp_path"] / "multipart.txt"
         multipart.write_text(
-            "oss://skill-eval-backup-bucket/skill-eval-backups/bundles/ 0004B999EF5FB185A015 uploadId\n",
+            "oss://blue-benchmark-backup-bucket/blue-benchmark-backups/bundles/ 0004B999EF5FB185A015 uploadId\n",
             encoding="utf-8",
         )
         set_switch("FAKE_MULTIPART", str(multipart))
@@ -1008,7 +1008,7 @@ class TestDownload:
         return archive
 
     def local_dir(self, env: dict[str, Any]) -> Path:
-        path = env["tmp_path"] / "mac" / "skill-eval-backups"
+        path = env["tmp_path"] / "mac" / "blue-benchmark-backups"
         path.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -1207,7 +1207,7 @@ class TestVerifyAndRestoreCheck:
         self, env: dict[str, Any], capsys: pytest.CaptureFixture[str]
     ) -> None:
         # DSN 含密码；任何报错输出都必须脱敏
-        config = compose_config_json(checkpoint_db="skill_eval")  # 两库同名 -> ConfigError
+        config = compose_config_json(checkpoint_db="blue_benchmark")  # 两库同名 -> ConfigError
         Path(os.environ["FAKE_COMPOSE_CONFIG"]).write_text(json.dumps(config), encoding="utf-8")
         code, output = run_cli(
             ["run", "--compose-dir", str(env["compose_dir"]), "--backups-dir", str(env["backups_dir"])], capsys

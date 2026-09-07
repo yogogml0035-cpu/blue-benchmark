@@ -7,7 +7,7 @@ attempts, and complete cross-store deletion (business rows + checkpoint rows)
 with zero residue.
 
 Gated like the C2 primitive tests: skips loudly without PostgreSQL and fails
-under RUNTIME_PG_REQUIRED=1. Never touches skill_eval / skill_eval_checkpoint.
+under RUNTIME_PG_REQUIRED=1. Never touches blue_benchmark / blue_benchmark_checkpoint.
 """
 
 from __future__ import annotations

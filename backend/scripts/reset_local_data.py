@@ -2,7 +2,7 @@
 
 Scope and authority: this tool exists solely to execute the user-authorized
 ONE-TIME cleanup of the local Docker PostgreSQL project databases
-(``skill_eval`` and ``skill_eval_checkpoint``) during the M0 rubric refactor
+(``blue_benchmark`` and ``blue_benchmark_checkpoint``) during the M0 rubric refactor
 cutover. It is NOT a recurring maintenance job, must never be wired into
 ``make test``, application startup, or ordinary migrations, and its authority
 does not extend to data uploaded after the cutover.
@@ -29,7 +29,7 @@ Safety contract:
 Usage:
     cd backend && uv run python -m scripts.reset_local_data --dry-run
     cd backend && uv run python -m scripts.reset_local_data --execute \
-        --confirm-targets skill_eval,skill_eval_checkpoint
+        --confirm-targets blue_benchmark,blue_benchmark_checkpoint
 """
 
 from __future__ import annotations
@@ -52,12 +52,13 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-ALLOWED_TARGETS: frozenset[str] = frozenset({"skill_eval", "skill_eval_checkpoint"})
+ALLOWED_TARGETS: frozenset[str] = frozenset({"blue_benchmark", "blue_benchmark_checkpoint"})
 EXPECTED_HOST = "127.0.0.1"
 EXPECTED_PORT = 5432
-DEFAULT_CONTAINER = "skill-eval-platform-postgres"
-DEFAULT_BACKUP_ROOT = Path(
-    "/Users/hsikey/Company/skill-eval-platform-wt/_artifacts/m0-rubric-anchors-evidence/c5"
+DEFAULT_CONTAINER = "blue-benchmark-postgres"
+# Non-git artifact area: <repo-parent>/blue-benchmark-wt/_artifacts (outside the repo).
+DEFAULT_BACKUP_ROOT = (
+    BACKEND_ROOT.parents[1] / "blue-benchmark-wt" / "_artifacts" / "m0-rubric-anchors-evidence" / "c5"
 )
 
 
@@ -77,7 +78,7 @@ def verify_target(dsn: str, *, allowed: frozenset[str] = ALLOWED_TARGETS) -> str
 
     Query strings and fragments are refused outright: libpq lets them
     override host/port/dbname, which would otherwise punch through the
-    whitelist (verified attack: ``...skill_eval?host=evil&dbname=postgres``).
+    whitelist (verified attack: ``...blue_benchmark?host=evil&dbname=postgres``).
     """
     raw = dsn.replace("postgresql+psycopg://", "postgresql://")
     if not raw.startswith("postgresql://"):
@@ -193,7 +194,7 @@ def verify_container_matches_endpoint(
     """Prove the Docker container hosts the SAME server as the TCP DSN."""
     tcp_id = server_identity(dsn, allowed=allowed)
     out = subprocess.run(
-        ["docker", "exec", container, "psql", "-U", "skill_eval", "-d", "postgres",
+        ["docker", "exec", container, "psql", "-U", "blue_benchmark", "-d", "postgres",
          "-tAc", "SELECT system_identifier FROM pg_control_system()"],
         capture_output=True, text=True, timeout=30,
     )
@@ -214,7 +215,7 @@ def backup_database(container: str, db_name: str, backup_dir: Path) -> dict[str,
     remote_path = f"/tmp/{db_name}-{stamp}-{os.getpid()}.dump"
     local_path = backup_dir / f"{db_name}-{stamp}-{os.getpid()}.dump"
     dump = subprocess.run(
-        ["docker", "exec", container, "pg_dump", "-U", "skill_eval", "-d", db_name,
+        ["docker", "exec", container, "pg_dump", "-U", "blue_benchmark", "-d", db_name,
          "-Fc", "-f", remote_path],
         capture_output=True, text=True, timeout=600,
     )
@@ -278,13 +279,13 @@ def reset_database(dsn: str, *, allowed: frozenset[str] = ALLOWED_TARGETS) -> No
                 # connecting role what it needs to rebuild, and the dedicated
                 # checkpoint role its targeted privileges.
                 cur.execute('GRANT ALL ON SCHEMA public TO "%s"' % role)  # noqa: S608
-                if db_name == "skill_eval_checkpoint" and role != "skill_eval_checkpoint":
+                if db_name == "blue_benchmark_checkpoint" and role != "blue_benchmark_checkpoint":
                     cur.execute(
-                        "SELECT 1 FROM pg_roles WHERE rolname = 'skill_eval_checkpoint'"
+                        "SELECT 1 FROM pg_roles WHERE rolname = 'blue_benchmark_checkpoint'"
                     )
                     if cur.fetchone():
                         cur.execute(
-                            "GRANT USAGE, CREATE ON SCHEMA public TO skill_eval_checkpoint"
+                            "GRANT USAGE, CREATE ON SCHEMA public TO blue_benchmark_checkpoint"
                         )
             finally:
                 cur.execute("SELECT pg_advisory_unlock(hashtext('c5-reset-local-data'))")
@@ -360,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--execute", action="store_true",
                         help="执行一次性重置（需要 --confirm-targets 精确匹配）")
     parser.add_argument("--confirm-targets", default="",
-                        help="执行确认：必须精确为 skill_eval,skill_eval_checkpoint")
+                        help="执行确认：必须精确为 blue_benchmark,blue_benchmark_checkpoint")
     parser.add_argument("--container", default=DEFAULT_CONTAINER)
     parser.add_argument("--backup-dir", default="",
                         help=f"备份目录（默认 {DEFAULT_BACKUP_ROOT}/<UTC时间戳>）")
@@ -368,8 +369,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--checkpoint-dsn", default="")
     args = parser.parse_args(argv)
 
-    if args.execute and args.confirm_targets.strip() != "skill_eval,skill_eval_checkpoint":
-        print("RESET=REFUSED --confirm-targets 必须精确为 skill_eval,skill_eval_checkpoint",
+    if args.execute and args.confirm_targets.strip() != "blue_benchmark,blue_benchmark_checkpoint":
+        print("RESET=REFUSED --confirm-targets 必须精确为 blue_benchmark,blue_benchmark_checkpoint",
               file=sys.stderr)
         return 2
 

@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Skill Eval Platform API",
+    "title": "Blue Benchmark API",
     "description": "Backend service for scene-scoped evaluation question management.",
     "version": "0.2.0"
   },

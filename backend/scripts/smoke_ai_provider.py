@@ -15,7 +15,7 @@ Required environment:
 
 Usage:
     cd backend && uv run python -m scripts.smoke_ai_provider \
-        --corpus-root /Users/hsikey/Company/skill-eval-platform/.local-samples/m0
+        --corpus-root <repo-root>/.local-samples/m0
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-FORBIDDEN_DB_NAMES = {"skill_eval", "skill_eval_checkpoint", "postgres", "template1"}
+FORBIDDEN_DB_NAMES = {"blue_benchmark", "blue_benchmark_checkpoint", "postgres", "template1"}
 
 
 def _fail(message: str) -> None:
@@ -40,7 +40,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--corpus-root",
-        default="/Users/hsikey/Company/skill-eval-platform/.local-samples/m0",
+        default=str(Path(__file__).resolve().parents[2] / ".local-samples" / "m0"),
     )
     parser.add_argument("--case", default="m0-real-f-financial-report")
     parser.add_argument("--out", default="storage/acceptance/m0-ai-smoke")

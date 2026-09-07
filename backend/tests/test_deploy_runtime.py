@@ -489,8 +489,8 @@ class TestNginxRefreshIntegration:
         assert headers["x-forwarded-proto"] == "http"
         assert "x-forwarded-for" in headers and headers["x-forwarded-for"]
         assert headers.get("x-real-ip")
-        status, _, body = http_get(base("/api/echo"), headers={"Cookie": "skill_eval_session=abc123"})
-        assert json.loads(body)["headers"]["cookie"] == "skill_eval_session=abc123"
+        status, _, body = http_get(base("/api/echo"), headers={"Cookie": "blue_benchmark_session=abc123"})
+        assert json.loads(body)["headers"]["cookie"] == "blue_benchmark_session=abc123"
         # 根路径到 console 上游
         status, _, body = http_get(base("/echo"))
         assert status == 200 and json.loads(body)["marker"] == "marker-v1"
@@ -585,7 +585,7 @@ INSERT INTO checkpoints VALUES ('thread-1', decode('deadbeef', 'hex'));
 
 def psql_exec(container: str, dbname: str, sql: str) -> str:
     result = docker(
-        ["exec", "-i", container, "psql", "-v", "ON_ERROR_STOP=1", "-U", "skill_eval", "-d", dbname],
+        ["exec", "-i", container, "psql", "-v", "ON_ERROR_STOP=1", "-U", "blue_benchmark", "-d", dbname],
         input=sql,
     )
     assert result.returncode == 0, backup.redact(f"psql 失败：{result.stdout}\n{result.stderr}")
@@ -634,11 +634,11 @@ def backup_stack(project_name: str) -> Any:
                   postgres:
                     image: postgres:16-alpine
                     environment:
-                      POSTGRES_USER: skill_eval
+                      POSTGRES_USER: blue_benchmark
                       POSTGRES_PASSWORD: {PASSWORD}
-                      POSTGRES_DB: skill_eval
+                      POSTGRES_DB: blue_benchmark
                     healthcheck:
-                      test: ["CMD-SHELL", "pg_isready -U skill_eval -d skill_eval"]
+                      test: ["CMD-SHELL", "pg_isready -U blue_benchmark -d blue_benchmark"]
                       interval: 3s
                       timeout: 3s
                       retries: 20
@@ -654,9 +654,9 @@ def backup_stack(project_name: str) -> Any:
             encoding="utf-8",
         )
         compose_ok(project_name, compose_path, ["up", "-d", "--wait", "--timeout", "180"])
-        docker_ok(["exec", pg_container, "createdb", "-U", "skill_eval", "skill_eval_checkpoint"])
-        psql_exec(pg_container, "skill_eval", BUSINESS_FIXTURE_SQL)
-        psql_exec(pg_container, "skill_eval_checkpoint", CHECKPOINT_FIXTURE_SQL)
+        docker_ok(["exec", pg_container, "createdb", "-U", "blue_benchmark", "blue_benchmark_checkpoint"])
+        psql_exec(pg_container, "blue_benchmark", BUSINESS_FIXTURE_SQL)
+        psql_exec(pg_container, "blue_benchmark_checkpoint", CHECKPOINT_FIXTURE_SQL)
 
         os.environ["EVENTS"] = str(events)
         os.environ["OSS_LOCAL"] = str(oss_local)
@@ -800,8 +800,8 @@ class TestBackupRestoreIntegration:
             }, "文件成员应与只读一次性容器导出的卷内容一致"
 
             # 恢复目标：同一 postgres 实例上的全新隔离库（受控输入、SQL 错误即停）
-            docker_ok(["exec", pg_container, "createdb", "-U", "skill_eval", "restore_biz"])
-            docker_ok(["exec", pg_container, "createdb", "-U", "skill_eval", "restore_ckpt"])
+            docker_ok(["exec", pg_container, "createdb", "-U", "blue_benchmark", "restore_biz"])
+            docker_ok(["exec", pg_container, "createdb", "-U", "blue_benchmark", "restore_ckpt"])
             restore_dir = tmp_path / "restore"
             restore_dir.mkdir()
             (restore_dir / "business.sql").write_bytes(extract_member(latest, backup.MEMBER_BUSINESS))
@@ -833,7 +833,7 @@ class TestBackupRestoreIntegration:
         finally:
             docker(["volume", "rm", volume], timeout=60)
             for dbname in ("restore_biz", "restore_ckpt"):
-                docker(["exec", pg_container, "dropdb", "-U", "skill_eval", "--if-exists", dbname], timeout=60)
+                docker(["exec", pg_container, "dropdb", "-U", "blue_benchmark", "--if-exists", dbname], timeout=60)
 
     def test_restore_fails_closed_on_wrong_key_missing_member_corruption(
         self, backup_stack: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -880,7 +880,7 @@ class TestBackupRestoreIntegration:
         code = run_backup_tool(stack, monkeypatch, backups_dir)
         captured = capsys.readouterr()
         assert code == 0, backup.redact(captured.out + captured.err)
-        oss_root: Path = stack["oss_local"] / "skill-eval-backup-bucket" / "skill-eval-backups"
+        oss_root: Path = stack["oss_local"] / "blue-benchmark-backup-bucket" / "blue-benchmark-backups"
         bundles = sorted((oss_root / "bundles").glob("*.tar.gz"))
         assert len(bundles) == 1
         pointer = json.loads((oss_root / "latest.json").read_text(encoding="utf-8"))

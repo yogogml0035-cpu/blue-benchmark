@@ -23,14 +23,14 @@ Flow (both C1 case groups by default):
    business tables AND the checkpoint tables, sibling untouched.
 
 Required environment (isolated, task-exclusive targets — the project
-databases skill_eval / skill_eval_checkpoint are REFUSED by name):
+databases blue_benchmark / blue_benchmark_checkpoint are REFUSED by name):
 
-    ACCEPT_BUSINESS_DSN=postgresql+psycopg://...@127.0.0.1:5432/skill_eval_c3_accept
-    ACCEPT_CHECKPOINT_DSN=postgresql://...@127.0.0.1:5432/skill_eval_c3_accept_ckpt
+    ACCEPT_BUSINESS_DSN=postgresql+psycopg://...@127.0.0.1:5432/blue_benchmark_c3_accept
+    ACCEPT_CHECKPOINT_DSN=postgresql://...@127.0.0.1:5432/blue_benchmark_c3_accept_ckpt
 
 Usage:
     cd backend && uv run python -m scripts.accept_real_ai_rubric \
-        --corpus-root /Users/hsikey/Company/skill-eval-platform/.local-samples/m0
+        --corpus-root <repo-root>/.local-samples/m0
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-FORBIDDEN_DB_NAMES = {"skill_eval", "skill_eval_checkpoint", "postgres", "template1"}
+FORBIDDEN_DB_NAMES = {"blue_benchmark", "blue_benchmark_checkpoint", "postgres", "template1"}
 
 
 def _fail(stage: str, message: str) -> None:
@@ -121,7 +121,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--corpus-root",
-        default="/Users/hsikey/Company/skill-eval-platform/.local-samples/m0",
+        default=str(Path(__file__).resolve().parents[2] / ".local-samples" / "m0"),
     )
     parser.add_argument("--out", default="storage/acceptance/m0-accept-real-ai")
     parser.add_argument(

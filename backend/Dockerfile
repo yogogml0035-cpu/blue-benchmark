@@ -5,7 +5,7 @@
 #   worker -> python -m app.lib.operations.worker (override the command)
 #
 # Build from the backend/ directory:
-#   docker buildx build --platform linux/amd64 -t skill-eval-api:<tag> backend/
+#   docker buildx build --platform linux/amd64 -t blue-benchmark-api:<tag> backend/
 
 FROM ghcr.io/astral-sh/uv:latest AS uv
 

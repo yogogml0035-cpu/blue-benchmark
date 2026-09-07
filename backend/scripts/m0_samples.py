@@ -2,7 +2,7 @@
 
 Source root (read-only, never modified)::
 
-    /Users/hsikey/Company/skill-eval-platform/.local-samples/m0
+    <repo-root>/.local-samples/m0
 
 The module extracts two evidence-complete cases — one per corpus group — into
 the existing six-material batch upload contract, plus derived counter-examples
@@ -30,7 +30,7 @@ Hard rules implemented here:
 Usage (private fixtures stay in the gitignored storage/acceptance tree)::
 
     cd backend && uv run python -m scripts.m0_samples \
-        --source-root /Users/hsikey/Company/skill-eval-platform/.local-samples/m0 \
+        --source-root <repo-root>/.local-samples/m0 \
         --out storage/acceptance/m0-real-samples
 
 Console output is a redacted summary only: ids, counts, character lengths and
@@ -1089,7 +1089,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--source-root",
-        default="/Users/hsikey/Company/skill-eval-platform/.local-samples/m0",
+        default=str(Path(__file__).resolve().parents[2] / ".local-samples" / "m0"),
         help="read-only corpus root containing the two group directories",
     )
     parser.add_argument(

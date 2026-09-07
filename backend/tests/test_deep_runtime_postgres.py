@@ -1,9 +1,9 @@
 """PostgreSQL durability tests for the deep-agent runtime primitives.
 
 These tests run against a TASK-EXCLUSIVE database on the same Docker
-PostgreSQL instance (``skill_eval_c2_runtime_test`` derived from the
-configured checkpoint DSN). They never touch the project's ``skill_eval`` or
-``skill_eval_checkpoint`` databases.
+PostgreSQL instance (``blue_benchmark_c2_runtime_test`` derived from the
+configured checkpoint DSN). They never touch the project's ``blue_benchmark`` or
+``blue_benchmark_checkpoint`` databases.
 
 If no PostgreSQL is reachable the module skips loudly with an explicit reason
 — a skip here is never real persistence evidence; the C2 acceptance run must
@@ -25,7 +25,7 @@ pytest.importorskip("psycopg")
 
 from tests.test_deep_runtime import IDENTITY, ScriptedModel, scripted_agent  # noqa: E402
 
-TEST_DB_NAME = "skill_eval_c2_runtime_test"
+TEST_DB_NAME = "blue_benchmark_c2_runtime_test"
 
 
 def _test_dsn() -> str:
@@ -65,8 +65,8 @@ def pg_env() -> Any:
 
     Preparation (once per machine, superuser role)::
 
-        docker exec skill-eval-platform-postgres psql -U skill_eval -d postgres \
-          -c 'CREATE DATABASE skill_eval_c2_runtime_test OWNER skill_eval_checkpoint'
+        docker exec blue-benchmark-postgres psql -U blue_benchmark -d postgres \
+          -c 'CREATE DATABASE blue_benchmark_c2_runtime_test OWNER blue_benchmark_checkpoint'
     """
     import psycopg
 

@@ -1,5 +1,5 @@
 [project]
-name = "skill-eval-platform-backend"
+name = "blue-benchmark-backend"
 version = "0.2.0"
 description = "Backend service for scene-scoped evaluation question management"
 requires-python = ">=3.12,<3.14"

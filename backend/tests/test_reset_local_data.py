@@ -2,11 +2,11 @@
 
 The CLI target whitelist is deliberately NOT overridable, so these tests
 exercise the internal functions with an explicit isolated allow-set against
-the task-exclusive ``skill_eval_c5_reset_test`` database, plus the CLI's
+the task-exclusive ``blue_benchmark_c5_reset_test`` database, plus the CLI's
 refusal paths. Preparation (once per machine)::
 
-    docker exec skill-eval-platform-postgres psql -U skill_eval -d postgres \
-      -c 'CREATE DATABASE skill_eval_c5_reset_test OWNER skill_eval'
+    docker exec blue-benchmark-postgres psql -U blue_benchmark -d postgres \
+      -c 'CREATE DATABASE blue_benchmark_c5_reset_test OWNER blue_benchmark'
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import pytest
 
 from scripts import reset_local_data as rst
 
-TEST_DB = "skill_eval_c5_reset_test"
+TEST_DB = "blue_benchmark_c5_reset_test"
 ALLOWED = frozenset({TEST_DB})
 
 
@@ -67,34 +67,34 @@ def dsn() -> str:
 # ---------------------------------------------------------------------------
 
 def test_verify_target_whitelist():
-    ok = f"postgresql://u:p@{rst.EXPECTED_HOST}:{rst.EXPECTED_PORT}/skill_eval"
-    assert rst.verify_target(ok) == "skill_eval"
-    ckpt = f"postgresql://u:p@{rst.EXPECTED_HOST}:{rst.EXPECTED_PORT}/skill_eval_checkpoint"
-    assert rst.verify_target(ckpt) == "skill_eval_checkpoint"
+    ok = f"postgresql://u:p@{rst.EXPECTED_HOST}:{rst.EXPECTED_PORT}/blue_benchmark"
+    assert rst.verify_target(ok) == "blue_benchmark"
+    ckpt = f"postgresql://u:p@{rst.EXPECTED_HOST}:{rst.EXPECTED_PORT}/blue_benchmark_checkpoint"
+    assert rst.verify_target(ckpt) == "blue_benchmark_checkpoint"
 
 
 @pytest.mark.parametrize("bad", [
     "postgresql://u:p@127.0.0.1:5432/postgres",
     "postgresql://u:p@127.0.0.1:5432/template1",
     "postgresql://u:p@127.0.0.1:5432/some_other_project",
-    "postgresql://u:p@db.example.com:5432/skill_eval",       # remote host
-    "postgresql://u:p@127.0.0.1:6543/skill_eval",            # wrong port
-    "postgresql://u@127.0.0.1:5432/skill_eval",              # no password to verify
+    "postgresql://u:p@db.example.com:5432/blue_benchmark",       # remote host
+    "postgresql://u:p@127.0.0.1:6543/blue_benchmark",            # wrong port
+    "postgresql://u@127.0.0.1:5432/blue_benchmark",              # no password to verify
     "sqlite:///business.db",                                  # wrong engine
     "postgresql://u:p@127.0.0.1:5432/",                       # no dbname
     # C-1 regressions: libpq query/fragment overrides must never pass.
-    "postgresql://u:p@127.0.0.1:5432/skill_eval?host=evil.example.com",
-    "postgresql://u:p@127.0.0.1:5432/skill_eval?hostaddr=93.184.216.34",
-    "postgresql://u:p@127.0.0.1:5432/skill_eval?dbname=postgres",
-    "postgresql://u:p@127.0.0.1:5432/skill_eval?port=6543",
-    "postgresql://u:p@127.0.0.1:5432/skill_eval#frag",
+    "postgresql://u:p@127.0.0.1:5432/blue_benchmark?host=evil.example.com",
+    "postgresql://u:p@127.0.0.1:5432/blue_benchmark?hostaddr=93.184.216.34",
+    "postgresql://u:p@127.0.0.1:5432/blue_benchmark?dbname=postgres",
+    "postgresql://u:p@127.0.0.1:5432/blue_benchmark?port=6543",
+    "postgresql://u:p@127.0.0.1:5432/blue_benchmark#frag",
     # Additional shape attacks verified refused.
-    "postgresql://u:p@127.0.0.1:5432/SkillEval",              # case mismatch
+    "postgresql://u:p@127.0.0.1:5432/BlueBenchmark",              # case mismatch
     "postgresql://u:p@127.0.0.1:5432/skill%5Feval",           # percent-encoding
-    "postgresql://u:p@127.0.0.1:5432/skill_eval/extra",       # multi-segment path
-    "postgresql://u:p@[::1]:5432/skill_eval",                 # IPv6 literal
-    "postgresql+asyncpg://u:p@127.0.0.1:5432/skill_eval",     # other driver prefix
-    "postgresql://u:p@localhost:5432/skill_eval",             # non-IP hostname
+    "postgresql://u:p@127.0.0.1:5432/blue_benchmark/extra",       # multi-segment path
+    "postgresql://u:p@[::1]:5432/blue_benchmark",                 # IPv6 literal
+    "postgresql+asyncpg://u:p@127.0.0.1:5432/blue_benchmark",     # other driver prefix
+    "postgresql://u:p@localhost:5432/blue_benchmark",             # non-IP hostname
 ])
 def test_verify_target_refuses(bad):
     with pytest.raises(rst.ResetRefused):
@@ -102,14 +102,14 @@ def test_verify_target_refuses(bad):
 
 
 def test_connect_params_never_reparses_raw_dsn():
-    params = rst.connect_params("postgresql+psycopg://u:p@127.0.0.1:5432/skill_eval")
-    assert params == {"host": "127.0.0.1", "port": 5432, "dbname": "skill_eval",
+    params = rst.connect_params("postgresql+psycopg://u:p@127.0.0.1:5432/blue_benchmark")
+    assert params == {"host": "127.0.0.1", "port": 5432, "dbname": "blue_benchmark",
                       "user": "u", "password": "p"}
 
 
 def test_cli_execute_requires_exact_confirmation(dsn):
     rc = rst.main([
-        "--execute", "--confirm-targets", "skill_eval",
+        "--execute", "--confirm-targets", "blue_benchmark",
         "--business-dsn", dsn, "--checkpoint-dsn", dsn,
     ])
     # Wrong confirm string: refused before any DSN is even parsed.

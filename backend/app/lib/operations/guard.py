@@ -23,7 +23,7 @@ class WorkerAlreadyRunning(WorkerLockError):
 
 
 _ADVISORY_LOCK_KEY = int.from_bytes(
-    sha256(b"skill-eval-platform:operation-worker").digest()[:8],
+    sha256(b"blue-benchmark:operation-worker").digest()[:8],
     byteorder="big",
     signed=True,
 )

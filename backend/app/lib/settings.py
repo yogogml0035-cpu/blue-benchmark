@@ -9,12 +9,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
-    app_name: str = "Skill Eval Platform API"
-    session_cookie_name: str = "skill_eval_session"
+    app_name: str = "Blue Benchmark API"
+    session_cookie_name: str = "blue_benchmark_session"
     # Secure by default; local HTTP development must opt out explicitly via
     # SESSION_COOKIE_SECURE=false in .env.
     session_cookie_secure: bool = True
-    database_url: str = f"sqlite:///{Path(__file__).resolve().parents[2] / 'storage' / 'skill-eval.db'}"
+    database_url: str = f"sqlite:///{Path(__file__).resolve().parents[2] / 'storage' / 'blue-benchmark.db'}"
     # A real provider is the safe default for the long-running worker.  Tests
     # and local deterministic runs must opt into ``fake`` explicitly.
     ai_runtime_mode: str = "production"
