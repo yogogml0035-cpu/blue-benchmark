@@ -17,8 +17,12 @@ services:
     depends_on:
       web:
         condition: service_healthy
+        # Compose >= 2.17：显式更新/重启 web 时同步重启 nginx，
+        # 使其在启动时重新解析上游地址，不滞留旧容器 IP
+        restart: true
       api:
         condition: service_healthy
+        restart: true
     restart: unless-stopped
     logging: &logging
       driver: json-file

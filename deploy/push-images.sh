@@ -50,9 +50,16 @@ docker buildx build --platform linux/amd64 \
   --push backend/
 
 echo
-echo "推送完成。接下来在服务器上执行："
+echo "推送完成。接下来在服务器上执行（按整个 Compose 服务图更新，"
+echo "不要跳过依赖或单独重启某个服务——那会绕过 nginx 的依赖重启，"
+echo "导致代理滞留旧容器地址）："
 echo "  1. 把 /opt/skill-eval/.env 中的 TAG 改为：$TAG"
 echo "  2. cd /opt/skill-eval"
-echo "  3. docker compose run --rm api alembic upgrade head"
+echo "  3. 如果本次发版包含数据库迁移：docker compose run --rm api alembic upgrade head"
 echo "  4. docker compose pull && docker compose up -d"
-echo "  5. docker compose ps 确认全部 healthy"
+echo "     （compose.yaml 已声明 nginx 随 api/web 更新重启，up -d 会自动完成地址刷新）"
+echo "  5. docker compose ps 等待全部 healthy"
+echo "  6. 检查 Nginx 请求确实到达新实例："
+echo "     curl -sf http://127.0.0.1/healthz && docker compose logs nginx --tail 20"
+echo
+echo "回滚：把 .env 中 TAG 改回上一版本后重复第 4-6 步（同样走完整服务图）。"
