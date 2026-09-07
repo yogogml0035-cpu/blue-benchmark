@@ -20,10 +20,10 @@
  * are all removed. Only processes started by THIS run are ever killed.
  *
  * Required environment:
- *   ACCEPT_BUSINESS_DSN=postgresql+psycopg://...@127.0.0.1:5432/skill_eval_c3_accept_web
- *   ACCEPT_CHECKPOINT_DSN=postgresql://...@127.0.0.1:5432/skill_eval_c3_accept_web_ckpt
+ *   ACCEPT_BUSINESS_DSN=postgresql+psycopg://...@127.0.0.1:5432/blue_benchmark_c3_accept_web
+ *   ACCEPT_CHECKPOINT_DSN=postgresql://...@127.0.0.1:5432/blue_benchmark_c3_accept_web_ckpt
  * Optional:
- *   ACCEPT_CORPUS_ROOT (default /Users/hsikey/Company/skill-eval-platform/.local-samples/m0)
+ *   ACCEPT_CORPUS_ROOT (default <repoRoot>/.local-samples/m0)
  *   ACCEPT_CASE (default m0-real-f-financial-report)
  *
  * Output is sanitized: stage markers, counts, ids and the final
@@ -42,9 +42,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const backendRoot = path.join(repoRoot, "backend");
 
-const FORBIDDEN_DB_NAMES = new Set(["skill_eval", "skill_eval_checkpoint", "postgres", "template1"]);
+const FORBIDDEN_DB_NAMES = new Set(["blue_benchmark", "blue_benchmark_checkpoint", "postgres", "template1"]);
 const CORPUS_ROOT = process.env.ACCEPT_CORPUS_ROOT
-  ?? "/Users/hsikey/Company/skill-eval-platform/.local-samples/m0";
+  ?? path.join(repoRoot, ".local-samples", "m0");
 const CASE_ID = process.env.ACCEPT_CASE ?? "m0-real-f-financial-report";
 const GENERATION_TIMEOUT_MS = 30 * 60 * 1000;
 

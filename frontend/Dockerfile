@@ -1,7 +1,7 @@
 # Production image for the Next.js admin console.
 #
 # Build from the frontend/ directory:
-#   docker buildx build --platform linux/amd64 -t skill-eval-web:<tag> frontend/
+#   docker buildx build --platform linux/amd64 -t blue-benchmark-web:<tag> frontend/
 #
 # The browser only talks to the same-origin /api prefix; Next.js rewrites it
 # to the FastAPI backend via the server-side BACKEND_URL env var.
