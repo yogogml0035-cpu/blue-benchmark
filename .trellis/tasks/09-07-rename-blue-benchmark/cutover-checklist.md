@@ -48,4 +48,9 @@ docker compose ls     # 如有旧项目名残留,在新目录重新 up
 
 - `cd /Users/hsikey/Company/blue-benchmark && make test && make build` 全绿。
 - 起本地服务,注册/登录首个管理员(业务库当前为 0 用户属预期,见任务 evidence.md),确认 Cookie 名为 `blue_benchmark_session`。
-- 服务器发版实操:按新版 `deploy/README.md`、`deploy/server-setup.md` 继续(镜像 `blue-benchmark-web/api`、服务器目录 `/opt/blue-benchmark/`、库 `blue_benchmark*`、备份格式 `blue-benchmark-backup/v1`、Mac 下载目录 `~/blue-benchmark-backups/`、环境变量 `BLUE_BENCHMARK_BACKUP_AES_KEY`);发版顺序沿用既有计划:补 env → 建 checkpoint 库 → 0021 迁移先行。
+- 服务器发版实操:按新版 `deploy/README.md`、`deploy/server-setup.md` 继续(镜像 `blue-benchmark-web/api`、服务器目录 `/opt/blue-benchmark/`、库 `blue_benchmark*`、备份格式 `blue-benchmark-backup/v1`、Mac 下载目录 `~/blue-benchmark-backups/`、verify 密钥环境变量 `BLUE_BENCHMARK_BACKUP_AES_KEY`);发版顺序以 `deploy/server-setup.md` 第 8 步为准(pull → alembic upgrade head(0021 先行)→ createdb checkpoint → up -d)。
+
+## 7. 合并/切换窗口期门禁(advisory lock salt 已随改名变更)
+
+- 旧代码(main 检出)与新代码(任务分支)的 Worker advisory lock key 不同,若同时各起一个 Worker 连同一个库,单消费者保护会静默失效。在合并与 main 复验完成前,确认所有检出(主工作区 + 全部 worktree)均无 API/Worker 进程在跑(`pgrep -fl 'uvicorn|operations.worker'` 应为空)。
+- worktree 内跑真实验收脚本(real-acceptance/accept_*)时,语料默认值现在按仓库根解析,而 `.local-samples/m0` 只在主工作区(gitignored):需显式传 `ACCEPT_CORPUS_ROOT`/`--corpus-root` 指向主工作区语料,或先复制语料到 worktree。

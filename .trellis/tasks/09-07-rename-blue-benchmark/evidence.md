@@ -53,3 +53,20 @@ design.md §4 假设"本地 dev 库含真实数据",执行时实测为空:改名
 - 品牌检索:`frontend` 内所有「汽车事业 BenchMark 平台」均带「蓝标」前缀(AC2)。
 - 锁文件/生成物:`uv lock` 重生成 uv.lock(diff 仅包名区块 55+/55-,无版本漂移);`make openapi` 重生成 openapi.json(diff 仅 title 行);`pnpm generate:api`+`check:api` 通过(generated.ts 无 diff);pnpm-lock.yaml 无自名引用,未重生成。
 - 冒烟(AC4 替代路径):worktree 起后端(端口 8000)→ `/healthz` 返回 `"service":"Blue Benchmark API"` → `/api/auth/bootstrap` `registration_available:true` → 注册临时管理员 201 且 `set-cookie: blue_benchmark_session=...`(新 Cookie 名生效)→ 登录 200 → `/api/auth/me` 正常 → `/api/questions` 通过鉴权(返回 scene_id 参数校验错误,证明业务库新名连接与会话链路可用)→ 冒烟后停服并删除临时管理员与 sessions,库恢复 0 用户干净状态。
+
+## 对抗式审查第 1 轮(3 个并行只读代理:运行时/部署/一致性)结论与修正
+
+修正(改名相关,已在本分支提交):
+- backend/tests/test_reset_local_data.py:百分号编码攻击串 `skill%5Feval` → `blue%5Fbenchmark`(原串是旧白名单名的编码形态,改名后防护语义失效;且属 AC1 检索式 `skill.?eval` 的盲区)。修正后扩展检索式 `skill[-_ %5F]?eval|skilleval`(大小写不敏感、含隐藏文件、排除既定目录)全仓零命中;test_reset_local_data.py 27 passed(c5 前置库已建,门控全开)。
+- deploy/backup.py docstring:verify 的密钥环境变量名从错误的 `LANGGRAPH_AES_KEY` 改为实际的 `BLUE_BENCHMARK_BACKUP_AES_KEY`(值为原 LANGGRAPH_AES_KEY);restore.md 同步补充该变量名与"推荐密钥文件"的用法边界。
+- deploy/README.md:SSH 别名示例 `evalserver` → `bbserver`(消除旧 eval 色彩示例词)。
+- design.md §1 补 advisory lock salt 映射行;cutover-checklist.md 修正发版顺序口径(以 server-setup.md 第 8 步为准)并新增"合并窗口期无 Worker 进程"门禁与 worktree 验收语料根提示。
+
+确认为 main 既有缺陷、与命名无关、超出本任务边界(记入 followups.md 留待独立任务):
+- restore.md 恢复后抽查 SQL 用了不存在的表 `questions`(实际 `eval_questions`)。
+- restore.md 第 7 步 `docker volume rm -f` 会被 exited 容器阻挡,且缺少对 `docker compose down -v` 误操作的警告。
+- deploy/backup.py `_discover_schema_version` 探测 `backend/alembic/versions`(实际 `backend/migrations/versions`,且服务器布局无 repo 检出),manifest 业务 schema 版本恒"未知"。
+- deploy/README.md 与 push-images.sh 的"等待全部 healthy"口径与 compose 实际(worker/nginx 无 healthcheck)不符。
+- acr-guide.md "验证推送"段实际未 push 且吞错;REGISTRY 留空的降级叙述只对基础镜像成立;compose.yaml 注释版本基线(>=2.17)与文档(2.20+)不一致;alembic.ini sqlite URL 为死配置(env.py 恒覆盖)。
+
+审查代理一致确认:AC1-AC7 证据成立、映射表逐项落实无形态错配、锁文件无漂移、提交卫生良好、无第三形态称呼。

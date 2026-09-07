@@ -19,6 +19,7 @@
 | `skill_eval_c5_reset_test` 等测试/验收库名 | `blue_benchmark_c5_reset_test` 等 | snake | backend/tests/*、backend/scripts/accept_*.py、frontend/scripts/real-acceptance.mjs |
 | `FORBIDDEN_DB_NAMES` 中 `skill_eval*` | `blue_benchmark*` | snake | accept_skill_push.py:42、accept_real_ai_rubric.py:50、real-acceptance.mjs:45 |
 | 硬编码 `/Users/hsikey/Company/skill-eval-platform/...` | 相对仓库根解析,不写死绝对路径 | — | frontend/scripts/real-acceptance.mjs:26,47 及 backend 脚本中同类路径 |
+| `skill-eval-platform:operation-worker`(advisory lock salt) | `blue-benchmark:operation-worker` | kebab | backend/app/lib/operations/guard.py(仅运行时互斥键,无持久语义;停机切换下无新旧并发窗口) |
 | UI「汽车事业 BenchMark 平台」 | 「蓝标汽车事业 BenchMark 平台」 | 品牌 | frontend/src/app/layout.tsx、app-shell.tsx、(auth)/layout.tsx、globals.css 注释、相关 e2e/vitest 断言 |
 
 文档称呼口径(D9):工程语境 `blue-benchmark`,品牌语境「蓝标汽车事业 BenchMark 平台」,禁止第三形态。
