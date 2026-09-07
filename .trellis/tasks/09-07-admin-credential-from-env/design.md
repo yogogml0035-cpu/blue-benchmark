@@ -24,7 +24,7 @@
      - username 相同且 `_verify_password(env_password, hash)` 通过 → 零写入（每次启动都跑，必须幂等且不做无谓写）。
      - username 不同 → 只改 username（不动 generation，会话按 user_id 绑定不受影响）。
      - 密码验证失败 → 覆盖 hash 且 `password_generation+1` + 同事务删除全部 SessionRow（复用现有 `reset_admin_password` 的原子语义，扩展为 `update_admin_credentials(user_id, username, password_hash, *, bump_generation)`）。
-  4. 密码长度：不适用 8–128 交互强度规则（用户本地即 `admin/admin`）；上限沿用 `LoginRequest.password` 的 128 约束，超长在 seed 时报错而不是静默截断。
+  4. 密码长度：不适用 8–128 交互强度规则（本地开发即用短弱密码）；上限沿用 `LoginRequest.password` 的 128 约束，超长在 seed 时报错而不是静默截断。
 - `app/main.py` lifespan：`check_schema_ready` 门禁之后、`yield` 之前调用 `ensure_admin_from_env()`。注意 seed 不受 `database_schema_check_on_startup` 开关影响——schema 缺失时 seed 自然抛错（e2e/测试均先迁移）。
 - **不新增迁移**：users 表结构不变（username/email nullable/password_hash/generation/admin_slot 均已存在），只写数据。`BUSINESS_SCHEMA_HEAD` 不动。
 
@@ -70,7 +70,7 @@
   ADMIN_PASSWORD=change-me
   ```
 - `deploy/.env.production.example`：同名两键 + 注释「容器启动时自动写入/覆盖管理员；改密 = 改此处并重启 api」。compose 的 api/worker 均 `env_file: .env`，编排零改动；web 服务不需要（凭据只在后端消费）。
-- 主工作区 `.env`（gitignored）：`username = admin` / `password = admin` → `ADMIN_USERNAME=admin` / `ADMIN_PASSWORD=admin`。
+- 主工作区 `.env`（gitignored）：用户手写的 `username` / `password` 两行 → 规范键 `ADMIN_USERNAME` / `ADMIN_PASSWORD`（保留用户选定实值，不进提交）。
 
 ### 测试策略
 

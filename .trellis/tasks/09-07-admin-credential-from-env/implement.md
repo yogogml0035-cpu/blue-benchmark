@@ -61,7 +61,7 @@
 
 - [ ] 7.1 `.env.example`：删 `username = *****` / `password = *****`，加 `ADMIN_USERNAME=change-me` / `ADMIN_PASSWORD=change-me`。
 - [ ] 7.2 `deploy/.env.production.example`：加同名两键 + 注释。
-- [ ] 7.3 主工作区 `.env`（worktree 副本同样改）：`username = admin` / `password = admin` → `ADMIN_USERNAME=admin` / `ADMIN_PASSWORD=admin`。
+- [x] 7.3 主工作区 `.env`（worktree 副本同样改）：手写 `username` / `password` 行 → 规范键 `ADMIN_USERNAME` / `ADMIN_PASSWORD`（保留本地实值，不进提交）。
 
 ## 8. 文档
 

@@ -27,7 +27,7 @@
 
 - `backend/app/lib/settings.py` 新增 `admin_username` / `admin_password`（env 键 `ADMIN_USERNAME` / `ADMIN_PASSWORD`），读取时 strip。
 - 两者任一缺失或为空 → API 启动直接失败并给出明确错误（fail fast），不允许无管理员运行。
-- env 密码不适用交互式强度校验（本地即 `admin/admin`），只要求非空；长度上限沿用登录请求的 128 字符约束。
+- env 密码不适用交互式强度校验（本地开发即用短弱密码），只要求非空；长度上限沿用登录请求的 128 字符约束。
 
 ### R2 启动时自动 upsert 管理员
 
@@ -46,7 +46,7 @@
 ### R4 配置模板与部署适配
 
 - `.env.example`：把现有 `username = *****` / `password = *****` 两行规范化为 `ADMIN_USERNAME=change-me` / `ADMIN_PASSWORD=change-me`（占位符，随仓库提交）。
-- 本地 `.env`（gitignored，不进提交）：把 `username = admin` / `password = admin` 规范化为 `ADMIN_USERNAME=admin` / `ADMIN_PASSWORD=admin`，保留用户选定的值。
+- 本地 `.env`（gitignored，不进提交）：把用户手写的 `username` / `password` 两行规范化为 `ADMIN_USERNAME` / `ADMIN_PASSWORD`，保留用户选定的本地实值（实值只存在于 gitignored 的 `.env`，不出现在任何提交文件）。
 - `deploy/.env.production.example`：新增 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 占位符与注释；`deploy/compose.yaml` 的 api/worker 已用 `env_file: .env` 整体注入，无需改编排。
 - `deploy/server-setup.md` §9「注册管理员」改写为「在 .env.production 配置 ADMIN_USERNAME/ADMIN_PASSWORD，容器启动自动写入，直接登录」。
 

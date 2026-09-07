@@ -17,8 +17,8 @@ pnpm --dir frontend test:e2e       # Playwright（Chromium + WebKit）
 ## 测试分层
 
 - **Vitest 单元/组件**（`src/**/*.test.{ts,tsx}`）：纯逻辑（`redirect.ts`、`client.ts` 错误解析/401 分流）与控件行为（错误关联、密码可见切换、loading 稳定）。用 `@testing-library/react` + jsdom；`src/test/setup.ts` 统一 `jest-dom` 与 `cleanup()`。
-- **Playwright 浏览器**（`e2e/*.spec.ts`）：真实 FastAPI + 真实会话 Cookie。spec 文件名带数字前缀（`01-`、`02-`、`03-`、`04-`）保证串行顺序；`fullyParallel:false` + `workers:1`。
-  - Chromium 完整流程：认证（首注/登录/登出/会话恢复/returnTo/Canvas）+ 评测集与凭证（`03-`）+ 题目审改工作台（`04-`）。
+- **Playwright 浏览器**（`e2e/*.spec.ts`）：真实 FastAPI + 真实会话 Cookie。spec 文件名带数字前缀（`02-`、`03-`、`04-`）保证串行顺序；`fullyParallel:false` + `workers:1`。
+  - Chromium 完整流程：认证（env 账号登录/登出/会话恢复/returnTo/Canvas/注册入口 404 否定回归）+ 评测集与凭证（`03-`）+ 题目审改工作台（`04-`）。
   - WebKit 与 1280x720（chromium-minimum）跑核心登录流程。
 
 ## E2E 隔离后端
@@ -29,13 +29,13 @@ pnpm --dir frontend test:e2e       # Playwright（Chromium + WebKit）
   - 杀后端/worker 要杀整个进程组（`uv run` 会另起子进程，单杀 wrapper 会留孤儿占端口）。
   - `globalSetup` 启动前先 `freePort`（并打印被杀 PID），防止上一次泄漏的进程以"健康但库已被删"的状态污染本轮；setup 中途失败也要清理进程与临时目录。
   - 后端访问日志写入 `$TMPDIR/m0-e2e-backend.log`，便于排查请求顺序。
-  - 串行依赖：`01-`（首注，需空库）必须先于 `02-`（登录，`ensureAdmin` 兜底）；`workers:1` + 文件名数字前缀共同保证顺序，改动前先理解该约定。
+  - 管理员由 `global-setup.ts` 注入的 `ADMIN_USERNAME`/`ADMIN_PASSWORD`（常量在 `e2e/admin.ts`）经后端 lifespan 自动 seed，spec 只登录不注册；`workers:1` + 文件名数字前缀共同保证顺序，改动前先理解该约定。
 - webServer 用 `pnpm build && pnpm start`（生产构建）。**不要用 `next dev`**：本环境 dev 的 HMR WebSocket 握手在 headless Chromium 下失败，导致 React 不水合、页面逻辑不执行；生产构建稳定。`BACKEND_URL` 只在 **build 期** 注入生效（rewrite 目标在构建期固化到 `.next/routes-manifest.json`，运行期再注入无效）。
-- **真实 AI 验收**用独立脚本 `scripts/real-acceptance.mjs`（`make accept-web`）：隔离库 + 8200/3200 端口 + **一个 production worker + 真实 Provider**，真实浏览器走完整链路（首注→评测集→凭证提示词→上传→真实动态维度→保存→发布→重开→再发布），输出 `M0_WEB_ACCEPTANCE=PASS`。它**不复用** E2E 的 fake global-setup（模式不同：production vs fake）。输出只含阶段/计数/ID，绝不含密码、Cookie、token、提示词全文、材料正文或 raw model output。
+- **真实 AI 验收**用独立脚本 `scripts/real-acceptance.mjs`（`make accept-web`）：隔离库 + 8200/3200 端口 + **一个 production worker + 真实 Provider**，真实浏览器走完整链路（env 账号登录→评测集→凭证提示词→上传→真实动态维度→保存→发布→重开→再发布），输出 `M0_WEB_ACCEPTANCE=PASS`。它**不复用** E2E 的 fake global-setup（模式不同：production vs fake）。输出只含阶段/计数/ID，绝不含密码、Cookie、token、提示词全文、材料正文或 raw model output。
 
 ## 契约/一致性
 
-- 认证测试断言真实后端行为：空库 `bootstrap=true`、首注后 `false`、登出后管理员仍存在、用户名与邮箱均可登录。
+- 认证测试断言真实后端行为：入口直达登录页（`/register`、`/api/auth/bootstrap` 均 404）、env 账号可登录、错误密码内联报错、登出后回到登录页。
 - 选择器优先 `getByRole`/`getByLabel`；`getByLabel("密码")` 需 `{ exact: true }`（避免命中"显示密码"按钮与"确认密码"）；`role="alert"` 需过滤面板文案（Next 路由播报器也带 `role=alert`）。
 
 ## 禁止

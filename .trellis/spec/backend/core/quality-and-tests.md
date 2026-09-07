@@ -19,7 +19,7 @@ make build     # 后端编译/导入验证
 `backend/tests/` 使用 FastAPI `TestClient` 做 HTTP 合同级测试，而不是绕过 Router 直接调用 Service：
 
 - `conftest.py` 为每个 pytest 进程提供独立临时 SQLite；
-- `tests/helpers.py` 提供 `register_admin`、`create_scene`、`create_credential`、`upload_batch`、`make_case`、`run_worker_until_idle` 等闭环准备助手；
+- `tests/helpers.py` 提供 `login_admin`（幂等 seed + env 凭据登录）、`create_scene`、`create_credential`、`upload_batch`、`make_case`、`run_worker_until_idle` 等闭环准备助手；`conftest.py` 用 `ADMIN_USERNAME`/`ADMIN_PASSWORD` 测试默认值供 lifespan seed；
 - 需要独立会话/凭证隔离验证时，使用第二个 `TestClient`。
 
 当前覆盖基线：

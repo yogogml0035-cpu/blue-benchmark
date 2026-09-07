@@ -77,9 +77,9 @@ published -> pending_review（review-reopen，保留材料/维度/确认事实�
 
 ## 认证与归属顺序
 
-- 管理员路由用 `Depends(auth_service.require_current_user)` 解析会话；单管理员由数据库唯一约束原子保证。
-- `GET /api/auth/bootstrap` 匿名只返回 `registration_available`，不泄露管理员身份；首注与否的最终防线仍是数据库唯一约束。
-- 本机密码重置只走 `scripts.admin_cli account reset-password`：`getpass` 两次隐藏输入、复用认证层长度校验与 PBKDF2 哈希，同事务更新唯一管理员并删除其全部 Session；密码不进入 argv、输出或日志。
+- 管理员路由用 `Depends(auth_service.require_current_user)` 解析会话；单管理员由数据库唯一约束（`admin_slot`）原子保证。
+- 唯一管理员来自环境变量 `ADMIN_USERNAME`/`ADMIN_PASSWORD`（唯一权威，无注册接口、无首注流程）：API lifespan 调 `ensure_admin_from_env()`——空库创建、与 env 不一致时覆盖（密码变化同事务 bump `password_generation` 并删除全部 Session，用户名变化不动会话）、一致时零写入；任一为空启动即 RuntimeError（fail fast）。改密码 = 改 env + 重启。
+- env 密码不适用交互式强度校验（`assert_valid_password` 已随注册/CLI 改密删除），只要求非空且 ≤128 字符（与 `LoginRequest` 上限一致）。
 - 外部收题用 `scenes.service.require_scene_principal` 解析凭证，返回 `ScenePrincipal(scene_id, credential_id)`；凭证只能“查询连接状态 + 批量上传”，不能读取/修改/删除/发布题目。
 - 保持 `401`（未登录/凭证无效）、`403`（越权）、`404`（授权范围内不存在）、`409`（状态/版本/幂等冲突）的语义。
 

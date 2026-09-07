@@ -18,13 +18,13 @@
 ## 会话状态
 
 - `SessionProvider`（`src/features/auth/session-context.tsx`）是唯一的会话事实源：`status: loading | authenticated | anonymous` + `user`。
-- 登录/注册成功后必须先 `await refresh()`（重取 `/auth/me`）再导航进受保护应用，否则受保护布局仍读到旧 `anonymous` 状态而把用户弹回登录。
+- 登录成功后必须先 `await refresh()`（重取 `/auth/me`）再导航进受保护应用，否则受保护布局仍读到旧 `anonymous` 状态而把用户弹回登录。
 - 受保护布局在 `loading` 时渲染稳定骨架，`anonymous` 时按 `returnTo` 重定向，不渲染业务内容。
 
 ## 安全跳转（returnTo）
 
 - `returnTo` 只接受站内相对路径，统一经 `src/lib/redirect.ts::isSafeReturnPath()` 校验：必须以单个 `/` 开头，拒绝 `//`、反斜杠、控制字符与任何带 scheme/外域的形态。
-- 登录/注册成功后用 `resolvePostAuthPath()`，不安全值一律回落 `/evaluation-sets`，杜绝开放重定向。
+- 登录成功后用 `resolvePostAuthPath()`，不安全值一律回落 `/evaluation-sets`，杜绝开放重定向。
 
 ## OpenAPI 类型边界
 
