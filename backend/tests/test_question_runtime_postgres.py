@@ -499,6 +499,86 @@ def test_runtime_fingerprint_mismatch_purges_and_recovers(pg_business_env) -> No
             _clean_from_dsn(dsn, f"qgen-{question_id}-r1")
 
 
+def test_materials_fingerprint_mismatch_purges_and_recovers(pg_business_env) -> None:
+    """Free-edit regression: materials autosave changes the materials
+    fingerprint WITHOUT bumping content_revision. A retry after such an edit
+    must purge the stale thread registration and start a FRESH run on the
+    current materials — never dead-ending in THREAD_MATERIALS_MISMATCH."""
+
+    from sqlalchemy import select
+
+    from app.features.question_library import run_streams
+    from app.lib.database.models import QuestionRunThreadRow
+
+    dsn = pg_business_env
+    previous = get_adapters()
+    question_id = None
+    try:
+        with TestClient(app) as client:
+            question_id = _upload(client, "case-pg-materials-fp")
+            thread_id = f"qgen-{question_id}-r1"
+            _clean_from_dsn(dsn, thread_id)
+
+            # Phase 1: a real checkpointed run that crashes (retryable).
+            crash_gen = _PgStubGenerator(dsn, crash_after=True)
+            set_adapters(RuntimeAdapters(rubric_generator=crash_gen))
+            helpers.run_worker_until_idle()
+            detail = client.get(f"/api/questions/{question_id}").json()
+            assert detail["status"] == "generation_failed"
+
+            # Teacher edits materials through the free autosave path: the
+            # revision stays put while the registered fingerprint now refers
+            # to the pre-edit materials.
+            saved = client.patch(
+                f"/api/questions/{question_id}/materials",
+                json={
+                    "content_revision": detail["content_revision"],
+                    "task_prompt": "请把提供的新闻素材改写成正式新闻稿（材料指纹失配恢复路径）。",
+                },
+            )
+            assert saved.status_code == 200, saved.text
+            assert saved.json()["content_revision"] == detail["content_revision"]
+
+            with session_scope() as session:
+                stale_row = session.execute(
+                    select(QuestionRunThreadRow).where(
+                        QuestionRunThreadRow.thread_id == thread_id
+                    )
+                ).scalar_one()
+            stale_fingerprint = stale_row.materials_fingerprint
+
+            # Retry under a healthy generator: the fingerprint mismatch must
+            # be treated as a stale checkpoint (purged, fresh run), not a
+            # permanent refusal.
+            healthy = _PgStubGenerator(dsn)
+            set_adapters(RuntimeAdapters(rubric_generator=healthy))
+            retry = client.post(
+                f"/api/questions/{question_id}/generation-retry",
+                json={"command_id": "retry-mat-fp", "content_revision": detail["content_revision"]},
+            )
+            assert retry.status_code == 200, retry.text
+            helpers.run_worker_until_idle()
+            detail = client.get(f"/api/questions/{question_id}").json()
+            assert detail["status"] == "pending_review", detail.get("last_error")
+            assert healthy.observations, "recovery run did not execute"
+            assert healthy.observations[-1]["state"] == "new", (
+                "材料指纹失配清除线程后必须全新开跑，而不是续跑旧检查点"
+            )
+            with session_scope() as session:
+                row = session.execute(
+                    select(QuestionRunThreadRow).where(
+                        QuestionRunThreadRow.thread_id == thread_id
+                    )
+                ).scalar_one()
+            assert row.materials_fingerprint != stale_fingerprint, (
+                "恢复后的注册必须携带当前材料的指纹"
+            )
+    finally:
+        set_adapters(previous)
+        if question_id:
+            _clean_from_dsn(dsn, f"qgen-{question_id}-r1")
+
+
 def test_real_adapter_resume_never_duplicates_initial_input(pg_business_env, monkeypatch) -> None:
     """MAJ-1 (C4 round): DIRECT proof on the production adapter that an
     incomplete thread resumes without re-appending the initial input — the

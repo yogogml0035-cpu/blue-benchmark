@@ -454,6 +454,9 @@ def update_title(question_id: str, payload: QuestionTitleRequest) -> QuestionDet
             question_id,
             expected_revision=payload.content_revision,
             now=now,
+            # Freezes do not bump the revision: exclude deleting in the atomic
+            # WHERE, not only in the snapshot check above.
+            extra_conditions=[EvalQuestionRow.status != QuestionStatus.deleting.value],
             title=title,
         )
     if record is None:
@@ -594,10 +597,13 @@ def update_materials(
             question_id,
             expected_revision=payload.content_revision,
             now=now,
+            # Same rationale as update_title: a concurrent delete acceptance
+            # freezes without bumping the revision.
+            extra_conditions=[EvalQuestionRow.status != QuestionStatus.deleting.value],
             **changed,
         )
         if record is None:
-            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+            _raise_stale_or_missing(question_id)
     return _detail_response(record)
 
 
@@ -665,10 +671,13 @@ def patch_criterion(
                     question_id,
                     expected_revision=payload.content_revision,
                     now=now,
+                    # Same rationale as update_title: a concurrent delete
+                    # acceptance freezes without bumping the revision.
+                    extra_conditions=[EvalQuestionRow.status != QuestionStatus.deleting.value],
                     criteria_json=criteria,
                 )
                 if record is None:
-                    raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+                    _raise_stale_or_missing(question_id)
     return _detail_response(record)
 
 
@@ -729,6 +738,8 @@ def regenerate(question_id: str, payload: QuestionCommandRequest) -> OperationAc
                 current_status = session.execute(
                     select(EvalQuestionRow.status).where(EvalQuestionRow.id == question_id)
                 ).scalar_one_or_none()
+                if current_status is None:
+                    raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
                 if current_status == QuestionStatus.deleting.value:
                     raise AppError(
                         409,
@@ -736,7 +747,12 @@ def regenerate(question_id: str, payload: QuestionCommandRequest) -> OperationAc
                         "题目删除清理中，重新生成已被冻结；清理完成前不可继续。",
                     )
                 raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
-    except IntegrityError:
+    except IntegrityError as exc:
+        # Only the deterministic job-identity collision maps to a replay;
+        # anything else is not a duplicate and must surface unchanged.
+        detail_text = str(exc.orig) if exc.orig else str(exc)
+        if "uq_operation_target_revision_command" not in detail_text and "operation_jobs_pkey" not in detail_text:
+            raise
         # Identical concurrent regenerate (same question+revision+command)
         # collides on the deterministic job identity. The job row is rolled
         # back with this transaction; replay returns the winner's job instead
@@ -1113,8 +1129,19 @@ def get_run_events(
 
 
 def _raise_stale_or_missing(question_id: str) -> None:
+    """409 disambiguation for a failed revision-only CAS: the row may have
+    been frozen for deletion (freezes do not bump the revision) or removed by
+    the finished cleanup instead of merely being stale."""
     with session_scope() as session:
-        exists = repository.question_exists(session, question_id)
-    if not exists:
+        current = session.execute(
+            select(EvalQuestionRow.status).where(EvalQuestionRow.id == question_id)
+        ).scalar_one_or_none()
+    if current is None:
         raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+    if current == QuestionStatus.deleting.value:
+        raise AppError(
+            409,
+            "QUESTION_DELETING",
+            "题目删除清理中，本次修改已被冻结；清理完成前不可继续。",
+        )
     raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
