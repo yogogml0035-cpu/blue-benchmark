@@ -772,3 +772,184 @@ def test_adapter_bounded_revision_round_fixes_bad_citation(monkeypatch) -> None:
     with _pytest.raises(RubricGenerationFailure) as exc_info:
         strict.generate(materials, context=context2, sink=dr.ListSink())
     assert exc_info.value.code == "AI_CITATION_INVALID"
+
+
+def _audit_result(quote: str, locator: str = "reference_answer") -> "Any":
+    from app.lib.ai_runtime.adapters import (
+        BasisClaim,
+        CriterionBasis,
+        CriterionDraft,
+        PassScoreBasis,
+        RubricGenerationResult,
+        ScoreAnchor,
+        SourceCitation,
+    )
+
+    return RubricGenerationResult(criteria=[CriterionDraft(
+        criterion="输出必须与标准答案一致，不得虚构材料之外的内容。",
+        pass_score=6,
+        score_anchors=[ScoreAnchor(score=6, description="与标准答案一致。")],
+        criterion_basis=CriterionBasis(
+            explanation="答案即基准。",
+            claims=[BasisClaim(claim="答案基准。", kind="ai_inferred",
+                               citation=SourceCitation(locator=locator, quote=quote))],
+        ),
+        pass_score_basis=PassScoreBasis(
+            explained_score=6, explanation="一致即合格。",
+            claims=[BasisClaim(claim="最低门槛。", kind="ai_inferred",
+                               citation=SourceCitation(locator=locator, quote=quote))],
+        ),
+    )])
+
+
+def test_repair_fixes_transcription_drift_without_revision_round() -> None:
+    """Near-verbatim drift (one inserted char) is repaired deterministically:
+    the stored quote becomes the exact source span, no model round needed."""
+    from app.lib.ai_runtime.adapters import repair_citations, validate_result_citations
+
+    texts = {
+        "task_prompt": "任务材料。",
+        "reference_answer": "老师认可的标准答案全文。成稿不应保留新闻稿的冗余段落。",
+    }
+    result = _audit_result("老师认可的标准答案的全文")  # 插入了一个「的」
+    result, problems, repaired = repair_citations(result, texts)
+    assert repaired == 2  # 同一条引文出现在两个 basis 中
+    assert problems == []
+    for basis in (result.criteria[0].criterion_basis, result.criteria[0].pass_score_basis):
+        assert basis.claims[0].citation.quote == "老师认可的标准答案全文。"
+    validate_result_citations(result, texts)  # strict gate now passes
+
+
+def test_repair_never_flips_negation_polarity() -> None:
+    """A single-character negation flip scores above the similarity threshold
+    but must NOT be silently repaired into the opposite evidence."""
+    from app.lib.ai_runtime.adapters import collect_citation_problems, repair_citations
+
+    texts = {
+        "task_prompt": "任务材料。",
+        "reference_answer": "成稿不应保留新闻稿的冗余段落。",
+    }
+    result = _audit_result("成稿应保留新闻稿的冗余段落")  # 丢了一个「不」，极性反转
+    result, problems, repaired = repair_citations(result, texts)
+    assert repaired == 0
+    assert len(problems) == 2
+    # 最接近片段相似度虽高（>0.9），但否定词不一致，拒绝确定性替换。
+    assert problems[0].expected == "成稿不应保留新闻稿的冗余段"
+    assert problems[0].ratio >= 0.9
+    assert result.criteria[0].criterion_basis.claims[0].citation.quote == "成稿应保留新闻稿的冗余段落"
+    # The problem feedback hands the model the exact contradicting span.
+    assert "成稿不应保留新闻稿的冗余段" in collect_citation_problems(result, texts)[0].describe()
+
+
+def test_repair_repoints_unique_verbatim_locator_mixup() -> None:
+    """A quote that is verbatim text of exactly ONE other material is a label
+    mix-up: the locator is re-pointed, the quote stays untouched."""
+    from app.lib.ai_runtime.adapters import repair_citations, validate_result_citations
+
+    texts = {
+        "task_prompt": "新闻稿正文片段A。",
+        "reference_answer": "老师认可的标准答案全文。",
+    }
+    result = _audit_result("新闻稿正文片段A。", locator="reference_answer")
+    result, problems, repaired = repair_citations(result, texts)
+    assert repaired == 2
+    assert problems == []
+    citation = result.criteria[0].criterion_basis.claims[0].citation
+    assert citation.locator == "task_prompt"
+    assert citation.quote == "新闻稿正文片段A。"
+    validate_result_citations(result, texts)
+
+
+def test_ambiguous_multi_locator_match_goes_to_model_with_candidates() -> None:
+    """When the quote is verbatim in MULTIPLE other materials, re-pointing
+    would be an arbitrary attribution: keep it as a problem and list the
+    candidates for the revision round."""
+    from app.lib.ai_runtime.adapters import repair_citations
+
+    texts = {
+        "task_prompt": "同一篇新闻稿的句子。",
+        "reference_examples[0]": "前言。同一篇新闻稿的句子。结尾。",
+        "reference_answer": "老师认可的标准答案全文。",
+    }
+    result = _audit_result("同一篇新闻稿的句子。", locator="reference_answer")
+    result, problems, repaired = repair_citations(result, texts)
+    assert repaired == 0
+    assert len(problems) == 2
+    assert set(problems[0].alternates) == {"task_prompt", "reference_examples[0]"}
+    described = problems[0].describe()
+    assert "task_prompt" in described and "reference_examples[0]" in described
+    # The citation is untouched for the model to fix.
+    assert result.criteria[0].criterion_basis.claims[0].citation.locator == "reference_answer"
+
+
+def test_validation_reports_every_problem_in_one_pass() -> None:
+    """Fail-fast validation made single-round revision mathematically unable
+    to converge; the gate must list ALL problems of the candidate set."""
+    import pytest
+
+    from app.lib.ai_runtime.adapters import validate_result_citations
+
+    texts = {
+        "task_prompt": "任务材料。",
+        "reference_answer": "老师认可的标准答案全文。",
+    }
+    result = _audit_result("编造的引文甲")
+    # Add two more bad citations of different kinds.
+    from app.lib.ai_runtime.adapters import BasisClaim, SourceCitation
+
+    result.criteria[0].criterion_basis.claims.append(
+        BasisClaim(claim="另一条。", kind="ai_inferred",
+                   citation=SourceCitation(locator="不存在的定位符", quote="任意引文"))
+    )
+    result.criteria[0].criterion_basis.claims.append(
+        BasisClaim(claim="还有一条。", kind="ai_inferred",
+                   citation=SourceCitation(locator="reference_answer", quote="编造的引文乙"))
+    )
+    with pytest.raises(RubricGenerationFailure) as exc_info:
+        validate_result_citations(result, texts)
+    message = exc_info.value.message
+    assert exc_info.value.code == "AI_CITATION_INVALID"
+    assert "claims[0]" in message and "claims[1]" in message and "claims[2]" in message
+    assert "不存在的定位符" in message
+
+
+def test_generator_repairs_before_validation_and_skips_revision(monkeypatch) -> None:
+    """Integration: a first-pass candidate whose quotes only drifted by
+    transcription is repaired by the deterministic audit, so NO model
+    revision round is spent and the run succeeds on the first read."""
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from app.lib.ai_runtime import deep_runtime as dr
+    from app.lib.ai_runtime.adapters import DeepAgentRubricGenerator, RubricGenerationInput
+    from tests.test_deep_runtime import IDENTITY, ScriptedModel
+
+    materials = RubricGenerationInput(
+        task_prompt="任务材料。", reference_answer="老师认可的标准答案全文。"
+    )
+    calls = {"n": 0}
+
+    def _fake_structured(agent, session):
+        calls["n"] += 1
+        return _audit_result("老师认可的标准答案的全文")
+
+    monkeypatch.setattr(dr, "final_structured_response", _fake_structured)
+    session = dr.CheckpointSession(None, InMemorySaver(), "t-repair")
+    session._lock_held = True
+    generator = DeepAgentRubricGenerator(
+        model=ScriptedModel(messages=iter([
+            __import__("langchain_core.messages", fromlist=["AIMessage"]).AIMessage(content="初稿完成。"),
+        ])),
+        identity=IDENTITY,
+        session_factory=lambda ctx: session,
+    )
+    sink = dr.ListSink()
+    context = RunContext(
+        thread_id="t-repair", operation_id="op-rep", attempt_number=1,
+        question_id="q-rep", materials_revision=1, materials_fingerprint="f" * 64,
+    )
+    result = generator.generate(materials, context=context, sink=sink)
+    assert calls["n"] == 1  # no revision round
+    assert generator._revisions_used == 0
+    assert result.criteria[0].criterion_basis.claims[0].citation.quote == "老师认可的标准答案全文。"
+    assert any(e.stage == "citations_repaired" for e in sink.events)
+    assert not any(e.stage == "revision_requested" for e in sink.events)

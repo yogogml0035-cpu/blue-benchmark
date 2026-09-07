@@ -20,6 +20,7 @@ infrastructure-only.
 
 from __future__ import annotations
 
+import difflib
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
@@ -383,18 +384,20 @@ class FakeRubricGenerator:
 
 _REVISION_PROMPT_PREFIX = (
     "你上一次的候选集没有通过确定性校验，本次运行内给你一次修订机会。"
-    "请只修正下列被指出的问题，然后重新输出完整的结构化结果（不要输出散文）：\n"
+    "请只修正下列被指出的问题，未列出的维度保持原样，"
+    "然后重新输出完整的结构化结果（不要输出散文）：\n"
 )
 
 
-def _revision_instruction(errors: list[str]) -> str:
-    listed = "\n".join(f"- {e}" for e in errors[:8])
+def _revision_instruction(problem_list: str) -> str:
     return (
         _REVISION_PROMPT_PREFIX
-        + listed
-        + "\n修订要求：citation.locator 必须使用材料文件头部标注的定位符原文；"
-        "citation.quote 必须是该定位符材料正文中逐字存在的连续片段（注意标点与空格完全一致，"
-        "不要使用省略号或改写）；teacher_explicit 主张必须附带引用；"
+        + problem_list
+        + "\n修订要求：对每条被指出的引用，先用 grep 在对应材料文件中定位上面给出的原文片段，"
+        "然后把 citation.quote 逐字复制为该片段（一字不改，含标点；不要跨句拼接、"
+        "不要补全或替换主语、不要增删句末标点）；若指出定位符错误，改用指出的正确定位符；"
+        "citation.locator 必须使用材料文件头部标注的定位符原文；"
+        "teacher_explicit 主张必须附带引用；"
         "建议通过分必须有对应锚点且 pass_score_basis.explained_score 等于建议分。"
     )
 
@@ -414,6 +417,7 @@ _SYSTEM_PROMPT = """你是评测平台的评分维度起草智能体。你只依
 依据规则（严格）：
 - 每条 claim 标注 kind：老师原话/反馈中明确提出的要求是 teacher_explicit，必须附带 citation；你根据材料推断的要求是 ai_inferred。
 - citation.locator 必须使用材料文件头部标注的定位符原文（如 bad_cases[0].feedback[1]、reference_answer、memory_materials[2]）；citation.quote 必须是该材料正文中逐字存在的连续片段（不超过 200 字），系统会程序化校验，虚构引用会导致整个结果被拒绝。
+- 引用纪律：quote 只能来自一个句子内部的连续文字，禁止把两处文字拼接成一句；禁止替换主语、补写连接词、增删任何字（包括句末标点）；优先选择短句（80 字以内）降低抄写出错概率。read_file 输出每行带有“行号: ”前缀，抄写引文时必须去掉行号前缀，只保留正文。
 - 标准答案展示的做法不自动等于老师明确要求；reason_summary 是整理而非老师原话；不确定时一律标 ai_inferred。
 - 老师反馈中被否定的具体写法（时点错位、误导性表述、口语化等）应转化为可检查的负向边界。
 
@@ -555,15 +559,20 @@ class DeepAgentRubricGenerator:
 
             structured = deep_runtime.final_structured_response(agent, session)
             result = self._coerce_result(structured, completed=state_kind == "complete")
+            result = self._audit(result, locator_texts, sink)
             try:
                 self._validate(result, locator_texts)
             except RubricGenerationFailure as exc:
                 if self._max_revisions <= 0 or exc.code != "AI_CITATION_INVALID":
                     raise
-                # ONE bounded in-job revision round: feed the deterministic
-                # errors back through the same thread (a legitimate follow-up
-                # turn, not a re-submitted initial input) and re-validate the
-                # fresh candidate. Budget counters keep this bounded.
+                # ONE bounded in-job revision round: feed ALL deterministic
+                # problems (each with the closest verbatim source span) back
+                # through the same thread (a legitimate follow-up turn, not a
+                # re-submitted initial input) and re-validate the fresh
+                # candidate. Single-problem feedback made convergence
+                # impossible when several quotes had drifted: the model fixed
+                # the named spot while holistic regeneration re-drifted
+                # another. Budget counters keep this bounded.
                 self._revisions_used += 1
                 sink.emit(PublicEvent(
                     kind="stage", stage="revision_requested", detail=exc.message[:160]
@@ -574,7 +583,7 @@ class DeepAgentRubricGenerator:
                         session,
                         inputs={"messages": [{
                             "role": "user",
-                            "content": _revision_instruction([exc.message]),
+                            "content": _revision_instruction(exc.message),
                         }]},
                         sink=sink,
                         allow_followup=True,
@@ -599,6 +608,7 @@ class DeepAgentRubricGenerator:
                     )
                 revised = deep_runtime.final_structured_response(agent, session)
                 result = self._coerce_result(revised, completed=True)
+                result = self._audit(result, locator_texts, sink)
                 # Final gate: no further revision rounds.
                 self._validate(result, locator_texts)
             return result
@@ -628,69 +638,352 @@ class DeepAgentRubricGenerator:
             raise RubricGenerationFailure("AI_OUTPUT_INVALID", "评分维度不能为空。")
         return result
 
+    def _audit(
+        self,
+        result: RubricGenerationResult,
+        locator_texts: dict[str, str],
+        sink: ProgressSink,
+    ) -> RubricGenerationResult:
+        """Deterministic citation repair pass before validation.
+
+        Unambiguous transcription drift (near-verbatim quotes, single-locator
+        mix-ups) is repaired mechanically — the stored quote stays exact
+        material text — so the scarce model revision round is spent only on
+        genuinely ambiguous problems. Repairs are observable as a stage event.
+        """
+        from app.lib.ai_runtime.deep_runtime import PublicEvent
+
+        result, _problems, repaired = repair_citations(result, locator_texts)
+        if repaired:
+            sink.emit(PublicEvent(
+                kind="stage", stage="citations_repaired", detail=f"count={repaired}"
+            ))
+        return result
+
     def _validate(self, result: RubricGenerationResult, locator_texts: dict[str, str]) -> None:
         """Deterministic full-candidate gate: contract shape + citations.
 
-        Raises AI_CITATION_INVALID (bounded-revision eligible) for citation
-        problems; contract-shape problems from _coerce_result/pydantic are
-        already raised as AI_OUTPUT_* before this point.
+        Raises AI_CITATION_INVALID (bounded-revision eligible) listing EVERY
+        remaining problem with its closest source span; contract-shape
+        problems from _coerce_result/pydantic are already raised as
+        AI_OUTPUT_* before this point.
         """
+        shape_problems: list[str] = []
         for index, item in enumerate(result.criteria):
             scores = [a.score for a in item.score_anchors]
             if item.pass_score not in scores:
-                raise RubricGenerationFailure(
-                    "AI_CITATION_INVALID",
-                    f"criteria[{index}] 建议分 {item.pass_score} 缺少对应锚点描述。",
-                    retryable=True,
+                shape_problems.append(
+                    f"criteria[{index}] 建议分 {item.pass_score} 缺少对应锚点描述。"
                 )
             if item.pass_score_basis.explained_score != item.pass_score:
-                raise RubricGenerationFailure(
-                    "AI_CITATION_INVALID",
-                    f"criteria[{index}] 通过分依据解释的分数与建议分不一致。",
-                    retryable=True,
+                shape_problems.append(
+                    f"criteria[{index}] 通过分依据解释的分数与建议分不一致。"
                 )
-        validate_result_citations(result, locator_texts)
+        citation_problems = collect_citation_problems(result, locator_texts)
+        if shape_problems or citation_problems:
+            lines = [f"- {p}" for p in shape_problems]
+            lines += [f"- {cp.describe()}" for cp in citation_problems[:_PROBLEM_LIST_LIMIT]]
+            if len(citation_problems) > _PROBLEM_LIST_LIMIT:
+                lines.append(
+                    f"- （另有 {len(citation_problems) - _PROBLEM_LIST_LIMIT} 处引用问题，"
+                    "请对全部引用逐条自查）"
+                )
+            raise RubricGenerationFailure(
+                "AI_CITATION_INVALID", "\n".join(lines), retryable=True
+            )
 
 
-def validate_result_citations(
-    result: RubricGenerationResult, locator_texts: dict[str, str]
-) -> None:
-    """Shared deterministic citation gate (generation AND worker re-check).
+# ---------------------------------------------------------------------------
+# Citation audit: collect-all problems + deterministic near-miss repair
+# ---------------------------------------------------------------------------
 
-    A citation is valid only when its locator belongs to this question's
-    material snapshot and its quote appears VERBATIM in that text; blank or
-    whitespace-only quotes are rejected outright.
+# A quote whose best matching source span reaches this similarity is treated as
+# a transcription drift of THAT span (insertion/deletion/punctuation), not as a
+# different claim, so the deterministic repair may replace it. Below the
+# threshold the match is ambiguous (splices, subject swaps, paraphrase) and the
+# quote goes back to the model with the suggested source span as feedback.
+_CITATION_REPAIR_THRESHOLD = 0.90
+# Guard for degenerate short quotes where every window looks similar.
+_CITATION_REPAIR_MIN_QUOTE = 8
+# Negation flips are single characters in Chinese ("应保留" vs "不应保留") and
+# can still score >= the repair threshold. A repaired quote must keep every
+# negation cue the model wrote AND add none from the source, so deterministic
+# repair can never invert the polarity of the cited evidence.
+_NEGATION_CUES = frozenset("不没非勿别莫未")
+# Below this similarity the "closest span" is noise, not guidance: a fully
+# fabricated quote has no meaningful nearest fragment, and suggesting one
+# would invite the model to copy text it never claimed.
+_FEEDBACK_MIN_RATIO = 0.5
+# Search margin (chars) around the anchor-derived window when refining the best
+# matching source span.
+_SPAN_SEARCH_MARGIN = 32
+# Max problems listed in one validation message / revision instruction; the
+# tail is summarized so the instruction stays bounded for long candidate sets.
+_PROBLEM_LIST_LIMIT = 8
+
+
+@dataclass(frozen=True)
+class CitationProblem:
+    """One deterministic citation failure, with repair guidance when possible.
+
+    ``expected`` is the closest verbatim span found in the cited material;
+    ``alternates`` lists the OTHER locators whose text contains the quote
+    verbatim (a locator mix-up signal). Both are feedback for the model
+    revision round, never a silent substitution — substitution only happens
+    inside :func:`repair_citations`.
     """
+
+    where: str
+    kind: Literal["locator_unknown", "quote_blank", "quote_not_verbatim"]
+    locator: str
+    quote: str
+    expected: str | None
+    ratio: float
+    alternates: tuple[str, ...] = ()
+
+    def describe(self) -> str:
+        if self.kind == "locator_unknown":
+            text = f"{self.where} 引用了不属于本题材料的定位符 {self.locator!r}。"
+        elif self.kind == "quote_blank":
+            text = f"{self.where} 的引文为空白。"
+        else:
+            text = (
+                f"{self.where} 的引文不在定位符 {self.locator!r} 的材料正文中。"
+                f"你的引文：「{self.quote}」"
+            )
+        if len(self.alternates) == 1:
+            text += f"该引文逐字存在于定位符 {self.alternates[0]!r}，请改用该定位符。"
+        elif len(self.alternates) > 1:
+            listed = "、".join(repr(loc) for loc in self.alternates)
+            text += f"该引文逐字存在于多个定位符（{listed}），请选用真正支撑主张的那一个。"
+        elif self.expected is not None and self.ratio >= _FEEDBACK_MIN_RATIO:
+            text += f"材料原文最接近的连续片段（逐字复制它）：「{self.expected}」"
+        else:
+            text += (
+                "材料中不存在与之接近的原文，这条引用疑似虚构或改写过度："
+                "请用 grep 在材料文件中重新找到真实原文并逐字引用；"
+                "若材料中没有支撑该主张的原文，请改写这条主张本身。"
+            )
+        return text
+
+
+def _verbatim_alternates(
+    quote: str, locator_texts: dict[str, str], *, exclude: str | None
+) -> tuple[str, ...]:
+    """Locators (other than ``exclude``) whose text contains ``quote`` verbatim."""
+    stripped = quote.strip()
+    if not stripped:
+        return ()
+    return tuple(
+        loc for loc, body in locator_texts.items()
+        if loc != exclude and stripped in body
+    )
+
+
+def _best_source_span(text: str, quote: str) -> tuple[float, str | None]:
+    """Find the span of ``text`` closest to ``quote``.
+
+    Anchors the search on the longest common block between quote and text (so
+    long materials stay cheap), then refines over a bounded window of start
+    positions. Returns ``(ratio, exact_raw_span)``; ``ratio`` is 0 and the span
+    is None when there is no common character at all.
+    """
+    if not text or not quote:
+        return 0.0, None
+    anchor = difflib.SequenceMatcher(None, quote, text, autojunk=False).find_longest_match(
+        0, len(quote), 0, len(text)
+    )
+    if anchor.size == 0:
+        return 0.0, None
+    center = max(0, anchor.b - anchor.a)
+    lo = max(0, center - _SPAN_SEARCH_MARGIN)
+    hi = min(len(text), center + len(quote) + _SPAN_SEARCH_MARGIN)
+    best_ratio = 0.0
+    best_span: str | None = None
+    for start in range(lo, hi):
+        span = text[start:start + len(quote)]
+        if not span:
+            continue
+        # A fixed-length window can straddle a paragraph boundary and keep a
+        # stray "\n" edge; when the trimmed span matches better (it usually
+        # does — trimming removes noise chars from the ratio), prefer it so
+        # repaired quotes never carry leading/trailing whitespace.
+        for candidate in (span, span.strip()):
+            if not candidate:
+                continue
+            ratio = difflib.SequenceMatcher(None, quote, candidate, autojunk=False).ratio()
+            if ratio > best_ratio:
+                best_ratio, best_span = ratio, candidate
+    return best_ratio, best_span
+
+
+def _negation_safe(quote: str, span: str) -> bool:
+    """True when ``span`` carries exactly the same negation cues as ``quote``.
+
+    Deterministic repair must never invert or introduce a negation: a single
+    不/未/勿 can flip the polarity of cited evidence while still scoring above
+    the similarity threshold.
+    """
+    return (
+        sorted(ch for ch in quote if ch in _NEGATION_CUES)
+        == sorted(ch for ch in span if ch in _NEGATION_CUES)
+    )
+
+
+def _iter_citations(result: RubricGenerationResult):
     for index, item in enumerate(result.criteria):
         for basis_name, basis in (
             ("criterion_basis", item.criterion_basis),
             ("pass_score_basis", item.pass_score_basis),
         ):
             for claim_index, claim in enumerate(basis.claims):
-                where = f"criteria[{index}].{basis_name}.claims[{claim_index}]"
-                citation = claim.citation
-                if citation is None:
-                    continue
-                text = locator_texts.get(citation.locator)
-                if text is None:
-                    raise RubricGenerationFailure(
-                        "AI_CITATION_INVALID",
-                        f"{where} 引用了不属于本题材料的定位符。",
-                        retryable=True,
-                    )
-                quote = citation.quote.strip()
-                if not quote:
-                    raise RubricGenerationFailure(
-                        "AI_CITATION_INVALID",
-                        f"{where} 的引文为空白。",
-                        retryable=True,
-                    )
-                if quote not in text:
-                    raise RubricGenerationFailure(
-                        "AI_CITATION_INVALID",
-                        f"{where} 的引文不在对应材料正文中。",
-                        retryable=True,
-                    )
+                if claim.citation is not None:
+                    yield f"criteria[{index}].{basis_name}.claims[{claim_index}]", claim
+
+
+def collect_citation_problems(
+    result: RubricGenerationResult, locator_texts: dict[str, str]
+) -> list[CitationProblem]:
+    """Audit EVERY citation and return all problems in one pass.
+
+    Fail-fast validation made revision rounds mathematically unable to
+    converge: with N drifted quotes in one candidate set, feedback naming a
+    single problem let the model fix one spot while holistic regeneration
+    re-drifted another. Collecting all problems (each with the closest source
+    span) makes one revision round actionable for the whole set.
+    """
+    problems: list[CitationProblem] = []
+    for where, claim in _iter_citations(result):
+        citation = claim.citation
+        assert citation is not None  # narrowed by _iter_citations
+        text = locator_texts.get(citation.locator)
+        if text is None:
+            # The quote may exist verbatim in OTHER materials — a locator
+            # mix-up worth naming precisely in the feedback.
+            alternates = _verbatim_alternates(
+                citation.quote, locator_texts, exclude=None
+            )
+            problems.append(CitationProblem(
+                where=where, kind="locator_unknown", locator=citation.locator,
+                quote=citation.quote, expected=None,
+                ratio=1.0 if alternates else 0.0,
+                alternates=alternates,
+            ))
+            continue
+        quote = citation.quote.strip()
+        if not quote:
+            problems.append(CitationProblem(
+                where=where, kind="quote_blank", locator=citation.locator,
+                quote=citation.quote, expected=None, ratio=0.0,
+            ))
+            continue
+        if quote in text:
+            continue
+        # The quote may be verbatim text of ANOTHER material attached to the
+        # wrong locator (observed in production: the model cited the news
+        # article wording from task_prompt under reference_answer, whose
+        # paraphrased sentence differs by its subject).
+        alternates = _verbatim_alternates(
+            citation.quote, locator_texts, exclude=citation.locator
+        )
+        ratio, span = _best_source_span(text, quote)
+        problems.append(CitationProblem(
+            where=where, kind="quote_not_verbatim", locator=citation.locator,
+            quote=quote, expected=span, ratio=ratio, alternates=alternates,
+        ))
+    return problems
+
+
+def repair_citations(
+    result: RubricGenerationResult, locator_texts: dict[str, str]
+) -> tuple[RubricGenerationResult, list[CitationProblem], int]:
+    """Deterministically fix unambiguous citation drift; return remaining problems.
+
+    Two conservative in-place repairs, both preserving the verbatim contract
+    (locator + quote always reference exact material text afterwards):
+
+    * the quote appears verbatim in exactly ONE other locator (valid or not):
+      the evidence is real, only the label was mixed up, so the locator is
+      re-pointed. A verbatim match elsewhere is stronger evidence of intent
+      than any fuzzy match at the cited locator.
+    * ``quote_not_verbatim`` whose best source span AT THE CITED locator
+      reaches ``_CITATION_REPAIR_THRESHOLD``: the quote is a transcription
+      drift of that span (an inserted 在, a dropped 新车, a missing 。), so
+      the quote is replaced by the exact span — but only when the span keeps
+      the quote's negation cues unchanged (:func:`_negation_safe`), so a
+      single-character polarity flip is never laundered into "repaired".
+
+    Anything more ambiguous (splices of two sentences, subject swaps that move
+    the meaning, fabricated text, verbatim matches across MULTIPLE other
+    locators) is NOT touched and is returned as a problem for the bounded
+    model revision round, which now receives every problem at once with the
+    exact source text to copy. Returns
+    ``(result, remaining_problems, repaired_count)``; the result is the same
+    object, mutated in place — replacement citations are validated at
+    ``SourceCitation`` construction, so the strict post-conditions hold.
+    """
+    repaired = 0
+    remaining: list[CitationProblem] = []
+    for problem in collect_citation_problems(result, locator_texts):
+        claim = None
+        for where, candidate in _iter_citations(result):
+            if where == problem.where:
+                claim = candidate
+                break
+        assert claim is not None and claim.citation is not None
+        citation = claim.citation
+        if problem.kind in ("locator_unknown", "quote_not_verbatim"):
+            if len(problem.alternates) == 1:
+                claim.citation = SourceCitation(
+                    locator=problem.alternates[0], quote=citation.quote
+                )
+                repaired += 1
+                continue
+            if len(problem.alternates) > 1:
+                # Verbatim in several materials: re-pointing would be an
+                # arbitrary attribution choice — let the model decide.
+                remaining.append(problem)
+                continue
+        if (
+            problem.kind == "quote_not_verbatim"
+            and problem.expected is not None
+            and problem.ratio >= _CITATION_REPAIR_THRESHOLD
+            and len(problem.quote) >= _CITATION_REPAIR_MIN_QUOTE
+            and _negation_safe(problem.quote, problem.expected)
+        ):
+            claim.citation = SourceCitation(locator=citation.locator, quote=problem.expected)
+            repaired += 1
+            continue
+        remaining.append(problem)
+    return result, remaining, repaired
+
+
+def validate_result_citations(
+    result: RubricGenerationResult, locator_texts: dict[str, str]
+) -> None:
+    """Shared strict citation gate (worker re-check; generation post-repair).
+
+    A citation is valid only when its locator belongs to this question's
+    material snapshot and its quote appears VERBATIM in that text; blank or
+    whitespace-only quotes are rejected outright. Reports every problem in one
+    message so a teacher retry or a revision round sees the full picture.
+    """
+    problems = collect_citation_problems(result, locator_texts)
+    if problems:
+        raise RubricGenerationFailure(
+            "AI_CITATION_INVALID",
+            _format_problems(problems),
+            retryable=True,
+        )
+
+
+def _format_problems(
+    problems: list[CitationProblem], *, limit: int = _PROBLEM_LIST_LIMIT
+) -> str:
+    listed = "\n".join(f"- {p.describe()}" for p in problems[:limit])
+    if len(problems) > limit:
+        listed += f"\n- （另有 {len(problems) - limit} 处同类问题，请对全部引用自查）"
+    return listed
 
 
 # ---------------------------------------------------------------------------
