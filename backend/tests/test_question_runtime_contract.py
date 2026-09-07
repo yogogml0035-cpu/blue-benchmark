@@ -911,6 +911,9 @@ def test_validation_reports_every_problem_in_one_pass() -> None:
     assert exc_info.value.code == "AI_CITATION_INVALID"
     assert "claims[0]" in message and "claims[1]" in message and "claims[2]" in message
     assert "不存在的定位符" in message
+    # Kind-specific guidance: fabricated quote vs unknown locator.
+    assert "疑似虚构或改写过度" in message
+    assert "本题任何材料中都不存在这段引文" in message
 
 
 def test_generator_repairs_before_validation_and_skips_revision(monkeypatch) -> None:
