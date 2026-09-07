@@ -28,13 +28,13 @@
 
 ## Acceptance Criteria
 
-- [ ] AC1:restore.md 第 8 步抽查 SQL 使用 `eval_questions`;deploy 文档中 `FROM questions` 零命中(排除归档)。
-- [ ] AC2:restore.md 第 7 步含 `docker compose rm -f api worker` 与 `down -v` 禁令,顺序在 `docker volume rm -f` 之前。
-- [ ] AC3:`_discover_schema_version` 与 `DeployConfig.business_schema_version` 删除;备份 run 在停写窗口内查询 alembic_version 写入 manifest;test_deploy_backup.py 全绿且新增"manifest schema 版本=查询值"与"查询失败→未知且不中止"断言。
-- [ ] AC4:deploy 文档与脚本中"等待全部 healthy"类表述零残留,统一为 api/postgres/web healthy + worker/nginx Up 口径。
-- [ ] AC5:acr-guide.md 无 `hello-world`/`2>/dev/null || true` 假验证;REGISTRY 留空叙述与 compose.yaml 实际默认值一致。
-- [ ] AC6:compose.yaml 注释与三份文档版本基线一致(2.17 硬下限/2.20+ 项目基线);alembic.ini 含覆盖说明注释且 `make db-migrate` 行为不变。
-- [ ] AC7:`git diff --check`、`make test`、`make build` 全部通过;spec backup-and-runtime.md 与代码同步。
+- [x] AC1:restore.md 第 8 步抽查 SQL 使用 `eval_questions`;deploy 文档中 `FROM questions` 零命中(排除归档)。
+- [x] AC2:restore.md 第 7 步含 `docker compose rm -f api worker` 与 `down -v` 禁令,顺序在 `docker volume rm -f` 之前。
+- [x] AC3:`_discover_schema_version` 与 `DeployConfig.business_schema_version` 删除;备份 run 在停写窗口内查询 alembic_version 写入 manifest;test_deploy_backup.py 全绿且新增"manifest schema 版本=查询值"与"查询失败→未知且不中止"断言。
+- [x] AC4:deploy 文档与脚本中"等待全部 healthy"类表述零残留,统一为 api/postgres/web healthy + worker/nginx Up 口径。
+- [x] AC5:acr-guide.md 无 `hello-world`/`2>/dev/null || true` 假验证;REGISTRY 留空叙述与 compose.yaml 实际默认值一致。
+- [x] AC6:compose.yaml 注释与三份文档版本基线一致(2.17 硬下限/2.20+ 项目基线);alembic.ini 含覆盖说明注释且 `make db-migrate` 行为不变。
+- [x] AC7:`git diff --check`、`make test`、`make build` 全部通过;spec backup-and-runtime.md 与代码同步。
 
 ## Out of Scope
 
