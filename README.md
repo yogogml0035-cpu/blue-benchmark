@@ -219,15 +219,17 @@ cd backend && uv run python -m scripts.reset_local_data --execute \
 
 ## 服务器部署
 
-`deploy/` 目录包含单机 Docker Compose 生产部署的全部材料与手册：本地构建镜像推送到阿里云容器镜像服务（ACR），服务器拉取运行，全程服务器不接触源代码。
+`deploy/` 目录包含单机 Docker Compose 生产部署的全部材料与手册：本地构建镜像推送到阿里云容器镜像服务（ACR），服务器拉取运行，全程服务器不接触源代码。三处存放分工：**ACR 存软件镜像、服务器运行程序并保存当前数据、OSS 存每日导出的备份文件**；服务器/OSS/Mac 三处备份副本各只保留最新成功的一套。
 
-- `deploy/README.md` — 运维总入口：架构一页图、发版、回滚、日常观察
+- `deploy/README.md` — 运维总入口：架构一页图、发版、回滚、备份与三处副本、Mac 每日下载、日常观察
 - `deploy/acr-guide.md` — ACR 开通与镜像推送（初学者版）
-- `deploy/server-setup.md` — 服务器初始化与首次部署（含安全组、swap、备份）
-- `deploy/restore.md` — 数据恢复与每月恢复演练
+- `deploy/oss-guide.md` — OSS 开通、最小权限、内网访问、费用与残留检查、恢复下载（初学者版）
+- `deploy/server-setup.md` — 服务器初始化与首次空库部署（含安全组、swap、版本前置检查、首次备份）
+- `deploy/restore.md` — 数据恢复手册（完整恢复点 `skill-eval-backup/v1`）与每月恢复演练
 - `deploy/compose.yaml` / `deploy/nginx/nginx.conf` / `deploy/.env.production.example` — 编排、反向代理与环境变量模板
+- `deploy/backup.sh` / `deploy/backup.py` — 每日备份 cron 薄入口与备份/校验/下载工具（Python 3.10+ 标准库）
 
-发版入口：`REGISTRY=<ACR地址> deploy/push-images.sh`（质量门 + 跨架构构建 + 推送）。
+发版入口：`REGISTRY=<ACR地址> deploy/push-images.sh`（质量门 + 跨架构构建 + 推送）；服务器端按完整 Compose 服务图更新（nginx 随 api/web 更新自动重启刷新上游地址）。每日 Mac 下载：`python3 deploy/backup.py download --host <SSH主机别名>`。
 
 ## 目录边界
 
