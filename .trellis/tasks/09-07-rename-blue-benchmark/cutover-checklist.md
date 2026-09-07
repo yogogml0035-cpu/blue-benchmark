@@ -54,3 +54,4 @@ docker compose ls     # 如有旧项目名残留,在新目录重新 up
 
 - 旧代码(main 检出)与新代码(任务分支)的 Worker advisory lock key 不同,若同时各起一个 Worker 连同一个库,单消费者保护会静默失效。在合并与 main 复验完成前,确认所有检出(主工作区 + 全部 worktree)均无 API/Worker 进程在跑(`pgrep -fl 'uvicorn|operations.worker'` 应为空)。
 - worktree 内跑真实验收脚本(real-acceptance/accept_*)时,语料默认值现在按仓库根解析,而 `.local-samples/m0` 只在主工作区(gitignored):需显式传 `ACCEPT_CORPUS_ROOT`/`--corpus-root` 指向主工作区语料,或先复制语料到 worktree。
+- `reset_local_data.py` 的默认备份根 `<仓库上级目录>/blue-benchmark-wt/_artifacts/...` 只在目录切换完成后的正式形态下语义准确;在 worktree 检出或 mv 之前运行时应显式传 `--backup-dir`(有 `.git` 祖先探测兜底,不会写入任何 git 工作区)。

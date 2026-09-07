@@ -43,13 +43,13 @@
 
 ## Acceptance Criteria
 
-- [ ] AC1:全仓定向检索 `skill.?eval`(含 `skill_eval`、`skill-eval`,大小写不敏感,排除 `.git`/`node_modules`/`.next`/`.trellis/tasks/archive/` 与本任务文档)零命中。
-- [ ] AC2:UI 可见品牌全部为「蓝标汽车事业 BenchMark 平台」;检索旧文案「汽车事业 BenchMark 平台」(不带"蓝标"前缀)零命中。
-- [ ] AC3:`git diff --check`、`make test`、`make build` 全部通过。
-- [ ] AC4:本地 dev 库以新名 `blue_benchmark`/`blue_benchmark_checkpoint` 可用,既有数据完整(管理员可登录、凭证与题目数据仍在);备份 dump 文件存在。
-- [ ] AC5:deploy 文档按新命名可直接执行发版(镜像 `blue-benchmark-web/api`、服务器目录 `/opt/blue-benchmark/`、库 `blue_benchmark*`),且文档中无任何旧名步骤。
-- [ ] AC6:GitHub 仓库已改名且 `git remote -v` 指向新 URL;本地目录改名 checklist(含记忆迁移、.env 重建)已写入任务文档。
-- [ ] AC7:AGENTS.md 含 D9 命名口径规则一句话。
+- [x] AC1:全仓定向检索 `skill.?eval`(含 `skill_eval`、`skill-eval`,大小写不敏感,排除 `.git`/`node_modules`/`.next`/`.trellis/tasks/archive/`/`.trellis/workspace/`(design §2:历史记录保留原样)与本任务文档)零命中。
+- [x] AC2:UI 可见品牌全部为「蓝标汽车事业 BenchMark 平台」;检索旧文案「汽车事业 BenchMark 平台」(不带"蓝标"前缀)零命中。
+- [x] AC3:`git diff --check`、`make test`、`make build` 全部通过。
+- [x] AC4:本地 dev 库以新名 `blue_benchmark`/`blue_benchmark_checkpoint` 可用,既有数据完整(管理员可登录、凭证与题目数据仍在);备份 dump 文件存在。
+- [x] AC5:deploy 文档按新命名可直接执行发版(镜像 `blue-benchmark-web/api`、服务器目录 `/opt/blue-benchmark/`、库 `blue_benchmark*`),且文档中无任何旧名步骤。
+- [x] AC6:GitHub 仓库改名与 `git remote set-url` 的完整步骤已写入 cutover-checklist.md(执行动作本身属任务验收后的用户手动步骤,见 Out of Scope);本地目录改名 checklist(含记忆迁移、.env 重建)已写入任务文档。
+- [x] AC7:AGENTS.md 含 D9 命名口径规则一句话。
 
 ## Out of Scope
 

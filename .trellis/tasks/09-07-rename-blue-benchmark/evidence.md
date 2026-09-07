@@ -70,3 +70,12 @@ design.md §4 假设"本地 dev 库含真实数据",执行时实测为空:改名
 - acr-guide.md "验证推送"段实际未 push 且吞错;REGISTRY 留空的降级叙述只对基础镜像成立;compose.yaml 注释版本基线(>=2.17)与文档(2.20+)不一致;alembic.ini sqlite URL 为死配置(env.py 恒覆盖)。
 
 审查代理一致确认:AC1-AC7 证据成立、映射表逐项落实无形态错配、锁文件无漂移、提交卫生良好、无第三形态称呼。
+
+## 对抗式审查第 2 轮(2 个并行代理:第 1 轮修正验证 + 薄弱面攻击)结论与修正
+
+- FAIL 修正:deploy/restore.md 第 1 轮新增句曾错误声称 `restore-check` 也接受环境变量密钥(实际 cmd_restore_check 只读 `--aes-key-file`,环境变量回退仅在 cmd_verify);已改为「`verify` 可经 `BLUE_BENCHMARK_BACKUP_AES_KEY`;`restore-check` 仅接受 `--aes-key-file`」。第 1 轮记录中"restore.md 同步补充"按此口径理解。
+- `sep_` 凭证前缀(旧英文名缩写)显式决策保留:跨层运行时合同(发行点 service.py:200、检测正则 rubric_rules.py:86、skill/e2e/测试多方消费)+ 在途凭证资产(m0 待上传批次与老师持有的场景凭证按 sep_ 校验)→ 不在已批准映射表内的安全合同不借改名任务改动;豁免记入 design.md §2,后续路径记入 followups.md 第 9 条。
+- prd.md AC1 排除清单补 `.trellis/workspace/`(与 design §2 历史记录保留口径对齐);AC6 改写为"改名步骤已写入 cutover-checklist(执行属验收后用户动作)",消除与 Out of Scope 的字面矛盾。
+- test_deploy_backup.py SSH 别名 fixture `evalserver` → `bbserver`(2 处;1108 行命令注入攻击串按原样保留)。
+- followups.md 行号修正(backup.py:459-461);cutover-checklist.md 补 reset 备份根在 worktree/未切换形态下的 `--backup-dir` 提示。
+- 复核通过项:第 1 轮其余修正全部 PASS(攻击串语义恢复 27 passed、docstring 与代码一致 65 passed、扩展检索零命中、uv.lock 归一化后零漂移、merge-base=3193aa8 无漂移、7 提交无任务外文件、skills frontmatter YAML 合法、前端品牌三处文本逐字一致、e2e 无 cookie 名硬编码)。
