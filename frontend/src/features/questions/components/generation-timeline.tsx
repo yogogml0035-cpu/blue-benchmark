@@ -41,6 +41,8 @@ const STAGE_LABEL: Record<string, string> = {
   thread_state_new: "新建运行线程",
   thread_state_incomplete: "从检查点恢复运行",
   thread_state_complete: "复用已完成的运行结果",
+  citations_repaired: "引用已自动校正为材料原文",
+  revision_requested: "校验未通过，进入修订轮",
   model: "模型输出",
   tools: "工具执行",
 };
