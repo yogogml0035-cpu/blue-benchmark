@@ -174,6 +174,10 @@ tar -xzf /tmp/restore/latest.tar.gz -C /tmp/restore/files files.tar
 mkdir -p /tmp/restore/appdata
 tar -xf /tmp/restore/files/files.tar -C /tmp/restore/appdata
 
+# 先删除第 3 步 stop 后仍引用卷的 exited 容器（只删容器，不动任何卷；
+# nginx 不挂载 appdata），否则下面的 volume rm 会报 "volume is in use"
+docker compose rm -f api worker
+
 # 清空 appdata 卷并写回（一次性容器挂载卷本身，不依赖已停止的 api）
 docker volume rm -f blue-benchmark_appdata
 docker volume create blue-benchmark_appdata
@@ -186,6 +190,10 @@ docker run --rm \
 > 卷名以 `docker volume ls | grep appdata` 实际输出为准（compose 项目名前缀，
 > 默认部署目录 /opt/blue-benchmark 对应 `blue-benchmark_appdata`）。
 > `docker volume rm` 会丢失卷中当前全部文件——这正是第 4 步确认过的后果。
+> **绝不要用 `docker compose down -v` 绕过 "volume is in use"**：它会连
+> `pgdata` 卷一起删除，第 5 步将在全新空实例上重建两库，第 8 步
+> `alembic check` 的报错语义会与本文档预期完全对不上，首次恢复者无从
+> 诊断。正确做法就是上面的 `docker compose rm -f api worker`。
 
 ### 8. 启动前验证（任一失败保持未开放写入）
 
@@ -196,7 +204,7 @@ docker compose run --rm api alembic check
 
 # 2) 业务数据抽查
 docker compose exec postgres psql -U blue_benchmark -d blue_benchmark \
-  -Atc 'SELECT count(*) FROM questions;'
+  -Atc 'SELECT count(*) FROM eval_questions;'
 
 # 3) checkpoint 数据存在（表由备份带来；解密验证在第 9 步由应用完成）
 docker compose exec postgres psql -U blue_benchmark -d blue_benchmark_checkpoint \

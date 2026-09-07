@@ -51,8 +51,14 @@ registry.cn-beijing.aliyuncs.com/blue-benchmark
 # 登录（用户名=阿里云账号名，密码=上一步的固定密码）
 docker login --username=你的阿里云账号名 registry.cn-beijing.aliyuncs.com
 
-# 验证：推送一个测试标签
-docker tag hello-world registry.cn-beijing.aliyuncs.com/blue-benchmark/hello:test 2>/dev/null || true
+# 验证：对第二步已创建的 nginx 仓库真实推送一个测试标签
+# （必须真实 push 并回显成功；不要用本地不存在的镜像加 `|| true` 吞错——
+#   那样什么都没验证）
+docker pull --platform linux/amd64 nginx:1.27-alpine
+docker tag nginx:1.27-alpine registry.cn-beijing.aliyuncs.com/blue-benchmark/nginx:test
+docker push registry.cn-beijing.aliyuncs.com/blue-benchmark/nginx:test
+# 在 ACR 控制台确认 blue-benchmark/nginx 出现 test 标签后，在控制台删除
+# 该测试标签（docker push 无法删除远端标签）。
 ```
 
 日常推送不需要手工执行：仓库里的 `deploy/push-images.sh` 会自动构建并推送
@@ -76,8 +82,10 @@ docker push registry.cn-beijing.aliyuncs.com/blue-benchmark/postgres:16-alpine
 
 > 仓库名和标签必须与 compose.yaml 中的镜像地址完全一致
 > （`${REGISTRY}/nginx:1.27-alpine` 和 `${REGISTRY}/postgres:16-alpine`）。
-> 如果你在服务器上把 `REGISTRY` 留空，compose 会退回 Docker Hub 默认源
-> （国内拉取可能不稳定，建议始终配置 REGISTRY）。
+> `REGISTRY` 必须配置：只有 nginx/postgres 在 compose.yaml 里带了
+> `${REGISTRY:-docker.io/library}` 默认值（留空退回 Docker Hub，国内拉取
+> 可能不稳定）；web/api/worker 的镜像引用是裸 `${REGISTRY}/blue-benchmark-*`，
+> 留空会得到非法镜像引用，`docker compose pull` 直接失败。
 
 ## 第五步：在服务器上登录
 

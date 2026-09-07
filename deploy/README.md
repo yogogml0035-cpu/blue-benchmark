@@ -51,7 +51,7 @@ docker compose run --rm api alembic upgrade head
 docker compose pull
 docker compose up -d
 # 5) 确认状态并检查 Nginx 请求
-docker compose ps        # 等待全部 healthy
+docker compose ps        # api/postgres/web 应显示 (healthy)，worker 和 nginx 为 Up（无 healthcheck）
 curl -sf http://127.0.0.1/healthz
 docker compose logs nginx --tail 20
 ```

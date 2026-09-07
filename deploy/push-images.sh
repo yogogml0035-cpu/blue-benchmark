@@ -58,7 +58,7 @@ echo "  2. cd /opt/blue-benchmark"
 echo "  3. 如果本次发版包含数据库迁移：docker compose run --rm api alembic upgrade head"
 echo "  4. docker compose pull && docker compose up -d"
 echo "     （compose.yaml 已声明 nginx 随 api/web 更新重启，up -d 会自动完成地址刷新）"
-echo "  5. docker compose ps 等待全部 healthy"
+echo "  5. docker compose ps 确认 api/postgres/web 为 (healthy)，worker/nginx 为 Up（无 healthcheck）"
 echo "  6. 检查 Nginx 请求确实到达新实例："
 echo "     curl -sf http://127.0.0.1/healthz && docker compose logs nginx --tail 20"
 echo
