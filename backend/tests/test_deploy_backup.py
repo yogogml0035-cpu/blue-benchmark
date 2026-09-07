@@ -309,7 +309,7 @@ def env(tmp_path: Path, fake_bin: Path) -> dict[str, Any]:
     # Mac 端：SSH 主机别名与专用下载目录
     ssh_dir = tmp_path / "sshhome" / ".ssh"
     ssh_dir.mkdir(parents=True)
-    (ssh_dir / "config").write_text("Host evalserver\n  HostName 10.0.0.1\n", encoding="utf-8")
+    (ssh_dir / "config").write_text("Host bbserver\n  HostName 10.0.0.1\n", encoding="utf-8")
 
     switches = {
         "EVENTS": str(events),
@@ -1016,7 +1016,7 @@ class TestDownload:
         return run_cli(
             [
                 "download",
-                "--host", "evalserver",
+                "--host", "bbserver",
                 "--remote-path", str(env["backups_dir"] / "latest.tar.gz"),
                 "--local-dir", str(local_dir or self.local_dir(env)),
             ],

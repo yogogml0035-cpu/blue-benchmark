@@ -78,7 +78,7 @@ python3 backup.py restore-check /tmp/restore/latest.tar.gz \
 
 核对输出中的：格式版本、备份 ID、生成时间、应用镜像标识、业务 schema 版本。
 也可以先用不带密钥的 `python3 backup.py verify <归档>` 查看结构与成员摘要
-（此时 HMAC 未核对，真正恢复前必须用原密钥通过 `restore-check`）。`verify`/`restore-check` 的密钥除 `--aes-key-file` 外也可经环境变量 `BLUE_BENCHMARK_BACKUP_AES_KEY`（值为原 `LANGGRAPH_AES_KEY`）提供；为避免密钥落入 shell 历史，推荐始终用密钥文件。
+（此时 HMAC 未核对，真正恢复前必须用原密钥通过 `restore-check`）。`verify` 的密钥除 `--aes-key-file` 外也可经环境变量 `BLUE_BENCHMARK_BACKUP_AES_KEY`（值为原 `LANGGRAPH_AES_KEY`）提供；`restore-check` 仅接受 `--aes-key-file`。为避免密钥落入 shell 历史，推荐始终用密钥文件。
 
 以下情况必须停在这里，不进入后续任何步骤：
 
