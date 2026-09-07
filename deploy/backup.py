@@ -332,7 +332,6 @@ class DeployConfig:
     checkpoint: DatabaseTarget
     aes_key: str
     appdata_volume: str
-    business_schema_version: str | None
     api_image: str
     worker_image: str
     postgres_image: str
@@ -424,8 +423,6 @@ def load_deploy_config(compose_dir: Path) -> DeployConfig:
     if business.user != postgres_user:
         raise ConfigError("DSN 用户与 postgres 服务的 POSTGRES_USER 不一致，两库必须同在本 Compose 的 postgres 服务")
 
-    business_schema_version = _discover_schema_version(compose_dir)
-
     oss: OssTarget | None = None
     endpoint_args: tuple[str, ...] = ()
     bucket = api_env.get("OSS_BUCKET", "").strip()
@@ -447,35 +444,12 @@ def load_deploy_config(compose_dir: Path) -> DeployConfig:
         checkpoint=checkpoint,
         aes_key=aes_key,
         appdata_volume=api_volume,
-        business_schema_version=business_schema_version,
         api_image=str(config["services"]["api"].get("image") or ""),
         worker_image=str(config["services"]["worker"].get("image") or ""),
         postgres_image=str(config["services"]["postgres"].get("image") or ""),
         oss=oss,
         oss_endpoint_args=endpoint_args,
     )
-
-
-def _discover_schema_version(compose_dir: Path) -> str | None:
-    """从仓库的 alembic 版本目录发现业务 schema 版本（部署机上可能不存在）。"""
-    versions_dir = compose_dir.parent / "backend" / "alembic" / "versions"
-    heads: list[str] = []
-    try:
-        for path in sorted(versions_dir.glob("*.py")):
-            text = path.read_text(encoding="utf-8", errors="replace")
-            revision = re.search(r"^revision(?::\s*str)?\s*=\s*['\"]([^'\"]+)['\"]", text, re.M)
-            down = re.search(r"^down_revision(?::[^=]+)?\s*=\s*['\"]([^'\"]+)['\"]", text, re.M)
-            if revision:
-                heads.append(revision.group(1))
-                if down:
-                    value = down.group(1)
-                    if value in heads:
-                        heads.remove(value)
-    except OSError:
-        return None
-    if len(heads) == 1:
-        return heads[0]
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -908,6 +882,22 @@ def list_databases(compose_dir: Path, user: str) -> set[str]:
         cwd=compose_dir,
     )
     return {line.strip() for line in (result.stdout or "").splitlines() if line.strip()}
+
+
+def query_business_schema_version(compose_dir: Path, user: str, dbname: str) -> str | None:
+    """停写窗口内从业务库读取 alembic 版本；任何失败记"未知"，不中止备份。"""
+    result = run_cmd(
+        ["docker", "compose", "exec", "-T", "postgres", "psql", "-U", user, "-d", dbname,
+         "-Atc", "SELECT version_num FROM alembic_version"],
+        cwd=compose_dir,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    lines = [line.strip() for line in (result.stdout or "").splitlines() if line.strip()]
+    if len(lines) != 1:
+        return None
+    return lines[0]
 
 
 def check_write_connections(compose_dir: Path, user: str, dbnames: Sequence[str]) -> None:
@@ -1367,6 +1357,9 @@ def _run_locked(config: DeployConfig, backups_dir: Path, state_path: Path, args:
             stop_services(config.compose_dir, to_stop)
         try:
             check_write_connections(config.compose_dir, config.business.user, (config.business.dbname, config.checkpoint.dbname))
+            schema_version = query_business_schema_version(
+                config.compose_dir, config.business.user, config.business.dbname
+            )
             workdir = Path(tempfile.mkdtemp(prefix=f"blue-benchmark-backup-{backup_id}-"))
             os.chmod(workdir, 0o700)
             log("导出业务库（停写窗口内）")
@@ -1403,7 +1396,7 @@ def _run_locked(config: DeployConfig, backups_dir: Path, state_path: Path, args:
             member_sizes,
             config.aes_key,
             api_image=config.api_image,
-            business_schema_version=config.business_schema_version,
+            business_schema_version=schema_version,
         )
 
         latest = write_archive_atomic(

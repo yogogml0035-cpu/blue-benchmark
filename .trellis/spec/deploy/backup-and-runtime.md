@@ -24,7 +24,7 @@ backup.py restore-check  ARCHIVE --aes-key-file FILE [--compose-dir DIR]
 ### 3. Contracts
 
 - 配置来源：`docker compose config --format json` 解析 API/Worker/PostgreSQL 环境与挂载；不 shell source `.env`。环境变量：`OSS_BUCKET`、`OSS_PREFIX`、`OSS_ENDPOINT`（无密钥；ossutil 凭证由其自身私有配置管理）。
-- `manifest.json`：格式版本、备份 ID、导出时间（UTC）、应用镜像标识、业务 schema 版本、各成员大小与 SHA-256、以原 `LANGGRAPH_AES_KEY` 计算的 HMAC-SHA256（密钥本身不写入）。
+- `manifest.json`：格式版本、备份 ID、导出时间（UTC）、应用镜像标识、业务 schema 版本（run 在停写窗口内经 `docker compose exec` 查询业务库 `alembic_version` 得到；查询失败记 null，输出显示「未知」，不中止备份）、各成员大小与 SHA-256、以原 `LANGGRAPH_AES_KEY` 计算的 HMAC-SHA256（密钥本身不写入）。
 - 成功输出合同：服务器与 OSS 两处结果分别输出；两处都成功最后一行才是 `完整备份成功`；OSS 失败时最后一行是 `服务器完整备份成功；OSS 本次更新失败，云端仍指向上一次成功备份`，退出码 0（服务器恢复点完整成立）。
 - Nginx 刷新合同：`nginx.depends_on.api/web` 必须同时有 `condition: service_healthy` 与 `restart: true`（Compose 2.20+ 基线）；发版/回滚走完整 Compose 服务图（`pull && up -d`），禁止跳过依赖或单独重启某服务。
 
@@ -72,6 +72,6 @@ find backups -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +
 
 ```bash
 # 完整服务图更新，nginx 随依赖自动重启刷新地址
-docker compose pull && docker compose up -d   # 等待 healthy 后 curl /healthz
+docker compose pull && docker compose up -d   # api/postgres/web 应 healthy，worker/nginx 为 Up（无 healthcheck）；再 curl /healthz
 # 三处各只留最新成功一套，原子替换 latest.tar.gz，无日期目录
 ```

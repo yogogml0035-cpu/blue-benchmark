@@ -77,6 +77,9 @@ case "$sub" in
         case "$args" in
           *pg_database*) cat "${FAKE_DATABASES:?}"; exit 0 ;;
           *pg_stat_activity*) echo "${FAKE_CONN_COUNT:-0}"; exit 0 ;;
+          *alembic_version*)
+            if [ -n "${FAKE_SCHEMA_VERSION:-}" ]; then echo "$FAKE_SCHEMA_VERSION"; exit 0; fi
+            echo 'psql: error: relation "alembic_version" does not exist' >&2; exit 91 ;;
           *) echo "unexpected psql query" >&2; exit 91 ;;
         esac ;;
       du) echo "${FAKE_PGDATA_SIZE:-1048576}	/var/lib/postgresql/data"; exit 0 ;;
@@ -321,6 +324,7 @@ def env(tmp_path: Path, fake_bin: Path) -> dict[str, Any]:
         "FAKE_FILES_TAR": str(work / "files.tar"),
         "FAKE_PGDATA_SIZE": "1048576",
         "FAKE_CONN_COUNT": "0",
+        "FAKE_SCHEMA_VERSION": "0021_m0_runtime_messages_threads",
         "OSS_LOCAL": str(oss_local),
         "HOME": str(tmp_path / "sshhome"),
     }
@@ -345,6 +349,7 @@ def _clean_env_keys():
         "FAIL_FILES", "FAIL_CP", "FAIL_RM", "FAIL_CAT", "FAIL_SCP", "DROP_TAIL",
         "CORRUPT_CP", "DROP_CP", "FAKE_VERSIONING", "FAKE_MULTIPART",
         "OSS_LOCAL", "HOME", "BLUE_BENCHMARK_BACKUP_AES_KEY",
+        "FAKE_SCHEMA_VERSION",
     ]
     saved = {key: os.environ.get(key) for key in added}
     yield
@@ -635,6 +640,8 @@ class TestRunFlow:
         verified = backup.validate_archive_path(latest, aes_key=TEST_AES_KEY)
         assert verified.backup_id in output
         assert verified.created_at in output
+        # 停写窗口内从业务库 alembic_version 查得的真实 schema 版本进入清单
+        assert verified.manifest["business_schema_version"] == "0021_m0_runtime_messages_threads"
         assert_no_secrets(output)
         # 停写窗口顺序：stop 在 pg_dump/tar 之前；OSS 上传在服务恢复之后
         # （预检阶段的 OSS 检查在 stop 之前属正常，这里只看发布阶段）
@@ -651,6 +658,17 @@ class TestRunFlow:
         assert not (env["backups_dir"] / "backup-state.json").exists()
         assert list(env["backups_dir"].glob(".latest.tar.gz.candidate-*")) == []
         assert service_states(env)["api"] == "running"
+
+    def test_run_records_unknown_schema_version_when_query_fails(
+        self, env: dict[str, Any], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # alembic_version 查询失败（无表/psql 报错）时清单记 None（"未知"），备份不中止
+        os.environ.pop("FAKE_SCHEMA_VERSION", None)
+        output = run_success(env, capsys)
+        latest: Path = env["backups_dir"] / "latest.tar.gz"
+        verified = backup.validate_archive_path(latest, aes_key=TEST_AES_KEY)
+        assert verified.manifest["business_schema_version"] is None
+        assert verified.backup_id in output
 
     def test_run_updates_oss_latest_only(self, env: dict[str, Any], capsys: pytest.CaptureFixture[str]) -> None:
         run_success_all(env, capsys)
