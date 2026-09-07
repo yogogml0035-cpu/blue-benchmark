@@ -90,7 +90,7 @@ def test_verify_target_whitelist():
     "postgresql://u:p@127.0.0.1:5432/blue_benchmark#frag",
     # Additional shape attacks verified refused.
     "postgresql://u:p@127.0.0.1:5432/BlueBenchmark",              # case mismatch
-    "postgresql://u:p@127.0.0.1:5432/skill%5Feval",           # percent-encoding
+    "postgresql://u:p@127.0.0.1:5432/blue%5Fbenchmark",       # percent-encoding
     "postgresql://u:p@127.0.0.1:5432/blue_benchmark/extra",       # multi-segment path
     "postgresql://u:p@[::1]:5432/blue_benchmark",                 # IPv6 literal
     "postgresql+asyncpg://u:p@127.0.0.1:5432/blue_benchmark",     # other driver prefix

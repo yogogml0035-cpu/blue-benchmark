@@ -122,10 +122,10 @@ ls -l /opt/blue-benchmark/backups/        # 应只有 latest.tar.gz + backup.loc
 下载。在你的 Mac 上（只需 Python 3.10+ 和 SSH，不需要 Docker）：
 
 ```bash
-# 一次性准备：~/.ssh/config 里配置服务器主机别名（例如 evalserver），
+# 一次性准备：~/.ssh/config 里配置服务器主机别名（例如 bbserver），
 # 并把仓库的 deploy/backup.py 放到本机固定位置（例如 ~/bin/backup.py）
 
-python3 ~/bin/backup.py download --host evalserver
+python3 ~/bin/backup.py download --host bbserver
 # 可选：--remote-path（默认 /opt/blue-benchmark/backups/latest.tar.gz）
 #       --local-dir（默认 ~/blue-benchmark-backups）
 ```

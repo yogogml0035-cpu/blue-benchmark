@@ -18,7 +18,8 @@
                  latest.tar.gz -> 恢复服务之后才更新 OSS（只留最新一套）
   verify         离线校验归档结构、成员摘要、格式版本和路径安全；不执行
                  归档中的任何命令或 SQL。提供 --aes-key-file 或环境变量
-                 LANGGRAPH_AES_KEY 时额外核对 HMAC（argv 直接传密钥被拒绝）
+                 BLUE_BENCHMARK_BACKUP_AES_KEY（值为原 LANGGRAPH_AES_KEY）时
+                 额外核对 HMAC（argv 直接传密钥被拒绝）
   download       Mac 经 SSH 下载服务器 latest：临时文件 + 完整校验 +
                  原子覆盖；只需本机 Python 和 SSH
   restore-check  恢复预检（文档化人工恢复步骤的第一道门），拒绝旧格式
