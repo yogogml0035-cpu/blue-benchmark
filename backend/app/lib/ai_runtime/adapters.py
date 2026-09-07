@@ -689,7 +689,7 @@ class DeepAgentRubricGenerator:
                     "请对全部引用逐条自查）"
                 )
             raise RubricGenerationFailure(
-                "AI_CITATION_INVALID", "\n".join(lines), retryable=True
+                "AI_CITATION_INVALID", _clamp_message("\n".join(lines)), retryable=True
             )
 
 
@@ -709,7 +709,7 @@ _CITATION_REPAIR_MIN_QUOTE = 8
 # can still score >= the repair threshold. A repaired quote must keep every
 # negation cue the model wrote AND add none from the source, so deterministic
 # repair can never invert the polarity of the cited evidence.
-_NEGATION_CUES = frozenset("不没非勿别莫未")
+_NEGATION_CUES = frozenset("不没非勿别莫未无")
 # Below this similarity the "closest span" is noise, not guidance: a fully
 # fabricated quote has no meaningful nearest fragment, and suggesting one
 # would invite the model to copy text it never claimed.
@@ -720,6 +720,11 @@ _SPAN_SEARCH_MARGIN = 32
 # Max problems listed in one validation message / revision instruction; the
 # tail is summarized so the instruction stays bounded for long candidate sets.
 _PROBLEM_LIST_LIMIT = 8
+# Hard char ceiling for one validation message (it is persisted into
+# last_error_json and echoed into the revision instruction). Individual
+# quotes/spans are already bounded by the contract (500 chars each); this
+# only guards the pathological many-problems case.
+_MESSAGE_MAX_CHARS = 6000
 
 
 @dataclass(frozen=True)
@@ -744,18 +749,23 @@ class CitationProblem:
     def describe(self) -> str:
         if self.kind == "locator_unknown":
             text = f"{self.where} 引用了不属于本题材料的定位符 {self.locator!r}。"
-        elif self.kind == "quote_blank":
-            text = f"{self.where} 的引文为空白。"
-        else:
-            text = (
-                f"{self.where} 的引文不在定位符 {self.locator!r} 的材料正文中。"
-                f"你的引文：「{self.quote}」"
-            )
+            if len(self.alternates) == 1:
+                text += f"该引文逐字存在于定位符 {self.alternates[0]!r}，请改用该定位符。"
+            elif len(self.alternates) > 1:
+                text += f"该引文逐字存在于多个定位符（{_fmt_locators(self.alternates)}），请选用真正支撑主张的那一个。"
+            else:
+                text += "本题任何材料中都不存在这段引文，请核对定位符和引文是否都来自本题材料。"
+            return text
+        if self.kind == "quote_blank":
+            return f"{self.where} 的引文为空白，请补充该主张对应的逐字引文。"
+        text = (
+            f"{self.where} 的引文不在定位符 {self.locator!r} 的材料正文中。"
+            f"你的引文：「{self.quote}」"
+        )
         if len(self.alternates) == 1:
             text += f"该引文逐字存在于定位符 {self.alternates[0]!r}，请改用该定位符。"
         elif len(self.alternates) > 1:
-            listed = "、".join(repr(loc) for loc in self.alternates)
-            text += f"该引文逐字存在于多个定位符（{listed}），请选用真正支撑主张的那一个。"
+            text += f"该引文逐字存在于多个定位符（{_fmt_locators(self.alternates)}），请选用真正支撑主张的那一个。"
         elif self.expected is not None and self.ratio >= _FEEDBACK_MIN_RATIO:
             text += f"材料原文最接近的连续片段（逐字复制它）：「{self.expected}」"
         else:
@@ -765,6 +775,10 @@ class CitationProblem:
                 "若材料中没有支撑该主张的原文，请改写这条主张本身。"
             )
         return text
+
+
+def _fmt_locators(locators: tuple[str, ...]) -> str:
+    return "、".join(repr(loc) for loc in locators)
 
 
 def _verbatim_alternates(
@@ -977,13 +991,19 @@ def validate_result_citations(
         )
 
 
+def _clamp_message(message: str) -> str:
+    if len(message) <= _MESSAGE_MAX_CHARS:
+        return message
+    return message[:_MESSAGE_MAX_CHARS] + "\n- （消息过长已截断，请对全部引用逐条自查）"
+
+
 def _format_problems(
     problems: list[CitationProblem], *, limit: int = _PROBLEM_LIST_LIMIT
 ) -> str:
     listed = "\n".join(f"- {p.describe()}" for p in problems[:limit])
     if len(problems) > limit:
         listed += f"\n- （另有 {len(problems) - limit} 处同类问题，请对全部引用自查）"
-    return listed
+    return _clamp_message(listed)
 
 
 # ---------------------------------------------------------------------------
