@@ -96,6 +96,9 @@ vi .env
 - `OSS_BUCKET` / `OSS_PREFIX` / `OSS_ENDPOINT`：按 `oss-guide.md` 第五步填写
   （Bucket 名、专用前缀、同地域内网 Endpoint；三项都不含密钥，OSS 的
   AccessKey 由 ossutil 自己的配置管理）
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD`：平台唯一管理员的登录账号（api 容器
+  启动时自动写入数据库）。没填时 api 会拒绝启动；填入后保存到密码管理器，
+  以后改密码就改这两行并重启 api
 - `AI_*` 五项：照抄你本地开发 `.env` 里的值
 
 保存后收紧权限：

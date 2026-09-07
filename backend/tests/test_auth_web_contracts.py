@@ -58,6 +58,16 @@ def test_missing_admin_env_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "ADMIN_PASSWORD" in str(excinfo.value)
 
 
+def test_overlong_admin_password_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The login contract caps passwords at 128; seeding must reject longer env values."""
+
+    clear_business_data()
+    monkeypatch.setattr(settings, "admin_password", SecretStr("x" * 129))
+    with pytest.raises(RuntimeError) as excinfo:
+        auth_service.ensure_admin_from_env()
+    assert "128" in str(excinfo.value)
+
+
 def test_env_password_change_overwrites_and_revokes_sessions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

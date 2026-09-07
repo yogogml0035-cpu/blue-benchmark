@@ -60,7 +60,7 @@ await waitFor("http://127.0.0.1:3000/login");
 const browser = await chromium.launch();
 const shots = [];
 for (const [name, viewport] of [["1440x900", { width: 1440, height: 900 }], ["1280x720", { width: 1280, height: 720 }]]) {
-  for (const route of ["login", "register"]) {
+  for (const route of ["login"]) {
     const page = await browser.newPage({ viewport });
     await page.goto(`http://127.0.0.1:3000/${route}`, { waitUntil: "networkidle" });
     await page.waitForTimeout(1200);
