@@ -725,3 +725,9 @@
 - 显式决策:sep_ 凭证前缀(旧英文名缩写)属跨层安全合同且有在途凭证资产,本任务豁免不改,理由与后续路径记入归档 followups.md 第 9 条;8 条 main 既有部署文档/工具缺陷(restore.md 假表名 questions、卷删除被 exited 容器阻挡、schema 版本探测路径错误、"全部 healthy"口径等)登记 followups.md 留待独立任务。
 - 任务后用户手动动作已写入归档 cutover-checklist.md:GitHub 改名+remote set-url、关会话、mv 目录至 /Users/hsikey/Company/blue-benchmark、ZCode 记忆目录迁移、DBeaver 连接更新、合并窗口期无 Worker 进程门禁;服务器发版实操在目录切换后按新版 deploy 文档继续。
 - 备份 dump 存于仓库外产物区 /Users/hsikey/Company/skill-eval-platform-wt/_artifacts/rename-blue-benchmark-backups/(23 个文件,未入库)。origin/main 仍为旧备份基线,按既定约定未推送。
+
+## 2026-09-07 · 部署 followups 缺陷修复(09-07-deploy-followup-fixes)
+
+- 改名任务对抗审查登记的 8 条 main 既有部署缺陷当日立项当日闭环:restore.md 假表名 questions→eval_questions、第 7 步补 `docker compose rm -f api worker`+down -v 禁令、backup.py schema 版本探测从"仓库路径扫描(服务器恒失败)"改为停写窗口内查库 alembic_version(失败记"未知"不中止,DeployConfig 死字段删除,fake docker+2 新断言,66 passed)、"等待全部 healthy"统一为逐服务口径、acr-guide 假验证段改真实 push/删流程、REGISTRY 留空叙述修正、compose 2.17 硬下限/2.20+ 基线注释统一、alembic.ini 死配置注释;spec backup-and-runtime.md 同步。
+- 对抗审查 2 轮:R1 代码侧 7 项全 PASS 可合并、文档侧揪出 README:177「确认全部健康」中文变体漏网(检索式只查了英文)→f27e21f 修正+检索式补变体;R2 收敛验证零新发现。
+- ff 合并 main@811519a,main 复验全绿(diff --check/make test 264+75/make build),归档。第 9 条 sep_ 前缀按既定豁免未动。首次发版实操的文档障碍已清除。
