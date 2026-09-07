@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, History, RotateCcw, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, History, Pencil, RotateCcw, RotateCw, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -14,14 +14,17 @@ import {
   deleteQuestion,
   getQuestion,
   patchCriteria,
+  patchCriterion,
   publishQuestion,
+  regenerateQuestion,
   retryGeneration,
   reviewReopen,
-  saveRegenerate,
+  updateMaterials,
   updateTitle,
   type QuestionDetailResponse,
+  type QuestionMaterialsPatchRequest,
 } from "@/features/questions/api";
-import { CriteriaEditor } from "@/features/questions/components/criteria-editor";
+import { CriteriaEditor, type CriterionFieldPatch } from "@/features/questions/components/criteria-editor";
 import { GenerationTimeline } from "@/features/questions/components/generation-timeline";
 import { MaterialsPanel } from "@/features/questions/components/materials-panel";
 import {
@@ -30,12 +33,6 @@ import {
   validateSelected,
   type CriterionDraft,
 } from "@/features/questions/criterion-draft";
-import {
-  draftFromDetail,
-  draftToPayload,
-  isOnlyTitleChanged,
-  type MaterialDraft,
-} from "@/features/questions/material-draft";
 import { STATUS_LABEL, STATUS_TONE } from "@/features/questions/state";
 import { ApiError } from "@/lib/api/client";
 import styles from "./page.module.css";
@@ -50,18 +47,22 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
   const [detail, setDetail] = useState<QuestionDetailResponse | null>(null);
   const [loadError, setLoadError] = useState<{ code: string; message: string } | null>(null);
 
-  // Materials editing.
-  const [editingMaterials, setEditingMaterials] = useState(false);
-  const [materialDraft, setMaterialDraft] = useState<MaterialDraft | null>(null);
-  const [savingMaterials, setSavingMaterials] = useState(false);
-  const [regenConfirmOpen, setRegenConfirmOpen] = useState(false);
-
-  // Criteria drafts.
+  // Criteria drafts. Selection rides the explicit 保存维度 commit; AI criterion
+  // fields autosave individually.
   const [criterionDrafts, setCriterionDrafts] = useState<CriterionDraft[]>([]);
   const [criteriaDirty, setCriteriaDirty] = useState(false);
   const [savingCriteria, setSavingCriteria] = useState(false);
   const [criteriaError, setCriteriaError] = useState<string | null>(null);
+  const [criterionFieldErrors, setCriterionFieldErrors] = useState<Record<string, string | null>>({});
   const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
+
+  // Standalone regeneration (materials are never AI-generated).
+  const [regenerateOpen, setRegenerateOpen] = useState(false);
+
+  // Inline title editing in the header (autosaves on blur/Enter).
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [titleValue, setTitleValue] = useState("");
+  const titleBusyRef = useRef(false);
 
   // Generation process replay (after completion).
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -80,7 +81,8 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
 
   const loadAbortRef = useRef<AbortController | null>(null);
   const hasDetailRef = useRef(false);
-  const dirty = (editingMaterials && materialDraft !== null) || criteriaDirty;
+  // Serialized autosave queue per criterion: blur bursts never interleave.
+  const criterionSaveQueueRef = useRef<Map<string, Promise<void>>>(new Map());
 
   const applyDetail = useCallback((d: QuestionDetailResponse) => {
     setDetail(d);
@@ -139,16 +141,17 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
     return () => clearInterval(timer);
   }, [detail, load]);
 
-  // Warn before leaving with unsaved changes (not while deleting).
+  // Warn before leaving with an unconfirmed selection (autosaved text needs
+  // no warning; not while deleting).
   useEffect(() => {
-    if (!dirty || detail?.status === "deleting") return;
+    if (!criteriaDirty || detail?.status === "deleting") return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [dirty, detail]);
+  }, [criteriaDirty, detail]);
 
   function describe(err: unknown, fallback: string): string {
     return err instanceof ApiError ? err.message : fallback;
@@ -167,74 +170,109 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
     }
   }
 
-  // --- Materials ---
-  function startEditMaterials(): void {
-    if (!detail) return;
-    setMaterialDraft(draftFromDetail(detail));
-    setEditingMaterials(true);
-  }
-
-  function cancelEditMaterials(): void {
-    // Cancel must not submit anything: no request, draft discarded.
-    setMaterialDraft(null);
-    setEditingMaterials(false);
-    setRegenConfirmOpen(false);
-  }
-
-  async function submitMaterials(): Promise<void> {
-    if (!detail || !materialDraft) return;
-    setSavingMaterials(true);
-    setStaleMessage(null);
-    try {
-      if (isOnlyTitleChanged(detail, materialDraft)) {
-        // Title-only edits never trigger regeneration and need no confirm.
-        const updated = await updateTitle(detail.id, {
-          command_id: crypto.randomUUID(),
-          content_revision: detail.content_revision,
-          title: materialDraft.title,
-        });
-        setEditingMaterials(false);
-        setMaterialDraft(null);
-        applyDetail(updated);
-      } else {
-        const accepted = await saveRegenerate(
-          detail.id,
-          draftToPayload(materialDraft, {
-            command_id: crypto.randomUUID(),
-            content_revision: detail.content_revision,
-          }),
-        );
-        setRegenConfirmOpen(false);
-        setEditingMaterials(false);
-        setMaterialDraft(null);
-        setHistoryOpen(false);
-        void accepted;
-        await reloadUntilSettled();
+  // --- Materials autosave ---
+  const saveModule = useCallback(
+    async (patch: QuestionMaterialsPatchRequest): Promise<QuestionDetailResponse> => {
+      if (!detailRef.current) throw new Error("题目未加载。");
+      setStaleMessage(null);
+      try {
+        // NOT applyDetail: criterion selection drafts must survive a
+        // materials autosave; only the authoritative detail swaps.
+        const updated = await updateMaterials(detailRef.current.id, patch);
+        detailRef.current = updated;
+        setDetail(updated);
+        return updated;
+      } catch (err) {
+        if (err instanceof ApiError && err.code === "STALE_REVISION") {
+          setStaleMessage("题目内容已被更新，这次修改尚未保存。请查看最新内容后在模块内重试。");
+        }
+        throw err;
       }
+    },
+    [],
+  );
+
+  // --- Title autosave ---
+  async function commitTitleEdit(): Promise<void> {
+    if (titleBusyRef.current) return;
+    const title = titleValue.trim();
+    setTitleEditing(false);
+    if (!detailRef.current || !title || title === detailRef.current.title) return;
+    titleBusyRef.current = true;
+    setActing("title");
+    try {
+      await commitTitle(title);
+    } finally {
+      titleBusyRef.current = false;
+      setActing(null);
+    }
+  }
+
+  async function commitTitle(title: string): Promise<void> {
+    if (!detailRef.current) return;
+    setStaleMessage(null);
+    setActionError(null);
+    try {
+      const updated = await updateTitle(detailRef.current.id, {
+        command_id: crypto.randomUUID(),
+        content_revision: detailRef.current.content_revision,
+        title,
+      });
+      detailRef.current = updated;
+      setDetail(updated);
     } catch (err) {
       if (err instanceof ApiError && err.code === "STALE_REVISION") {
-        setStaleMessage("题目内容已被更新，你的草稿已保留。请查看最新内容后决定如何继续。");
+        setStaleMessage("题目内容已被更新，标题未保存。请查看最新内容后重试。");
       } else {
-        setStaleMessage(null);
-        setActionError(describe(err, "保存失败，请稍后重试。"));
+        setActionError(describe(err, "标题保存失败，请稍后重试。"));
       }
-    } finally {
-      setSavingMaterials(false);
     }
   }
 
-  function handleSaveMaterials(): void {
-    if (!detail || !materialDraft) return;
-    if (isOnlyTitleChanged(detail, materialDraft)) {
-      void submitMaterials();
-      return;
-    }
-    // Material changes replace the ENTIRE rubric set (anchors, bases and any
-    // manual edits included) after an explicit confirmation.
-    setRegenConfirmOpen(true);
+  // --- Criterion field autosave ---
+  async function handleCriterionFieldSave(criterionId: string, patch: CriterionFieldPatch): Promise<void> {
+    const previous = criterionSaveQueueRef.current.get(criterionId) ?? Promise.resolve();
+    const task = previous
+      .catch(() => undefined)
+      .then(async () => {
+        if (!detailRef.current) return;
+        setCriterionFieldErrors((m) => ({ ...m, [criterionId]: null }));
+        try {
+          const updated = await patchCriterion(detailRef.current.id, criterionId, {
+            content_revision: detailRef.current.content_revision,
+            ...patch,
+          });
+          detailRef.current = updated;
+          setDetail(updated);
+          // Merge ONLY the saved item: selection flags and other criteria's
+          // in-progress local edits must survive the autosave.
+          setCriterionDrafts((list) =>
+            list.map((d) => {
+              if (d.id !== criterionId) return d;
+              const server = updated.criteria?.find((c) => c.id === criterionId);
+              return server
+                ? {
+                    ...d,
+                    criterion: server.criterion,
+                    pass_score: server.pass_score,
+                    score_anchors: server.score_anchors.map((a) => ({ ...a })),
+                  }
+                : d;
+            }),
+          );
+        } catch (err) {
+          const message =
+            err instanceof ApiError && err.code === "STALE_REVISION"
+              ? "题目内容已在别处更新，这次修改未保存；请重新载入后重试。"
+              : describe(err, "保存失败，请稍后重试。");
+          setCriterionFieldErrors((m) => ({ ...m, [criterionId]: message }));
+        }
+      });
+    criterionSaveQueueRef.current.set(criterionId, task);
+    await task;
   }
 
-  // --- Criteria ---
+  // --- Criteria (selection + finalize) ---
   async function handleSaveCriteria(): Promise<void> {
     if (!detail) return;
     const validation = validateSelected(criterionDrafts);
@@ -253,6 +291,7 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
         criteria: selectedToPayload(criterionDrafts),
       });
       applyDetail(updated);
+      setCriterionFieldErrors({});
     } catch (err) {
       if (err instanceof ApiError && err.code === "STALE_REVISION") {
         setStaleMessage("题目内容已被更新，你的草稿已保留。请重新载入后再保存。");
@@ -264,13 +303,26 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
     }
   }
 
+  // --- Standalone regeneration ---
+  async function handleRegenerate(): Promise<void> {
+    if (!detail) return;
+    setRegenerateOpen(false);
+    await runAction("regen", async () => {
+      await regenerateQuestion(detail.id, {
+        command_id: crypto.randomUUID(),
+        content_revision: detail.content_revision,
+      });
+      setHistoryOpen(false);
+      await reloadUntilSettled();
+    });
+  }
+
   // --- Status actions ---
-  async function runAction(kind: "retry" | "publish" | "reopen", fn: () => Promise<unknown>): Promise<void> {
+  async function runAction(kind: "retry" | "publish" | "reopen" | "regen", fn: () => Promise<unknown>): Promise<void> {
     setActing(kind);
     setActionError(null);
     try {
       await fn();
-      setHistoryOpen(false);
       await load();
     } catch (err) {
       setActionError(describe(err, "操作失败，请稍后重试。"));
@@ -340,10 +392,12 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
     );
   }
 
-  const materialsDraftForView = editingMaterials && materialDraft ? materialDraft : draftFromDetail(detail);
   const generating = detail.status === "generating";
   const published = detail.status === "published";
   const frozenForDelete = detail.status === "deleting";
+  // Materials and title autosave need a settled, non-frozen, non-published
+  // question; the backend enforces the same gates.
+  const canEditMaterials = !generating && !published && !frozenForDelete;
 
   return (
     <div className={styles.page}>
@@ -357,8 +411,66 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
 
       <div className={styles.header}>
         <div className={styles.headerMain}>
-          <h1 className={styles.title}>{detail.title}</h1>
+          <h1
+            className={[styles.title, canEditMaterials ? styles.titleEditable : null].join(" ")}
+            onClick={() => {
+              if (canEditMaterials) setTitleEditing(true);
+            }}
+          >
+            {titleEditing ? null : detail.title}
+          </h1>
+          {titleEditing ? (
+            <input
+              className={styles.titleInput}
+              value={titleValue}
+              autoFocus
+              disabled={acting === "title"}
+              onChange={(e) => setTitleValue(e.target.value)}
+              onBlur={() => void commitTitleEdit()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void commitTitleEdit();
+                }
+                if (e.key === "Escape") {
+                  setTitleValue(detail.title);
+                  setTitleEditing(false);
+                }
+              }}
+              aria-label="用例标题"
+            />
+          ) : null}
+          {canEditMaterials && !titleEditing ? (
+            <Button
+              variant="ghost"
+              className={styles.titleEditButton}
+              onClick={() => {
+                setTitleValue(detail.title);
+                setTitleEditing(true);
+              }}
+              aria-label="编辑用例标题"
+            >
+              <Pencil size={13} aria-hidden="true" />
+            </Button>
+          ) : null}
           <StatusBadge tone={STATUS_TONE[detail.status]}>{STATUS_LABEL[detail.status]}</StatusBadge>
+        </div>
+        <div className={styles.headerActions}>
+          {!frozenForDelete ? (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setActionError(null);
+                setRegenerateOpen(true);
+              }}
+              loading={acting === "regen"}
+              disabled={acting !== null}
+              data-testid="regenerate-button"
+            >
+              <RotateCw size={15} aria-hidden="true" />
+              重新生成
+            </Button>
+          ) : null}
           {!published && !generating && !frozenForDelete ? (
             <Button
               variant="danger"
@@ -373,11 +485,6 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
             </Button>
           ) : null}
         </div>
-        {!editingMaterials && !published && !frozenForDelete ? (
-          <Button variant="secondary" onClick={startEditMaterials}>
-            编辑材料
-          </Button>
-        ) : null}
       </div>
 
       {staleMessage ? <ErrorPanel title="内容版本冲突" message={staleMessage} action={
@@ -412,26 +519,26 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
       {!frozenForDelete ? (
         <div className={styles.columns}>
           <div className={styles.materialsCol}>
-            {editingMaterials ? (
-              <div className={styles.materialsEditBar}>
-                <Button variant="secondary" onClick={cancelEditMaterials} disabled={savingMaterials}>
-                  取消
-                </Button>
-                <Button onClick={handleSaveMaterials} loading={savingMaterials}>
-                  保存并重新生成
-                </Button>
-              </div>
-            ) : null}
-            <MaterialsPanel
-              draft={materialsDraftForView}
-              editing={editingMaterials}
-              onChange={(updater) => setMaterialDraft((d) => (d ? updater(d) : d))}
-            />
+            <MaterialsPanel detail={detail} canEdit={canEditMaterials} onSaveModule={saveModule} />
           </div>
 
           <div className={styles.reviewCol}>
             <div className={styles.reviewInner}>
-              <h2 className={styles.reviewTitle}>评分维度</h2>
+              <div className={styles.reviewTitleRow}>
+                <h2 className={styles.reviewTitle}>评分维度</h2>
+                {!generating && detail.status !== "generation_failed" && detail.last_operation_id ? (
+                  <Button variant="ghost" onClick={() => setHistoryOpen((v) => !v)}>
+                    <History size={14} aria-hidden="true" />
+                    {historyOpen ? "收起生成过程" : "查看完整生成过程"}
+                  </Button>
+                ) : null}
+              </div>
+
+              {detail.criteria_basis_stale && !generating && detail.status !== "generation_failed" ? (
+                <p className={styles.driftBanner} role="status" data-testid="criteria-stale-banner">
+                  材料已修改，部分维度依据引用的原文已过期，建议重新生成或检查依据。
+                </p>
+              ) : null}
 
               {generating && detail.active_operation_id ? (
                 <div className={styles.statusBox} data-testid="generation-progress">
@@ -482,14 +589,6 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
 
               {!generating && detail.status !== "generation_failed" ? (
                 <>
-                  {detail.last_operation_id ? (
-                    <div className={styles.historyBar}>
-                      <Button variant="ghost" onClick={() => setHistoryOpen((v) => !v)}>
-                        <History size={14} aria-hidden="true" />
-                        {historyOpen ? "收起生成过程" : "查看完整生成过程"}
-                      </Button>
-                    </div>
-                  ) : null}
                   {historyOpen && detail.last_operation_id ? (
                     <GenerationTimeline
                       key={detail.last_operation_id}
@@ -501,11 +600,12 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
 
                   <CriteriaEditor
                     drafts={criterionDrafts}
+                    detail={detail}
                     readOnly={published}
-                    onChange={(updater) => {
-                      setCriterionDrafts(updater);
-                      setCriteriaDirty(true);
-                    }}
+                    onChange={(updater) => setCriterionDrafts(updater)}
+                    onSelectionDirty={() => setCriteriaDirty(true)}
+                    onSaveFields={handleCriterionFieldSave}
+                    fieldErrors={criterionFieldErrors}
                   />
                   {criteriaError ? <ErrorPanel title="保存未成功" message={criteriaError} /> : null}
 
@@ -568,23 +668,24 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
       ) : null}
 
       <Dialog
-        open={regenConfirmOpen}
-        title="重新生成将整套替换"
-        onClose={() => setRegenConfirmOpen(false)}
+        open={regenerateOpen}
+        title="重新生成评分维度"
+        onClose={() => setRegenerateOpen(false)}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setRegenConfirmOpen(false)} disabled={savingMaterials}>
+            <Button variant="secondary" onClick={() => setRegenerateOpen(false)} disabled={acting === "regen"}>
               取消
             </Button>
-            <Button onClick={() => void submitMaterials()} loading={savingMaterials} data-testid="regen-confirm">
-              确认替换并重新生成
+            <Button onClick={() => void handleRegenerate()} loading={acting === "regen"} data-testid="regen-confirm">
+              确认重新生成
             </Button>
           </>
         }
       >
         <p className={styles.dialogText} data-testid="regen-confirm-text">
-          材料修改后将启动整套重新生成：当前全部评分维度、分数说明、依据以及你做过的人工修改都会被新结果替换，且不可恢复。
-          取消不会提交任何材料修改，也不会启动生成。确定继续吗？
+          {generating ? "当前一轮生成仍在进行，重新生成会将其作废并立即重跑。" : null}
+          将作废当前全部评分维度——包括候选、你的勾选与已确认结果——并基于当前已保存的材料重新生成。
+          材料本身不会被 AI 改写。确定继续吗？
         </p>
       </Dialog>
 

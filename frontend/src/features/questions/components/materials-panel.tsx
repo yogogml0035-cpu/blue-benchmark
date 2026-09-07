@@ -1,207 +1,411 @@
 "use client";
 
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { useState } from "react";
-import { TextField } from "@/components/ui/text-field";
-import type { MaterialDraft } from "../material-draft";
+import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ApiError } from "@/lib/api/client";
+import type { QuestionDetailResponse, QuestionMaterialsPatchRequest } from "../api";
+import {
+  buildModulePatch,
+  moduleBuffer,
+  type BadCaseBuffer,
+  type MaterialModuleBuffer,
+  type MaterialModuleKey,
+  type MemoryMaterialBuffer,
+  type ReferenceExampleBuffer,
+} from "../materials-edit";
 import styles from "./materials-panel.module.css";
 
 export interface MaterialsPanelProps {
-  draft: MaterialDraft;
-  editing: boolean;
-  onChange: (updater: (draft: MaterialDraft) => MaterialDraft) => void;
+  detail: QuestionDetailResponse;
+  /** False while the question is generating/published/deleting: view-only. */
+  canEdit: boolean;
+  /**
+   * Persist one module's patch (autosave). Rejects on failure so the module
+   * keeps its edit state and offers a retry; the parent surfaces
+   * STALE_REVISION through the shared conflict banner.
+   */
+  onSaveModule: (patch: QuestionMaterialsPatchRequest) => Promise<QuestionDetailResponse>;
 }
 
-export function MaterialsPanel({ draft, editing, onChange }: MaterialsPanelProps): React.JSX.Element {
+export function MaterialsPanel({ detail, canEdit, onSaveModule }: MaterialsPanelProps): React.JSX.Element {
+  const [editingKey, setEditingKey] = useState<MaterialModuleKey | null>(null);
+  const [buffer, setBuffer] = useState<MaterialModuleBuffer | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [memoryOpen, setMemoryOpen] = useState(false);
 
-  if (!editing) {
-    return (
-      <div className={styles.materials}>
-        <MaterialBlock label="题目">
-          <MaskBox>
-            <p className={styles.text}>{draft.task_prompt}</p>
-          </MaskBox>
-        </MaterialBlock>
+  const editing = (key: MaterialModuleKey): boolean => editingKey === key && buffer !== null;
 
-        <MaterialBlock label={`参考文本（${draft.reference_examples.length}）`}>
-          {draft.reference_examples.length === 0 ? (
-            <MaskBox>
-              <p className={styles.empty}>无参考文本</p>
-            </MaskBox>
-          ) : (
-            draft.reference_examples.map((e, i) => (
-              <MaskBox key={e.client_ref_id || i}>
-                {e.source_name ? <p className={styles.subLabel}>{e.source_name}</p> : null}
-                <p className={styles.text}>{e.content_text}</p>
-              </MaskBox>
-            ))
-          )}
-        </MaterialBlock>
-
-        <MaterialBlock label={`Bad case（${draft.bad_cases.length}）`}>
-          {draft.bad_cases.length === 0 ? (
-            <MaskBox>
-              <p className={styles.empty}>无 Bad case</p>
-            </MaskBox>
-          ) : (
-            draft.bad_cases.map((b, i) => (
-              <MaskBox key={i}>
-                <p className={styles.text}>{b.content_text}</p>
-                {b.teacher_feedback_texts.map((f, j) => (
-                  <p key={j} className={styles.feedback}>
-                    老师反馈：{f}
-                  </p>
-                ))}
-                {b.reason_summary ? <p className={styles.subLabel}>原因：{b.reason_summary}</p> : null}
-              </MaskBox>
-            ))
-          )}
-        </MaterialBlock>
-
-        <MaterialBlock label="标准答案">
-          <MaskBox>
-            <p className={styles.text}>{draft.reference_answer}</p>
-          </MaskBox>
-        </MaterialBlock>
-
-        <div className={styles.materialBlock}>
-          <button
-            type="button"
-            className={styles.memoryToggle}
-            onClick={() => setMemoryOpen((v) => !v)}
-            aria-expanded={memoryOpen}
-          >
-            {memoryOpen ? <ChevronDown size={15} aria-hidden="true" /> : <ChevronRight size={15} aria-hidden="true" />}
-            用户记忆（{draft.memory_materials.length}）
-          </button>
-          <p className={styles.memoryNote}>由 Agent 自动筛选，上传时未逐条确认。</p>
-          {memoryOpen ? (
-            draft.memory_materials.length === 0 ? (
-              <MaskBox>
-                <p className={styles.empty}>无用户记忆</p>
-              </MaskBox>
-            ) : (
-              draft.memory_materials.map((m, i) => (
-                <MaskBox key={m.client_ref_id || i}>
-                  {m.source_label ? <p className={styles.subLabel}>{m.source_label}</p> : null}
-                  <p className={styles.text}>{m.content_text}</p>
-                </MaskBox>
-              ))
-            )
-          ) : null}
-        </div>
-      </div>
-    );
+  function enterEdit(key: MaterialModuleKey): void {
+    if (!canEdit || saving) return;
+    setEditingKey(key);
+    setBuffer(moduleBuffer(detail, key));
+    setError(null);
   }
 
-  // Edit mode.
+  function exitEdit(): void {
+    setEditingKey(null);
+    setBuffer(null);
+    setError(null);
+  }
+
+  async function commit(): Promise<void> {
+    if (editingKey === null || buffer === null) return;
+    const patch = buildModulePatch(detail, editingKey, buffer);
+    if (patch === null) {
+      // Nothing actually changed: leaving edit state must not fake a save.
+      exitEdit();
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSaveModule({ content_revision: detail.content_revision, ...patch });
+      exitEdit();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "保存失败，请稍后重试。");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function escapeCancels(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      exitEdit();
+    }
+  }
+
   return (
     <div className={styles.materials}>
-      <TextField
-        label="用例标题"
-        value={draft.title}
-        onChange={(e) => onChange((d) => ({ ...d, title: e.target.value }))}
-      />
-      <FieldArea
+      <ModuleFrame
         label="题目"
-        value={draft.task_prompt}
-        onChange={(v) => onChange((d) => ({ ...d, task_prompt: v }))}
-      />
-      <FieldArea
+        moduleKey="task_prompt"
+        canEdit={canEdit}
+        editing={editing("task_prompt")}
+        saving={saving}
+        error={error}
+        onEnterEdit={() => enterEdit("task_prompt")}
+        onFocusLeave={() => void commit()}
+        onCommit={() => void commit()}
+        onDiscard={exitEdit}
+      >
+        {editing("task_prompt") ? (
+          <textarea
+            className={styles.textarea}
+            value={buffer as string}
+            rows={7}
+            autoFocus
+            onChange={(e) => setBuffer(e.target.value)}
+            onKeyDown={escapeCancels}
+            aria-label="题目内容"
+          />
+        ) : (
+          <div className={styles.maskBox}>
+            <p className={styles.text}>{detail.task_prompt}</p>
+          </div>
+        )}
+      </ModuleFrame>
+
+      <ModuleFrame
+        label={`参考文本（${detail.reference_examples.length}）`}
+        moduleKey="reference_examples"
+        canEdit={canEdit}
+        editing={editing("reference_examples")}
+        saving={saving}
+        error={error}
+        onEnterEdit={() => enterEdit("reference_examples")}
+        onFocusLeave={() => void commit()}
+        onCommit={() => void commit()}
+        onDiscard={exitEdit}
+      >
+        {editing("reference_examples") ? (
+          (buffer as ReferenceExampleBuffer[]).map((e, i) => (
+            <label key={e.client_ref_id || i} className={styles.fieldArea}>
+              <span className={styles.fieldAreaLabel}>
+                {`样例 ${i + 1}${e.source_name ? ` · ${e.source_name}` : ""}`}
+              </span>
+              <textarea
+                className={styles.textarea}
+                value={e.content_text}
+                rows={5}
+                autoFocus={i === 0}
+                onChange={(ev) =>
+                  setBuffer((current) =>
+                    (current as ReferenceExampleBuffer[]).map((x, j) =>
+                      j === i ? { ...x, content_text: ev.target.value } : x,
+                    ),
+                  )
+                }
+                onKeyDown={escapeCancels}
+                aria-label={`参考文本 ${i + 1} 内容`}
+              />
+            </label>
+          ))
+        ) : detail.reference_examples.length === 0 ? (
+          <div className={styles.maskBox}>
+            <p className={styles.empty}>无参考文本</p>
+          </div>
+        ) : (
+          detail.reference_examples.map((e, i) => (
+            <div key={e.client_ref_id || i} className={styles.maskBox}>
+              {e.source_name ? <p className={styles.subLabel}>{e.source_name}</p> : null}
+              <p className={styles.text}>{e.content_text}</p>
+            </div>
+          ))
+        )}
+      </ModuleFrame>
+
+      <ModuleFrame
+        label={`Bad case（${detail.bad_cases.length}）`}
+        moduleKey="bad_cases"
+        canEdit={canEdit}
+        editing={editing("bad_cases")}
+        saving={saving}
+        error={error}
+        onEnterEdit={() => enterEdit("bad_cases")}
+        onFocusLeave={() => void commit()}
+        onCommit={() => void commit()}
+        onDiscard={exitEdit}
+      >
+        {editing("bad_cases") ? (
+          (buffer as BadCaseBuffer[]).map((b, i) => (
+            <div key={i} className={styles.fieldArea}>
+              <span className={styles.fieldAreaLabel}>{`Bad case ${i + 1}`}</span>
+              <textarea
+                className={styles.textarea}
+                value={b.content_text}
+                rows={5}
+                autoFocus={i === 0}
+                onChange={(ev) =>
+                  setBuffer((current) =>
+                    (current as BadCaseBuffer[]).map((x, j) =>
+                      j === i ? { ...x, content_text: ev.target.value } : x,
+                    ),
+                  )
+                }
+                onKeyDown={escapeCancels}
+                aria-label={`Bad case ${i + 1} 内容`}
+              />
+              {b.teacher_feedback_texts.map((f, j) => (
+                <p key={j} className={styles.feedback}>
+                  老师反馈：{f}
+                </p>
+              ))}
+              {b.reason_summary ? <p className={styles.subLabel}>原因：{b.reason_summary}</p> : null}
+            </div>
+          ))
+        ) : detail.bad_cases.length === 0 ? (
+          <div className={styles.maskBox}>
+            <p className={styles.empty}>无 Bad case</p>
+          </div>
+        ) : (
+          detail.bad_cases.map((b, i) => (
+            <div key={i} className={styles.maskBox}>
+              <p className={styles.text}>{b.content_text}</p>
+              {b.teacher_feedback_texts.map((f, j) => (
+                <p key={j} className={styles.feedback}>
+                  老师反馈：{f}
+                </p>
+              ))}
+              {b.reason_summary ? <p className={styles.subLabel}>原因：{b.reason_summary}</p> : null}
+            </div>
+          ))
+        )}
+      </ModuleFrame>
+
+      <ModuleFrame
         label="标准答案"
-        value={draft.reference_answer}
-        onChange={(v) => onChange((d) => ({ ...d, reference_answer: v }))}
-      />
-
-      <MaterialBlock label={`参考文本（${draft.reference_examples.length}）`}>
-        {draft.reference_examples.map((e, i) => (
-          <FieldArea
-            key={e.client_ref_id || i}
-            label={`样例 ${i + 1}${e.source_name ? ` · ${e.source_name}` : ""}`}
-            value={e.content_text}
-            onChange={(v) =>
-              onChange((d) => ({
-                ...d,
-                reference_examples: d.reference_examples.map((x, j) =>
-                  j === i ? { ...x, content_text: v } : x,
-                ),
-              }))
-            }
+        moduleKey="reference_answer"
+        canEdit={canEdit}
+        editing={editing("reference_answer")}
+        saving={saving}
+        error={error}
+        onEnterEdit={() => enterEdit("reference_answer")}
+        onFocusLeave={() => void commit()}
+        onCommit={() => void commit()}
+        onDiscard={exitEdit}
+      >
+        {editing("reference_answer") ? (
+          <textarea
+            className={styles.textarea}
+            value={buffer as string}
+            rows={7}
+            autoFocus
+            onChange={(e) => setBuffer(e.target.value)}
+            onKeyDown={escapeCancels}
+            aria-label="标准答案内容"
           />
-        ))}
-      </MaterialBlock>
+        ) : (
+          <div className={styles.maskBox}>
+            <p className={styles.text}>{detail.reference_answer}</p>
+          </div>
+        )}
+      </ModuleFrame>
 
-      <MaterialBlock label={`Bad case（${draft.bad_cases.length}）`}>
-        {draft.bad_cases.map((b, i) => (
-          <FieldArea
-            key={i}
-            label={`Bad case ${i + 1}`}
-            value={b.content_text}
-            onChange={(v) =>
-              onChange((d) => ({
-                ...d,
-                bad_cases: d.bad_cases.map((x, j) => (j === i ? { ...x, content_text: v } : x)),
-              }))
-            }
-          />
-        ))}
-      </MaterialBlock>
-
-      <MaterialBlock label={`用户记忆（${draft.memory_materials.length}）`}>
-        {draft.memory_materials.map((m, i) => (
-          <FieldArea
-            key={m.client_ref_id || i}
-            label={`记忆 ${i + 1}${m.source_label ? ` · ${m.source_label}` : ""}`}
-            value={m.content_text}
-            onChange={(v) =>
-              onChange((d) => ({
-                ...d,
-                memory_materials: d.memory_materials.map((x, j) =>
-                  j === i ? { ...x, content_text: v } : x,
-                ),
-              }))
-            }
-          />
-        ))}
-      </MaterialBlock>
+      <ModuleFrame
+        label={`用户记忆（${detail.memory_materials.length}）`}
+        moduleKey="memory_materials"
+        canEdit={canEdit}
+        editing={editing("memory_materials")}
+        saving={saving}
+        error={error}
+        onEnterEdit={() => enterEdit("memory_materials")}
+        onFocusLeave={() => void commit()}
+        onCommit={() => void commit()}
+        onDiscard={exitEdit}
+      >
+        {editing("memory_materials") ? (
+          (buffer as MemoryMaterialBuffer[]).map((m, i) => (
+            <label key={m.client_ref_id || i} className={styles.fieldArea}>
+              <span className={styles.fieldAreaLabel}>
+                {`记忆 ${i + 1}${m.source_label ? ` · ${m.source_label}` : ""}`}
+              </span>
+              <textarea
+                className={styles.textarea}
+                value={m.content_text}
+                rows={4}
+                autoFocus={i === 0}
+                onChange={(ev) =>
+                  setBuffer((current) =>
+                    (current as MemoryMaterialBuffer[]).map((x, j) =>
+                      j === i ? { ...x, content_text: ev.target.value } : x,
+                    ),
+                  )
+                }
+                onKeyDown={escapeCancels}
+                aria-label={`用户记忆 ${i + 1} 内容`}
+              />
+            </label>
+          ))
+        ) : (
+          <>
+            <button
+              type="button"
+              className={styles.memoryToggle}
+              onClick={() => setMemoryOpen((v) => !v)}
+              aria-expanded={memoryOpen}
+            >
+              {memoryOpen ? (
+                <ChevronDown size={15} aria-hidden="true" />
+              ) : (
+                <ChevronRight size={15} aria-hidden="true" />
+              )}
+              展开/收起记忆列表
+            </button>
+            <p className={styles.memoryNote}>由 Agent 自动筛选，上传时未逐条确认。</p>
+            {memoryOpen ? (
+              detail.memory_materials.length === 0 ? (
+                <div className={styles.maskBox}>
+                  <p className={styles.empty}>无用户记忆</p>
+                </div>
+              ) : (
+                detail.memory_materials.map((m, i) => (
+                  <div key={m.client_ref_id || i} className={styles.maskBox}>
+                    {m.source_label ? <p className={styles.subLabel}>{m.source_label}</p> : null}
+                    <p className={styles.text}>{m.content_text}</p>
+                  </div>
+                ))
+              )
+            ) : null}
+          </>
+        )}
+      </ModuleFrame>
     </div>
   );
 }
 
-function MaterialBlock({ label, children }: { label: string; children: React.ReactNode }): React.JSX.Element {
-  return (
-    <div className={styles.materialBlock}>
-      <h3 className={styles.blockLabel}>{label}</h3>
-      {children}
-    </div>
-  );
-}
-
-/* One fixed-height "mask box" per material item; content scrolls internally
-   when it overflows, so every module reads the same regardless of length. */
-function MaskBox({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <div className={styles.maskBox}>{children}</div>;
-}
-
-function FieldArea({
-  label,
-  value,
-  onChange,
-}: {
+interface ModuleFrameProps {
   label: string;
-  value: string;
-  onChange: (value: string) => void;
-}): React.JSX.Element {
+  moduleKey: MaterialModuleKey;
+  canEdit: boolean;
+  editing: boolean;
+  saving: boolean;
+  error: string | null;
+  onEnterEdit: () => void;
+  onFocusLeave: () => void;
+  onCommit: () => void;
+  onDiscard: () => void;
+}
+
+/**
+ * One material module: hover highlights the frame and reveals the edit
+ * affordance, double-click is a shortcut, and leaving the frame (blur to
+ * outside) triggers the autosave commit. Focus moves INSIDE the frame never
+ * commit mid-edit.
+ */
+function ModuleFrame({
+  label,
+  moduleKey,
+  canEdit,
+  editing,
+  saving,
+  error,
+  onEnterEdit,
+  onFocusLeave,
+  onCommit,
+  onDiscard,
+  children,
+}: React.PropsWithChildren<ModuleFrameProps>): React.JSX.Element {
+  const frameRef = useRef<HTMLDivElement | null>(null);
+
+  function handleBlur(event: React.FocusEvent<HTMLDivElement>): void {
+    if (!editing || saving) return;
+    const next = event.relatedTarget;
+    if (next instanceof Node && frameRef.current?.contains(next)) return;
+    onFocusLeave();
+  }
+
   return (
-    <label className={styles.fieldArea}>
-      <span className={styles.fieldAreaLabel}>{label}</span>
-      <textarea
-        className={styles.textarea}
-        value={value}
-        rows={4}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </label>
+    <div
+      ref={frameRef}
+      className={[styles.materialBlock, editing ? styles.blockEditing : null].join(" ")}
+      data-module={moduleKey}
+      data-editing={editing || undefined}
+      onDoubleClick={() => {
+        if (canEdit && !editing) onEnterEdit();
+      }}
+      onBlur={handleBlur}
+    >
+      <div className={styles.blockHead}>
+        <h3 className={styles.blockLabel}>{label}</h3>
+        {canEdit && !editing ? (
+          <Button
+            variant="ghost"
+            className={styles.editButton}
+            onClick={onEnterEdit}
+            aria-label={`编辑${label}`}
+            data-testid={`module-edit-${moduleKey}`}
+          >
+            <Pencil size={13} aria-hidden="true" />
+            编辑
+          </Button>
+        ) : null}
+      </div>
+      {children}
+      {editing ? (
+        <div className={styles.moduleFooter}>
+          {saving ? (
+            <span className={styles.savingNote} role="status">
+              保存中…
+            </span>
+          ) : null}
+          {error && !saving ? (
+            <>
+              <span className={styles.errorNote} role="alert">
+                {error}
+              </span>
+              <Button variant="ghost" onClick={onCommit} data-testid="module-retry">
+                重试
+              </Button>
+              <Button variant="ghost" onClick={onDiscard}>
+                放弃
+              </Button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -46,7 +46,7 @@ score_anchors?: list[ScoreAnchorIn]   # 分数表现说明整组替换
 ### 新增 `POST /api/questions/{question_id}/regenerate`
 
 - 请求复用 `QuestionCommandRequest`（command_id + content_revision，与 retry/publish 同款）。
-- 行为 = 现 `save_and_regenerate` 的生成半段：资格门（frozen/generating 拒绝，`published` 允许并沿用现语义：回 generating、清 published_at、保留 ever_published）→ `new_revision = content_revision + 1` → 清空 `criteria_json`/`criteria_confirmed` → `enqueue_generation(command_id=derived_command_id("regenerate", question_id, str(new_revision), payload.command_id))` → status=generating。
+- 行为 = 现 `save_and_regenerate` 的生成半段：资格门仅 frozen + STALE_REVISION（**generating 中允许**——这是卡死轮次唯一的用户侧打断/重启逃生门，旧任务由 fencing 判 superseded；published 允许并沿用现语义：回 generating、清 published_at、保留 ever_published）→ `new_revision = content_revision + 1` → 清空 `criteria_json`/`criteria_confirmed` → `enqueue_generation(command_id=derived_command_id("regenerate", question_id, str(new_revision), payload.command_id))` → status=generating。
 - 响应：`OperationAcceptedResponse`（与 retry 一致）。
 
 ### 删除 `POST /api/questions/{question_id}/save-regenerate`

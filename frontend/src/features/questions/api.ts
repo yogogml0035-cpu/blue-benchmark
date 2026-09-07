@@ -19,7 +19,8 @@ export type PassScoreBasisView = components["schemas"]["PassScoreBasisView"];
 export type BasisClaimView = components["schemas"]["BasisClaimView"];
 export type SourceCitationView = components["schemas"]["SourceCitationView"];
 export type CriteriaPatchRequest = components["schemas"]["CriteriaPatchRequest"];
-export type QuestionSaveRegenerateRequest = components["schemas"]["QuestionSaveRegenerateRequest"];
+export type QuestionMaterialsPatchRequest = components["schemas"]["QuestionMaterialsPatchRequest"];
+export type CriterionPatchRequest = components["schemas"]["CriterionPatchRequest"];
 export type QuestionDeleteRequest = components["schemas"]["QuestionDeleteRequest"];
 export type QuestionTitleRequest = components["schemas"]["QuestionTitleRequest"];
 export type QuestionCommandRequest = components["schemas"]["QuestionCommandRequest"];
@@ -55,13 +56,45 @@ export function updateTitle(
   );
 }
 
-export function saveRegenerate(
+/**
+ * Material autosave: writes text only — never bumps content_revision, never
+ * touches criteria, never enqueues generation.
+ */
+export function updateMaterials(
   questionId: string,
-  payload: QuestionSaveRegenerateRequest,
+  payload: QuestionMaterialsPatchRequest,
+  signal?: AbortSignal,
+): Promise<QuestionDetailResponse> {
+  return request<QuestionDetailResponse>(
+    `/api/questions/${encodeURIComponent(questionId)}/materials`,
+    { method: "PATCH", body: payload, signal },
+  );
+}
+
+/** Field-level criterion autosave; selection/confirmation stay untouched. */
+export function patchCriterion(
+  questionId: string,
+  criterionId: string,
+  payload: CriterionPatchRequest,
+  signal?: AbortSignal,
+): Promise<QuestionDetailResponse> {
+  return request<QuestionDetailResponse>(
+    `/api/questions/${encodeURIComponent(questionId)}/criteria/${encodeURIComponent(criterionId)}`,
+    { method: "PATCH", body: payload, signal },
+  );
+}
+
+/**
+ * Unconditional regeneration of the rubric from the CURRENT saved materials.
+ * Wipes all stored criteria (candidates, selection, confirmation).
+ */
+export function regenerateQuestion(
+  questionId: string,
+  payload: QuestionCommandRequest,
   signal?: AbortSignal,
 ): Promise<OperationAcceptedResponse> {
   return request<OperationAcceptedResponse>(
-    `/api/questions/${encodeURIComponent(questionId)}/save-regenerate`,
+    `/api/questions/${encodeURIComponent(questionId)}/regenerate`,
     { method: "POST", body: payload, signal },
   );
 }

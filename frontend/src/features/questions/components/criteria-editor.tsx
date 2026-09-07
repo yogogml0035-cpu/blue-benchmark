@@ -10,8 +10,11 @@ import {
   newManualDraft,
   type CriterionDraft,
 } from "../criterion-draft";
-import type { BasisClaimView } from "../api";
+import type { BasisClaimView, CriterionPatchRequest, CriterionView, QuestionDetailResponse } from "../api";
 import styles from "./criteria-editor.module.css";
+
+/** Field-level autosave payload (the caller adds content_revision). */
+export type CriterionFieldPatch = Omit<CriterionPatchRequest, "content_revision">;
 
 /**
  * Textarea that always grows to fit its full content, so a criterion is never
@@ -59,12 +62,31 @@ function ClaimRow({ claim }: { claim: BasisClaimView }): React.JSX.Element {
 
 export interface CriteriaEditorProps {
   drafts: CriterionDraft[];
+  /** Current server truth; the autosave baseline for every field. */
+  detail: QuestionDetailResponse;
   onChange: (updater: (drafts: CriterionDraft[]) => CriterionDraft[]) => void;
+  /** Marks the SELECTION as needing the explicit 保存维度 commit. */
+  onSelectionDirty: () => void;
+  /**
+   * Field autosave for AI criteria (blur-triggered). Manual criteria are not
+   * persisted yet (404) and ride the next 保存维度 instead.
+   */
+  onSaveFields: (criterionId: string, patch: CriterionFieldPatch) => Promise<void>;
+  /** Per-criterion autosave error messages, keyed by criterion id. */
+  fieldErrors?: Record<string, string | null>;
   /** When true the list is read-only (published question). */
   readOnly?: boolean;
 }
 
-export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaEditorProps): React.JSX.Element {
+export function CriteriaEditor({
+  drafts,
+  detail,
+  onChange,
+  onSelectionDirty,
+  onSaveFields,
+  fieldErrors,
+  readOnly = false,
+}: CriteriaEditorProps): React.JSX.Element {
   const selectedCount = drafts.filter((d) => d.selected).length;
   const [basisOpen, setBasisOpen] = useState<Record<string, boolean>>({});
 
@@ -74,6 +96,65 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
 
   function addManual(): void {
     onChange((list) => [...list, newManualDraft(new Set(list.map((d) => d.id)))]);
+    onSelectionDirty();
+  }
+
+  function removeCriterion(index: number): void {
+    onChange((list) => list.filter((_, j) => j !== index));
+    onSelectionDirty();
+  }
+
+  function baselineFor(id: string): CriterionView | undefined {
+    return detail.criteria?.find((c) => c.id === id);
+  }
+
+  /**
+   * Selection never gates editing (checkbox = binding only). AI criteria
+   * autosave their edited fields on blur; manual criteria have no server row
+   * yet and ride the explicit 保存维度 commit.
+   */
+  function commitText(d: CriterionDraft): void {
+    if (readOnly) return;
+    if (d.source !== "ai") {
+      onSelectionDirty();
+      return;
+    }
+    const base = baselineFor(d.id);
+    if (base && base.criterion === d.criterion) return;
+    void onSaveFields(d.id, { criterion: d.criterion });
+  }
+
+  function commitScore(d: CriterionDraft): void {
+    if (readOnly) return;
+    if (d.source !== "ai") {
+      onSelectionDirty();
+      return;
+    }
+    const base = baselineFor(d.id);
+    if (base && base.pass_score === d.pass_score) return;
+    void onSaveFields(d.id, { pass_score: d.pass_score });
+  }
+
+  function commitAnchors(d: CriterionDraft, list?: CriterionDraft["score_anchors"]): void {
+    if (readOnly) return;
+    if (d.source !== "ai") {
+      onSelectionDirty();
+      return;
+    }
+    const anchors = list ?? d.score_anchors;
+    // Blank descriptions are invalid server-side; keep them local until the
+    // teacher fills them in (validateSelected reports them on 保存维度).
+    if (anchors.some((a) => !a.description.trim())) return;
+    const base = baselineFor(d.id);
+    if (
+      base &&
+      JSON.stringify(base.score_anchors) === JSON.stringify(anchors)
+    ) {
+      return;
+    }
+    void onSaveFields(d.id, {
+      score_anchors: anchors.map((a) => ({ score: a.score, description: a.description })),
+    });
   }
 
   function patchAnchor(index: number, anchorIndex: number, patch: { score?: number; description?: string }): void {
@@ -99,14 +180,27 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
         return { ...d, score_anchors: [...d.score_anchors, { score: Math.min(score, MAX_PASS_SCORE), description: "" }] };
       }),
     );
+    // A brand-new anchor has a blank description, which the backend rejects:
+    // it stays local until filled in and committed by the next blur.
   }
 
   function removeAnchor(index: number, anchorIndex: number): void {
+    let remaining: CriterionDraft["score_anchors"] = [];
     onChange((list) =>
-      list.map((d, i) =>
-        i === index ? { ...d, score_anchors: d.score_anchors.filter((_, j) => j !== anchorIndex) } : d,
-      ),
+      list.map((d, i) => {
+        if (i !== index) return d;
+        remaining = d.score_anchors.filter((_, j) => j !== anchorIndex);
+        return { ...d, score_anchors: remaining };
+      }),
     );
+    const draft = drafts[index];
+    if (draft.source === "ai" && !readOnly && !remaining.some((a) => !a.description.trim())) {
+      void onSaveFields(draft.id, {
+        score_anchors: remaining.map((a) => ({ score: a.score, description: a.description })),
+      });
+    } else if (draft.source !== "ai") {
+      onSelectionDirty();
+    }
   }
 
   return (
@@ -132,7 +226,10 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
                     type="checkbox"
                     checked={d.selected}
                     disabled={readOnly || d.source === "manual"}
-                    onChange={(e) => patchAt(i, { selected: e.target.checked })}
+                    onChange={(e) => {
+                      patchAt(i, { selected: e.target.checked });
+                      onSelectionDirty();
+                    }}
                     aria-label={`选择维度 ${d.id}`}
                   />
                   <span className={styles.source}>
@@ -147,11 +244,12 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
                     max={MAX_PASS_SCORE}
                     step={1}
                     value={d.pass_score}
-                    disabled={readOnly || !d.selected}
+                    disabled={readOnly}
                     onChange={(e) => {
                       const n = Number(e.target.value);
                       patchAt(i, { pass_score: Number.isFinite(n) ? Math.round(n) : 0 });
                     }}
+                    onBlur={() => commitScore(d)}
                     aria-label={`维度 ${d.id} 的通过分`}
                   />
                   <span className={styles.scoreMax}>/ {MAX_PASS_SCORE}</span>
@@ -160,7 +258,7 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
                   <Button
                     variant="ghost"
                     className={styles.deleteButton}
-                    onClick={() => onChange((list) => list.filter((_, j) => j !== i))}
+                    onClick={() => removeCriterion(i)}
                     aria-label={`删除维度 ${d.id}`}
                   >
                     <Trash2 size={14} aria-hidden="true" />
@@ -175,19 +273,26 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
                 </p>
               ) : null}
 
+              {fieldErrors?.[d.id] ? (
+                <p className={styles.fieldError} role="alert">
+                  {fieldErrors[d.id]}
+                </p>
+              ) : null}
+
               <AutoGrowTextarea
                 className={styles.criterion}
                 value={d.criterion}
-                readOnly={readOnly || !d.selected}
+                readOnly={readOnly}
                 placeholder="完整、可执行的评分标准…"
                 onChange={(e) => patchAt(i, { criterion: e.target.value })}
+                onBlur={() => commitText(d)}
                 aria-label={`维度 ${d.id} 的评分标准`}
               />
 
               <section className={styles.anchors} aria-label={`维度 ${d.id} 的分数说明`}>
                 <div className={styles.sectionHead}>
                   <h3 className={styles.sectionTitle}>分数表现说明</h3>
-                  {!readOnly && d.selected && d.score_anchors.length < MAX_ANCHORS ? (
+                  {!readOnly && d.score_anchors.length < MAX_ANCHORS ? (
                     <Button variant="ghost" className={styles.addAnchor} onClick={() => addAnchor(i)}>
                       <Plus size={13} aria-hidden="true" />
                       添加分数说明
@@ -209,11 +314,12 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
                           max={MAX_PASS_SCORE}
                           step={1}
                           value={anchor.score}
-                          disabled={readOnly || !d.selected}
+                          disabled={readOnly}
                           onChange={(e) => {
                             const n = Number(e.target.value);
                             patchAnchor(i, j, { score: Number.isFinite(n) ? Math.round(n) : 0 });
                           }}
+                          onBlur={() => commitAnchors(d)}
                           aria-label={`维度 ${d.id} 锚点 ${j + 1} 的分数`}
                         />
                         <span className={styles.scoreMax}>分</span>
@@ -221,12 +327,13 @@ export function CriteriaEditor({ drafts, onChange, readOnly = false }: CriteriaE
                       <AutoGrowTextarea
                         className={styles.anchorDescription}
                         value={anchor.description}
-                        readOnly={readOnly || !d.selected}
+                        readOnly={readOnly}
                         placeholder="该分数对应的可观察表现…"
                         onChange={(e) => patchAnchor(i, j, { description: e.target.value })}
+                        onBlur={() => commitAnchors(d)}
                         aria-label={`维度 ${d.id} 锚点 ${j + 1} 的表现描述`}
                       />
-                      {!readOnly && d.selected ? (
+                      {!readOnly ? (
                         <Button
                           variant="ghost"
                           className={styles.deleteButton}

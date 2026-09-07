@@ -12,13 +12,14 @@ from app.features.auth import service as auth_service
 from app.features.question_library import service
 from app.features.question_library.schemas import (
     CriteriaPatchRequest,
+    CriterionPatchRequest,
     DeleteAcceptedResponse,
     OperationAcceptedResponse,
     QuestionCommandRequest,
     QuestionDeleteRequest,
     QuestionDetailResponse,
     QuestionLibraryResponse,
-    QuestionSaveRegenerateRequest,
+    QuestionMaterialsPatchRequest,
     QuestionStatus,
     QuestionTitleRequest,
     RunEventsResponse,
@@ -68,22 +69,58 @@ def update_title(
     return service.update_title(question_id, payload)
 
 
+@router.patch(
+    "/{question_id}/materials",
+    response_model=QuestionDetailResponse,
+    responses={
+        401: {"description": "未登录"},
+        404: {"description": "题目不存在"},
+        409: {"description": "内容版本陈旧、生成中或已发布"},
+        422: {"description": "材料内容无效"},
+    },
+)
+def update_materials(
+    question_id: str,
+    payload: QuestionMaterialsPatchRequest,
+    _user=Depends(auth_service.require_current_user),
+) -> QuestionDetailResponse:
+    return service.update_materials(question_id, payload)
+
+
+@router.patch(
+    "/{question_id}/criteria/{criterion_id}",
+    response_model=QuestionDetailResponse,
+    responses={
+        401: {"description": "未登录"},
+        404: {"description": "题目或评分维度不存在"},
+        409: {"description": "内容版本陈旧、生成中或已发布"},
+        422: {"description": "评分维度无效"},
+    },
+)
+def patch_criterion(
+    question_id: str,
+    criterion_id: str,
+    payload: CriterionPatchRequest,
+    _user=Depends(auth_service.require_current_user),
+) -> QuestionDetailResponse:
+    return service.patch_criterion(question_id, criterion_id, payload)
+
+
 @router.post(
-    "/{question_id}/save-regenerate",
+    "/{question_id}/regenerate",
     response_model=OperationAcceptedResponse,
     responses={
         401: {"description": "未登录"},
         404: {"description": "题目不存在"},
-        409: {"description": "内容版本陈旧"},
-        422: {"description": "材料内容无效"},
+        409: {"description": "内容版本陈旧或生成中"},
     },
 )
-def save_and_regenerate(
+def regenerate_question(
     question_id: str,
-    payload: QuestionSaveRegenerateRequest,
+    payload: QuestionCommandRequest,
     _user=Depends(auth_service.require_current_user),
 ) -> OperationAcceptedResponse:
-    return service.save_and_regenerate(question_id, payload)
+    return service.regenerate(question_id, payload)
 
 
 @router.patch(

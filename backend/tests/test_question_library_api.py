@@ -141,16 +141,25 @@ def test_publish_requires_valid_criteria_and_overwrite_on_edit() -> None:
         assert again.status_code == 409
         assert again.json()["error"]["code"] == "ALREADY_PUBLISHED"
 
-        # Editing a published question overwrites and returns it to processing.
-        save = client.post(
-            f"/api/questions/{question_id}/save-regenerate",
+        # Materials autosave never touches a published question directly.
+        save = client.patch(
+            f"/api/questions/{question_id}/materials",
             json={
-                "command_id": "edit-published",
                 "content_revision": body["content_revision"],
                 "task_prompt": "已发布题目被再次修改。",
             },
         )
-        assert save.status_code == 200
+        assert save.status_code == 409
+        assert save.json()["error"]["code"] == "PUBLISHED_REOPEN_REQUIRED"
+
+        # Regeneration is allowed: it returns the question to processing and
+        # clears the published markers while the ever-published delete gate
+        # survives.
+        regen = client.post(
+            f"/api/questions/{question_id}/regenerate",
+            json={"command_id": "regen-published", "content_revision": body["content_revision"]},
+        )
+        assert regen.status_code == 200
         updated = client.get(f"/api/questions/{question_id}").json()
         assert updated["status"] == "generating"
         assert updated["published_at"] is None
@@ -340,3 +349,130 @@ def test_credential_cannot_read_or_modify_questions() -> None:
             headers=headers,
         )
         assert publish.status_code == 401
+
+
+def test_materials_autosave_writes_text_without_generation() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id, _scene_id = _setup_with_generated_question(client)
+        detail = client.get(f"/api/questions/{question_id}").json()
+        revision = detail["content_revision"]
+
+        saved = client.patch(
+            f"/api/questions/{question_id}/materials",
+            json={
+                "content_revision": revision,
+                "reference_answer": "老师微调后的标准答案。",
+            },
+        )
+        assert saved.status_code == 200, saved.text
+        body = saved.json()
+        assert body["reference_answer"] == "老师微调后的标准答案。"
+        # Text-only write: no revision bump, no criteria wipe, no new operation.
+        assert body["content_revision"] == revision
+        assert body["criteria"] == detail["criteria"]
+        assert body["status"] == "pending_review"
+        assert body["active_operation_id"] is None
+
+
+def test_materials_patch_is_rejected_while_generating() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        helpers.login_admin(client)
+        scene = helpers.create_scene(client)
+        credential = helpers.create_credential(client, scene["id"])
+        response = helpers.upload_batch(
+            client,
+            credential["token"],
+            helpers.make_batch("cmd-genedit", [helpers.make_case("case-genedit")]),
+        )
+        question_id = response.json()["cases"][0]["question_id"]
+        # The upload round is still generating: autosave must wait for it to
+        # settle, but regeneration stays available as the interrupt/restart
+        # escape hatch (the running job is fenced as superseded).
+        rejected = client.patch(
+            f"/api/questions/{question_id}/materials",
+            json={"content_revision": 1, "task_prompt": "生成中的题目被编辑。"},
+        )
+        assert rejected.status_code == 409
+        assert rejected.json()["error"]["code"] == "RUBRIC_GENERATING"
+        regen = client.post(
+            f"/api/questions/{question_id}/regenerate",
+            json={"command_id": "regen-restart", "content_revision": 1},
+        )
+        assert regen.status_code == 200, regen.text
+        helpers.run_worker_until_idle()
+        settled = client.get(f"/api/questions/{question_id}").json()
+        assert settled["status"] == "pending_review"
+        assert settled["content_revision"] == 2
+
+
+def test_criterion_field_patch_is_selection_and_confirmation_agnostic() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id, _scene_id = _setup_with_generated_question(client)
+        detail = client.get(f"/api/questions/{question_id}").json()
+        criteria = detail["criteria"]
+        assert criteria, "fake generation must produce candidate criteria"
+        first_id = criteria[0]["id"]
+        original_count = len(criteria)
+
+        # Field-level patch without any selection or confirm step.
+        patched = client.patch(
+            f"/api/questions/{question_id}/criteria/{first_id}",
+            json={"content_revision": detail["content_revision"], "pass_score": 9},
+        )
+        assert patched.status_code == 200, patched.text
+        body = patched.json()
+        assert body["criteria_confirmed"] == detail["criteria_confirmed"]
+        assert len(body["criteria"]) == original_count, "unselected candidates stay intact"
+        patched_item = next(item for item in body["criteria"] if item["id"] == first_id)
+        assert patched_item["pass_score"] == 9
+        others = [item for item in body["criteria"] if item["id"] != first_id]
+        assert others == [item for item in criteria if item["id"] != first_id]
+        assert body["status"] == "pending_review"
+
+        # Unknown criterion id is a 404, not a silent no-op.
+        missing = client.patch(
+            f"/api/questions/{question_id}/criteria/no-such-id",
+            json={"content_revision": body["content_revision"], "pass_score": 1},
+        )
+        assert missing.status_code == 404
+
+        # Vague criterion text is rejected by the shared contract.
+        vague = client.patch(
+            f"/api/questions/{question_id}/criteria/{first_id}",
+            json={"content_revision": body["content_revision"], "criterion": "准确性"},
+        )
+        assert vague.status_code == 422
+
+
+def test_criteria_basis_stale_flag_tracks_material_drift() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id, _scene_id = _setup_with_generated_question(client)
+        detail = client.get(f"/api/questions/{question_id}").json()
+        assert detail["criteria_basis_stale"] is False
+
+        # The fake generator cites the reference answer verbatim; rewriting it
+        # makes the stored citation stale without blocking the autosave.
+        saved = client.patch(
+            f"/api/questions/{question_id}/materials",
+            json={
+                "content_revision": detail["content_revision"],
+                "reference_answer": "与生成时完全不同的全新标准答案内容。",
+            },
+        )
+        assert saved.status_code == 200, saved.text
+        body = saved.json()
+        assert body["criteria_basis_stale"] is True
+        assert body["content_revision"] == detail["content_revision"], "autosave never bumps revision"
+
+        # Regeneration wipes criteria and therefore resets the stale flag.
+        regen = client.post(
+            f"/api/questions/{question_id}/regenerate",
+            json={"command_id": "regen-stale", "content_revision": body["content_revision"]},
+        )
+        assert regen.status_code == 200
+        helpers.run_worker_until_idle()
+        assert client.get(f"/api/questions/{question_id}").json()["criteria_basis_stale"] is False

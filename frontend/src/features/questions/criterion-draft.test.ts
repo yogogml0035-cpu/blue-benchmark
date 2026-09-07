@@ -51,6 +51,7 @@ function detail(partial: Partial<QuestionDetailResponse>): QuestionDetailRespons
     memory_materials: [],
     criteria: null,
     criteria_confirmed: false,
+    criteria_basis_stale: false,
     status: "pending_review",
     next_action: "review_criteria",
     content_revision: 1,

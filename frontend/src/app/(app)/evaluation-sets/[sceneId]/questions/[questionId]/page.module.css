@@ -30,8 +30,15 @@
 .headerMain {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
 }
 
 .title {
@@ -41,6 +48,55 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Editable title: the pencil button doubles as the keyboard-accessible entry;
+   clicking the title text itself also starts editing. */
+.titleEditable {
+  cursor: text;
+}
+
+.titleInput {
+  font-size: 16px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: var(--benchmark-radius-sm);
+  border: 1px solid var(--benchmark-line-strong);
+  background: var(--benchmark-surface-elevated);
+  color: var(--benchmark-text);
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.titleInput:focus {
+  outline: none;
+  border-color: var(--benchmark-focus-blue);
+  box-shadow: var(--benchmark-focus-ring);
+}
+
+.titleEditButton {
+  flex: none;
+}
+
+/* Right column header: section title and the generation-history toggle share
+   one row, top-aligned with the left column's 题目 block label. */
+.reviewTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+}
+
+.driftBanner {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--benchmark-radius-sm);
+  border: 1px solid var(--benchmark-warning-line, #e3c56a);
+  background: var(--benchmark-warning-tint, rgba(227, 197, 106, 0.12));
+  color: var(--benchmark-text);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .columns {
@@ -54,12 +110,6 @@
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-}
-
-.materialsEditBar {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
 }
 
 .reviewCol {
@@ -111,10 +161,4 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.historyBar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 4px;
 }

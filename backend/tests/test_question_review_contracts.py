@@ -595,8 +595,9 @@ def test_retry_cas_requires_generation_failed_source() -> None:
 
 
 def test_regeneration_after_publish_keeps_delete_gate() -> None:
-    """Editing materials of a published question un-confirms criteria but the
-    ever-published delete protection survives."""
+    """Regenerating a published question un-confirms criteria but the
+    ever-published delete protection survives; direct material edits stay
+    blocked until the question is reopened."""
 
     clear_business_data()
     with TestClient(app) as client:
@@ -604,12 +605,21 @@ def test_regeneration_after_publish_keeps_delete_gate() -> None:
         _confirm_criteria(client, question_id)
         published = _publish(client, question_id)
 
+        blocked = client.patch(
+            f"/api/questions/{question_id}/materials",
+            json={
+                "content_revision": published["content_revision"],
+                "task_prompt": "已发布题目不允许直接改材料。",
+            },
+        )
+        assert blocked.status_code == 409
+        assert blocked.json()["error"]["code"] == "PUBLISHED_REOPEN_REQUIRED"
+
         save = client.post(
-            f"/api/questions/{question_id}/save-regenerate",
+            f"/api/questions/{question_id}/regenerate",
             json={
                 "command_id": "edit-after-publish",
                 "content_revision": published["content_revision"],
-                "task_prompt": "修改材料后重新生成。",
             },
         )
         assert save.status_code == 200

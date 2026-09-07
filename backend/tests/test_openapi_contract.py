@@ -69,11 +69,14 @@ def test_openapi_contains_no_legacy_paths() -> None:
 def test_openapi_documents_question_library_actions() -> None:
     spec = app.openapi()
     paths = set(spec["paths"].keys())
-    assert "/api/questions/{question_id}/save-regenerate" in paths
+    assert "/api/questions/{question_id}/materials" in paths
     assert "/api/questions/{question_id}/criteria" in paths
+    assert "/api/questions/{question_id}/criteria/{criterion_id}" in paths
+    assert "/api/questions/{question_id}/regenerate" in paths
     assert "/api/questions/{question_id}/generation-retry" in paths
     assert "/api/questions/{question_id}/publication" in paths
     assert "/api/questions/{question_id}/title" in paths
+    assert "/api/questions/{question_id}/save-regenerate" not in paths
 
 
 def test_openapi_requires_scene_id_on_question_list() -> None:

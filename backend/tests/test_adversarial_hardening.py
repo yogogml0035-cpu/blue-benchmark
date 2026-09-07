@@ -138,7 +138,7 @@ def test_login_identifier_does_not_use_like_wildcards() -> None:
         assert response.status_code == 401
 
 
-def test_no_change_save_and_regenerate_is_rejected() -> None:
+def test_no_change_materials_patch_is_idempotent() -> None:
     clear_business_data()
     with TestClient(app) as client:
         helpers.login_admin(client)
@@ -150,13 +150,20 @@ def test_no_change_save_and_regenerate_is_rejected() -> None:
         question_id = response.json()["cases"][0]["question_id"]
         helpers.run_worker_until_idle()
         detail = client.get(f"/api/questions/{question_id}").json()
-        # Same materials, no title change -> rejected instead of burning a call.
-        save = client.post(
-            f"/api/questions/{question_id}/save-regenerate",
-            json={"command_id": "noop", "content_revision": detail["content_revision"]},
+        # An autosave with no actual change is accepted and changes nothing:
+        # no revision bump, no criteria wipe, no generation enqueue.
+        save = client.patch(
+            f"/api/questions/{question_id}/materials",
+            json={"content_revision": detail["content_revision"]},
         )
-        assert save.status_code == 409
-        assert save.json()["error"]["code"] == "NO_MATERIAL_CHANGE"
+        assert save.status_code == 200, save.text
+        body = save.json()
+        assert body["content_revision"] == detail["content_revision"]
+        assert body["criteria"] == detail["criteria"]
+        assert body["criteria_confirmed"] == detail["criteria_confirmed"]
+        assert body["status"] == "pending_review"
+        assert body["active_operation_id"] is None
+        assert body["criteria_basis_stale"] is False
 
 
 def test_published_question_rejects_criteria_patch() -> None:
@@ -222,10 +229,9 @@ def test_whitespace_only_material_returns_422_not_500() -> None:
         question_id = response.json()["cases"][0]["question_id"]
         helpers.run_worker_until_idle()
         detail = client.get(f"/api/questions/{question_id}").json()
-        save = client.post(
-            f"/api/questions/{question_id}/save-regenerate",
+        save = client.patch(
+            f"/api/questions/{question_id}/materials",
             json={
-                "command_id": "blank-answer",
                 "content_revision": detail["content_revision"],
                 "reference_answer": "   ",
             },

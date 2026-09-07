@@ -181,10 +181,9 @@ def test_materials_are_isolated_between_questions() -> None:
 
         # Editing question A's materials must not touch question B.
         detail_a = client.get(f"/api/questions/{ids[0]}").json()
-        save = client.post(
-            f"/api/questions/{ids[0]}/save-regenerate",
+        save = client.patch(
+            f"/api/questions/{ids[0]}/materials",
             json={
-                "command_id": "edit-a",
                 "content_revision": detail_a["content_revision"],
                 "memory_materials": [
                     {
@@ -196,11 +195,14 @@ def test_materials_are_isolated_between_questions() -> None:
             },
         )
         assert save.status_code == 200, save.text
+        # Autosave writes text only: no revision bump, no criteria wipe.
+        assert save.json()["content_revision"] == detail_a["content_revision"]
+        assert save.json()["criteria_confirmed"] == detail_a["criteria_confirmed"]
         detail_b = client.get(f"/api/questions/{ids[1]}").json()
         assert detail_b["memory_materials"][0]["content_text"] == "两道题都会用到的记忆原文。"
 
-        # Let question A's regeneration finish; generating questions are
-        # protected from deletion.
+        # Autosave enqueued nothing, so the queue is already idle; generating
+        # questions are protected from deletion.
         helpers.run_worker_until_idle()
 
         # Deleting question A leaves B intact.

@@ -370,6 +370,9 @@ class QuestionDetailResponse(BaseModel):
     memory_materials: list[MemoryMaterialView]
     criteria: list[CriterionView] | None
     criteria_confirmed: bool
+    # Soft reminder flag: at least one stored citation no longer matches the
+    # current materials (autosave decoupled materials from regeneration).
+    criteria_basis_stale: bool
     status: QuestionStatus
     next_action: NextAction
     content_revision: int
@@ -396,17 +399,41 @@ class BatchUploadResponse(BaseModel):
     cases: list[CaseReceipt]
 
 
-class QuestionSaveRegenerateRequest(BaseModel):
+class QuestionMaterialsPatchRequest(BaseModel):
+    """Partial material autosave; absent fields keep their current values.
+
+    Writes text only: never bumps ``content_revision``, never touches
+    criteria, never enqueues generation. Lists are replaced wholesale when
+    provided (item shapes reuse the batch-intake models, so validation and
+    ``client_ref_id`` uniqueness come for free).
+    """
+
     model_config = ConfigDict(extra="forbid")
 
-    command_id: str = Field(min_length=1, max_length=255)
     content_revision: int = Field(ge=1)
-    title: str | None = Field(default=None, min_length=1, max_length=200)
     task_prompt: str | None = Field(default=None, min_length=1, max_length=100_000)
+    reference_answer: str | None = Field(default=None, min_length=1, max_length=200_000)
     reference_examples: list[ReferenceExampleIn] | None = Field(default=None, max_length=50)
     bad_cases: list[BadCaseIn] | None = Field(default=None, max_length=50)
-    reference_answer: str | None = Field(default=None, min_length=1, max_length=200_000)
     memory_materials: list[MemoryMaterialIn] | None = Field(default=None, max_length=50)
+
+
+class CriterionPatchRequest(BaseModel):
+    """Field-level criterion autosave; absent fields keep their values.
+
+    Selection flags, confirmation state and the unselected candidate pool are
+    never touched here; the supplied fields are re-validated through the same
+    ``CriterionIn`` contract the explicit criteria save uses. Stored basis
+    citations are NOT re-validated against materials on this path — staleness
+    surfaces as the soft ``criteria_basis_stale`` reminder instead.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    content_revision: int = Field(ge=1)
+    criterion: str | None = Field(default=None, min_length=1, max_length=2_000)
+    pass_score: int | None = Field(default=None, ge=0, le=10)
+    score_anchors: list[ScoreAnchorIn] | None = Field(default=None, max_length=6)
 
 
 class QuestionTitleRequest(BaseModel):

@@ -216,7 +216,7 @@ export interface paths {
         patch: operations["update_title_api_questions__question_id__title_patch"];
         trace?: never;
     };
-    "/api/questions/{question_id}/save-regenerate": {
+    "/api/questions/{question_id}/materials": {
         parameters: {
             query?: never;
             header?: never;
@@ -225,8 +225,42 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Save And Regenerate */
-        post: operations["save_and_regenerate_api_questions__question_id__save_regenerate_post"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Materials */
+        patch: operations["update_materials_api_questions__question_id__materials_patch"];
+        trace?: never;
+    };
+    "/api/questions/{question_id}/criteria/{criterion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Criterion */
+        patch: operations["patch_criterion_api_questions__question_id__criteria__criterion_id__patch"];
+        trace?: never;
+    };
+    "/api/questions/{question_id}/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate Question */
+        post: operations["regenerate_question_api_questions__question_id__regenerate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -527,6 +561,26 @@ export interface components {
             criterion_basis?: components["schemas"]["CriterionBasisIn"] | null;
             pass_score_basis?: components["schemas"]["PassScoreBasisIn"] | null;
         };
+        /**
+         * CriterionPatchRequest
+         * @description Field-level criterion autosave; absent fields keep their values.
+         *
+         *     Selection flags, confirmation state and the unselected candidate pool are
+         *     never touched here; the supplied fields are re-validated through the same
+         *     ``CriterionIn`` contract the explicit criteria save uses. Stored basis
+         *     citations are NOT re-validated against materials on this path — staleness
+         *     surfaces as the soft ``criteria_basis_stale`` reminder instead.
+         */
+        CriterionPatchRequest: {
+            /** Content Revision */
+            content_revision: number;
+            /** Criterion */
+            criterion?: string | null;
+            /** Pass Score */
+            pass_score?: number | null;
+            /** Score Anchors */
+            score_anchors?: components["schemas"]["ScoreAnchorIn"][] | null;
+        };
         /** CriterionView */
         CriterionView: {
             /** Id */
@@ -716,6 +770,8 @@ export interface components {
             criteria: components["schemas"]["CriterionView"][] | null;
             /** Criteria Confirmed */
             criteria_confirmed: boolean;
+            /** Criteria Basis Stale */
+            criteria_basis_stale: boolean;
             status: components["schemas"]["QuestionStatus"];
             next_action: components["schemas"]["NextAction"];
             /** Content Revision */
@@ -767,22 +823,26 @@ export interface components {
             /** Published At */
             published_at: string | null;
         };
-        /** QuestionSaveRegenerateRequest */
-        QuestionSaveRegenerateRequest: {
-            /** Command Id */
-            command_id: string;
+        /**
+         * QuestionMaterialsPatchRequest
+         * @description Partial material autosave; absent fields keep their current values.
+         *
+         *     Writes text only: never bumps ``content_revision``, never touches
+         *     criteria, never enqueues generation. Lists are replaced wholesale when
+         *     provided (item shapes reuse the batch-intake models, so validation and
+         *     ``client_ref_id`` uniqueness come for free).
+         */
+        QuestionMaterialsPatchRequest: {
             /** Content Revision */
             content_revision: number;
-            /** Title */
-            title?: string | null;
             /** Task Prompt */
             task_prompt?: string | null;
+            /** Reference Answer */
+            reference_answer?: string | null;
             /** Reference Examples */
             reference_examples?: components["schemas"]["ReferenceExampleIn"][] | null;
             /** Bad Cases */
             bad_cases?: components["schemas"]["BadCaseIn"][] | null;
-            /** Reference Answer */
-            reference_answer?: string | null;
             /** Memory Materials */
             memory_materials?: components["schemas"]["MemoryMaterialIn"][] | null;
         };
@@ -1748,7 +1808,7 @@ export interface operations {
             };
         };
     };
-    save_and_regenerate_api_questions__question_id__save_regenerate_post: {
+    update_materials_api_questions__question_id__materials_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -1759,7 +1819,116 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["QuestionSaveRegenerateRequest"];
+                "application/json": components["schemas"]["QuestionMaterialsPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDetailResponse"];
+                };
+            };
+            /** @description 未登录 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 题目不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 内容版本陈旧、生成中或已发布 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 材料内容无效 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patch_criterion_api_questions__question_id__criteria__criterion_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                question_id: string;
+                criterion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CriterionPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDetailResponse"];
+                };
+            };
+            /** @description 未登录 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 题目或评分维度不存在 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 内容版本陈旧、生成中或已发布 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 评分维度无效 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    regenerate_question_api_questions__question_id__regenerate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionCommandRequest"];
             };
         };
         responses: {
@@ -1786,19 +1955,21 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description 内容版本陈旧 */
+            /** @description 内容版本陈旧或生成中 */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description 材料内容无效 */
+            /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

@@ -360,3 +360,10 @@
   color: var(--benchmark-muted);
   font-style: italic;
 }
+
+/* Per-criterion autosave failure line (soft, retryable via the field). */
+.fieldError {
+  margin: 0;
+  font-size: 12px;
+  color: var(--benchmark-warning);
+}

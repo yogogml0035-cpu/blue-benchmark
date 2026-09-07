@@ -15,6 +15,7 @@ from app.features.question_library.schemas import (
     BatchUploadResponse,
     CaseReceipt,
     CriteriaPatchRequest,
+    CriterionPatchRequest,
     CriterionView,
     DeleteAcceptedResponse,
     DeleteStateView,
@@ -26,7 +27,7 @@ from app.features.question_library.schemas import (
     QuestionDetailResponse,
     QuestionLibraryResponse,
     QuestionListItem,
-    QuestionSaveRegenerateRequest,
+    QuestionMaterialsPatchRequest,
     QuestionStatus,
     QuestionTitleRequest,
     RunEventView,
@@ -58,6 +59,55 @@ def _next_action(status: str, criteria_confirmed: bool) -> NextAction:
     if question_status == QuestionStatus.pending_review:
         return NextAction.publish if criteria_confirmed else NextAction.review_criteria
     return NEXT_ACTION_BY_STATUS[question_status]
+
+
+def _record_locator_texts(record: repository.QuestionRecord) -> dict[str, str]:
+    """Locator → text pool of the CURRENT materials (same mapping as the
+    worker-side ``build_locator_texts``), computed from a projected record."""
+
+    texts: dict[str, str] = {
+        "task_prompt": record.task_prompt,
+        "reference_answer": record.reference_answer,
+    }
+    for i, item in enumerate(record.reference_examples):
+        texts[f"reference_examples[{i}]"] = item.get("content_text", "")
+    for i, item in enumerate(record.bad_cases):
+        texts[f"bad_cases[{i}].content"] = item.get("content_text", "")
+        for j, feedback in enumerate(item.get("teacher_feedback_texts") or []):
+            texts[f"bad_cases[{i}].feedback[{j}]"] = feedback
+        if item.get("reason_summary"):
+            texts[f"bad_cases[{i}].reason_summary"] = item["reason_summary"]
+    for i, item in enumerate(record.memory_materials):
+        texts[f"memory_materials[{i}]"] = item.get("content_text", "")
+    return texts
+
+
+def compute_basis_stale(record: repository.QuestionRecord) -> bool:
+    """True when a stored citation no longer matches the current materials.
+
+    Informational only: material autosave is decoupled from regeneration, so
+    confirmed criteria can legitimately outlive the text they quote. The UI
+    surfaces this as a soft reminder; the strict per-citation validation
+    still guards the explicit criteria save (422 CITATION_INVALID).
+    """
+
+    if not record.criteria:
+        return False
+    texts = _record_locator_texts(record)
+    for item in record.criteria:
+        for basis_name in ("criterion_basis", "pass_score_basis"):
+            basis = item.get(basis_name)
+            if not basis:
+                continue
+            for claim in basis.get("claims") or []:
+                citation = claim.get("citation")
+                if not citation:
+                    continue
+                text = texts.get(citation.get("locator", ""))
+                quote = (citation.get("quote") or "").strip()
+                if text is None or not quote or quote not in text:
+                    return True
+    return False
 
 
 def _detail_response(record: repository.QuestionRecord) -> QuestionDetailResponse:
@@ -113,6 +163,7 @@ def _detail_response(record: repository.QuestionRecord) -> QuestionDetailRespons
         ),
         deletion=_deletion_view(record.id),
         criteria_confirmed=record.criteria_confirmed,
+        criteria_basis_stale=compute_basis_stale(record),
         delete_confirmation_required=record.ever_published,
         created_at=_iso(record.created_at) or "",
         updated_at=_iso(record.updated_at) or "",
@@ -395,16 +446,80 @@ def update_title(question_id: str, payload: QuestionTitleRequest) -> QuestionDet
     return _detail_response(record)
 
 
-def save_and_regenerate(
-    question_id: str, payload: QuestionSaveRegenerateRequest
-) -> OperationAcceptedResponse:
-    """The only material edit action: overwrite content and queue regeneration.
+def _lightweight_edit_gates(row, operation: str) -> None:
+    """Gates shared by the non-generative autosave endpoints.
 
-    Publishing state is deliberately not consulted — editing a published
-    question overwrites it and returns the question to pending processing.
-    The material overwrite and the revision bump commit through one
-    conditional UPDATE keyed on ``content_revision``; the queued generation
-    job lives in the same transaction and rolls back with it.
+    ``generating`` rejects because a generation round is bound to the exact
+    materials revision (a write here would only be fenced as superseded at
+    commit time). ``published`` rejects to keep published content frozen
+    until the teacher reopens it for review.
+    """
+
+    if row.status == QuestionStatus.generating.value:
+        raise AppError(
+            409,
+            "RUBRIC_GENERATING",
+            "评分维度生成中，等待生成完成后再修改。",
+        )
+    if row.status == QuestionStatus.published.value:
+        raise AppError(
+            409,
+            "PUBLISHED_REOPEN_REQUIRED",
+            f"已发布题目必须先重新打开审改，才能{operation}。",
+        )
+
+
+def _validate_merged_materials(
+    row: EvalQuestionRow,
+    prompt: str,
+    answer: str,
+    examples: list[dict[str, Any]],
+    bad_cases: list[dict[str, Any]],
+    memory: list[dict[str, Any]],
+) -> None:
+    """Backstop validation on the merged six-material content before persist.
+
+    Replays the batch-intake ``CaseIn`` shape (blank/length/id rules) plus the
+    privacy scan over the whole case, regardless of which single field the
+    caller actually edited.
+    """
+
+    from app.features.question_library.schemas import (
+        BadCaseIn,
+        CaseIn,
+        MemoryMaterialIn,
+        ReferenceExampleIn,
+    )
+
+    try:
+        merged_case = CaseIn(
+            client_case_id=row.client_case_id,
+            title=row.title,
+            task_prompt=prompt,
+            reference_examples=[ReferenceExampleIn(**item) for item in examples],
+            bad_cases=[BadCaseIn(**item) for item in bad_cases],
+            reference_answer=answer,
+            memory_materials=[MemoryMaterialIn(**item) for item in memory],
+        )
+    except ValidationError as exc:
+        first = exc.errors()[0] if exc.errors() else {}
+        raise AppError(
+            422,
+            "VALIDATION_ERROR",
+            str(first.get("msg") or "材料内容无效。"),
+            details={"fields": [{"loc": list(first.get("loc", [])), "message": str(first.get("msg", ""))}]},
+        ) from exc
+    assert_case_materials_private(merged_case)
+
+
+def update_materials(
+    question_id: str, payload: QuestionMaterialsPatchRequest
+) -> QuestionDetailResponse:
+    """Lightweight material autosave: write text only, generate nothing.
+
+    Absent fields keep their values and a no-op payload is idempotent. The
+    write never bumps ``content_revision`` and never touches criteria or the
+    generation queue — regeneration is a separate, explicit action.
     """
 
     now = _utc_now()
@@ -414,9 +529,9 @@ def save_and_regenerate(
             raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
         if row.content_revision != payload.content_revision:
             raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
-        _ensure_not_frozen(row, "材料保存与重新生成")
+        _ensure_not_frozen(row, "材料编辑")
+        _lightweight_edit_gates(row, "编辑材料")
 
-        new_title = payload.title.strip() if payload.title is not None else row.title
         new_prompt = payload.task_prompt.strip() if payload.task_prompt is not None else row.task_prompt
         new_answer = (
             payload.reference_answer.strip()
@@ -439,45 +554,126 @@ def save_and_regenerate(
             else list(row.memory_materials_json or [])
         )
 
-        # A no-op save would destroy reviewed criteria and burn an AI call
-        # without changing any material; reject it explicitly.
-        if (
-            new_title == row.title
-            and new_prompt == row.task_prompt
-            and new_answer == row.reference_answer
-            and new_examples == list(row.reference_examples_json or [])
-            and new_bad_cases == list(row.bad_cases_json or [])
-            and new_memory == list(row.memory_materials_json or [])
-        ):
-            raise AppError(409, "NO_MATERIAL_CHANGE", "材料没有变化，无需重新生成。")
+        _validate_merged_materials(row, new_prompt, new_answer, new_examples, new_bad_cases, new_memory)
 
-        # Backstop privacy scan on the merged content before persisting it.
-        from app.features.question_library.schemas import (
-            BadCaseIn,
-            CaseIn,
-            MemoryMaterialIn,
-            ReferenceExampleIn,
+        changed: dict[str, Any] = {}
+        if new_prompt != row.task_prompt:
+            changed["task_prompt"] = new_prompt
+        if new_answer != row.reference_answer:
+            changed["reference_answer"] = new_answer
+        if new_examples != list(row.reference_examples_json or []):
+            changed["reference_examples_json"] = new_examples
+        if new_bad_cases != list(row.bad_cases_json or []):
+            changed["bad_cases_json"] = new_bad_cases
+        if new_memory != list(row.memory_materials_json or []):
+            changed["memory_materials_json"] = new_memory
+
+        if not changed:
+            record = repository.get_question(session, question_id)
+            if record is None:  # pragma: no cover - row checked above
+                raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+            return _detail_response(record)
+
+        record = repository.update_fields(
+            session,
+            question_id,
+            expected_revision=payload.content_revision,
+            now=now,
+            **changed,
         )
+        if record is None:
+            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+    return _detail_response(record)
 
-        try:
-            merged_case = CaseIn(
-                client_case_id=row.client_case_id,
-                title=new_title,
-                task_prompt=new_prompt,
-                reference_examples=[ReferenceExampleIn(**item) for item in new_examples],
-                bad_cases=[BadCaseIn(**item) for item in new_bad_cases],
-                reference_answer=new_answer,
-                memory_materials=[MemoryMaterialIn(**item) for item in new_memory],
+
+def patch_criterion(
+    question_id: str, criterion_id: str, payload: CriterionPatchRequest
+) -> QuestionDetailResponse:
+    """Field-level criterion autosave; selection/confirmation stay untouched.
+
+    Only the supplied fields change; the merged item is re-validated through
+    the same ``CriterionIn`` contract the explicit criteria save uses, while
+    stored basis citations are deliberately NOT re-checked here (staleness is
+    reported softly via ``criteria_basis_stale``).
+    """
+
+    now = _utc_now()
+    with session_scope() as session:
+        row = session.get(EvalQuestionRow, question_id)
+        if row is None:
+            raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+        if row.content_revision != payload.content_revision:
+            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+        _ensure_not_frozen(row, "评分维度修改")
+        _lightweight_edit_gates(row, "修改评分维度")
+
+        criteria = list(row.criteria_json or [])
+        index = next(
+            (i for i, item in enumerate(criteria) if item.get("id") == criterion_id),
+            None,
+        )
+        if index is None:
+            raise AppError(404, "RESOURCE_NOT_FOUND", "评分维度不存在。")
+
+        updated = dict(criteria[index])
+        if payload.criterion is not None:
+            updated["criterion"] = payload.criterion.strip()
+        if payload.pass_score is not None:
+            updated["pass_score"] = payload.pass_score
+        if payload.score_anchors is not None:
+            updated["score_anchors"] = [item.model_dump() for item in payload.score_anchors]
+
+        if updated == criteria[index]:
+            record = repository.get_question(session, question_id)
+            if record is None:  # pragma: no cover - row checked above
+                raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+        else:
+            from app.features.question_library.schemas import CriterionIn
+
+            try:
+                CriterionIn(**updated)
+            except ValidationError as exc:
+                first = exc.errors()[0] if exc.errors() else {}
+                raise AppError(
+                    422,
+                    "VALIDATION_ERROR",
+                    str(first.get("msg") or "评分维度无效。"),
+                    details={"fields": [{"loc": list(first.get("loc", [])), "message": str(first.get("msg", ""))}]},
+                ) from exc
+            criteria[index] = updated
+            record = repository.update_fields(
+                session,
+                question_id,
+                expected_revision=payload.content_revision,
+                now=now,
+                criteria_json=criteria,
             )
-        except ValidationError as exc:
-            first = exc.errors()[0] if exc.errors() else {}
-            raise AppError(
-                422,
-                "VALIDATION_ERROR",
-                str(first.get("msg") or "材料内容无效。"),
-                details={"fields": [{"loc": list(first.get("loc", [])), "message": str(first.get("msg", ""))}]},
-            ) from exc
-        assert_case_materials_private(merged_case)
+            if record is None:
+                raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+    return _detail_response(record)
+
+
+def regenerate(question_id: str, payload: QuestionCommandRequest) -> OperationAcceptedResponse:
+    """Unconditional regeneration, always based on the CURRENT saved materials.
+
+    The materials themselves are never AI-generated. This wipes every stored
+    criterion (candidates, selection and the confirmation fact) and reruns
+    the rubric pipeline on a new content revision; a published question
+    returns to the generation flow with ``ever_published`` preserved.
+
+    Triggering while a round is still generating is deliberately allowed: it
+    is the supported way to interrupt a stuck run — the old job is fenced as
+    ``superseded`` at commit time and can never overwrite the new revision.
+    """
+
+    now = _utc_now()
+    with session_scope() as session:
+        row = session.get(EvalQuestionRow, question_id)
+        if row is None:
+            raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+        if row.content_revision != payload.content_revision:
+            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+        _ensure_not_frozen(row, "重新生成")
 
         new_revision = row.content_revision + 1
         job_id = rubric_generation.enqueue_generation(
@@ -493,12 +689,6 @@ def save_and_regenerate(
             question_id,
             expected_revision=payload.content_revision,
             now=now,
-            title=new_title,
-            task_prompt=new_prompt,
-            reference_answer=new_answer,
-            reference_examples_json=new_examples,
-            bad_cases_json=new_bad_cases,
-            memory_materials_json=new_memory,
             content_revision=new_revision,
             criteria_json=None,
             criteria_confirmed=False,

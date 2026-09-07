@@ -251,13 +251,12 @@ def test_partial_cleanup_crash_resumes_and_finishes_all_threads(pg_business_env,
             assert detail["status"] == "pending_review"
             thread_r1 = f"qgen-{question_id}-r1"
 
-            # Round 2: material edit creates revision 2 -> a SECOND thread.
+            # Round 2: regeneration creates revision 2 -> a SECOND thread.
             regen = client.post(
-                f"/api/questions/{question_id}/save-regenerate",
+                f"/api/questions/{question_id}/regenerate",
                 json={
                     "command_id": "regen-multi",
                     "content_revision": detail["content_revision"],
-                    "task_prompt": detail["task_prompt"] + " 第二轮材料修改。",
                 },
             )
             assert regen.status_code == 200, regen.text

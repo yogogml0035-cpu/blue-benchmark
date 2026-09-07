@@ -746,13 +746,13 @@
         }
       }
     },
-    "/api/questions/{question_id}/save-regenerate": {
-      "post": {
+    "/api/questions/{question_id}/materials": {
+      "patch": {
         "tags": [
           "question-library"
         ],
-        "summary": "Save And Regenerate",
-        "operationId": "save_and_regenerate_api_questions__question_id__save_regenerate_post",
+        "summary": "Update Materials",
+        "operationId": "update_materials_api_questions__question_id__materials_patch",
         "parameters": [
           {
             "name": "question_id",
@@ -769,7 +769,124 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/QuestionSaveRegenerateRequest"
+                "$ref": "#/components/schemas/QuestionMaterialsPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "404": {
+            "description": "题目不存在"
+          },
+          "409": {
+            "description": "内容版本陈旧、生成中或已发布"
+          },
+          "422": {
+            "description": "材料内容无效"
+          }
+        }
+      }
+    },
+    "/api/questions/{question_id}/criteria/{criterion_id}": {
+      "patch": {
+        "tags": [
+          "question-library"
+        ],
+        "summary": "Patch Criterion",
+        "operationId": "patch_criterion_api_questions__question_id__criteria__criterion_id__patch",
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Question Id"
+            }
+          },
+          {
+            "name": "criterion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Criterion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CriterionPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "404": {
+            "description": "题目或评分维度不存在"
+          },
+          "409": {
+            "description": "内容版本陈旧、生成中或已发布"
+          },
+          "422": {
+            "description": "评分维度无效"
+          }
+        }
+      }
+    },
+    "/api/questions/{question_id}/regenerate": {
+      "post": {
+        "tags": [
+          "question-library"
+        ],
+        "summary": "Regenerate Question",
+        "operationId": "regenerate_question_api_questions__question_id__regenerate_post",
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionCommandRequest"
               }
             }
           }
@@ -792,10 +909,17 @@
             "description": "题目不存在"
           },
           "409": {
-            "description": "内容版本陈旧"
+            "description": "内容版本陈旧或生成中"
           },
           "422": {
-            "description": "材料内容无效"
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
@@ -1679,6 +1803,63 @@
         "title": "CriterionIn",
         "description": "Administrator-supplied criterion; identical shape to the AI output contract.\n\nTeacher-edit semantics (deliberately weaker than the GENERATION contract):\n``pass_score`` accepts ANY integer 0-10 — anchors are explanatory, never a\nwhitelist; ``score_anchors`` may be empty or omit ``pass_score``; the two\nbases may be ``None`` for manually created criteria (explicitly empty\nauxiliary content, not a missing-field fallback). Editing the score does\nNOT rewrite or auto-fill anchors/bases; the UI flags a stale\n``explained_score`` for the teacher to review."
       },
+      "CriterionPatchRequest": {
+        "properties": {
+          "content_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Content Revision"
+          },
+          "criterion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Criterion"
+          },
+          "pass_score": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass Score"
+          },
+          "score_anchors": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ScoreAnchorIn"
+                },
+                "type": "array",
+                "maxItems": 6
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Anchors"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "content_revision"
+        ],
+        "title": "CriterionPatchRequest",
+        "description": "Field-level criterion autosave; absent fields keep their values.\n\nSelection flags, confirmation state and the unselected candidate pool are\nnever touched here; the supplied fields are re-validated through the same\n``CriterionIn`` contract the explicit criteria save uses. Stored basis\ncitations are NOT re-validated against materials on this path — staleness\nsurfaces as the soft ``criteria_basis_stale`` reminder instead."
+      },
       "CriterionView": {
         "properties": {
           "id": {
@@ -2204,6 +2385,10 @@
             "type": "boolean",
             "title": "Criteria Confirmed"
           },
+          "criteria_basis_stale": {
+            "type": "boolean",
+            "title": "Criteria Basis Stale"
+          },
           "status": {
             "$ref": "#/components/schemas/QuestionStatus"
           },
@@ -2294,6 +2479,7 @@
           "memory_materials",
           "criteria",
           "criteria_confirmed",
+          "criteria_basis_stale",
           "status",
           "next_action",
           "content_revision",
@@ -2409,31 +2595,12 @@
         ],
         "title": "QuestionListItem"
       },
-      "QuestionSaveRegenerateRequest": {
+      "QuestionMaterialsPatchRequest": {
         "properties": {
-          "command_id": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Command Id"
-          },
           "content_revision": {
             "type": "integer",
             "minimum": 1.0,
             "title": "Content Revision"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
           },
           "task_prompt": {
             "anyOf": [
@@ -2447,6 +2614,19 @@
               }
             ],
             "title": "Task Prompt"
+          },
+          "reference_answer": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Answer"
           },
           "reference_examples": {
             "anyOf": [
@@ -2478,19 +2658,6 @@
             ],
             "title": "Bad Cases"
           },
-          "reference_answer": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200000,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reference Answer"
-          },
           "memory_materials": {
             "anyOf": [
               {
@@ -2510,10 +2677,10 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "command_id",
           "content_revision"
         ],
-        "title": "QuestionSaveRegenerateRequest"
+        "title": "QuestionMaterialsPatchRequest",
+        "description": "Partial material autosave; absent fields keep their current values.\n\nWrites text only: never bumps ``content_revision``, never touches\ncriteria, never enqueues generation. Lists are replaced wholesale when\nprovided (item shapes reuse the batch-intake models, so validation and\n``client_ref_id`` uniqueness come for free)."
       },
       "QuestionStatus": {
         "type": "string",

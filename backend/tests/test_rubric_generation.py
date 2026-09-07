@@ -114,16 +114,20 @@ def test_generation_failure_marks_question_and_supports_retry() -> None:
         detail = client.get(f"/api/questions/{question_id}").json()
         assert detail["status"] == "generation_failed"
 
-        # Remove the marker through save-and-regenerate; generation recovers.
-        save = client.post(
-            f"/api/questions/{question_id}/save-regenerate",
+        # Remove the marker: autosave the fixed prompt, then regenerate.
+        save = client.patch(
+            f"/api/questions/{question_id}/materials",
             json={
-                "command_id": "fix-prompt",
                 "content_revision": detail["content_revision"],
                 "task_prompt": "请把提供的新闻素材改写成正式新闻稿。",
             },
         )
         assert save.status_code == 200, save.text
+        regen = client.post(
+            f"/api/questions/{question_id}/regenerate",
+            json={"command_id": "fix-prompt", "content_revision": save.json()["content_revision"]},
+        )
+        assert regen.status_code == 200, regen.text
         helpers.run_worker_until_idle()
         detail = client.get(f"/api/questions/{question_id}").json()
         assert detail["status"] == "pending_review"
@@ -139,7 +143,7 @@ def test_vague_ai_output_is_rejected_as_failure() -> None:
         assert detail["last_error"]["code"] == "AI_OUTPUT_INVALID"
 
 
-def test_save_and_regenerate_invalidates_old_criteria() -> None:
+def test_regenerate_invalidates_old_criteria() -> None:
     clear_business_data()
     with TestClient(app) as client:
         question_id = _upload_one(client)
@@ -147,25 +151,34 @@ def test_save_and_regenerate_invalidates_old_criteria() -> None:
         detail = client.get(f"/api/questions/{question_id}").json()
         assert detail["status"] == "pending_review"
         old_revision = detail["content_revision"]
+        old_criteria = detail["criteria"]
 
-        save = client.post(
-            f"/api/questions/{question_id}/save-regenerate",
+        # Autosave edits the answer but keeps criteria and revision untouched.
+        save = client.patch(
+            f"/api/questions/{question_id}/materials",
             json={
-                "command_id": "edit-1",
                 "content_revision": old_revision,
                 "reference_answer": "老师更新后的标准答案。",
             },
         )
         assert save.status_code == 200, save.text
+        assert save.json()["criteria"] == old_criteria
+        assert save.json()["content_revision"] == old_revision
+
+        regen = client.post(
+            f"/api/questions/{question_id}/regenerate",
+            json={"command_id": "edit-1", "content_revision": old_revision},
+        )
+        assert regen.status_code == 200, regen.text
         detail = client.get(f"/api/questions/{question_id}").json()
         assert detail["status"] == "generating"
         assert detail["criteria"] is None, "old criteria must be invalidated immediately"
         assert detail["content_revision"] == old_revision + 1
 
-        # Stale revision edit conflicts.
+        # Stale revision regeneration conflicts.
         stale = client.post(
-            f"/api/questions/{question_id}/save-regenerate",
-            json={"command_id": "edit-2", "content_revision": old_revision, "title": "旧版本"},
+            f"/api/questions/{question_id}/regenerate",
+            json={"command_id": "edit-2", "content_revision": old_revision},
         )
         assert stale.status_code == 409
         assert stale.json()["error"]["code"] == "STALE_REVISION"
@@ -180,24 +193,20 @@ def test_concurrent_stale_generation_cannot_overwrite_new_materials() -> None:
     clear_business_data()
     with TestClient(app) as client:
         question_id = _upload_one(client)
-        # Simulate: the job for revision 1 is still queued when the admin edits.
+        # Simulate: the job for revision 1 is still queued when the admin
+        # triggers an unconditional regeneration for revision 2.
         detail = client.get(f"/api/questions/{question_id}").json()
         save = client.post(
-            f"/api/questions/{question_id}/save-regenerate",
-            json={
-                "command_id": "race-edit",
-                "content_revision": detail["content_revision"],
-                "reference_answer": "竞态发生后的新标准答案。",
-            },
+            f"/api/questions/{question_id}/regenerate",
+            json={"command_id": "race-edit", "content_revision": detail["content_revision"]},
         )
         assert save.status_code == 200
-
         # Now run all jobs: the stale revision-1 job must supersede, only the
         # revision-2 job may commit.
         helpers.run_worker_until_idle()
         detail = client.get(f"/api/questions/{question_id}").json()
         assert detail["status"] == "pending_review"
-        assert detail["reference_answer"] == "竞态发生后的新标准答案。"
+        assert detail["content_revision"] == 2
 
         from app.lib.operations import repository as operation_repository
 

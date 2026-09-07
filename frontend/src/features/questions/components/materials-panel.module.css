@@ -10,6 +10,57 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  border-radius: var(--benchmark-radius-md);
+}
+
+/* Hover/double-click edit affordance: a dashed outline appears around the
+   module frame without any layout shift; the editing frame uses the focus
+   accent. */
+@media (hover: hover) {
+  .materialBlock:hover {
+    outline: 1px dashed var(--benchmark-line-strong);
+    outline-offset: 8px;
+  }
+}
+
+.blockEditing {
+  outline: 1px solid var(--benchmark-focus-blue);
+  outline-offset: 8px;
+}
+
+.blockHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.editButton {
+  opacity: 0;
+}
+
+.materialBlock:hover .editButton,
+.materialBlock:focus-within .editButton {
+  opacity: 1;
+}
+
+.moduleFooter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 24px;
+}
+
+.savingNote {
+  font-size: 12px;
+  color: var(--benchmark-muted);
+}
+
+.errorNote {
+  font-size: 12px;
+  color: var(--benchmark-warning);
 }
 
 /* Every module renders one fixed-height mask box per material item; the box

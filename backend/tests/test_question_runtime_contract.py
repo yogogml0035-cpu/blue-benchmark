@@ -213,10 +213,16 @@ def test_deleting_freeze_blocks_every_write_path() -> None:
                   "criteria": frozen["criteria"]},
         )
         assert criteria.status_code == 409 and criteria.json()["error"]["code"] == "QUESTION_DELETING"
-        regenerate = client.post(
-            f"/api/questions/{question_id}/save-regenerate",
-            json={"command_id": "g", "content_revision": revision,
+        materials = client.patch(
+            f"/api/questions/{question_id}/materials",
+            json={"content_revision": revision,
                   "task_prompt": "冻结期间的材料修改。"},
+        )
+        assert materials.status_code == 409
+        assert materials.json()["error"]["code"] == "QUESTION_DELETING"
+        regenerate = client.post(
+            f"/api/questions/{question_id}/regenerate",
+            json={"command_id": "g", "content_revision": revision},
         )
         assert regenerate.status_code == 409
         assert regenerate.json()["error"]["code"] == "QUESTION_DELETING"
@@ -340,11 +346,10 @@ def test_events_survive_reload_and_superseded_runs_are_rejected() -> None:
         # A superseded generation operation is refused while a new one is active.
         detail = client.get(f"/api/questions/{question_id}").json()
         regenerate = client.post(
-            f"/api/questions/{question_id}/save-regenerate",
+            f"/api/questions/{question_id}/regenerate",
             json={
                 "command_id": "regen-events",
                 "content_revision": detail["content_revision"],
-                "task_prompt": detail["task_prompt"] + " 修改材料触发重生成。",
             },
         )
         assert regenerate.status_code == 200
@@ -484,15 +489,14 @@ def test_midrun_material_edit_ends_old_operation_with_run_failed() -> None:
                 # Later rounds behave normally; the race is a one-shot event.
                 return super().generate(materials, context=context, sink=sink)
             self._sabotaged = True
-            # Teacher edits materials WHILE this run is in flight.
-            service.save_and_regenerate(
+            # Teacher regenerates WHILE this run is in flight.
+            service.regenerate(
                 context.question_id,
                 __import__(
-                    "app.features.question_library.schemas", fromlist=["QuestionSaveRegenerateRequest"]
-                ).QuestionSaveRegenerateRequest(
+                    "app.features.question_library.schemas", fromlist=["QuestionCommandRequest"]
+                ).QuestionCommandRequest(
                     command_id="sabotage-regen",
                     content_revision=context.materials_revision,
-                    task_prompt="运行中被老师修改的材料。",
                 ),
             )
             return super().generate(materials, context=context, sink=sink)

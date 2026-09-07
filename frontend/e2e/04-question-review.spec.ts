@@ -175,32 +175,43 @@ test("completed run keeps a full public process replay", async ({ page, request 
   await expect(body.getByTestId("timeline-completed")).toBeVisible();
 });
 
-test("material edit requires explicit replace-everything confirmation", async ({ page, request }) => {
+test("material autosave persists in place; regeneration is separate and confirmed", async ({ page, request }) => {
   await ensureLoggedIn(page);
   const { sceneId, questionId } = await seedQuestion(page, request, "审改评测集F");
 
   await page.goto(`/evaluation-sets/${sceneId}/questions/${questionId}`);
-  await page.getByRole("button", { name: "编辑材料" }).click();
-
-  const prompt = page.getByRole("textbox", { name: "题目", exact: true });
-  await prompt.fill("请把提供的素材整理成一段正式说明，并补充审核要点。");
-
-  // Cancel first: no write request, no generation, draft dialog just closes.
-  await page.getByRole("button", { name: "保存并重新生成" }).click();
-  await expect(page.getByTestId("regen-confirm-text")).toBeVisible();
   const cookie = await cookieHeader(page);
   const before = await (
     await request.get(`/api/questions/${questionId}`, { headers: { Cookie: cookie } })
   ).json();
-  await page.getByRole("dialog", { name: "重新生成将整套替换" }).getByRole("button", { name: "取消" }).click();
-  const afterCancel = await (
+
+  // Enter the 题目 module edit state via its pencil affordance and autosave by
+  // leaving the module (blur outside the frame).
+  await page.getByTestId("module-edit-task_prompt").click();
+  const prompt = page.getByRole("textbox", { name: "题目内容" });
+  await prompt.fill("请把提供的素材整理成一段正式说明，并补充审核要点。");
+  await page.getByRole("heading", { name: "评分维度" }).click();
+  await expect(page.getByTestId("module-edit-task_prompt")).toBeVisible();
+
+  // Autosave writes text only: revision unchanged, criteria untouched.
+  const afterSave = await (
     await request.get(`/api/questions/${questionId}`, { headers: { Cookie: cookie } })
   ).json();
-  expect(afterCancel.content_revision).toBe(before.content_revision);
-  expect(afterCancel.status).toBe("pending_review");
+  expect(afterSave.task_prompt).toContain("补充审核要点");
+  expect(afterSave.content_revision).toBe(before.content_revision);
+  expect(afterSave.status).toBe("pending_review");
+  expect(afterSave.criteria_confirmed).toBe(before.criteria_confirmed);
 
-  // Confirm: exactly one regeneration is started.
-  await page.getByRole("button", { name: "保存并重新生成" }).click();
+  // Editing a cited material flips the soft stale-basis banner (non-blocking).
+  await page.getByTestId("module-edit-reference_answer").click();
+  await page.getByRole("textbox", { name: "标准答案内容" }).fill("这是重写后与依据引用不同的标准答案内容。");
+  await page.getByRole("heading", { name: "评分维度" }).click();
+  await expect(page.getByTestId("criteria-stale-banner")).toBeVisible();
+
+  // Regeneration is a separate, confirmed action: revision bumps, criteria
+  // wipe, saved materials survive, and the stale banner clears with them.
+  await page.getByTestId("regenerate-button").click();
+  await expect(page.getByTestId("regen-confirm-text")).toBeVisible();
   await page.getByTestId("regen-confirm").click();
   await expect
     .poll(
@@ -216,6 +227,9 @@ test("material edit requires explicit replace-everything confirmation", async ({
   ).json();
   expect(after.content_revision).toBe(before.content_revision + 1);
   expect(after.criteria_confirmed).toBe(false);
+  expect(after.task_prompt).toContain("补充审核要点");
+  expect(after.criteria_basis_stale).toBe(false);
+  await expect(page.getByTestId("criteria-stale-banner")).toHaveCount(0);
 });
 
 test("teacher selects candidates, saves, then publishes", async ({ page, request }) => {
