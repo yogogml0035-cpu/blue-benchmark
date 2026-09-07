@@ -6,9 +6,11 @@
 
 ## 备份
 
-- `backups/skill_eval_20260907.dump` — 业务库 `skill_eval`(pg_dump -Fc)。
-- `backups/skill_eval_checkpoint_20260907.dump` — checkpoint 库。
-- `backups/legacy-test-dbs/*.dump` — 21 个旧名测试/验收遗留库(删除前逐一 dump 存档)。
+- `skill_eval_20260907.dump` — 业务库 `skill_eval`(pg_dump -Fc)。
+- `skill_eval_checkpoint_20260907.dump` — checkpoint 库。
+- `legacy-test-dbs/*.dump` — 21 个旧名测试/验收遗留库(删除前逐一 dump 存档)。
+
+以上 dump 归档前存放于任务目录 backups/(经 .git/info/exclude 排除未入库),Trellis 归档时迁出至仓库外产物区:../skill-eval-platform-wt/_artifacts/rename-blue-benchmark-backups/ (仓库外产物区,绝对路径 /Users/hsikey/Company/skill-eval-platform-wt/_artifacts/rename-blue-benchmark-backups/)。
 
 ## 改名操作
 
