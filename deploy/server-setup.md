@@ -157,12 +157,15 @@ sleep 30 && docker compose ps
 
 `docker compose ps` 中 api、postgres、web 应显示 `(healthy)`，worker 和 nginx 为 `Up`。
 
-## 9. 注册管理员
+## 9. 登录管理员
 
-浏览器打开 `http://你的公网IP/`，注册账号。
+管理员账号来自 `.env` 里的 `ADMIN_USERNAME` / `ADMIN_PASSWORD`（第五步已填写）：
+api 容器启动时自动把它写入数据库，浏览器打开 `http://你的公网IP/` 直接用这套
+账号密码登录即可，不存在注册页面。
 
-**注意：第一个注册的人成为平台唯一管理员，之后再也不能注册第二个账号。
-确保是你本人第一个注册，注册后立即用密码管理器保存密码。**
+**注意：这两项没填时 api 容器会拒绝启动（fail fast），`docker compose logs api`
+能看到缺失的键名。以后改密码 = 改 `.env` 里这两行并 `docker compose up -d api`
+重启，旧密码与全部旧登录会话立即失效；请用密码管理器保存。**
 
 ## 10. 上线验收（全部必做）
 

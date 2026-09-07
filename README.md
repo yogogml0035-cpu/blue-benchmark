@@ -1,6 +1,6 @@
 # blue-benchmark
 
-这是 M0 评测题平台：业务老师在本地 Agent 里完成真实任务后，调用仓库内上传 Skill，从当前可见上下文整理评测题并经确认后批量上传；后端保存题目的六类材料，并由真实 AI（受限 Deep Agent，运行在持久化检查点上）为每道题动态生成完整评分项——具体维度、0–10 整数建议通过分、少量关键分数表现说明（锚点）、维度依据与通过分依据（区分老师明确要求与 AI 推定，引用可对照材料核查）；管理员在 Next.js 桌面管理端完成首次注册、评测集与凭证管理、带真实流式过程反馈的维度审改与发布。
+这是 M0 评测题平台：业务老师在本地 Agent 里完成真实任务后，调用仓库内上传 Skill，从当前可见上下文整理评测题并经确认后批量上传；后端保存题目的六类材料，并由真实 AI（受限 Deep Agent，运行在持久化检查点上）为每道题动态生成完整评分项——具体维度、0–10 整数建议通过分、少量关键分数表现说明（锚点）、维度依据与通过分依据（区分老师明确要求与 AI 推定，引用可对照材料核查）；管理员账号由环境变量（ADMIN_USERNAME/ADMIN_PASSWORD）写死并在后端启动时自动写入数据库，管理员在 Next.js 桌面管理端登录后完成评测集与凭证管理、带真实流式过程反馈的维度审改与发布。
 
 仓库为后端 + 前端两层：**后端**是 FastAPI + SQLAlchemy/Alembic 业务数据库 + 恰好一个生产 Worker；**前端**是 Next.js App Router + TypeScript 的桌面管理端，浏览器经同源 `/api` 代理访问后端并复用 HttpOnly Session Cookie。题目、材料、评分维度和发布状态都保存在业务数据库，OpenAPI 是唯一跨层机器合同；前端类型由 `backend/openapi.json` 生成，不手写重复 DTO。
 
@@ -14,7 +14,7 @@
 - **老师确认门禁**：AI 生成的维度只是候选草稿（`criteria_confirmed=false`），发布前必须经老师保存最终维度列表（`PATCH /criteria` 置 `criteria_confirmed=true`）；未确认的 AI 初稿不能发布。`next_action` 区分 `review_criteria`（待选择维度）与 `publish`（待发布）。
 - **重新打开审改**：已发布题目通过 `POST /api/questions/{id}/review-reopen` 原子退回 `pending_review`，保留材料与维度、清空当前发布时间；不产生版本或快照。
 - **受保护的完整删除**：`generating` 禁止删除；`published` 必须先重新打开；曾发布过的题目删除时必须提交与当前标题完全一致的 `confirmation_title`（服务端持久化“曾发布”事实，刷新后仍然生效）。`DELETE` 返回 `202` 只表示受理：题目原子冻结（`deleting`，全部写路径与事件回放拒绝）并登记持久清理作业；作业先清除该题全部历次运行 thread 的检查点数据（不依赖模型可用），验证零残留后才在同一业务事务删除题目、运行事件与生成历史。前端只有在题目真正 404 后才离开页面；清理失败可见、可重试，绝不提前报成功。
-- **单管理员**：平台只有一个管理员账号；业务老师不建账号，只通过场景凭证提交材料。场景凭证只有“查询连接状态 + 批量上传”的最小权限。`GET /api/auth/bootstrap` 匿名返回 `registration_available`，只暴露是否仍可首注。
+- **单管理员**：平台只有一个管理员账号，来自环境变量 `ADMIN_USERNAME`/`ADMIN_PASSWORD`（唯一权威）：API 启动时自动写入空库，已有账号与 env 不一致时以 env 为准覆盖（密码变化同时撤销全部旧会话），一致则零写入。不存在注册接口与首注流程。业务老师不建账号，只通过场景凭证提交材料；场景凭证只有“查询连接状态 + 批量上传”的最小权限。
 
 ## 本地准备
 
@@ -24,7 +24,7 @@
 cp .env.example .env
 ```
 
-编辑 `.env`：`AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY`、可选 `AI_BASE_URL`、`AI_REQUEST_TIMEOUT_SECONDS`、`DATABASE_URL`、`CHECKPOINT_DATABASE_URL`（生成运行检查点库，psycopg DSN）、`LANGGRAPH_AES_KEY`（16/24/32 字节，检查点加密密钥，缺失时生产生成拒绝落库）、`OPERATION_LEASE_SECONDS`、`OPERATION_MAX_ATTEMPTS`。`AI_PROVIDER=openai` 使用 OpenAI 或 OpenAI 兼容厂商（兼容端点通常把 `/v1` 放在 `AI_BASE_URL`）；`AI_PROVIDER=anthropic` 使用 Anthropic 或兼容 Messages API 的服务。本地 HTTP 开发需显式设置 `SESSION_COOKIE_SECURE=false`。不要把真实密钥提交到 Git。
+编辑 `.env`：`ADMIN_USERNAME`、`ADMIN_PASSWORD`（单管理员账号，缺失或为空时 API 拒绝启动）、`AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY`、可选 `AI_BASE_URL`、`AI_REQUEST_TIMEOUT_SECONDS`、`DATABASE_URL`、`CHECKPOINT_DATABASE_URL`（生成运行检查点库，psycopg DSN）、`LANGGRAPH_AES_KEY`（16/24/32 字节，检查点加密密钥，缺失时生产生成拒绝落库）、`OPERATION_LEASE_SECONDS`、`OPERATION_MAX_ATTEMPTS`。`AI_PROVIDER=openai` 使用 OpenAI 或 OpenAI 兼容厂商（兼容端点通常把 `/v1` 放在 `AI_BASE_URL`）；`AI_PROVIDER=anthropic` 使用 Anthropic 或兼容 Messages API 的服务。本地 HTTP 开发需显式设置 `SESSION_COOKIE_SECURE=false`。不要把真实密钥提交到 Git。
 
 安装依赖：
 
@@ -61,7 +61,7 @@ make frontend-dev    # 前端 dev，http://127.0.0.1:3000（BACKEND_URL 默认�
 成功标记：
 
 - API 健康检查：<http://127.0.0.1:8000/healthz> 返回 `status=ok`、`persistence=business database`，`ai` 与当前 `AI_RUNTIME_MODE` 一致；
-- 前端控制台：<http://127.0.0.1:3000>，首次进入会按 `/api/auth/bootstrap` 决定去首注还是登录；
+- 前端控制台：<http://127.0.0.1:3000>，未登录一律进入登录页，使用 `.env` 里的 `ADMIN_USERNAME`/`ADMIN_PASSWORD` 登录；
 - OpenAPI 文档：<http://127.0.0.1:8000/api/docs>。
 
 若 API 因 schema 未就绪退出，先运行 `make db-migrate` 和 `make db-check`。Fake 模式（`AI_RUNTIME_MODE=fake` 或 `--fake`）仅用于确定性测试，只允许连接 SQLite 业务库，不能用它做真实 AI 验收。
@@ -70,7 +70,7 @@ make frontend-dev    # 前端 dev，http://127.0.0.1:3000（BACKEND_URL 默认�
 
 前端是单管理员桌面控制台（最低支持 1280px 宽）：
 
-- **首次注册/登录**：空库时引导创建唯一管理员；已有管理员则只登录。支持用户名或邮箱登录，无“忘记密码/记住我”。
+- **登录**：唯一管理员来自环境变量（启动时自动写入数据库），登录页用用户名 + 密码登录，无注册入口、无“忘记密码/记住我”；改密码 = 改 `.env` 并重启 API。
 - **评测集**：彩色文件夹卡片，创建/改名/改描述/空集删除；连接状态（未签发/已签发待验证/已连接/已停用）由脱敏凭证派生。
 - **上传凭证**：显式签发/轮换/撤销；签发或轮换后只显示一次包含本地服务地址与长期凭证的 Agent 绑定提示词，关闭即不可恢复。
 - **题目审改**：紧凑列表（标题搜索/状态筛选/最近更新优先）+ 双栏工作台（左侧六类材料、右侧状态与维度）；AI 候选维度首次全未选，老师选择/修改/新增并保存后才能发布；已发布可重新打开审改；删除按状态门禁（曾发布题需输入完整标题）。
@@ -99,14 +99,13 @@ cd backend && uv run python -m scripts.admin_cli scenes delete --scene-id <scene
 cd backend && uv run python -m scripts.admin_cli credentials issue --scene-id <scene_id> --label ci
 cd backend && uv run python -m scripts.admin_cli credentials rotate --scene-id <scene_id>
 cd backend && uv run python -m scripts.admin_cli credentials revoke --scene-id <scene_id> --credential-id <credential_id>
-cd backend && uv run python -m scripts.admin_cli account reset-password
 ```
 
 明文凭证 token 只在 `issue`/`rotate` 成功时显示一次，后续 `status`/`list` 查询绝不返回明文。
 
 - `scenes update` 提交完整的目标元数据：省略 `--description` 表示清空描述；同名冲突返回错误。
 - `scenes delete` 与 API 共用同一 Service：只有当前无题目的评测集可删除，删除会级联撤销其凭证；非空场景被拒绝。
-- `account reset-password` 通过两次隐藏交互输入接收新密码（不接受 argv/环境变量），成功后旧密码与全部旧会话立即失效。
+- 管理员账号不在 CLI 管理：`ADMIN_USERNAME`/`ADMIN_PASSWORD` 是唯一权威，API 启动时自动应用（改密即改 env 并重启，旧密码与全部旧会话立即失效）。
 
 ## 外部批量收题
 
@@ -191,7 +190,7 @@ make frontend-generate-api   # 重新生成前端类型
     uv run python -m scripts.accept_real_ai_rubric   # 输出 ACCEPT_REAL_AI=PASS
   ```
 
-- **Web 级**（隔离两库 + 单生产 Worker + 真实浏览器：首注 → 评测集 → 凭证提示词 → 上传真实 case → 生成中浏览器实时收到增量（反假流式断言）→ 完整合同/引用核查 → 依据面板与任意整数保存 → 发布 → 重开 → 受理式删除并以 404 为准导航 → 检查点零残留）：
+- **Web 级**（隔离两库 + 单生产 Worker + 真实浏览器：env 账号登录 → 评测集 → 凭证提示词 → 上传真实 case → 生成中浏览器实时收到增量（反假流式断言）→ 完整合同/引用核查 → 依据面板与任意整数保存 → 发布 → 重开 → 受理式删除并以 404 为准导航 → 检查点零残留）：
 
   ```bash
   ACCEPT_BUSINESS_DSN=... ACCEPT_CHECKPOINT_DSN=... make accept-web    # 输出 M0_WEB_ACCEPTANCE=PASS
