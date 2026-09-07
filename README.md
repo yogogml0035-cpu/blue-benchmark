@@ -10,7 +10,7 @@
 - **一道题的六类材料**：题目、参考样例、Bad case（绑定老师反馈）、标准答案、记忆材料，以及仅供识别的用例标题 `title`。
 - **完整评分项**：每个维度包含 `criterion`（完整可执行的评判标准）、`pass_score`（0..10 整数及格分，固定满分 10 分、逐项及格）、`score_anchors`（少量关键分数的可观察表现说明；初始生成必须覆盖建议分，但对老师编辑永远不是白名单）、`criterion_basis` 与 `pass_score_basis`（依据说明 + 主张列表；每条主张标注 `teacher_explicit`/`ai_inferred`，老师明确要求必须附带可核查的材料引用）。人工新增维度可以显式携带空锚点与空依据。
 - **生成运行基础**：生成由受限 Deep Agent 执行（只读挂载本题材料、无 shell/子代理/跨题记忆），图状态与工作文件持久化在专用 PostgreSQL 检查点库（加密序列化），同线程单写者由 advisory lock 保证；技术重试从检查点续跑而不重复初始输入。公开过程事件先落业务库（`question_run_events`，按 operation 连续 sequence）再经同源 SSE 送达浏览器，完成事件只在业务原子保存之后发出；生成结束后完整过程仍可回放。
-- **状态机**：`generating → pending_review → published`，失败为 `generation_failed`，删除受理冻结为 `deleting`；已发布题目可 `review-reopen` 退回 `pending_review`；“保存并重新生成”是唯一材料编辑动作，前端在明确确认整套替换（含人工修改）后才提交，覆盖材料、作废旧维度并以新 thread 重新排队生成。
+- **状态机**：`generating → pending_review → published`，失败为 `generation_failed`，删除受理冻结为 `deleting`；已发布题目可 `review-reopen` 退回 `pending_review`。材料编辑与生成彻底解耦：材料逐模块自动保存（`PATCH /materials`，只写文本，不推进 `content_revision`、不动维度）；「重新生成」是独立确认动作（`POST /regenerate`），无条件作废全部维度并以新 thread 重跑，生成中触发即为打断重启（旧任务被 fencing 判 `superseded`）。已发布题目直接改材料被拒（先 `review-reopen`），重新生成则回到生成流程。
 - **老师确认门禁**：AI 生成的维度只是候选草稿（`criteria_confirmed=false`），发布前必须经老师保存最终维度列表（`PATCH /criteria` 置 `criteria_confirmed=true`）；未确认的 AI 初稿不能发布。`next_action` 区分 `review_criteria`（待选择维度）与 `publish`（待发布）。
 - **重新打开审改**：已发布题目通过 `POST /api/questions/{id}/review-reopen` 原子退回 `pending_review`，保留材料与维度、清空当前发布时间；不产生版本或快照。
 - **受保护的完整删除**：`generating` 禁止删除；`published` 必须先重新打开；曾发布过的题目删除时必须提交与当前标题完全一致的 `confirmation_title`（服务端持久化“曾发布”事实，刷新后仍然生效）。`DELETE` 返回 `202` 只表示受理：题目原子冻结（`deleting`，全部写路径与事件回放拒绝）并登记持久清理作业；作业先清除该题全部历次运行 thread 的检查点数据（不依赖模型可用），验证零残留后才在同一业务事务删除题目、运行事件与生成历史。前端只有在题目真正 404 后才离开页面；清理失败可见、可重试，绝不提前报成功。
