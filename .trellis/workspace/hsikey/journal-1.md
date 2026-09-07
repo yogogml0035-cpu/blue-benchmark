@@ -741,3 +741,25 @@
 - 对抗审查(trellis-check):7 项核查,揪出 2 必修(screenshot-auth.mjs 残留 /register 截图路由、server-setup.md §5 填写清单缺 ADMIN_* 与 §9「第五步已填写」自相矛盾)+1 建议(128 上限无测试)→ f781db9 全修。
 - 门禁:分支 267 passed/5 skipped+75 vitest+contract/check:api+build(路由表无 /register)+e2e 38 passed;ff 合并 main@f781db9 后复验全绿(main 首跑 build 因陈旧 .next 缓存引用已删 register 页报 TS2307,清缓存即过——构建产物非代码问题);归档 a30713b。
 - 本地 .env 已规范化为 ADMIN_USERNAME/ADMIN_PASSWORD(保留用户选定实值,不入库);主工作区与 worktree 副本同步。origin/main 旧备份不推送。服务器侧待发版时按新 server-setup §5/§9 填 ADMIN_* 即可。
+
+
+## Session 31: 题目详情自由编辑与全站字体改版
+<!-- trellis-session: v=2 fp=7f7f5fbe71d43286 -->
+
+**Date**: 2026-09-08
+**Task**: 题目详情自由编辑与全站字体改版
+**Branch**: `main`
+
+### Summary
+
+材料逐模块自动保存与生成彻底解耦（PATCH /materials、PATCH /criteria/{id}、POST /regenerate 三新接口，删除 save-regenerate）；维度勾选只承担绑定职责；重新生成独立按钮+作废确认；依据失配软提醒（criteria_basis_stale）；凭证 label 死字段全链删除（0022 迁移）；全站字号 token +2px 行距 1.7。两轮对抗审查收敛：冻结 CAS 补齐全部轻量写路径、THREAD_MATERIALS_MISMATCH 并入清除重跑恢复、维度整列表写进程内串行化、Dialog 焦点抢占与锚点竞态修复。质量门：后端 282/前端 74/E2E 39/真实 AI Web 验收 PASS/0022 真实 PG 迁移验证。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9027c08` | Merge branch 'main' into codex/question-detail-free-edit |
+
+### Status
+
+[OK] **Completed**
