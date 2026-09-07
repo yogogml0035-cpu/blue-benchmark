@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "核查改名后跨层合同(Cookie/DB/app_name)文档与代码一致"}
+{"file": ".trellis/spec/deploy/backup-and-runtime.md", "reason": "核查 deploy 文档按新命名可直接执行且无旧名残留"}

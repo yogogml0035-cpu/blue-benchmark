@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/guides/cross-layer-contracts.md", "reason": "Cookie 名/库名/schema head 等跨层合同正是本任务要改的标识,改代码必须同步改合同文档"}
+{"file": ".trellis/spec/deploy/backup-and-runtime.md", "reason": "deploy 侧镜像/库/目录命名口径,阶段2.5 替换需与 spec 一致"}
+{"file": ".trellis/spec/backend/core/quality-and-tests.md", "reason": "测试库名与验收脚本按新语义改写的边界(不留旧行为测试)"}
