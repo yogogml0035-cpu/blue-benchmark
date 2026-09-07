@@ -4,7 +4,7 @@ import { SessionProvider } from "@/features/auth/session-context";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "汽车事业 BenchMark 平台",
+  title: "蓝标汽车事业 BenchMark 平台",
   description: "本地单管理员评测题管理台",
 };
 

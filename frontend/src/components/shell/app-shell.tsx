@@ -28,8 +28,8 @@ export function AppShell({ username, onLogout, loggingOut = false, children }: A
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
         <div className={styles.brandRow}>
-          <span className={styles.wordmark} aria-label="汽车事业 BenchMark 平台">
-            汽车事业 BenchMark 平台
+          <span className={styles.wordmark} aria-label="蓝标汽车事业 BenchMark 平台">
+            蓝标汽车事业 BenchMark 平台
           </span>
         </div>
 
