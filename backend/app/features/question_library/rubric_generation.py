@@ -233,10 +233,14 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
             )
         except ValueError as exc:
             code = str(exc)
-            if code == "THREAD_RUNTIME_MISMATCH":
-                # The runtime contract (model/SDK) changed since this thread
-                # was written. The old checkpoint is incompatible garbage:
-                # purge it and start a fresh run on the SAME revision, so a
+            if code in ("THREAD_RUNTIME_MISMATCH", "THREAD_MATERIALS_MISMATCH"):
+                # The persisted thread no longer matches what a fresh run on
+                # the SAME revision would see. Runtime mismatch means the
+                # model/SDK contract moved; materials mismatch means the
+                # teacher edited materials through the free autosave path
+                # (which intentionally never bumps content_revision). Either
+                # way the old checkpoint is incompatible garbage: purge it
+                # and start a fresh run on the CURRENT materials, so a
                 # teacher retry actually recovers instead of dead-ending.
                 _purge_incompatible_thread(thread_id)
                 run_streams.register_thread(

@@ -442,7 +442,7 @@ def _error_summary(payload: dict) -> str:
 
 
 # Only these fields from the connection endpoint are safe to display.
-_CONNECTION_FIELDS = ("status", "scene_id", "scene_name", "credential_id", "label", "last_used_at")
+_CONNECTION_FIELDS = ("status", "scene_id", "scene_name", "credential_id", "last_used_at")
 
 
 # ---------------------------------------------------------------------------

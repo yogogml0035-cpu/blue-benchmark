@@ -53,9 +53,12 @@ class ThreadRegistration:
 def register_thread(registration: ThreadRegistration) -> ThreadRegistration:
     """Idempotently register the run thread inside the caller's flow.
 
-    A conflicting fingerprint for the same thread means the materials changed
-    without a revision bump — impossible through the CAS write path, so it is
-    refused loudly instead of silently resuming on stale context.
+    A conflicting fingerprint for the same thread means the persisted
+    checkpoint no longer matches a fresh run on the SAME revision: either the
+    runtime contract moved (RUNTIME) or the teacher edited materials through
+    the free autosave path, which never bumps content_revision (MATERIALS).
+    Either way resuming is unsafe; the caller purges the stale checkpoint and
+    starts a fresh run on the current materials/runtime.
     """
     now = _utc_now()
     with session_scope() as session:

@@ -94,7 +94,6 @@ class FakePlatform(BaseHTTPRequestHandler):
                     "scene_id": self.scene_id,
                     "scene_name": "测试场景",
                     "credential_id": "cred-uuid",
-                    "label": "ci",
                     "last_used_at": None,
                 },
             )
@@ -465,7 +464,6 @@ def test_connection_only_prints_whitelisted_fields(server, monkeypatch, capsys):
             "scene_id": "s1",
             "scene_name": "Bearer sep_should_not_appear",
             "credential_id": "c1",
-            "label": None,
             "last_used_at": None,
             "secret_extra": "hidden",
         }

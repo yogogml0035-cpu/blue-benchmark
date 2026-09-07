@@ -42,10 +42,10 @@ Record 是内部状态（`@dataclass(frozen=True)`），Pydantic Schema 是外�
 ```text
 批量收题 -> generating（criteria_confirmed=false）
 generating -> pending_review | generation_failed
-generation_failed -> generating（retry）
+generation_failed -> generating（retry；材料经自动保存变更后 retry 会清除过期线程快照并以当前材料全新重跑）
 pending_review -> published（publish，要求 criteria_confirmed=true；成功置 ever_published=true）
 published -> pending_review（review-reopen，保留材料/维度/确认事实，清空 published_at）
-任意状态 -> generating（save-and-regenerate，published 回到待处理，criteria_confirmed 归 false）
+任意非冻结状态 -> generating（regenerate，无条件：作废全部维度并以新 thread 重跑；生成中触发即为打断重启，旧任务被 fencing 判 superseded；published 回到生成流程并清空 published_at，ever_published 保留）
 ```
 
 `next_action` 由状态 + `criteria_confirmed` 共同决定：`pending_review` 未确认是 `review_criteria`，已确认是 `publish`。
@@ -53,12 +53,13 @@ published -> pending_review（review-reopen，保留材料/维度/确认事实�
 保持以下已实现合同：
 
 - 批量收题成功后每题立即排队生成；生成失败保留题目并支持重试，不回滚同批其他题。
-- “保存并重新生成”是唯一材料编辑动作：覆盖材料、`content_revision` 递增、旧维度立即失效（`criteria_confirmed=false`）并重新排队；已发布题目被编辑后回到待处理，不保留历史版本；`ever_published` 不清除。
+- 材料编辑与生成彻底解耦：`PATCH /questions/{id}/materials` 逐字段部分更新（列表整列表替换，item 复用收题模型校验），只写文本——不推进 `content_revision`、不动维度、不入队；no-op 幂等返回当前详情。`generating`（409 RUBRIC_GENERATING）与 `published`（409 PUBLISHED_REOPEN_REQUIRED，先 review-reopen）拒绝；冻结（QUESTION_DELETING）拒绝。因 revision 不推进，retry 遇到线程材料指纹失配时按“检查点过期”处理：清除旧检查点后以当前材料同 revision 全新重跑。
 - 仅改 `title` 不触碰六类材料，也不触发重新生成。
-- `generating` 中的题目禁止改维度、发布、删除。
+- 维度字段级自动保存：`PATCH /questions/{id}/criteria/{criterion_id}` 只更新出现的字段，不改勾选/确认状态、不丢未入选候选；合并后的整项经 `CriterionIn` 重新校验后按规范形状落库（锚点分数排序），但不重验未编辑字段的依据引用——引用过期由详情响应的 `criteria_basis_stale` 软标记呈现。「保存维度」（`PATCH /criteria`）仍是唯一确认动作：整表替换、`criteria_confirmed=true`、丢弃未入选候选、逐引用严格校验（422 CITATION_INVALID）。两条路径在同一 API 进程内按题目串行化（进程内锁），跨进程/标签页为文档化的 last-write-wins。
+- `generating` 中的题目禁止改维度、发布、删除；`regenerate` 是唯一允许在生成中触发的写路径（打断重启语义）。
 - 发布要求存在非空评分维度，且 `criteria_confirmed=true`（AI 初稿不能直接发布）。
 - `review-reopen` 只接受 `published` 来源；重复、错误状态或陈旧 revision 返回 409。
-- 删除门禁按顺序：陈旧 revision（409 STALE_REVISION）、生成中（409 RUBRIC_GENERATING）、已发布（409 PUBLISHED_REOPEN_REQUIRED）、曾发布题标题确认（422 DELETE_CONFIRMATION_MISMATCH）；“曾发布”是服务端持久化事实（`ever_published`），详情以派生的 `delete_confirmation_required` 暴露。
+- 删除门禁按顺序：陈旧 revision（409 STALE_REVISION）、生成中（409 RUBRIC_GENERATING）、已发布（409 PUBLISHED_REOPEN_REQUIRED）、曾发布题标题确认（422 DELETE_CONFIRMATION_MISMATCH）；“曾发布”是服务端持久化事实（`ever_published`），详情以派生的 `delete_confirmation_required` 暴露。`regenerate` 的 CAS 写额外排除 `deleting`（快照读取与提交之间被删除受理冻结时返回 409 QUESTION_DELETING）。
 
 新增状态时要同时检查 Schema、Service、`next_action` 映射、API 测试和 OpenAPI，不能只改枚举。
 

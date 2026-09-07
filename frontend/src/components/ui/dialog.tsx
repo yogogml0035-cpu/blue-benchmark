@@ -22,6 +22,11 @@ export interface DialogProps {
 export function Dialog({ open, title, onClose, children, footer }: DialogProps): React.JSX.Element | null {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  // Keep the latest onClose without re-running the open/close effect: parents
+  // pass fresh inline closures every render, and re-running would yank focus
+  // back to the dialog on every keystroke typed inside it.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -38,7 +43,7 @@ export function Dialog({ open, title, onClose, children, footer }: DialogProps):
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab" || !panel) return;
@@ -64,7 +69,8 @@ export function Dialog({ open, title, onClose, children, footer }: DialogProps):
       document.removeEventListener("keydown", handleKeyDown, true);
       previouslyFocused.current?.focus();
     };
-  }, [open, onClose]);
+    // Open/close transition only — see the onCloseRef note above.
+  }, [open]);
 
   if (!open) return null;
 

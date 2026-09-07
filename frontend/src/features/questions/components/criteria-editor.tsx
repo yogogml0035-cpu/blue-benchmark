@@ -185,15 +185,14 @@ export function CriteriaEditor({
   }
 
   function removeAnchor(index: number, anchorIndex: number): void {
-    let remaining: CriterionDraft["score_anchors"] = [];
-    onChange((list) =>
-      list.map((d, i) => {
-        if (i !== index) return d;
-        remaining = d.score_anchors.filter((_, j) => j !== anchorIndex);
-        return { ...d, score_anchors: remaining };
-      }),
-    );
+    // Compute the remaining list from the CURRENT drafts synchronously — a
+    // setState updater is not guaranteed to run before the lines below, and
+    // reading it lazily could autosave an empty anchor list (server-side wipe).
     const draft = drafts[index];
+    const remaining = draft.score_anchors.filter((_, j) => j !== anchorIndex);
+    onChange((list) =>
+      list.map((d, i) => (i === index ? { ...d, score_anchors: remaining } : d)),
+    );
     if (draft.source === "ai" && !readOnly && !remaining.some((a) => !a.description.trim())) {
       void onSaveFields(draft.id, {
         score_anchors: remaining.map((a) => ({ score: a.score, description: a.description })),

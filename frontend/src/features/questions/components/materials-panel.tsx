@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/client";
 import type { QuestionDetailResponse, QuestionMaterialsPatchRequest } from "../api";
@@ -26,9 +26,16 @@ export interface MaterialsPanelProps {
    * STALE_REVISION through the shared conflict banner.
    */
   onSaveModule: (patch: QuestionMaterialsPatchRequest) => Promise<QuestionDetailResponse>;
+  /** Reports whether a module edit buffer is open (unload warning guard). */
+  onEditingChange?: (open: boolean) => void;
 }
 
-export function MaterialsPanel({ detail, canEdit, onSaveModule }: MaterialsPanelProps): React.JSX.Element {
+export function MaterialsPanel({
+  detail,
+  canEdit,
+  onSaveModule,
+  onEditingChange,
+}: MaterialsPanelProps): React.JSX.Element {
   const [editingKey, setEditingKey] = useState<MaterialModuleKey | null>(null);
   const [buffer, setBuffer] = useState<MaterialModuleBuffer | null>(null);
   const [saving, setSaving] = useState(false);
@@ -36,6 +43,17 @@ export function MaterialsPanel({ detail, canEdit, onSaveModule }: MaterialsPanel
   const [memoryOpen, setMemoryOpen] = useState(false);
 
   const editing = (key: MaterialModuleKey): boolean => editingKey === key && buffer !== null;
+
+  // A terminal gate (generation started / published / frozen) invalidates any
+  // open buffer: exit instead of letting the next blur 409-loop.
+  useEffect(() => {
+    if (!canEdit) exitEdit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canEdit]);
+
+  useEffect(() => {
+    onEditingChange?.(editingKey !== null);
+  }, [editingKey, onEditingChange]);
 
   function enterEdit(key: MaterialModuleKey): void {
     if (!canEdit || saving) return;
@@ -82,7 +100,7 @@ export function MaterialsPanel({ detail, canEdit, onSaveModule }: MaterialsPanel
       <ModuleFrame
         label="题目"
         moduleKey="task_prompt"
-        canEdit={canEdit}
+        editable={canEdit}
         editing={editing("task_prompt")}
         saving={saving}
         error={error}
@@ -111,7 +129,7 @@ export function MaterialsPanel({ detail, canEdit, onSaveModule }: MaterialsPanel
       <ModuleFrame
         label={`参考文本（${detail.reference_examples.length}）`}
         moduleKey="reference_examples"
-        canEdit={canEdit}
+        editable={canEdit && detail.reference_examples.length > 0}
         editing={editing("reference_examples")}
         saving={saving}
         error={error}
@@ -160,7 +178,7 @@ export function MaterialsPanel({ detail, canEdit, onSaveModule }: MaterialsPanel
       <ModuleFrame
         label={`Bad case（${detail.bad_cases.length}）`}
         moduleKey="bad_cases"
-        canEdit={canEdit}
+        editable={canEdit && detail.bad_cases.length > 0}
         editing={editing("bad_cases")}
         saving={saving}
         error={error}
@@ -218,7 +236,7 @@ export function MaterialsPanel({ detail, canEdit, onSaveModule }: MaterialsPanel
       <ModuleFrame
         label="标准答案"
         moduleKey="reference_answer"
-        canEdit={canEdit}
+        editable={canEdit}
         editing={editing("reference_answer")}
         saving={saving}
         error={error}
@@ -247,7 +265,7 @@ export function MaterialsPanel({ detail, canEdit, onSaveModule }: MaterialsPanel
       <ModuleFrame
         label={`用户记忆（${detail.memory_materials.length}）`}
         moduleKey="memory_materials"
-        canEdit={canEdit}
+        editable={canEdit && detail.memory_materials.length > 0}
         editing={editing("memory_materials")}
         saving={saving}
         error={error}
@@ -319,7 +337,11 @@ export function MaterialsPanel({ detail, canEdit, onSaveModule }: MaterialsPanel
 interface ModuleFrameProps {
   label: string;
   moduleKey: MaterialModuleKey;
-  canEdit: boolean;
+  /**
+   * Whether the edit affordance is offered at all: false for empty list
+   * modules (adding entries is out of scope) and gated-off questions.
+   */
+  editable: boolean;
   editing: boolean;
   saving: boolean;
   error: string | null;
@@ -333,12 +355,13 @@ interface ModuleFrameProps {
  * One material module: hover highlights the frame and reveals the edit
  * affordance, double-click is a shortcut, and leaving the frame (blur to
  * outside) triggers the autosave commit. Focus moves INSIDE the frame never
- * commit mid-edit.
+ * commit mid-edit; the frame itself is focusable (tabIndex=-1) so clicks on
+ * plain text inside stay internal and focus returns here after a save.
  */
 function ModuleFrame({
   label,
   moduleKey,
-  canEdit,
+  editable,
   editing,
   saving,
   error,
@@ -349,6 +372,14 @@ function ModuleFrame({
   children,
 }: React.PropsWithChildren<ModuleFrameProps>): React.JSX.Element {
   const frameRef = useRef<HTMLDivElement | null>(null);
+  const wasEditingRef = useRef(false);
+
+  // Restore focus to the frame when the textarea unmounts (autosave, Escape,
+  // discard) so keyboard users keep their place.
+  useEffect(() => {
+    if (wasEditingRef.current && !editing) frameRef.current?.focus();
+    wasEditingRef.current = editing;
+  }, [editing]);
 
   function handleBlur(event: React.FocusEvent<HTMLDivElement>): void {
     if (!editing || saving) return;
@@ -360,17 +391,18 @@ function ModuleFrame({
   return (
     <div
       ref={frameRef}
+      tabIndex={-1}
       className={[styles.materialBlock, editing ? styles.blockEditing : null].join(" ")}
       data-module={moduleKey}
       data-editing={editing || undefined}
       onDoubleClick={() => {
-        if (canEdit && !editing) onEnterEdit();
+        if (editable && !editing) onEnterEdit();
       }}
       onBlur={handleBlur}
     >
       <div className={styles.blockHead}>
         <h3 className={styles.blockLabel}>{label}</h3>
-        {canEdit && !editing ? (
+        {editable && !editing ? (
           <Button
             variant="ghost"
             className={styles.editButton}

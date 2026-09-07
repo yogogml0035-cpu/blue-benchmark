@@ -476,3 +476,74 @@ def test_criteria_basis_stale_flag_tracks_material_drift() -> None:
         assert regen.status_code == 200
         helpers.run_worker_until_idle()
         assert client.get(f"/api/questions/{question_id}").json()["criteria_basis_stale"] is False
+
+
+def test_new_autosave_endpoints_reject_stale_revision() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id, _scene_id = _setup_with_generated_question(client)
+        detail = client.get(f"/api/questions/{question_id}").json()
+
+        # Bump the revision once so a genuinely stale value exists.
+        regen = client.post(
+            f"/api/questions/{question_id}/regenerate",
+            json={"command_id": "bump", "content_revision": detail["content_revision"]},
+        )
+        assert regen.status_code == 200, regen.text
+        helpers.run_worker_until_idle()
+        stale = detail["content_revision"]
+
+        materials = client.patch(
+            f"/api/questions/{question_id}/materials",
+            json={"content_revision": stale, "task_prompt": "旧版本材料。"},
+        )
+        assert materials.status_code == 409
+        assert materials.json()["error"]["code"] == "STALE_REVISION"
+
+        settled = client.get(f"/api/questions/{question_id}").json()
+        criterion = client.patch(
+            f"/api/questions/{question_id}/criteria/{settled['criteria'][0]['id']}",
+            json={"content_revision": stale, "pass_score": 1},
+        )
+        assert criterion.status_code == 409
+        assert criterion.json()["error"]["code"] == "STALE_REVISION"
+
+        regen_stale = client.post(
+            f"/api/questions/{question_id}/regenerate",
+            json={"command_id": "stale-regen", "content_revision": stale},
+        )
+        assert regen_stale.status_code == 409
+        assert regen_stale.json()["error"]["code"] == "STALE_REVISION"
+
+
+def test_materials_autosave_enforces_privacy_and_intake_rules() -> None:
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id, _scene_id = _setup_with_generated_question(client)
+        detail = client.get(f"/api/questions/{question_id}").json()
+
+        # The merged-material privacy backstop also runs on the autosave path.
+        privacy = client.patch(
+            f"/api/questions/{question_id}/materials",
+            json={
+                "content_revision": detail["content_revision"],
+                "task_prompt": "题目里夹带了一张凭证 sep_Ab3dEfGhIjKlMnOpQrSt。",
+            },
+        )
+        assert privacy.status_code == 422
+        assert privacy.json()["error"]["code"] == "PRIVATE_CONTENT_REJECTED"
+
+        # List replacements replay the batch-intake rules, including unique
+        # client_ref_id inside one list.
+        duplicate = client.patch(
+            f"/api/questions/{question_id}/materials",
+            json={
+                "content_revision": detail["content_revision"],
+                "reference_examples": [
+                    {"client_ref_id": "ref-dup", "source_name": None, "content_text": "第一条参考文本。"},
+                    {"client_ref_id": "ref-dup", "source_name": None, "content_text": "第二条参考文本。"},
+                ],
+            },
+        )
+        assert duplicate.status_code == 422
+        assert duplicate.json()["error"]["code"] == "VALIDATION_ERROR"

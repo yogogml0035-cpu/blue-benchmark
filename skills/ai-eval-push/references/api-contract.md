@@ -108,7 +108,6 @@
   "scene_id": "<scene uuid>",
   "scene_name": "媒体场景",
   "credential_id": "<credential uuid>",
-  "label": "ci",
   "last_used_at": "2026-09-03T00:00:00+00:00"
 }
 ```

@@ -232,6 +232,48 @@ test("material autosave persists in place; regeneration is separate and confirme
   await expect(page.getByTestId("criteria-stale-banner")).toHaveCount(0);
 });
 
+test("title and criterion fields autosave inline without touching the revision", async ({ page, request }) => {
+  await ensureLoggedIn(page);
+  const { sceneId, questionId } = await seedQuestion(page, request, "审改评测集G");
+
+  await page.goto(`/evaluation-sets/${sceneId}/questions/${questionId}`);
+  const cookie = await cookieHeader(page);
+  const before = await (
+    await request.get(`/api/questions/${questionId}`, { headers: { Cookie: cookie } })
+  ).json();
+
+  // Title: pencil opens the inline input, Enter commits, revision unchanged.
+  await page.getByRole("button", { name: "编辑用例标题" }).click();
+  const titleInput = page.getByLabel("用例标题");
+  await titleInput.fill("工作台测试用例（已改标题）");
+  await titleInput.press("Enter");
+  await expect(page.getByRole("heading", { name: "工作台测试用例（已改标题）" })).toBeVisible();
+  const afterTitle = await (
+    await request.get(`/api/questions/${questionId}`, { headers: { Cookie: cookie } })
+  ).json();
+  expect(afterTitle.title).toBe("工作台测试用例（已改标题）");
+  expect(afterTitle.content_revision).toBe(before.content_revision);
+
+  // Criterion pass score autosaves on blur — no selection, no 保存维度.
+  const scoreInput = page.locator('input[aria-label$="的通过分"]').first();
+  await scoreInput.fill("8");
+  await page.getByRole("heading", { name: "评分维度" }).click();
+  await expect
+    .poll(
+      async () => {
+        const r = await request.get(`/api/questions/${questionId}`, { headers: { Cookie: cookie } });
+        return r.ok() ? ((await r.json()).criteria?.[0]?.pass_score ?? null) : null;
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(8);
+  const afterScore = await (
+    await request.get(`/api/questions/${questionId}`, { headers: { Cookie: cookie } })
+  ).json();
+  expect(afterScore.content_revision).toBe(before.content_revision);
+  expect(afterScore.criteria_confirmed).toBe(false);
+});
+
 test("teacher selects candidates, saves, then publishes", async ({ page, request }) => {
   await ensureLoggedIn(page);
   const { sceneId, questionId } = await seedQuestion(page, request, "审改评测集B");

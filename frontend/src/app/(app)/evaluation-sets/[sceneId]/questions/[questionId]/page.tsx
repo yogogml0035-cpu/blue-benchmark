@@ -81,8 +81,21 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
 
   const loadAbortRef = useRef<AbortController | null>(null);
   const hasDetailRef = useRef(false);
-  // Serialized autosave queue per criterion: blur bursts never interleave.
-  const criterionSaveQueueRef = useRef<Map<string, Promise<void>>>(new Map());
+  // ONE serialized chain for every autosave (materials + criterion fields):
+  // responses then apply in commit order, so a slow earlier snapshot can never
+  // overwrite a newer one in the UI (same-revision writes cannot 409 each
+  // other; only a concurrent regenerate can, which surfaces as an error row).
+  const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const [moduleEditingOpen, setModuleEditingOpen] = useState(false);
+
+  function enqueueAutosave<T>(task: () => Promise<T>): Promise<T> {
+    const run = autosaveQueueRef.current.catch(() => undefined).then(task);
+    autosaveQueueRef.current = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
 
   const applyDetail = useCallback((d: QuestionDetailResponse) => {
     setDetail(d);
@@ -90,6 +103,7 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
     setCriterionDrafts(draftsFromDetail(d));
     setCriteriaDirty(false);
     setCriteriaError(null);
+    setCriterionFieldErrors({});
   }, []);
 
   const load = useCallback(async () => {
@@ -141,17 +155,17 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
     return () => clearInterval(timer);
   }, [detail, load]);
 
-  // Warn before leaving with an unconfirmed selection (autosaved text needs
-  // no warning; not while deleting).
+  // Warn before leaving with an unconfirmed selection or an open module
+  // buffer (autosaved text needs no warning; not while deleting).
   useEffect(() => {
-    if (!criteriaDirty || detail?.status === "deleting") return;
+    if ((!criteriaDirty && !moduleEditingOpen) || detail?.status === "deleting") return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [criteriaDirty, detail]);
+  }, [criteriaDirty, moduleEditingOpen, detail]);
 
   function describe(err: unknown, fallback: string): string {
     return err instanceof ApiError ? err.message : fallback;
@@ -172,23 +186,26 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
 
   // --- Materials autosave ---
   const saveModule = useCallback(
-    async (patch: QuestionMaterialsPatchRequest): Promise<QuestionDetailResponse> => {
-      if (!detailRef.current) throw new Error("题目未加载。");
-      setStaleMessage(null);
-      try {
-        // NOT applyDetail: criterion selection drafts must survive a
-        // materials autosave; only the authoritative detail swaps.
-        const updated = await updateMaterials(detailRef.current.id, patch);
-        detailRef.current = updated;
-        setDetail(updated);
-        return updated;
-      } catch (err) {
-        if (err instanceof ApiError && err.code === "STALE_REVISION") {
-          setStaleMessage("题目内容已被更新，这次修改尚未保存。请查看最新内容后在模块内重试。");
+    (patch: QuestionMaterialsPatchRequest): Promise<QuestionDetailResponse> =>
+      enqueueAutosave(async () => {
+        if (!detailRef.current) throw new Error("题目未加载。");
+        setStaleMessage(null);
+        try {
+          // NOT applyDetail: criterion selection drafts must survive a
+          // materials autosave; only the authoritative detail swaps.
+          const updated = await updateMaterials(detailRef.current.id, patch);
+          detailRef.current = updated;
+          setDetail(updated);
+          return updated;
+        } catch (err) {
+          if (err instanceof ApiError && err.code === "STALE_REVISION") {
+            setStaleMessage("题目内容已被更新，这次修改尚未保存。请查看最新内容后在模块内重试。");
+          }
+          throw err;
         }
-        throw err;
-      }
-    },
+      }),
+    // enqueueAutosave is a stable closure over a ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -196,20 +213,22 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
   async function commitTitleEdit(): Promise<void> {
     if (titleBusyRef.current) return;
     const title = titleValue.trim();
-    setTitleEditing(false);
-    if (!detailRef.current || !title || title === detailRef.current.title) return;
+    if (!detailRef.current || !title || title === detailRef.current.title) {
+      setTitleEditing(false);
+      return;
+    }
     titleBusyRef.current = true;
     setActing("title");
-    try {
-      await commitTitle(title);
-    } finally {
-      titleBusyRef.current = false;
-      setActing(null);
-    }
+    // Keep the input open on failure so the typed title is not lost; the
+    // error surfaces in the shared panels above.
+    const ok = await commitTitle(title).catch(() => false);
+    titleBusyRef.current = false;
+    setActing(null);
+    if (ok) setTitleEditing(false);
   }
 
-  async function commitTitle(title: string): Promise<void> {
-    if (!detailRef.current) return;
+  async function commitTitle(title: string): Promise<boolean> {
+    if (!detailRef.current) return false;
     setStaleMessage(null);
     setActionError(null);
     try {
@@ -220,56 +239,53 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
       });
       detailRef.current = updated;
       setDetail(updated);
+      return true;
     } catch (err) {
       if (err instanceof ApiError && err.code === "STALE_REVISION") {
         setStaleMessage("题目内容已被更新，标题未保存。请查看最新内容后重试。");
       } else {
         setActionError(describe(err, "标题保存失败，请稍后重试。"));
       }
+      return false;
     }
   }
 
   // --- Criterion field autosave ---
-  async function handleCriterionFieldSave(criterionId: string, patch: CriterionFieldPatch): Promise<void> {
-    const previous = criterionSaveQueueRef.current.get(criterionId) ?? Promise.resolve();
-    const task = previous
-      .catch(() => undefined)
-      .then(async () => {
-        if (!detailRef.current) return;
-        setCriterionFieldErrors((m) => ({ ...m, [criterionId]: null }));
-        try {
-          const updated = await patchCriterion(detailRef.current.id, criterionId, {
-            content_revision: detailRef.current.content_revision,
-            ...patch,
-          });
-          detailRef.current = updated;
-          setDetail(updated);
-          // Merge ONLY the saved item: selection flags and other criteria's
-          // in-progress local edits must survive the autosave.
-          setCriterionDrafts((list) =>
-            list.map((d) => {
-              if (d.id !== criterionId) return d;
-              const server = updated.criteria?.find((c) => c.id === criterionId);
-              return server
-                ? {
-                    ...d,
-                    criterion: server.criterion,
-                    pass_score: server.pass_score,
-                    score_anchors: server.score_anchors.map((a) => ({ ...a })),
-                  }
-                : d;
-            }),
-          );
-        } catch (err) {
-          const message =
-            err instanceof ApiError && err.code === "STALE_REVISION"
-              ? "题目内容已在别处更新，这次修改未保存；请重新载入后重试。"
-              : describe(err, "保存失败，请稍后重试。");
-          setCriterionFieldErrors((m) => ({ ...m, [criterionId]: message }));
-        }
-      });
-    criterionSaveQueueRef.current.set(criterionId, task);
-    await task;
+  function handleCriterionFieldSave(criterionId: string, patch: CriterionFieldPatch): Promise<void> {
+    return enqueueAutosave(async () => {
+      if (!detailRef.current) return;
+      setCriterionFieldErrors((m) => ({ ...m, [criterionId]: null }));
+      try {
+        const updated = await patchCriterion(detailRef.current.id, criterionId, {
+          content_revision: detailRef.current.content_revision,
+          ...patch,
+        });
+        detailRef.current = updated;
+        setDetail(updated);
+        // Merge ONLY the saved item: selection flags and other criteria's
+        // in-progress local edits must survive the autosave.
+        setCriterionDrafts((list) =>
+          list.map((d) => {
+            if (d.id !== criterionId) return d;
+            const server = updated.criteria?.find((c) => c.id === criterionId);
+            return server
+              ? {
+                  ...d,
+                  criterion: server.criterion,
+                  pass_score: server.pass_score,
+                  score_anchors: server.score_anchors.map((a) => ({ ...a })),
+                }
+              : d;
+          }),
+        );
+      } catch (err) {
+        const message =
+          err instanceof ApiError && err.code === "STALE_REVISION"
+            ? "题目内容已在别处更新，这次修改未保存。"
+            : describe(err, "保存失败，请稍后重试。");
+        setCriterionFieldErrors((m) => ({ ...m, [criterionId]: message }));
+      }
+    });
   }
 
   // --- Criteria (selection + finalize) ---
@@ -519,7 +535,12 @@ export default function QuestionWorkbenchPage(): React.JSX.Element {
       {!frozenForDelete ? (
         <div className={styles.columns}>
           <div className={styles.materialsCol}>
-            <MaterialsPanel detail={detail} canEdit={canEditMaterials} onSaveModule={saveModule} />
+            <MaterialsPanel
+              detail={detail}
+              canEdit={canEditMaterials}
+              onSaveModule={saveModule}
+              onEditingChange={setModuleEditingOpen}
+            />
           </div>
 
           <div className={styles.reviewCol}>

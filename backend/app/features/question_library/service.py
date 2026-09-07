@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import unicodedata
 from datetime import datetime, timezone
 from typing import Any
@@ -39,9 +40,23 @@ from app.features.question_library.schemas import (
 )
 from app.features.scenes.service import ScenePrincipal, ensure_scene_exists
 from app.lib.database import session_scope
-from app.lib.database.models import EvalQuestionRow
+from app.lib.database.models import EvalQuestionRow, OperationJobRow
 from app.lib.errors import AppError
 from pydantic import ValidationError
+
+# patch_criterion / patch_criteria read-modify-write the WHOLE criteria_json
+# list without bumping content_revision, so the revision-only CAS cannot
+# serialize two such writers. Within one API process (the deployment shape:
+# a single uvicorn app + a separate worker whose criteria commit is
+# revision-fenced), a per-question lock closes the lost-update window;
+# cross-process/tab writers remain documented last-write-wins (non-goal).
+_CRITERIA_LOCKS_GUARD = threading.Lock()
+_CRITERIA_LOCKS: dict[str, threading.Lock] = {}
+
+
+def _criteria_lock(question_id: str) -> threading.Lock:
+    with _CRITERIA_LOCKS_GUARD:
+        return _CRITERIA_LOCKS.setdefault(question_id, threading.Lock())
 
 
 def _utc_now() -> datetime:
@@ -598,58 +613,62 @@ def patch_criterion(
     """
 
     now = _utc_now()
-    with session_scope() as session:
-        row = session.get(EvalQuestionRow, question_id)
-        if row is None:
-            raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
-        if row.content_revision != payload.content_revision:
-            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
-        _ensure_not_frozen(row, "评分维度修改")
-        _lightweight_edit_gates(row, "修改评分维度")
-
-        criteria = list(row.criteria_json or [])
-        index = next(
-            (i for i, item in enumerate(criteria) if item.get("id") == criterion_id),
-            None,
-        )
-        if index is None:
-            raise AppError(404, "RESOURCE_NOT_FOUND", "评分维度不存在。")
-
-        updated = dict(criteria[index])
-        if payload.criterion is not None:
-            updated["criterion"] = payload.criterion.strip()
-        if payload.pass_score is not None:
-            updated["pass_score"] = payload.pass_score
-        if payload.score_anchors is not None:
-            updated["score_anchors"] = [item.model_dump() for item in payload.score_anchors]
-
-        if updated == criteria[index]:
-            record = repository.get_question(session, question_id)
-            if record is None:  # pragma: no cover - row checked above
+    with _criteria_lock(question_id):
+        with session_scope() as session:
+            row = session.get(EvalQuestionRow, question_id)
+            if row is None:
                 raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
-        else:
-            from app.features.question_library.schemas import CriterionIn
-
-            try:
-                CriterionIn(**updated)
-            except ValidationError as exc:
-                first = exc.errors()[0] if exc.errors() else {}
-                raise AppError(
-                    422,
-                    "VALIDATION_ERROR",
-                    str(first.get("msg") or "评分维度无效。"),
-                    details={"fields": [{"loc": list(first.get("loc", [])), "message": str(first.get("msg", ""))}]},
-                ) from exc
-            criteria[index] = updated
-            record = repository.update_fields(
-                session,
-                question_id,
-                expected_revision=payload.content_revision,
-                now=now,
-                criteria_json=criteria,
-            )
-            if record is None:
+            if row.content_revision != payload.content_revision:
                 raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+            _ensure_not_frozen(row, "评分维度修改")
+            _lightweight_edit_gates(row, "修改评分维度")
+
+            criteria = list(row.criteria_json or [])
+            index = next(
+                (i for i, item in enumerate(criteria) if item.get("id") == criterion_id),
+                None,
+            )
+            if index is None:
+                raise AppError(404, "RESOURCE_NOT_FOUND", "评分维度不存在。")
+
+            updated = dict(criteria[index])
+            if payload.criterion is not None:
+                updated["criterion"] = payload.criterion.strip()
+            if payload.pass_score is not None:
+                updated["pass_score"] = payload.pass_score
+            if payload.score_anchors is not None:
+                updated["score_anchors"] = [item.model_dump() for item in payload.score_anchors]
+
+            if updated == criteria[index]:
+                record = repository.get_question(session, question_id)
+                if record is None:  # pragma: no cover - row checked above
+                    raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+            else:
+                from app.features.question_library.schemas import CriterionIn
+
+                try:
+                    validated = CriterionIn(**updated)
+                except ValidationError as exc:
+                    first = exc.errors()[0] if exc.errors() else {}
+                    raise AppError(
+                        422,
+                        "VALIDATION_ERROR",
+                        str(first.get("msg") or "评分维度无效。"),
+                        details={"fields": [{"loc": list(first.get("loc", [])), "message": str(first.get("msg", ""))}]},
+                    ) from exc
+                # Persist the validated dump (not the raw payload) so both edit
+                # paths share one canonical shape — e.g. score anchors are
+                # stored score-sorted no matter which endpoint wrote them.
+                criteria[index] = validated.model_dump()
+                record = repository.update_fields(
+                    session,
+                    question_id,
+                    expected_revision=payload.content_revision,
+                    now=now,
+                    criteria_json=criteria,
+                )
+                if record is None:
+                    raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
     return _detail_response(record)
 
 
@@ -667,38 +686,76 @@ def regenerate(question_id: str, payload: QuestionCommandRequest) -> OperationAc
     """
 
     now = _utc_now()
-    with session_scope() as session:
-        row = session.get(EvalQuestionRow, question_id)
-        if row is None:
-            raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
-        if row.content_revision != payload.content_revision:
-            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
-        _ensure_not_frozen(row, "重新生成")
+    new_revision: int | None = None
+    derived_command_id: str | None = None
+    try:
+        with session_scope() as session:
+            row = session.get(EvalQuestionRow, question_id)
+            if row is None:
+                raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+            if row.content_revision != payload.content_revision:
+                raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+            _ensure_not_frozen(row, "重新生成")
 
-        new_revision = row.content_revision + 1
-        job_id = rubric_generation.enqueue_generation(
-            session,
-            question_id=question_id,
-            content_revision=new_revision,
-            command_id=rubric_generation.derived_command_id(
+            new_revision = row.content_revision + 1
+            derived_command_id = rubric_generation.derived_command_id(
                 "regenerate", question_id, str(new_revision), payload.command_id
-            ),
-        )
-        record = repository.update_fields(
-            session,
-            question_id,
-            expected_revision=payload.content_revision,
-            now=now,
-            content_revision=new_revision,
-            criteria_json=None,
-            criteria_confirmed=False,
-            status=QuestionStatus.generating.value,
-            published_at=None,
-            last_error_json=None,
-            active_operation_id=job_id,
-        )
-        if record is None:
-            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+            )
+            job_id = rubric_generation.enqueue_generation(
+                session,
+                question_id=question_id,
+                content_revision=new_revision,
+                command_id=derived_command_id,
+            )
+            # The frozen gate rides the atomic WHERE clause, not just the
+            # snapshot check: delete acceptance freezes WITHOUT bumping the
+            # revision, so a revision-only CAS could otherwise un-freeze a
+            # deleting question between the read above and this write.
+            record = repository.update_fields(
+                session,
+                question_id,
+                expected_revision=payload.content_revision,
+                now=now,
+                extra_conditions=[EvalQuestionRow.status != QuestionStatus.deleting.value],
+                content_revision=new_revision,
+                criteria_json=None,
+                criteria_confirmed=False,
+                status=QuestionStatus.generating.value,
+                published_at=None,
+                last_error_json=None,
+                active_operation_id=job_id,
+            )
+            if record is None:
+                current_status = session.execute(
+                    select(EvalQuestionRow.status).where(EvalQuestionRow.id == question_id)
+                ).scalar_one_or_none()
+                if current_status == QuestionStatus.deleting.value:
+                    raise AppError(
+                        409,
+                        "QUESTION_DELETING",
+                        "题目删除清理中，重新生成已被冻结；清理完成前不可继续。",
+                    )
+                raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+    except IntegrityError:
+        # Identical concurrent regenerate (same question+revision+command)
+        # collides on the deterministic job identity. The job row is rolled
+        # back with this transaction; replay returns the winner's job instead
+        # of surfacing a 500.
+        if new_revision is None or derived_command_id is None:  # pragma: no cover
+            raise
+        existing = None
+        with session_scope() as session:
+            existing = session.execute(
+                select(OperationJobRow.id).where(
+                    OperationJobRow.target_type == rubric_generation.TARGET_TYPE,
+                    OperationJobRow.target_id == question_id,
+                    OperationJobRow.business_revision == new_revision,
+                    OperationJobRow.command_id == derived_command_id,
+                )
+            ).scalar_one_or_none()
+        if existing is None:
+            raise AppError(409, "COMMAND_IN_PROGRESS", "相同的重新生成正在处理中，请稍候。") from None
+        job_id = existing
     return OperationAcceptedResponse(
         question_id=question_id,
         status=QuestionStatus.generating,
@@ -749,51 +806,54 @@ def _validate_saved_citations(row, payload: CriteriaPatchRequest) -> None:
 def patch_criteria(question_id: str, payload: CriteriaPatchRequest) -> QuestionDetailResponse:
     now = _utc_now()
     criteria = [item.model_dump() for item in payload.criteria]
-    with session_scope() as session:
-        row = session.get(EvalQuestionRow, question_id)
-        if row is None:
-            raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
-        if row.content_revision != payload.content_revision:
-            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
-        _ensure_not_frozen(row, "评分维度修改")
-        if row.status == QuestionStatus.generating.value:
-            raise AppError(
-                409,
-                "RUBRIC_GENERATING",
-                "评分维度生成中，等待生成完成后再修改。",
-            )
-        if row.status == QuestionStatus.published.value:
-            raise AppError(
-                409,
-                "PUBLISHED_REOPEN_REQUIRED",
-                "已发布题目必须先重新打开审改，才能修改评分维度。",
-            )
-        _validate_saved_citations(row, payload)
-        values: dict[str, Any] = {
-            "criteria_json": criteria,
-            "criteria_confirmed": True,
-            "active_operation_id": None,
-        }
-        if row.status == QuestionStatus.generation_failed.value:
-            values["status"] = QuestionStatus.pending_review.value
-            values["last_error_json"] = None
-        record = repository.update_fields(
-            session,
-            question_id,
-            expected_revision=payload.content_revision,
-            now=now,
-            extra_conditions=[
-                EvalQuestionRow.status.in_(
-                    [
-                        QuestionStatus.pending_review.value,
-                        QuestionStatus.generation_failed.value,
-                    ]
+    # Same whole-list read-modify-write shape as patch_criterion: serialize
+    # against field-level autosaves through the per-question lock.
+    with _criteria_lock(question_id):
+        with session_scope() as session:
+            row = session.get(EvalQuestionRow, question_id)
+            if row is None:
+                raise AppError(404, "RESOURCE_NOT_FOUND", "题目不存在。")
+            if row.content_revision != payload.content_revision:
+                raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+            _ensure_not_frozen(row, "评分维度修改")
+            if row.status == QuestionStatus.generating.value:
+                raise AppError(
+                    409,
+                    "RUBRIC_GENERATING",
+                    "评分维度生成中，等待生成完成后再修改。",
                 )
-            ],
-            **values,
-        )
-        if record is None:
-            raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
+            if row.status == QuestionStatus.published.value:
+                raise AppError(
+                    409,
+                    "PUBLISHED_REOPEN_REQUIRED",
+                    "已发布题目必须先重新打开审改，才能修改评分维度。",
+                )
+            _validate_saved_citations(row, payload)
+            values: dict[str, Any] = {
+                "criteria_json": criteria,
+                "criteria_confirmed": True,
+                "active_operation_id": None,
+            }
+            if row.status == QuestionStatus.generation_failed.value:
+                values["status"] = QuestionStatus.pending_review.value
+                values["last_error_json"] = None
+            record = repository.update_fields(
+                session,
+                question_id,
+                expected_revision=payload.content_revision,
+                now=now,
+                extra_conditions=[
+                    EvalQuestionRow.status.in_(
+                        [
+                            QuestionStatus.pending_review.value,
+                            QuestionStatus.generation_failed.value,
+                        ]
+                    )
+                ],
+                **values,
+            )
+            if record is None:
+                raise AppError(409, "STALE_REVISION", "题目内容已被更新，请基于最新内容重试。")
     return get_detail(question_id)
 
 

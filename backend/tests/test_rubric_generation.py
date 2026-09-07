@@ -133,6 +133,40 @@ def test_generation_failure_marks_question_and_supports_retry() -> None:
         assert detail["status"] == "pending_review"
 
 
+def test_retry_after_material_edit_starts_fresh_run() -> None:
+    """Free autosave changes materials WITHOUT bumping the revision: a failed
+    generation followed by an edit must still recover through retry (the stale
+    thread registration is purged and a fresh run starts on the current
+    materials), never dead-ending in THREAD_MATERIALS_MISMATCH."""
+
+    clear_business_data()
+    with TestClient(app) as client:
+        question_id = _upload_one(client, task_prompt=f"{FakeRubricGenerator.FAIL_MARKER} 生成失败的题目。")
+        helpers.run_worker_until_idle()
+        detail = client.get(f"/api/questions/{question_id}").json()
+        assert detail["status"] == "generation_failed"
+
+        # Teacher fixes the materials via autosave; the revision stays put.
+        saved = client.patch(
+            f"/api/questions/{question_id}/materials",
+            json={
+                "content_revision": detail["content_revision"],
+                "task_prompt": "请把提供的新闻素材改写成正式新闻稿。",
+            },
+        )
+        assert saved.status_code == 200, saved.text
+        assert saved.json()["content_revision"] == detail["content_revision"]
+
+        retry = client.post(
+            f"/api/questions/{question_id}/generation-retry",
+            json={"command_id": "retry-after-edit", "content_revision": detail["content_revision"]},
+        )
+        assert retry.status_code == 200, retry.text
+        helpers.run_worker_until_idle()
+        detail = client.get(f"/api/questions/{question_id}").json()
+        assert detail["status"] == "pending_review", detail
+
+
 def test_vague_ai_output_is_rejected_as_failure() -> None:
     clear_business_data()
     with TestClient(app) as client:
