@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"检查默认回归、专项集成与生产验收的不同证据等级"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"确认代理修改不破坏认证、公开运行事件与 SSE 合同"}
+{"file":".trellis/tasks/09-07-deploy-runtime-reliability/research/deployment-boundaries.md","reason":"核对完整备份恢复点、失败恢复、IP 实际变化和无服务器操作边界"}
+{"file":".trellis/tasks/09-07-deploy-runtime-reliability/prd.md","reason":"最新已确认需求及AC1-AC10；不保留历史，不操作真实服务器或云资源"}
+{"file":".trellis/tasks/09-07-deploy-runtime-reliability/design.md","reason":"核对整体替换、OSS候选发布、Mac覆盖、权限及失败隔离"}

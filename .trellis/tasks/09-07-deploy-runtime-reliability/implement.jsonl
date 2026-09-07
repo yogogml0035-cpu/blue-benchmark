@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"部署脚本回归与隔离测试边界；完整质量门不能替代真实运行证据"}
+{"file":".trellis/spec/guides/code-reuse.md","reason":"限定修改所有者并复用现有脚本与配置，不新建通用备份框架"}
+{"file":".trellis/tasks/09-07-deploy-runtime-reliability/design.md","reason":"三处均只留最新一套的唯一归档、安全替换、恢复及Compose依赖重启设计"}
+{"file":".trellis/tasks/09-07-deploy-runtime-reliability/implement.md","reason":"有序实施、隔离验证、旧留存路径删除和最终批准门禁"}
+{"file":".trellis/tasks/09-07-deploy-runtime-reliability/research/deployment-boundaries.md","reason":"部署事实与官方依据；原7/30天建议已经撤销"}

@@ -706,3 +706,12 @@
 - 真实 AI 证据：ACCEPT_REAL_AI=PASS ×3、M0_WEB_ACCEPTANCE=PASS ×3（含 SIGKILL Worker 重启恢复、live 增量反假流式断言）、AI_SMOKE=OK ×4；全部走真实 Provider + production Worker + 隔离 PostgreSQL + C1 真实样本，RUNTIME_PG_REQUIRED=1 硬门禁。
 - 一次性切换 2026-09-06T14:45Z 执行：双库备份（sha256+TOC 校验）→ 重置 → head 0021 → 空库核验；源样本 hash 不变。交付栈运行于主工作区：API :8000 / Worker / 前端 :3000（日志 storage/runtime/），首次注册可用。
 - 已知技术债登记于父任务 evidence.md 第 5 节（langgraph 反序列化警告、隐藏页签自动化缺口、摘要逐字回放弱覆盖等）。
+
+## 2026-09-07 · 部署备份恢复与代理地址刷新修复（deploy-runtime-reliability）
+
+- 任务 09-07-deploy-runtime-reliability 获实施批准后单日交付：备份工具重写（9430aaf）→ Nginx 依赖重启与集成测试（2268ab0）→ 文档重写与 OSS 指南（7839c44）→ 任务文档/规格/日志收尾提交。
+- 新备份合同 `skill-eval-backup/v1`：单一 latest.tar.gz 完整恢复点（业务库+checkpoint 库+appdata 文件+HMAC 清单），停写窗口内导出、finally 恢复服务、原子替换；服务器/OSS/Mac 三处各只留最新成功一套；OSS 走候选上传→内网回读核对整包 SHA-256→切 latest.json 指针→精确删旧；Mac 经 SSH 每日人工下载、校验后原子覆盖。旧松散两件格式、LOCAL_KEEP_DAYS、日期目录一次性删除，无兼容路径。
+- Nginx 修复：compose.yaml 的 nginx.depends_on.api/web 加 `restart: true`（保留 service_healthy，Compose 2.20+ 基线）；push-images.sh 与手册统一为完整 Compose 服务图发版/回滚。
+- 验证证据：默认层 test_deploy_backup 65 passed + test_deploy_runtime 4 passed/5 skipped；DEPLOY_INTEGRATION_REQUIRED=1 集成层 9 passed 两次实跑（阶段4 + trellis-check 独立重跑，461s），含静态 IP 两阶段强制换 IP 证明 nginx 重启后请求到达新实例、代理回归（URI/查询、X-Forwarded-*、Cookie、限流 429、SSE 分批）、真实 postgres 备份→verify→恢复回环；make test（后端 263 passed + 前端 75 passed + OpenAPI 漂移）与 make build 全过；trellis-check 对抗审查结论"可合并"，两项文档级建议（OSS 失败汇总措辞、server-setup 文件数）已修复并回归。
+- 未验证边界（部署阶段核验）：真实 ossutil/阿里云鉴权与计费、内网 Endpoint 免流量费、服务器 40GiB 实际可用空间、生产实际恢复；本任务未连接任何真实服务器/云资源，未推送远端。
+- 新增 `.trellis/spec/deploy/` 规格层（index + backup-and-runtime.md 七节合同），backend 质量规格补部署两层测试基线。

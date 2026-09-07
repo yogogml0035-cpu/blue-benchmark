@@ -1,0 +1,28 @@
+{
+  "id": "deploy-runtime-reliability",
+  "name": "deploy-runtime-reliability",
+  "title": "修复部署备份恢复与代理地址刷新",
+  "description": "服务器全新建库、不导入本地数据；补齐 checkpoint 成套备份恢复并消除容器更新后的 Nginx 旧地址问题。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-09-07",
+  "completedAt": null,
+  "branch": "codex/deploy-runtime-reliability",
+  "base_branch": "main",
+  "worktree_path": "/Users/hsikey/Company/skill-eval-platform-wt/deploy-runtime-reliability",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "规划已收敛，等待本轮最终摘要的实施批准。服务器、OSS、Mac均只留最新成功一套，不保留7/30天历史；每天一致性导出、恢复服务后更新OSS，用户每日下载Mac并安全覆盖。失败保留上次成功版本，风险已写入PRD。未开始实施或操作用户服务器/云资源/真实Mac备份。",
+  "meta": {
+    "notes": "实施完成：backup.py 单一恢复点合同（v1 格式、三处只留最新一套）、nginx depends_on restart:true、文档重写+oss-guide。分支质量门全过（make test/build、专项 65+4 passed、DEPLOY_INTEGRATION_REQUIRED=1 集成 9 passed 两次实跑）、trellis-check 结论可合并、两项建议修复已落地。未连接真实服务器/云资源，未推送远端。待串行 ff 合并 main 与复验后归档。"
+  }
+}

@@ -32,7 +32,8 @@ make build     # 后端编译/导入验证
 6. 删除受理/冻结/持久清理作业（202 受理后全部写路径拒绝、清理失败可重试且不误投影为生成失败、双库零残留）与运行事件持久化/SSE 合同；
 7. 迁移（旧 head 升级、fresh DB、downgrade）与 OpenAPI 合同；
 8. 并发/安全加固回归（条件 UPDATE 单写者、单管理员原子性、已发布维度守卫、登出鉴权等）；
-9. 运行基础两层测试（deep_runtime 原语 + 业务链路 PostgreSQL 集成），验收运行必须带 RUNTIME_PG_REQUIRED=1。
+9. 运行基础两层测试（deep_runtime 原语 + 业务链路 PostgreSQL 集成），验收运行必须带 RUNTIME_PG_REQUIRED=1；
+10. 部署两层测试（test_deploy_backup.py 默认无外部副作用回归 + test_deploy_runtime.py 默认层/集成层），集成验收必须带 DEPLOY_INTEGRATION_REQUIRED=1，合同见 `../../deploy/backup-and-runtime.md`。
 
 修改这些合同必须扩展相同层级的 API 测试。新增错误分支至少断言 HTTP 状态、机器码或业务状态，并确认失败没有推进不允许的状态。
 
