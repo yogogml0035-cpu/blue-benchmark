@@ -1,4 +1,4 @@
-# Skill Eval Platform
+# blue-benchmark
 
 这是 M0 评测题平台：业务老师在本地 Agent 里完成真实任务后，调用仓库内上传 Skill，从当前可见上下文整理评测题并经确认后批量上传；后端保存题目的六类材料，并由真实 AI（受限 Deep Agent，运行在持久化检查点上）为每道题动态生成完整评分项——具体维度、0–10 整数建议通过分、少量关键分数表现说明（锚点）、维度依据与通过分依据（区分老师明确要求与 AI 推定，引用可对照材料核查）；管理员在 Next.js 桌面管理端完成首次注册、评测集与凭证管理、带真实流式过程反馈的维度审改与发布。
 
@@ -182,7 +182,7 @@ make frontend-generate-api   # 重新生成前端类型
 
 ## 显式真实 AI 验收
 
-两套真实 Provider 验收都只允许本地显式运行，都要求隔离 PostgreSQL 验收库（指向项目库 `skill_eval`/`skill_eval_checkpoint` 会被拒绝）、C1 真实样本（缺失即失败，不降级占位样例），均只输出阶段标记、计数和错误码，不输出材料正文、密码、Cookie、token、提示词全文或 raw model output：
+两套真实 Provider 验收都只允许本地显式运行，都要求隔离 PostgreSQL 验收库（指向项目库 `blue_benchmark`/`blue_benchmark_checkpoint` 会被拒绝）、C1 真实样本（缺失即失败，不降级占位样例），均只输出阶段标记、计数和错误码，不输出材料正文、密码、Cookie、token、提示词全文或 raw model output：
 
 - **API 级**（真实样本批量上传 → 生产 Worker + 真实 Deep Agent 生成 → 预算截断后从检查点恢复（不重复初始输入）→ 完整合同与引用核查 → 任意整数保存 → 发布 → 重开 → 受理式删除 → 双库零残留 + 兄弟题不受影响）：
 
@@ -201,18 +201,18 @@ make frontend-generate-api   # 重新生成前端类型
 
 `backend/scripts/reset_local_data.py` 是本项目旧测试数据一次性切换的专用工具（C5 授权范围），**不是**日常维护命令：
 
-- 目标白名单固定为本地 Docker PostgreSQL（127.0.0.1:5432）的 `skill_eval` 与 `skill_eval_checkpoint`；任何其他库名、远端主机、缺凭证 DSN 一律拒绝；
+- 目标白名单固定为本地 Docker PostgreSQL（127.0.0.1:5432）的 `blue_benchmark` 与 `blue_benchmark_checkpoint`；任何其他库名、远端主机、缺凭证 DSN 一律拒绝；
 - 默认 dry-run：只输出脱敏计划（库名、掩码 DSN、逐表行数），不做任何修改；
-- `--execute` 必须附 `--confirm-targets skill_eval,skill_eval_checkpoint` 精确确认；
+- `--execute` 必须附 `--confirm-targets blue_benchmark,blue_benchmark_checkpoint` 精确确认；
 - 执行前置：目标库存在第三方活动连接即拒绝（先停止本项目 API/Worker；工具不杀任何进程）；容器与 TCP 端点经 system_identifier 核验为同一实例；
-- 破坏性语句之前先经容器 pg_dump 双库备份到非 Git 产物目录（默认 `/Users/hsikey/Company/skill-eval-platform-wt/_artifacts/m0-rubric-anchors-evidence/c5/<UTC时间戳>/`），备份校验失败即中止；
+- 破坏性语句之前先经容器 pg_dump 双库备份到非 Git 产物目录（默认 `<仓库上级目录>/blue-benchmark-wt/_artifacts/m0-rubric-anchors-evidence/c5/<UTC时间戳>/`），备份校验失败即中止；
 - 重置只重建两库内的 public schema：不删实例/volume/角色/其他库，不改 `.env` 密钥，不触碰 `.local-samples`；
 - 重置后自动执行 Alembic 到当前 head、准备加密 checkpointer 表，并核验空题库与 schema 就绪；失败时按备份与 Git 成套回退。
 
 ```bash
 make reset-local            # dry-run 计划（安全默认）
 cd backend && uv run python -m scripts.reset_local_data --execute \
-  --confirm-targets skill_eval,skill_eval_checkpoint
+  --confirm-targets blue_benchmark,blue_benchmark_checkpoint
 ```
 
 该命令绝不接入 `make test`、应用启动或普通迁移；一次性授权不延伸至切换后新上传的数据。日常单题删除走产品内的受保护删除流程。
@@ -225,7 +225,7 @@ cd backend && uv run python -m scripts.reset_local_data --execute \
 - `deploy/acr-guide.md` — ACR 开通与镜像推送（初学者版）
 - `deploy/oss-guide.md` — OSS 开通、最小权限、内网访问、费用与残留检查、恢复下载（初学者版）
 - `deploy/server-setup.md` — 服务器初始化与首次空库部署（含安全组、swap、版本前置检查、首次备份）
-- `deploy/restore.md` — 数据恢复手册（完整恢复点 `skill-eval-backup/v1`）与每月恢复演练
+- `deploy/restore.md` — 数据恢复手册（完整恢复点 `blue-benchmark-backup/v1`）与每月恢复演练
 - `deploy/compose.yaml` / `deploy/nginx/nginx.conf` / `deploy/.env.production.example` — 编排、反向代理与环境变量模板
 - `deploy/backup.sh` / `deploy/backup.py` — 每日备份 cron 薄入口与备份/校验/下载工具（Python 3.10+ 标准库）
 

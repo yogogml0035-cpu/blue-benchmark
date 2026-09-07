@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Skill Eval Platform 部署备份工具（仅 Python 3.10+ 标准库，零第三方依赖）。
+"""blue-benchmark 部署备份工具（仅 Python 3.10+ 标准库，零第三方依赖）。
 
-唯一备份格式：skill-eval-backup/v1。一次成功备份产生一套完整恢复点，
+唯一备份格式：blue-benchmark-backup/v1。一次成功备份产生一套完整恢复点，
 单归档 backups/latest.tar.gz 包含四个成员：
 
   manifest.json    格式版本、备份 ID、导出时间、应用镜像标识、业务 schema
@@ -65,7 +65,7 @@ from urllib.parse import unquote, urlsplit
 # 常量与格式定义
 # ---------------------------------------------------------------------------
 
-FORMAT_NAME = "skill-eval-backup/v1"
+FORMAT_NAME = "blue-benchmark-backup/v1"
 MEMBER_MANIFEST = "manifest.json"
 MEMBER_BUSINESS = "business.sql"
 MEMBER_CHECKPOINT = "checkpoint.sql"
@@ -419,7 +419,7 @@ def load_deploy_config(compose_dir: Path) -> DeployConfig:
     if api_volume != worker_volume:
         raise ConfigError("api 与 worker 挂载的 appdata 卷不一致")
 
-    postgres_user = postgres_env.get("POSTGRES_USER", "").strip() or "skill_eval"
+    postgres_user = postgres_env.get("POSTGRES_USER", "").strip() or "blue_benchmark"
     if business.user != postgres_user:
         raise ConfigError("DSN 用户与 postgres 服务的 POSTGRES_USER 不一致，两库必须同在本 Compose 的 postgres 服务")
 
@@ -818,7 +818,7 @@ def build_synthetic_archive(
         "format": FORMAT_NAME,
         "backup_id": backup_id or new_backup_id(),
         "created_at": now_utc().isoformat(),
-        "api_image": "example.invalid/skill-eval-api:synthetic",
+        "api_image": "example.invalid/blue-benchmark-api:synthetic",
         "business_schema_version": "synthetic",
         "members": member_table,
         "hmac": {
@@ -1366,7 +1366,7 @@ def _run_locked(config: DeployConfig, backups_dir: Path, state_path: Path, args:
             stop_services(config.compose_dir, to_stop)
         try:
             check_write_connections(config.compose_dir, config.business.user, (config.business.dbname, config.checkpoint.dbname))
-            workdir = Path(tempfile.mkdtemp(prefix=f"skill-eval-backup-{backup_id}-"))
+            workdir = Path(tempfile.mkdtemp(prefix=f"blue-benchmark-backup-{backup_id}-"))
             os.chmod(workdir, 0o700)
             log("导出业务库（停写窗口内）")
             pg_dump_to(config.compose_dir, config.business, workdir / MEMBER_BUSINESS)
@@ -1579,8 +1579,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
         raise BackupError("不允许通过命令行参数传密钥（会进入 shell 历史/argv）；请使用 --aes-key-file 或环境变量")
     if args.aes_key_file:
         aes_key = Path(args.aes_key_file).read_text(encoding="utf-8").strip()
-    elif os.environ.get("SKILL_EVAL_BACKUP_AES_KEY"):
-        aes_key = os.environ["SKILL_EVAL_BACKUP_AES_KEY"].strip()
+    elif os.environ.get("BLUE_BENCHMARK_BACKUP_AES_KEY"):
+        aes_key = os.environ["BLUE_BENCHMARK_BACKUP_AES_KEY"].strip()
     try:
         verified = validate_archive_path(path, aes_key=aes_key)
     except BackupError as exc:
@@ -1631,12 +1631,12 @@ def cmd_restore_check(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="backup.py",
-        description="Skill Eval Platform 部署备份工具（唯一格式 skill-eval-backup/v1，三处只留最新一套）",
+        description="blue-benchmark 部署备份工具（唯一格式 blue-benchmark-backup/v1，三处只留最新一套）",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     run_parser = sub.add_parser("run", help="服务器每日备份全流程（cron 经 backup.sh 调用）")
-    run_parser.add_argument("--compose-dir", required=True, help="明确的 Compose 目录（如 /opt/skill-eval）")
+    run_parser.add_argument("--compose-dir", required=True, help="明确的 Compose 目录（如 /opt/blue-benchmark）")
     run_parser.add_argument("--backups-dir", default=None, help="归档目录（默认 <compose-dir>/backups，固定 latest.tar.gz）")
     run_parser.set_defaults(handler=cmd_run)
 
@@ -1649,10 +1649,10 @@ def build_parser() -> argparse.ArgumentParser:
     download_parser = sub.add_parser("download", help="Mac 经 SSH 下载服务器 latest 并原子覆盖本机副本")
     download_parser.add_argument("--host", required=True, help="SSH 主机别名（~/.ssh/config 中已有）")
     download_parser.add_argument(
-        "--remote-path", default="/opt/skill-eval/backups/latest.tar.gz", help="服务器归档绝对路径（只读）"
+        "--remote-path", default="/opt/blue-benchmark/backups/latest.tar.gz", help="服务器归档绝对路径（只读）"
     )
     download_parser.add_argument(
-        "--local-dir", default=str(Path.home() / "skill-eval-backups"), help="本机专用目录（默认 ~/skill-eval-backups）"
+        "--local-dir", default=str(Path.home() / "blue-benchmark-backups"), help="本机专用目录（默认 ~/blue-benchmark-backups）"
     )
     download_parser.set_defaults(handler=cmd_download)
 

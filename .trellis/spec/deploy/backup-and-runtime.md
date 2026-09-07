@@ -5,7 +5,7 @@
 ### 1. Scope / Trigger
 
 - 触发：`deploy/backup.py` 是新备份合同（基础设施集成：PostgreSQL 导出、OSS、SSH）；`deploy/compose.yaml` 的 nginx 依赖重启是跨服务运行时合同。修改任何一处必须保持本文件同步。
-- 唯一所有者：归档格式 `skill-eval-backup/v1`、验证、发布、下载逻辑全部只在 `deploy/backup.py`；`backup.sh` 是 cron 薄入口（仅 python3 存在性检查 + `exec backup.py run`），不得回增业务逻辑。
+- 唯一所有者：归档格式 `blue-benchmark-backup/v1`、验证、发布、下载逻辑全部只在 `deploy/backup.py`；`backup.sh` 是 cron 薄入口（仅 python3 存在性检查 + `exec backup.py run`），不得回增业务逻辑。
 
 ### 2. Signatures
 
@@ -19,7 +19,7 @@ backup.py restore-check  ARCHIVE --aes-key-file FILE [--compose-dir DIR]
 - 仅 Python 3.10+ 标准库；argv 直接传密钥被拒绝（只认 `--aes-key-file` 或环境变量）。
 - 归档成员固定四个：`manifest.json`、`business.sql`、`checkpoint.sql`、`files.tar`，外层 gzip（mtime=0 可复现）。
 - OSS 对象布局固定：`<prefix>/bundles/<backup-id>.tar.gz` + `<prefix>/latest.json` 指针（对象名、ID、大小、整包 SHA-256）。
-- 服务器/Mac 本地布局固定：`backups/latest.tar.gz`（Mac 为 `~/skill-eval-backups/latest.tar.gz`）+ `backup.lock`，没有日期目录。
+- 服务器/Mac 本地布局固定：`backups/latest.tar.gz`（Mac 为 `~/blue-benchmark-backups/latest.tar.gz`）+ `backup.lock`，没有日期目录。
 
 ### 3. Contracts
 

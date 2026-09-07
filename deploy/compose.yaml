@@ -1,11 +1,11 @@
-# Single-server production deployment for Skill Eval Platform.
+# Single-server production deployment for blue-benchmark.
 #
 # Layout: nginx (only public port 80) -> web (Next.js) / api (FastAPI)
 #         api and worker share one image; postgres stays on the internal
 #         network; uploads and evidence live in the appdata volume.
 #
 # Copy this file plus nginx/nginx.conf and a filled-in .env to
-# /opt/skill-eval/ on the server, then: docker compose up -d
+# /opt/blue-benchmark/ on the server, then: docker compose up -d
 
 services:
   nginx:
@@ -31,7 +31,7 @@ services:
         max-file: "3"
 
   web:
-    image: ${REGISTRY}/skill-eval-web:${TAG:-latest}
+    image: ${REGISTRY}/blue-benchmark-web:${TAG:-latest}
     expose:
       - "3000"
     healthcheck:
@@ -44,7 +44,7 @@ services:
     logging: *logging
 
   api:
-    image: ${REGISTRY}/skill-eval-api:${TAG:-latest}
+    image: ${REGISTRY}/blue-benchmark-api:${TAG:-latest}
     env_file: .env
     expose:
       - "8000"
@@ -63,7 +63,7 @@ services:
     logging: *logging
 
   worker:
-    image: ${REGISTRY}/skill-eval-api:${TAG:-latest}
+    image: ${REGISTRY}/blue-benchmark-api:${TAG:-latest}
     command: ["python", "-m", "app.lib.operations.worker"]
     env_file: .env
     volumes:
@@ -77,13 +77,13 @@ services:
   postgres:
     image: ${REGISTRY:-docker.io/library}/postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-skill_eval}
+      POSTGRES_USER: ${POSTGRES_USER:-blue_benchmark}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-skill_eval}
+      POSTGRES_DB: ${POSTGRES_DB:-blue_benchmark}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-skill_eval} -d ${POSTGRES_DB:-skill_eval}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-blue_benchmark} -d ${POSTGRES_DB:-blue_benchmark}"]
       interval: 10s
       timeout: 3s
       retries: 5

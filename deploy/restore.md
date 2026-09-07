@@ -1,4 +1,4 @@
-# 数据恢复手册（完整恢复点 skill-eval-backup/v1）
+# 数据恢复手册（完整恢复点 blue-benchmark-backup/v1）
 
 适用场景：服务器磁盘损坏、误删数据、升级失败需要回到最近一次成功备份。
 
@@ -21,7 +21,7 @@
 
 ## 什么是完整恢复点
 
-一套完整恢复点 = 一个归档文件 `latest.tar.gz`（格式 `skill-eval-backup/v1`），
+一套完整恢复点 = 一个归档文件 `latest.tar.gz`（格式 `blue-benchmark-backup/v1`），
 内含同一停写窗口导出的四个成员：
 
 | 成员 | 内容 |
@@ -33,9 +33,9 @@
 
 三处副本，每处只留最新成功的一套：
 
-- 服务器：`/opt/skill-eval/backups/latest.tar.gz`
+- 服务器：`/opt/blue-benchmark/backups/latest.tar.gz`
 - OSS：`<OSS_PREFIX>/latest.json` 指针 + `<OSS_PREFIX>/bundles/<备份ID>.tar.gz`
-- Mac：`~/skill-eval-backups/latest.tar.gz`（每日手动下载）
+- Mac：`~/blue-benchmark-backups/latest.tar.gz`（每日手动下载）
 
 两条铁律：
 
@@ -52,28 +52,28 @@
   - Python **3.10+**（`python3 --version` 查看）
   - 本仓库的 `deploy/backup.py`（与生成归档的版本一致或更新）
 - 手上有：一套可用归档、原 `LANGGRAPH_AES_KEY`（建议先写入一个 600 权限的
-  密钥文件，例如 `~/keys/skill-eval-aes.key`，恢复后删除）、清单中记录的
+  密钥文件，例如 `~/keys/blue-benchmark-aes.key`，恢复后删除）、清单中记录的
   应用镜像标签（恢复环境的镜像必须与归档相容）
 - 明确知道要恢复到的备份 ID 和生成时间（`verify` 输出会显示）
 
 ## 恢复步骤
 
-以下命令中：`/opt/skill-eval` 是部署目录，`latest.tar.gz` 指你选定的那套
-归档（服务器上即 `/opt/skill-eval/backups/latest.tar.gz`；从别处取回的先
+以下命令中：`/opt/blue-benchmark` 是部署目录，`latest.tar.gz` 指你选定的那套
+归档（服务器上即 `/opt/blue-benchmark/backups/latest.tar.gz`；从别处取回的先
 放到一个临时目录，例如 `/tmp/restore/latest.tar.gz`，命令里写实际路径）。
 
 ### 0. 取得归档
 
-- 服务器还在：直接用 `/opt/skill-eval/backups/latest.tar.gz`。
+- 服务器还在：直接用 `/opt/blue-benchmark/backups/latest.tar.gz`。
 - 服务器没了：按 `oss-guide.md` 的"恢复下载"从 OSS 取回（先读 `latest.json`
   指针，再下载对应 bundle）。Mac 副本也可以作为来源，格式完全相同。
 
 ### 1. 验证归档与原密钥（任何写入之前，失败即停）
 
 ```bash
-cd /opt/skill-eval
+cd /opt/blue-benchmark
 python3 backup.py restore-check /tmp/restore/latest.tar.gz \
-  --aes-key-file ~/keys/skill-eval-aes.key
+  --aes-key-file ~/keys/blue-benchmark-aes.key
 ```
 
 核对输出中的：格式版本、备份 ID、生成时间、应用镜像标识、业务 schema 版本。
@@ -91,11 +91,11 @@ python3 backup.py restore-check /tmp/restore/latest.tar.gz \
 
 ```bash
 # 注释掉每日备份 cron（恢复完成后再取消注释）
-crontab -l | sed 's|^0 3 \* \* \* /opt/skill-eval/backup.sh|#&|' | crontab -
+crontab -l | sed 's|^0 3 \* \* \* /opt/blue-benchmark/backup.sh|#&|' | crontab -
 crontab -l   # 确认该行已被注释
 ```
 
-备份与人工恢复共用同一把维护互斥锁（`/opt/skill-eval/backups/backup.lock`，
+备份与人工恢复共用同一把维护互斥锁（`/opt/blue-benchmark/backups/backup.lock`，
 flock 文件锁）。恢复期间不要运行 `backup.sh`/`backup.py run`；如果误跑，
 它会因锁被占用或残留维护状态而拒绝执行，不会与恢复互相干扰。
 
@@ -106,7 +106,7 @@ flock 文件锁）。恢复期间不要运行 `backup.sh`/`backup.py run`；如�
 ### 3. 停止本项目写入
 
 ```bash
-cd /opt/skill-eval
+cd /opt/blue-benchmark
 docker compose stop api worker nginx
 docker compose ps   # api/worker/nginx 应为 exited，postgres 保持运行
 ```
@@ -115,9 +115,9 @@ docker compose ps   # api/worker/nginx 应为 exited，postgres 保持运行
 
 本恢复会**替换**：
 
-- 数据库 `skill_eval`（业务库）的全部数据：题目、材料、评分维度、运行事件、
+- 数据库 `blue_benchmark`（业务库）的全部数据：题目、材料、评分维度、运行事件、
   管理员账号——备份之后新增的全部丢失；
-- 数据库 `skill_eval_checkpoint` 的全部数据：加密的执行连续性状态；
+- 数据库 `blue_benchmark_checkpoint` 的全部数据：加密的执行连续性状态；
 - `appdata` 卷中本项目文件（uploads/evidence/versions 等）。
 
 本恢复**不动**：同一 PostgreSQL 实例上的其他数据库、pgdata 卷本身、
@@ -128,12 +128,12 @@ docker compose ps   # api/worker/nginx 应为 exited，postgres 保持运行
 ### 5. 重建目标两库（不整盘删除）
 
 ```bash
-cd /opt/skill-eval
+cd /opt/blue-benchmark
 docker compose up -d postgres          # 确保 postgres 在运行（healthy）
-docker compose exec postgres dropdb -U skill_eval --if-exists skill_eval
-docker compose exec postgres dropdb -U skill_eval --if-exists skill_eval_checkpoint
-docker compose exec postgres createdb -U skill_eval skill_eval
-docker compose exec postgres createdb -U skill_eval skill_eval_checkpoint
+docker compose exec postgres dropdb -U blue_benchmark --if-exists blue_benchmark
+docker compose exec postgres dropdb -U blue_benchmark --if-exists blue_benchmark_checkpoint
+docker compose exec postgres createdb -U blue_benchmark blue_benchmark
+docker compose exec postgres createdb -U blue_benchmark blue_benchmark_checkpoint
 ```
 
 ### 6. 受控输入导入两个 SQL（错误即停）
@@ -154,9 +154,9 @@ SQL 错误立即中止）：
 docker cp /tmp/restore/sql/business.sql   $(docker compose ps -q postgres):/tmp/business.sql
 docker cp /tmp/restore/sql/checkpoint.sql $(docker compose ps -q postgres):/tmp/checkpoint.sql
 
-docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U skill_eval -d skill_eval \
+docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U blue_benchmark -d blue_benchmark \
   -c '\i /tmp/business.sql'
-docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U skill_eval -d skill_eval_checkpoint \
+docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U blue_benchmark -d blue_benchmark_checkpoint \
   -c '\i /tmp/checkpoint.sql'
 ```
 
@@ -175,16 +175,16 @@ mkdir -p /tmp/restore/appdata
 tar -xf /tmp/restore/files/files.tar -C /tmp/restore/appdata
 
 # 清空 appdata 卷并写回（一次性容器挂载卷本身，不依赖已停止的 api）
-docker volume rm -f skill-eval_appdata
-docker volume create skill-eval_appdata
+docker volume rm -f blue-benchmark_appdata
+docker volume create blue-benchmark_appdata
 docker run --rm \
-  -v skill-eval_appdata:/app/storage \
+  -v blue-benchmark_appdata:/app/storage \
   -v /tmp/restore/appdata:/restore:ro \
   alpine sh -c 'cp -a /restore/. /app/storage/'
 ```
 
 > 卷名以 `docker volume ls | grep appdata` 实际输出为准（compose 项目名前缀，
-> 默认部署目录 /opt/skill-eval 对应 `skill-eval_appdata`）。
+> 默认部署目录 /opt/blue-benchmark 对应 `blue-benchmark_appdata`）。
 > `docker volume rm` 会丢失卷中当前全部文件——这正是第 4 步确认过的后果。
 
 ### 8. 启动前验证（任一失败保持未开放写入）
@@ -195,11 +195,11 @@ docker run --rm \
 docker compose run --rm api alembic check
 
 # 2) 业务数据抽查
-docker compose exec postgres psql -U skill_eval -d skill_eval \
+docker compose exec postgres psql -U blue_benchmark -d blue_benchmark \
   -Atc 'SELECT count(*) FROM questions;'
 
 # 3) checkpoint 数据存在（表由备份带来；解密验证在第 9 步由应用完成）
-docker compose exec postgres psql -U skill_eval -d skill_eval_checkpoint \
+docker compose exec postgres psql -U blue_benchmark -d blue_benchmark_checkpoint \
   -Atc 'SELECT count(*) FROM checkpoints;'
 ```
 
@@ -210,7 +210,7 @@ docker compose exec postgres psql -U skill_eval -d skill_eval_checkpoint \
 ### 9. 恢复服务与代理（完整 Compose 入口）
 
 ```bash
-cd /opt/skill-eval
+cd /opt/blue-benchmark
 docker compose up -d          # 完整服务图；nginx 会随 api/web 一起刷新
 docker compose ps             # 等待 api/postgres/web healthy，worker/nginx Up
 curl -sf http://127.0.0.1/healthz
@@ -235,11 +235,11 @@ curl -sf http://127.0.0.1/healthz
 
 ```bash
 # 取消 cron 注释
-crontab -l | sed 's|^#\(0 3 \* \* \* /opt/skill-eval/backup.sh\)|\1|' | crontab -
+crontab -l | sed 's|^#\(0 3 \* \* \* /opt/blue-benchmark/backup.sh\)|\1|' | crontab -
 crontab -l    # 确认 0 3 * * * 恢复
 
 # 立即手动跑一次备份，建立恢复后的新基线（服务器+OSS 同时更新）
-bash /opt/skill-eval/backup.sh
+bash /opt/blue-benchmark/backup.sh
 ```
 
 Mac 端当天再手动执行一次 `backup.py download`，三处重新对齐到同一恢复点。
@@ -251,7 +251,7 @@ Mac 端当天再手动执行一次 `backup.py download`，三处重新对齐到�
 ```bash
 rm -rf /tmp/restore            # 归档副本、SQL、解包文件都在这里
 docker compose exec postgres rm -f /tmp/business.sql /tmp/checkpoint.sql
-rm ~/keys/skill-eval-aes.key   # 如果密钥文件是本次恢复临时创建的
+rm ~/keys/blue-benchmark-aes.key   # 如果密钥文件是本次恢复临时创建的
 ```
 
 只清理本次恢复创建的文件；不扫描、不删除你之前保存的任何历史文件。
@@ -274,7 +274,7 @@ rm ~/keys/skill-eval-aes.key   # 如果密钥文件是本次恢复临时创建�
 - 新版本的数据库迁移破坏了旧结构：回滚代码的同时必须按本手册恢复数据，
   且镜像标签必须与归档清单中的应用镜像相容（见第 8 步）；
 - 因此：任何包含数据库迁移的发版，发版前先手动跑一次
-  `bash /opt/skill-eval/backup.sh` 并确认输出"完整备份成功"。
+  `bash /opt/blue-benchmark/backup.sh` 并确认输出"完整备份成功"。
 
 ## 每月恢复演练
 

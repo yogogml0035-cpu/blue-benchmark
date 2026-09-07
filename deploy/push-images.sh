@@ -39,22 +39,22 @@ if ! git diff --quiet; then
   [[ "$answer" == "y" || "$answer" == "Y" ]] || exit 1
 fi
 
-echo "==> 构建并推送 $REGISTRY/skill-eval-web:$TAG"
+echo "==> 构建并推送 $REGISTRY/blue-benchmark-web:$TAG"
 docker buildx build --platform linux/amd64 \
-  -t "$REGISTRY/skill-eval-web:$TAG" \
+  -t "$REGISTRY/blue-benchmark-web:$TAG" \
   --push frontend/
 
-echo "==> 构建并推送 $REGISTRY/skill-eval-api:$TAG"
+echo "==> 构建并推送 $REGISTRY/blue-benchmark-api:$TAG"
 docker buildx build --platform linux/amd64 \
-  -t "$REGISTRY/skill-eval-api:$TAG" \
+  -t "$REGISTRY/blue-benchmark-api:$TAG" \
   --push backend/
 
 echo
 echo "推送完成。接下来在服务器上执行（按整个 Compose 服务图更新，"
 echo "不要跳过依赖或单独重启某个服务——那会绕过 nginx 的依赖重启，"
 echo "导致代理滞留旧容器地址）："
-echo "  1. 把 /opt/skill-eval/.env 中的 TAG 改为：$TAG"
-echo "  2. cd /opt/skill-eval"
+echo "  1. 把 /opt/blue-benchmark/.env 中的 TAG 改为：$TAG"
+echo "  2. cd /opt/blue-benchmark"
 echo "  3. 如果本次发版包含数据库迁移：docker compose run --rm api alembic upgrade head"
 echo "  4. docker compose pull && docker compose up -d"
 echo "     （compose.yaml 已声明 nginx 随 api/web 更新重启，up -d 会自动完成地址刷新）"

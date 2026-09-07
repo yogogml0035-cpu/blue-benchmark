@@ -10,7 +10,7 @@
 - [ ] 已完成 `deploy/acr-guide.md` 第一至第四步（ACR 开通、仓库创建、Mac 已登录、基础镜像已转存）
 - [ ] 已按 `deploy/oss-guide.md` 第一至第五步准备好备份 Bucket、最小权限
       AccessKey 和 `.env` 的 OSS 三项配置（没有就先创建，区域与服务器同地域、私有、不开版本控制）
-- [ ] 本地已用 `deploy/push-images.sh` 推送过至少一个版本的 `skill-eval-web` 和 `skill-eval-api`
+- [ ] 本地已用 `deploy/push-images.sh` 推送过至少一个版本的 `blue-benchmark-web` 和 `blue-benchmark-api`
 - [ ] 记下服务器的公网 IP（控制台 → 云服务器 ECS → 实例）
 
 ## 1. 安全组（浏览器）
@@ -60,32 +60,32 @@ free -h   # Swap 一行应显示 2G
 ## 4. 创建部署目录并上传文件
 
 ```bash
-mkdir -p /opt/skill-eval/nginx
-cd /opt/skill-eval
+mkdir -p /opt/blue-benchmark/nginx
+cd /opt/blue-benchmark
 ```
 
 从你的 Mac 上传 4 个文件（在 Mac 上执行，不是服务器；`.env` 下一步在服务器上新建）：
 
 ```bash
 cd <仓库目录>
-scp deploy/compose.yaml deploy/backup.sh deploy/backup.py root@你的公网IP:/opt/skill-eval/
-scp deploy/nginx/nginx.conf root@你的公网IP:/opt/skill-eval/nginx/
+scp deploy/compose.yaml deploy/backup.sh deploy/backup.py root@你的公网IP:/opt/blue-benchmark/
+scp deploy/nginx/nginx.conf root@你的公网IP:/opt/blue-benchmark/nginx/
 ```
 
 `backup.sh` 只是 cron 稳定入口，实际逻辑在 `backup.py`（Python 3.10+
-标准库，无需安装依赖）。两个文件都必须放在 `/opt/skill-eval/`。
+标准库，无需安装依赖）。两个文件都必须放在 `/opt/blue-benchmark/`。
 
 ## 5. 创建 .env（服务器上）
 
 ```bash
-cd /opt/skill-eval
+cd /opt/blue-benchmark
 cp /dev/null .env   # 或直接 vi .env
 vi .env
 ```
 
 内容照抄仓库里的 `deploy/.env.production.example`，填入：
 
-- `REGISTRY`：`registry-vpc.cn-beijing.aliyuncs.com/skill-eval`（内网地址，见 acr-guide 第五步）
+- `REGISTRY`：`registry-vpc.cn-beijing.aliyuncs.com/blue-benchmark`（内网地址，见 acr-guide 第五步）
 - `TAG`：`push-images.sh` 最后输出的标签（形如 `20260904-a1b2c3d`）
 - `POSTGRES_PASSWORD`：一个随机强密码（可以用 `openssl rand -hex 16` 生成）
 - `DATABASE_URL`：把里面的密码换成同一个强密码，其他照抄
@@ -101,7 +101,7 @@ vi .env
 保存后收紧权限：
 
 ```bash
-chmod 600 /opt/skill-eval/.env
+chmod 600 /opt/blue-benchmark/.env
 ```
 
 ## 6. 登录 ACR（服务器上）
@@ -128,15 +128,15 @@ ossutil config
 （cron 路径固定为 backup.sh，内部调用 backup.py run）：
 
 ```bash
-chmod +x /opt/skill-eval/backup.sh
-( crontab -l 2>/dev/null; echo '0 3 * * * /opt/skill-eval/backup.sh >> /opt/skill-eval/backup.log 2>&1' ) | crontab -
+chmod +x /opt/blue-benchmark/backup.sh
+( crontab -l 2>/dev/null; echo '0 3 * * * /opt/blue-benchmark/backup.sh >> /opt/blue-benchmark/backup.log 2>&1' ) | crontab -
 crontab -l   # 确认出现 0 3 * * *（按服务器主机时区执行，date 命令确认时区）
 ```
 
 ## 8. 首次启动
 
 ```bash
-cd /opt/skill-eval
+cd /opt/blue-benchmark
 
 # 1) 拉取全部镜像
 docker compose pull
@@ -146,7 +146,7 @@ docker compose run --rm api alembic upgrade head
 
 # 3) 创建 checkpoint 数据库（持久 Agent 运行时用，只需一次；
 #    重复执行报 already exists 属正常）
-docker compose exec postgres createdb -U skill_eval skill_eval_checkpoint
+docker compose exec postgres createdb -U blue_benchmark blue_benchmark_checkpoint
 
 # 4) 启动全部服务
 docker compose up -d
@@ -173,14 +173,14 @@ sleep 30 && docker compose ps
 4. 手动跑一次首次备份（此时 `backups/latest.tar.gz` 还不存在，首次运行
    会创建它；导出期间 API/Worker 短暂停止属预期）：
    ```bash
-   bash /opt/skill-eval/backup.sh
+   bash /opt/blue-benchmark/backup.sh
    ```
    成功标准：日志分别给出"服务器副本已更新"与"OSS 副本：已发布 ..."，
-   最后一行是"完整备份成功"；`ls /opt/skill-eval/backups/` 只有
+   最后一行是"完整备份成功"；`ls /opt/blue-benchmark/backups/` 只有
    `latest.tar.gz` 和 `backup.lock`；OSS 控制台专用前缀下恰好一个
    `latest.json` 加 `bundles/` 里一个归档。任何一步失败都不要当作
    "备份已建立"，按输出提示排查后重跑
-5. 在浏览器开发者工具确认登录 Cookie 已写入（名称 `skill_eval_session`）
+5. 在浏览器开发者工具确认登录 Cookie 已写入（名称 `blue_benchmark_session`）
 
 任何一步失败都不要宣布上线成功：先看 `docker compose logs <服务名>`，
 修复后重跑该步。
@@ -193,9 +193,9 @@ sleep 30 && docker compose ps
   python3 <仓库目录>/deploy/backup.py download --host <你的SSH主机别名>
   ```
   输出会显示服务器生成时间与备份 ID；校验通过才覆盖本机
-  `~/skill-eval-backups/latest.tar.gz`，失败保留旧归档。这是人工动作，
+  `~/blue-benchmark-backups/latest.tar.gz`，失败保留旧归档。这是人工动作，
   没有后台任务；详见 `README.md` 的"Mac 每日下载"章。
-- **每天（服务器，可选）**：`tail -30 /opt/skill-eval/backup.log` 确认
+- **每天（服务器，可选）**：`tail -30 /opt/blue-benchmark/backup.log` 确认
   最后一行是"完整备份成功"。
 - **每月**：按 `restore.md` 的"每月恢复演练"在本地隔离环境演练一次恢复。
 - **每 1-3 个月（浏览器/服务器）**：按 `oss-guide.md` 第七、八步检查

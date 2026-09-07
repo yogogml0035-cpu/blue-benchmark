@@ -8,7 +8,7 @@
 
 ## OSS 是什么（三句话分清三个存放处）
 
-- **ACR** 存软件镜像：你发布的程序本身（`skill-eval-web`/`skill-eval-api` 镜像）。
+- **ACR** 存软件镜像：你发布的程序本身（`blue-benchmark-web`/`blue-benchmark-api` 镜像）。
 - **服务器**运行程序并保存当前数据：题目、文件、数据库都在服务器的盘上。
 - **OSS** 存导出的备份文件：`backup.py` 每天把数据库和文件导出成一个归档
   （`latest.tar.gz`），上传一份到 OSS，作为服务器盘损坏/误删时的异地副本。
@@ -48,7 +48,7 @@
    - 读写权限：**私有**（绝不选公共读）；
    - **版本控制：不开启**；**保留策略（WORM）：不设置**——`backup.py`
      检测到这两项会拒绝上传并要求人工处理，因为只留一套的策略与它们冲突；
-3. 记下 Bucket 名称（全局唯一，例如 `skill-eval-backup-你的名字`）。
+3. 记下 Bucket 名称（全局唯一，例如 `blue-benchmark-backup-你的名字`）。
 
 这个 Bucket 专用于备份，不要放网站静态资源或其他业务内容；工具只管理
 专用前缀内的对象，不会也不应与其他内容混用。
@@ -62,7 +62,7 @@
    - 创建完成后**立刻保存** AccessKey ID 和 Secret（只显示一次）；
 2. 给该用户授权：权限策略 → 创建权限策略 → 脚本编辑，粘贴（把
    `你的Bucket名` 和 `你的前缀` 换成实际值，前缀与 `.env` 的 `OSS_PREFIX`
-   一致，例如 `skill-eval-backups`）：
+   一致，例如 `blue-benchmark-backups`）：
 
 ```json
 {
@@ -114,7 +114,7 @@ Endpoint 三个非机密配置。
 ## 第五步：填写 .env 的 OSS 配置（服务器）
 
 ```bash
-cd /opt/skill-eval
+cd /opt/blue-benchmark
 vi .env
 ```
 
@@ -122,7 +122,7 @@ vi .env
 
 ```
 OSS_BUCKET=你的Bucket名
-OSS_PREFIX=skill-eval-backups
+OSS_PREFIX=blue-benchmark-backups
 OSS_ENDPOINT=oss-cn-beijing-internal.aliyuncs.com
 ```
 
@@ -136,7 +136,7 @@ OSS_ENDPOINT=oss-cn-beijing-internal.aliyuncs.com
 ## 第六步：验证首次上传（服务器）
 
 ```bash
-bash /opt/skill-eval/backup.sh
+bash /opt/blue-benchmark/backup.sh
 ```
 
 成功输出会分别给出两处结果：
@@ -149,7 +149,7 @@ bash /opt/skill-eval/backup.sh
 且前面明确说"OSS 副本：本次更新失败"——按提示排查（常见：AccessKey
 权限不足、Endpoint 写错、Bucket 开了版本控制），次日备份会自动重试。
 
-（浏览器）到控制台 → Bucket → 文件管理，应看到 `skill-eval-backups/`
+（浏览器）到控制台 → Bucket → 文件管理，应看到 `blue-benchmark-backups/`
 前缀下恰好一个 `latest.json` 和 `bundles/` 里一个 `.tar.gz`。
 
 ## 第七步：费用检查与提醒（浏览器）
@@ -173,10 +173,10 @@ bash /opt/skill-eval/backup.sh
 
 ```bash
 # 专用前缀内的对象清单：稳态应只有 latest.json + bundles/ 下一个 .tar.gz
-ossutil ls oss://你的Bucket名/skill-eval-backups/
+ossutil ls oss://你的Bucket名/blue-benchmark-backups/
 
 # 未完成分片上传清单：稳态应为空；工具每轮也会显式终止自己的分片
-ossutil ls oss://你的Bucket名/skill-eval-backups/bundles/ --multipart
+ossutil ls oss://你的Bucket名/blue-benchmark-backups/bundles/ --multipart
 ```
 
 发现前缀外的意外对象、或 Bucket 被开启了版本控制/保留锁：不要自行用
@@ -192,11 +192,11 @@ OSS 只在服务器不可用时作为恢复来源。
 
 ```bash
 # 1) 先读指针，拿到当前恢复点的对象名、备份 ID、大小和整包 SHA-256
-ossutil cat oss://你的Bucket名/skill-eval-backups/latest.json
+ossutil cat oss://你的Bucket名/blue-benchmark-backups/latest.json
 
 # 2) 下载指针对象名对应的完整归档（把 <object> 换成上一步 object 字段的值）
 mkdir -p /tmp/restore
-ossutil cp oss://你的Bucket名/skill-eval-backups/<object> /tmp/restore/latest.tar.gz
+ossutil cp oss://你的Bucket名/blue-benchmark-backups/<object> /tmp/restore/latest.tar.gz
 
 # 3) 核对整包摘要与指针一致（输出应为 latest.json 里的 sha256 值）
 shasum -a 256 /tmp/restore/latest.tar.gz    # Mac

@@ -27,17 +27,17 @@ ACR 里镜像的完整地址长这样：
 registry.cn-beijing.aliyuncs.com/<命名空间>/<仓库名>:<标签>
 ```
 
-1. 左侧菜单"命名空间"→ 创建，名字用 `skill-eval`（小写，之后不可改）
+1. 左侧菜单"命名空间"→ 创建，名字用 `blue-benchmark`（小写，之后不可改）
 2. 左侧菜单"镜像仓库"→ 创建，逐个创建 4 个仓库（都选**私有**、**本地仓库**）：
-   - `skill-eval-web`（前端）
-   - `skill-eval-api`（后端 + Worker 共用）
+   - `blue-benchmark-web`（前端）
+   - `blue-benchmark-api`（后端 + Worker 共用）
    - `nginx`（反向代理基础镜像，只推一次）
    - `postgres`（数据库基础镜像，只推一次）
 
 创建完成后，你的镜像仓库地址前缀（后面叫 `REGISTRY`）就是：
 
 ```
-registry.cn-beijing.aliyuncs.com/skill-eval
+registry.cn-beijing.aliyuncs.com/blue-benchmark
 ```
 
 ## 第三步：设置访问凭证
@@ -52,11 +52,11 @@ registry.cn-beijing.aliyuncs.com/skill-eval
 docker login --username=你的阿里云账号名 registry.cn-beijing.aliyuncs.com
 
 # 验证：推送一个测试标签
-docker tag hello-world registry.cn-beijing.aliyuncs.com/skill-eval/hello:test 2>/dev/null || true
+docker tag hello-world registry.cn-beijing.aliyuncs.com/blue-benchmark/hello:test 2>/dev/null || true
 ```
 
 日常推送不需要手工执行：仓库里的 `deploy/push-images.sh` 会自动构建并推送
-`skill-eval-web` 和 `skill-eval-api`（详见 `deploy/README.md` 的发版流程）。
+`blue-benchmark-web` 和 `blue-benchmark-api`（详见 `deploy/README.md` 的发版流程）。
 
 ### 一次性操作：把基础镜像转存到 ACR
 
@@ -67,11 +67,11 @@ ACR，之后服务器只依赖 ACR：
 docker pull --platform linux/amd64 nginx:1.27-alpine
 docker pull --platform linux/amd64 postgres:16-alpine
 
-docker tag nginx:1.27-alpine registry.cn-beijing.aliyuncs.com/skill-eval/nginx:1.27-alpine
-docker tag postgres:16-alpine registry.cn-beijing.aliyuncs.com/skill-eval/postgres:16-alpine
+docker tag nginx:1.27-alpine registry.cn-beijing.aliyuncs.com/blue-benchmark/nginx:1.27-alpine
+docker tag postgres:16-alpine registry.cn-beijing.aliyuncs.com/blue-benchmark/postgres:16-alpine
 
-docker push registry.cn-beijing.aliyuncs.com/skill-eval/nginx:1.27-alpine
-docker push registry.cn-beijing.aliyuncs.com/skill-eval/postgres:16-alpine
+docker push registry.cn-beijing.aliyuncs.com/blue-benchmark/nginx:1.27-alpine
+docker push registry.cn-beijing.aliyuncs.com/blue-benchmark/postgres:16-alpine
 ```
 
 > 仓库名和标签必须与 compose.yaml 中的镜像地址完全一致
@@ -99,7 +99,7 @@ docker login --username=你的阿里云账号名 registry-vpc.cn-beijing.aliyunc
 ```
 
 然后把服务器 `.env` 里的 `REGISTRY` 写成
-`registry-vpc.cn-beijing.aliyuncs.com/skill-eval`。
+`registry-vpc.cn-beijing.aliyuncs.com/blue-benchmark`。
 （你的 Mac 推送仍然用公网域名 `registry.cn-beijing.aliyuncs.com`，两边不冲突。）
 
 ## 常见问题

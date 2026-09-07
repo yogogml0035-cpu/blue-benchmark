@@ -1,6 +1,6 @@
 # 部署运维手册
 
-本目录包含 Skill Eval Platform 的单机生产部署全部材料。
+本目录包含 blue-benchmark 的单机生产部署全部材料。
 按你要做的事选择入口：
 
 | 你要做的事 | 入口 |
@@ -35,14 +35,14 @@
 
 ```bash
 # 1) 质量门 + 构建 + 推送（约 5-10 分钟，取决于上行带宽）
-REGISTRY=registry.cn-beijing.aliyuncs.com/skill-eval deploy/push-images.sh
+REGISTRY=registry.cn-beijing.aliyuncs.com/blue-benchmark deploy/push-images.sh
 ```
 
 脚本最后输出镜像标签（形如 `20260904-a1b2c3d`）和服务器端命令。
 到服务器上执行：
 
 ```bash
-cd /opt/skill-eval
+cd /opt/blue-benchmark
 # 2) 更新 .env 里的 TAG 为新标签
 vi .env
 # 3) 如果本次发版包含数据库迁移，先迁移（发版前先手动备份，见下）
@@ -72,7 +72,7 @@ Compose 修改网络（docker network/rm 单容器等）不在这个保证范围
 步完全相同的完整服务图更新：
 
 ```bash
-cd /opt/skill-eval
+cd /opt/blue-benchmark
 docker compose pull
 docker compose up -d
 docker compose ps && curl -sf http://127.0.0.1/healthz
@@ -84,14 +84,14 @@ docker compose ps && curl -sf http://127.0.0.1/healthz
 - 如果新版本跑过**数据库迁移**且旧版本不兼容新结构：回滚代码的同时
   必须按 `restore.md` 恢复发版前的数据，且镜像必须与归档清单中的应用
   镜像相容。所以任何带迁移的发版，发版前先手动备份并确认成功：
-  `bash /opt/skill-eval/backup.sh`；
+  `bash /opt/blue-benchmark/backup.sh`；
 - 三处副本都只留最新一套：一旦备份被新一轮成功替换，**不存在更早的
   历史恢复点**，不能承诺"回到 N 天前的数据"。
 
 ## 备份与三处副本（每日自动 + 每日手动）
 
 `backup.py`（经 `backup.sh` 由 cron 每天 03:00 主机时区调用）生成唯一
-格式 `skill-eval-backup/v1` 的完整恢复点：同一停写窗口内导出业务库、
+格式 `blue-benchmark-backup/v1` 的完整恢复点：同一停写窗口内导出业务库、
 checkpoint 库和 appdata 文件，打包为单归档 `backups/latest.tar.gz`
 （含成员摘要与原密钥 HMAC；密钥本身不在归档里，另行安全保管）。
 
@@ -100,17 +100,17 @@ checkpoint 库和 appdata 文件，打包为单归档 `backups/latest.tar.gz`
 - 任一步失败保留各处上一次成功的归档，输出分别给出备份 ID、生成时间和
   服务器/OSS 两处结果，绝不把局部成功说成完整成功；
 - **三处各只留最新成功的一套**：服务器 `backups/latest.tar.gz`、OSS
-  专用前缀（`latest.json` 指针 + 一个 bundle）、Mac `~/skill-eval-backups/
+  专用前缀（`latest.json` 指针 + 一个 bundle）、Mac `~/blue-benchmark-backups/
   latest.tar.gz`。没有日期目录，没有保留天数，更新期间新旧短暂共存属于
   失败保护而非历史留存。
 
 观察备份是否成功：
 
 ```bash
-tail -30 /opt/skill-eval/backup.log   # 最后一行应为"完整备份成功"；若是
+tail -30 /opt/blue-benchmark/backup.log   # 最后一行应为"完整备份成功"；若是
                                       # "服务器完整备份成功；OSS 本次更新失败"，
                                       # 按 oss-guide.md 排查云端，次日备份自动重试
-ls -l /opt/skill-eval/backups/        # 应只有 latest.tar.gz + backup.lock
+ls -l /opt/blue-benchmark/backups/        # 应只有 latest.tar.gz + backup.lock
 ```
 
 恢复到最后一次成功备份意味着：持续失败或漏下载会扩大数据缺口，不承诺
@@ -126,8 +126,8 @@ ls -l /opt/skill-eval/backups/        # 应只有 latest.tar.gz + backup.lock
 # 并把仓库的 deploy/backup.py 放到本机固定位置（例如 ~/bin/backup.py）
 
 python3 ~/bin/backup.py download --host evalserver
-# 可选：--remote-path（默认 /opt/skill-eval/backups/latest.tar.gz）
-#       --local-dir（默认 ~/skill-eval-backups）
+# 可选：--remote-path（默认 /opt/blue-benchmark/backups/latest.tar.gz）
+#       --local-dir（默认 ~/blue-benchmark-backups）
 ```
 
 行为与边界：
@@ -135,7 +135,7 @@ python3 ~/bin/backup.py download --host evalserver
 - 输出显示本次取到的**服务器生成时间**和备份 ID——这是服务器已生成的
   版本，**不保证包含下载时刻之后新增的数据**（下载时间 ≠ 备份时间）；
 - 校验（结构、成员摘要、传输完整性）通过后才原子覆盖本机
-  `~/skill-eval-backups/latest.tar.gz`；断网、磁盘不足、校验失败都保持
+  `~/blue-benchmark-backups/latest.tar.gz`；断网、磁盘不足、校验失败都保持
   旧归档不变；
 - 同 ID 重复下载幂等，不重复传输；本机目录只有 latest.tar.gz 与锁文件，
   不创建按日期累积的目录；
@@ -146,7 +146,7 @@ python3 ~/bin/backup.py download --host evalserver
   版本——`verify` 可随时查看本机归档的生成时间：
 
 ```bash
-python3 ~/bin/backup.py verify ~/skill-eval-backups/latest.tar.gz
+python3 ~/bin/backup.py verify ~/blue-benchmark-backups/latest.tar.gz
 ```
 
 Mac 副本含完整业务数据：目录权限 700、文件 600（工具自动设置），
@@ -155,7 +155,7 @@ Mac 副本含完整业务数据：目录权限 700、文件 600（工具自动�
 ## 日常观察
 
 ```bash
-cd /opt/skill-eval
+cd /opt/blue-benchmark
 
 docker compose ps                    # 各服务状态（healthy/Up）
 docker compose logs -f worker        # 实时看 AI 任务日志
@@ -164,7 +164,7 @@ docker compose logs --tail 100 nginx # 访问日志（谁在访问、什么路�
 docker stats --no-stream             # 各容器 CPU/内存占用
 free -h                              # 系统内存与 swap 使用情况
 df -h /                              # 磁盘（更新期间归档+候选短暂双份占用）
-tail -30 /opt/skill-eval/backup.log  # 最近备份是否"完整备份成功"
+tail -30 /opt/blue-benchmark/backup.log  # 最近备份是否"完整备份成功"
 ```
 
 判断 2 GiB 内存是否吃紧：`free -h` 中 swap 使用量持续大于几百 MB，

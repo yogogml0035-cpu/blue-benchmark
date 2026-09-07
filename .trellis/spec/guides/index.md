@@ -1,6 +1,6 @@
 # 跨层与复用指南
 
-这里只保留当前 Skill Eval Platform 会实际用到的跨包检查，不包含 Trellis CLI、事件日志、模板同步或其他仓库的案例。
+这里只保留当前 blue-benchmark 会实际用到的跨包检查，不包含 Trellis CLI、事件日志、模板同步或其他仓库的案例。
 
 ## 指南索引
 

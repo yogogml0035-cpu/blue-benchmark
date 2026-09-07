@@ -22,6 +22,10 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 
 # 项目级补充约定
 
+## 命名口径
+
+本工程名统一为 `blue-benchmark`（数据库/角色/Cookie/Python 标识用 snake_case `blue_benchmark`），UI 与品牌语境统一为「蓝标汽车事业 BenchMark 平台」，禁止使用任何第三形态称呼（包括任何历史旧名及其变体）。
+
 ## 新旧语义切换与遗留删除
 
 ### 适用范围
@@ -70,7 +74,7 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 
 1. 在执行任何文件写入工具或会改变仓库状态的 shell 命令前，先运行 `git worktree list`、`git status --short`，确认主工作区、所有现有 worktree、`main` 与 `origin/main` 的关系；不得覆盖、stash、reset 或混入不属于当前任务的改动。若发现他人的未提交改动，保持原样，不得用 `git stash -u` 抓取。
 2. 确认当前任务已获实施批准；若任务已有 PRD、design、implement 或适用 `.trellis/spec/`，先读取这些材料。没有 Trellis 任务不构成跳过 worktree 的理由。
-3. 从最新且验证通过的 `main` 创建任务分支，并在主工作区之外创建专属 worktree，例如 `git worktree add ../skill-eval-platform-wt/<task-slug> -b codex/<task-slug> main`；worktree 不得建在主工作区目录内部。禁止在主工作区使用 `git switch -c`、`git checkout -b` 或等价操作直接开始任务。
+3. 从最新且验证通过的 `main` 创建任务分支，并在主工作区之外创建专属 worktree，例如 `git worktree add ../blue-benchmark-wt/<task-slug> -b codex/<task-slug> main`；worktree 不得建在主工作区目录内部。禁止在主工作区使用 `git switch -c`、`git checkout -b` 或等价操作直接开始任务。
 4. 创建后必须在专属 worktree 中再次运行 `pwd`、`git branch --show-current`、`git status --short` 和 `git worktree list`，确认当前目录是本任务 worktree、当前分支是本任务分支且未混入其他改动。完成这些校验之前，禁止调用写入、编辑、删除、移动、生成文件的工具或命令。
 5. 新 worktree 不含主工作区的 `.env`（gitignored）。运行任何测试前必须先从主工作区复制 `.env` 到新 worktree，否则后端测试会因 `SESSION_COOKIE_SECURE` 默认值批量失败。
 6. 只有当前任务使用 Trellis 时，才在任务 worktree 内运行 `task.py start`，并确保 `task.json.branch` 为任务分支、`base_branch` 为 `main`；未使用 Trellis 时直接在已校验的 worktree 内实施。
@@ -86,7 +90,7 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 ### 合并门禁
 
 - 先在任务 worktree 内完成验收标准和 Trellis `trellis-check`。最低验证为 `git diff --check` 与 `make test`；涉及前端、生产构建或跨层运行路径时同时运行 `make build`，任务文档规定的其他命令也必须通过。
-- 任务 worktree 工作区干净后，在一个临时 merge worktree 中检出 `main` 执行合并（主工作区可能被其他会话占用，不得直接切换它的分支）：例如 `git worktree add ../skill-eval-platform-wt/merge-main main`，在其中执行 `git merge --ff-only codex/<task-slug>`。
+- 任务 worktree 工作区干净后，在一个临时 merge worktree 中检出 `main` 执行合并（主工作区可能被其他会话占用，不得直接切换它的分支）：例如 `git worktree add ../blue-benchmark-wt/merge-main main`，在其中执行 `git merge --ff-only codex/<task-slug>`。
 - 若不能 fast-forward，返回任务 worktree 集成最新 `main`、重新跑完整质量检查后再合并，不得强行改写 `main` 历史。
 - `git branch -d` 等依赖 `main` 作为参照的命令必须在 `main` 被检出的 worktree（如上述临时 merge worktree）中执行，否则会按当前 HEAD 误判合并状态。
 - 若远端保护、团队评审或发布流程要求 PR，必须通过 PR 合并，不得绕过保护规则；本地结论不能替代远端合并状态。
