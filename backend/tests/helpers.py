@@ -8,12 +8,25 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 
-def register_admin(client: TestClient, username: str = "admin") -> dict[str, Any]:
+def login_admin(client: TestClient) -> dict[str, Any]:
+    """Log in the single admin seeded from ADMIN_USERNAME / ADMIN_PASSWORD.
+
+    The seeding is idempotent, so calling it again here keeps helpers that run
+    outside a TestClient lifespan (or after a data reset) working.
+    """
+
+    from app.features.auth.service import ensure_admin_from_env
+    from app.lib.settings import settings
+
+    ensure_admin_from_env()
     response = client.post(
-        "/api/auth/register",
-        json={"username": username, "password": "platform-admin-password"},
+        "/api/auth/login",
+        json={
+            "identifier": settings.admin_username,
+            "password": settings.admin_password.get_secret_value(),
+        },
     )
-    assert response.status_code in (200, 201), response.text
+    assert response.status_code == 200, response.text
     return response.json()["user"]
 
 

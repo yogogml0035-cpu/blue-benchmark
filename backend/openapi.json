@@ -27,88 +27,6 @@
         }
       }
     },
-    "/api/auth/bootstrap": {
-      "get": {
-        "tags": [
-          "auth"
-        ],
-        "summary": "Bootstrap",
-        "operationId": "bootstrap_api_auth_bootstrap_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BootstrapResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/auth/register": {
-      "post": {
-        "tags": [
-          "auth"
-        ],
-        "summary": "Register",
-        "operationId": "register_api_auth_register_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/auth/login": {
       "post": {
         "tags": [
@@ -1548,20 +1466,6 @@
         ],
         "title": "BatchUploadResponse"
       },
-      "BootstrapResponse": {
-        "properties": {
-          "registration_available": {
-            "type": "boolean",
-            "title": "Registration Available"
-          }
-        },
-        "type": "object",
-        "required": [
-          "registration_available"
-        ],
-        "title": "BootstrapResponse",
-        "description": "Anonymous first-run probe; reveals only whether registration is open."
-      },
       "CaseIn": {
         "properties": {
           "client_case_id": {
@@ -2726,40 +2630,6 @@
           "content_text"
         ],
         "title": "ReferenceExampleView"
-      },
-      "RegisterRequest": {
-        "properties": {
-          "username": {
-            "type": "string",
-            "maxLength": 50,
-            "minLength": 2,
-            "title": "Username"
-          },
-          "email": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "email"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Email"
-          },
-          "password": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 8,
-            "title": "Password"
-          }
-        },
-        "type": "object",
-        "required": [
-          "username",
-          "password"
-        ],
-        "title": "RegisterRequest"
       },
       "RunEventView": {
         "properties": {

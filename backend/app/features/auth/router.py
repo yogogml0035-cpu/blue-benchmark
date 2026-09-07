@@ -1,31 +1,12 @@
 from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.features.auth import service
-from app.features.auth.schemas import BootstrapResponse, LoginRequest, RegisterRequest, UserResponse
+from app.features.auth.schemas import LoginRequest, UserResponse
 from app.lib.schemas import ErrorResponse
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 error_responses = {401: {"model": ErrorResponse}, 409: {"model": ErrorResponse}}
-
-
-@router.get("/bootstrap", response_model=BootstrapResponse)
-def bootstrap() -> BootstrapResponse:
-    return service.bootstrap()
-
-
-@router.post(
-    "/register",
-    response_model=UserResponse,
-    status_code=status.HTTP_201_CREATED,
-    responses=error_responses,
-)
-def register(payload: RegisterRequest, request: Request, response: Response) -> UserResponse:
-    if service.optional_current_user(request):
-        from app.lib.errors import AppError
-
-        raise AppError(409, "ALREADY_AUTHENTICATED", "当前会话已经登录。")
-    return UserResponse(user=service.register(payload, response))
 
 
 @router.post("/login", response_model=UserResponse, responses=error_responses)

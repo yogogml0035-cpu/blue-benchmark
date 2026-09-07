@@ -34,7 +34,7 @@ def test_privacy_backstop_unicode_and_coverage_bypasses() -> None:
 def test_title_and_client_case_id_are_scanned_on_upload() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         leaking = helpers.make_case("case-title-leak")
@@ -49,7 +49,7 @@ def test_title_and_client_case_id_are_scanned_on_upload() -> None:
 def test_admin_title_edit_is_scanned() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
@@ -88,17 +88,15 @@ def test_ai_and_admin_paths_share_the_actionability_floor() -> None:
         assert raised, short
 
 
-def test_single_admin_registration_is_atomic() -> None:
+def test_register_entry_is_gone_and_seeding_keeps_one_admin() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client, username="the-admin")
-    with TestClient(app) as client:
+        # The old first-registration entry no longer exists.
         response = client.post(
             "/api/auth/register",
             json={"username": "impostor", "password": "impostor-password"},
         )
-        assert response.status_code == 409
-        assert response.json()["error"]["code"] == "ADMIN_EXISTS"
+        assert response.status_code == 404
     # Login as the impostor must fail: it was never created.
     with TestClient(app) as client:
         login = client.post(
@@ -106,12 +104,23 @@ def test_single_admin_registration_is_atomic() -> None:
             json={"identifier": "impostor", "password": "impostor-password"},
         )
         assert login.status_code == 401
+    # Repeated startup seeding updates the sole admin instead of adding rows.
+    from sqlalchemy import func, select
+
+    from app.features.auth.service import ensure_admin_from_env
+    from app.lib.database import session_scope
+    from app.lib.database.models import UserRow
+
+    ensure_admin_from_env()
+    ensure_admin_from_env()
+    with session_scope() as session:
+        assert session.scalar(select(func.count(UserRow.id))) == 1
 
 
 def test_logout_requires_an_authenticated_session() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
     with TestClient(app) as client:  # anonymous
         response = client.post("/api/auth/logout")
         assert response.status_code == 401
@@ -120,7 +129,7 @@ def test_logout_requires_an_authenticated_session() -> None:
 def test_login_identifier_does_not_use_like_wildcards() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client, username="the-admin")
+        helpers.login_admin(client)
     with TestClient(app) as client:
         # '%' would match any row under LIKE; it must not resolve an account.
         response = client.post(
@@ -132,7 +141,7 @@ def test_login_identifier_does_not_use_like_wildcards() -> None:
 def test_no_change_save_and_regenerate_is_rejected() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
@@ -153,7 +162,7 @@ def test_no_change_save_and_regenerate_is_rejected() -> None:
 def test_published_question_rejects_criteria_patch() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
@@ -204,7 +213,7 @@ def test_published_question_rejects_criteria_patch() -> None:
 def test_whitespace_only_material_returns_422_not_500() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
@@ -227,7 +236,7 @@ def test_whitespace_only_material_returns_422_not_500() -> None:
 def test_delete_is_blocked_while_generating() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
@@ -279,7 +288,7 @@ def test_conditional_update_is_single_writer() -> None:
 
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(

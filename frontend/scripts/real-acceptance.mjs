@@ -7,11 +7,11 @@
  * worker, and a prebuilt Next.js console — then drives the full chain in a
  * real browser with the C1 REAL sample materials:
  *
- *   register admin -> create evaluation set -> issue credential -> upload the
- *   real case through the external endpoint -> browser observes LIVE streaming
- *   increments while generation is still running -> REAL AI produces complete
- *   criteria (anchors + dual bases + verifiable citations) -> teacher opens
- *   the basis panel, saves an unanchored integer -> publish -> reopen ->
+ *   log in the env-seeded admin -> create evaluation set -> issue credential ->
+ *   upload the real case through the external endpoint -> browser observes LIVE
+ *   streaming increments while generation is still running -> REAL AI produces
+ *   complete criteria (anchors + dual bases + verifiable citations) -> teacher
+ *   opens the basis panel, saves an unanchored integer -> publish -> reopen ->
  *   accepted deletion -> navigation happens only after the durable cleanup
  *   finished (authoritative 404) -> checkpoint residue verified zero.
  *
@@ -169,6 +169,9 @@ print("checkpoint schema ready")
     DATABASE_SCHEMA_CHECK_ON_STARTUP: "false",
     // Short lease so the worker-kill recovery phase requeues quickly.
     OPERATION_LEASE_SECONDS: "20",
+    // The API lifespan seeds the single admin from these on startup.
+    ADMIN_USERNAME: "acceptance-admin",
+    ADMIN_PASSWORD: "acceptance-admin-password-1",
   };
 
   track(spawn("uv", ["run", "uvicorn", "app.main:app", "--port", String(apiPort)], {
@@ -198,15 +201,14 @@ print("checkpoint schema ready")
   browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
-  // 1. Register the first admin.
+  // 1. Log in as the env-seeded admin (no registration surface exists).
   await page.goto(`${webBase}/`);
-  await page.waitForURL(/\/register$/, { timeout: 20000 });
+  await page.waitForURL(/\/login$/, { timeout: 20000 });
   await page.getByLabel("用户名").fill("acceptance-admin");
   await page.getByLabel("密码", { exact: true }).fill("acceptance-admin-password-1");
-  await page.getByLabel("确认密码").fill("acceptance-admin-password-1");
-  await page.getByRole("button", { name: "创建管理员" }).click();
+  await page.getByRole("button", { name: "登 录" }).click();
   await page.waitForURL(/\/evaluation-sets$/, { timeout: 20000 });
-  log("registered");
+  log("logged_in");
 
   // 2. Create an evaluation set.
   await page.getByRole("button", { name: "创建评测集" }).first().click();

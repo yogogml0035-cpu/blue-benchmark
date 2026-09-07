@@ -12,3 +12,7 @@ def pytest_configure() -> None:
     os.environ.setdefault("DATABASE_URL", f"sqlite:///{test_root / 'business.db'}")
     os.environ.setdefault("AI_RUNTIME_MODE", "fake")
     os.environ.setdefault("DATABASE_SCHEMA_CHECK_ON_STARTUP", "false")
+    # Single admin comes from the environment; every TestClient lifespan seeds
+    # it into the fresh isolated database.
+    os.environ.setdefault("ADMIN_USERNAME", "admin")
+    os.environ.setdefault("ADMIN_PASSWORD", "platform-admin-password")

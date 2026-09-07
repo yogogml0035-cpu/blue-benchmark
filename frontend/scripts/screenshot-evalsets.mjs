@@ -32,16 +32,17 @@ freePort(BACKEND_PORT); freePort(3000);
 execFileSync("uv", ["run", "alembic", "upgrade", "head"], { cwd: path.join(repoRoot, "backend"), env: { ...process.env, ALEMBIC_DATABASE_URL: databaseUrl }, stdio: "pipe" });
 const backend = spawn("uv", ["run", "--project", "backend", "uvicorn", "app.main:app", "--app-dir", "backend", "--port", String(BACKEND_PORT)], {
   cwd: repoRoot, detached: true,
-  env: { ...process.env, DATABASE_URL: databaseUrl, AI_RUNTIME_MODE: "fake", SESSION_COOKIE_SECURE: "false", DATABASE_SCHEMA_CHECK_ON_STARTUP: "false", STORAGE_ROOT: path.join(workDir, "storage") },
+  env: { ...process.env, DATABASE_URL: databaseUrl, AI_RUNTIME_MODE: "fake", SESSION_COOKIE_SECURE: "false", DATABASE_SCHEMA_CHECK_ON_STARTUP: "false", STORAGE_ROOT: path.join(workDir, "storage"), ADMIN_USERNAME: "visual-admin", ADMIN_PASSWORD: "visual-admin-password-1" },
   stdio: "ignore",
 });
 await waitFor(`http://127.0.0.1:${BACKEND_PORT}/healthz`);
 const next = spawn("pnpm", ["start"], { cwd: frontendRoot, detached: true, env: { ...process.env, BACKEND_URL: `http://127.0.0.1:${BACKEND_PORT}`, NEXT_PUBLIC_AGENT_API_BASE_URL: "http://127.0.0.1:8000" }, stdio: "ignore" });
 await waitFor("http://127.0.0.1:3000/login");
 
-// Seed an admin and a handful of evaluation sets through the real API.
+// The admin is seeded from ADMIN_USERNAME / ADMIN_PASSWORD on backend startup;
+// log in and create a handful of evaluation sets through the real API.
 const base = `http://127.0.0.1:${BACKEND_PORT}`;
-const reg = await fetch(`${base}/api/auth/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "visual-admin", password: "visual-admin-password-1" }) });
+const reg = await fetch(`${base}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier: "visual-admin", password: "visual-admin-password-1" }) });
 const cookie = reg.headers.get("set-cookie").split(";")[0];
 const names = ["媒体改写评测集", "会议纪要评测集", "客服问答评测集", "代码审查评测集", "翻译质量评测集", "摘要生成评测集", "数据抽取评测集", "营销文案评测集"];
 for (const name of names) {

@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { ADMIN } from "./admin";
 
 /**
  * Question review workbench flows against the real backend + a fake-mode
@@ -11,22 +12,14 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
 
 test.describe.configure({ mode: "serial" });
 
-const ADMIN = { username: "benchmark-admin", email: "benchmark-admin@example.com", password: "benchmark-admin-password-1" };
-
 async function ensureLoggedIn(page: Page): Promise<void> {
   await page.goto("/");
-  await page.waitForURL(/\/(register|login|evaluation-sets)$/, { timeout: 15_000 });
-  if (/\/register$/.test(page.url())) {
-    await page.getByLabel("用户名").fill(ADMIN.username);
-    await page.getByLabel("邮箱（可选）").fill(ADMIN.email);
-    await page.getByLabel("密码", { exact: true }).fill(ADMIN.password);
-    await page.getByLabel("确认密码").fill(ADMIN.password);
-    await page.getByRole("button", { name: "创建管理员" }).click();
-    await expect(page).toHaveURL(/\/evaluation-sets$/);
-    return;
-  }
+  // The admin is seeded from ADMIN_USERNAME / ADMIN_PASSWORD by the backend
+  // lifespan, so the entry router can only land on login (or the app when a
+  // session already exists).
+  await page.waitForURL(/\/(login|evaluation-sets)$/, { timeout: 15_000 });
   if (/\/login$/.test(page.url())) {
-    await page.getByLabel("邮箱地址").fill(ADMIN.username);
+    await page.getByLabel("用户名").fill(ADMIN.username);
     await page.getByLabel("密码", { exact: true }).fill(ADMIN.password);
     await page.getByRole("button", { name: "登 录" }).click();
     await expect(page).toHaveURL(/\/evaluation-sets$/);

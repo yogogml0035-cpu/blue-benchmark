@@ -131,6 +131,8 @@ def main() -> int:
     os.environ["AI_RUNTIME_MODE"] = "production"
     os.environ["DATABASE_SCHEMA_CHECK_ON_STARTUP"] = "false"
     os.environ["SESSION_COOKIE_SECURE"] = "false"
+    os.environ["ADMIN_USERNAME"] = "admin"
+    os.environ["ADMIN_PASSWORD"] = "accept-skill-password-1"
 
     from alembic import command
     from alembic.config import Config
@@ -168,21 +170,11 @@ def main() -> int:
     batch_path.write_text(json.dumps(batch, ensure_ascii=False), encoding="utf-8")
     print(f"ACCEPT_SKILL_STAGE=samples cases={len(batch['cases'])}")
 
-    from app.features.auth import service as auth_service
-    from app.features.auth.schemas import RegisterRequest
     from app.features.scenes import service as scene_service
     from app.features.scenes.schemas import SceneCreateRequest
 
-    class _NoopResponse:
-        def set_cookie(self, *a, **k):
-            pass
-
-        def delete_cookie(self, *a, **k):
-            pass
-
-    auth_service.register(
-        RegisterRequest(username="admin", password="accept-skill-password-1"), _NoopResponse()
-    )
+    # The admin account is seeded by the API lifespan from ADMIN_USERNAME /
+    # ADMIN_PASSWORD when _start_server() boots the app below.
     scene = scene_service.create_scene(SceneCreateRequest(name="技能推送验收场景"))
     issued = scene_service.create_or_replace_credential(scene.id, label="skill-push")
     token = issued.token

@@ -59,6 +59,6 @@ describe("buildAuthUrl", () => {
 
   it("omits returnTo when unsafe", () => {
     expect(buildAuthUrl("/login", "https://evil.com")).toBe("/login");
-    expect(buildAuthUrl("/register", null)).toBe("/register");
+    expect(buildAuthUrl("/login", null)).toBe("/login");
   });
 });

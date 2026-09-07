@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.features.auth.router import router as auth_router
+from app.features.auth.service import ensure_admin_from_env
 from app.features.question_library.external_router import router as external_intake_router
 from app.features.question_library.router import router as question_library_router
 from app.features.scenes.router import router as scenes_router
@@ -19,6 +20,10 @@ async def lifespan(_app: FastAPI):
     if settings.database_schema_check_on_startup:
         if not check_schema_ready():
             raise RuntimeError("business schema is not ready; run: make db-migrate")
+    # ADMIN_USERNAME/ADMIN_PASSWORD are the sole authority for the single
+    # admin account: seed it on an empty database and overwrite credentials
+    # whenever the environment no longer matches what is stored.
+    ensure_admin_from_env()
     yield
 
 

@@ -51,8 +51,8 @@ export function resolvePostAuthPath(returnTo: string | null | undefined): string
   return "/evaluation-sets";
 }
 
-/** Build a login/register URL that carries a safe returnTo forward. */
-export function buildAuthUrl(base: "/login" | "/register", returnTo?: string | null): string {
+/** Build a login URL that carries a safe returnTo forward. */
+export function buildAuthUrl(base: "/login", returnTo?: string | null): string {
   if (isSafeReturnPath(returnTo)) {
     return `${base}?returnTo=${encodeURIComponent(sanitizeReturnPath(returnTo))}`;
   }

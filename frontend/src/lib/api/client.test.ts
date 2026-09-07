@@ -22,11 +22,11 @@ describe("request()", () => {
   });
 
   it("parses a JSON success response", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, { registration_available: true }));
-    const result = await request<{ registration_available: boolean }>("/api/auth/bootstrap");
-    expect(result).toEqual({ registration_available: true });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { user: { username: "admin" } }));
+    const result = await request<{ user: { username: string } }>("/api/auth/me");
+    expect(result).toEqual({ user: { username: "admin" } });
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/auth/bootstrap",
+      "/api/auth/me",
       expect.objectContaining({ method: "GET", cache: "no-store", credentials: "same-origin" }),
     );
   });
@@ -47,12 +47,16 @@ describe("request()", () => {
 
   it("throws an ApiError built from the backend error contract", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(409, { error: { code: "ADMIN_EXISTS", message: "已存在管理员。", details: null } }),
+      jsonResponse(409, {
+        error: { code: "ALREADY_AUTHENTICATED", message: "当前会话已经登录。", details: null },
+      }),
     );
-    await expect(request("/api/auth/register", { method: "POST", body: {} })).rejects.toMatchObject({
+    await expect(
+      request("/api/auth/login", { method: "POST", body: { identifier: "a", password: "b" } }),
+    ).rejects.toMatchObject({
       status: 409,
-      code: "ADMIN_EXISTS",
-      message: "已存在管理员。",
+      code: "ALREADY_AUTHENTICATED",
+      message: "当前会话已经登录。",
     });
   });
 

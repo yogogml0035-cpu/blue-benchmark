@@ -10,7 +10,7 @@ from tests import helpers
 
 
 def _setup(client: TestClient) -> tuple[str, str]:
-    helpers.register_admin(client)
+    helpers.login_admin(client)
     scene = helpers.create_scene(client)
     credential = helpers.create_credential(client, scene["id"])
     return scene["id"], credential["token"]
@@ -19,7 +19,7 @@ def _setup(client: TestClient) -> tuple[str, str]:
 def test_batch_upload_requires_credential() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         response = client.post(
             "/api/external/question-batches",
             json=helpers.make_batch("cmd-1", [helpers.make_case()]),
@@ -220,7 +220,7 @@ def test_materials_are_isolated_between_questions() -> None:
 def test_scene_credentials_are_isolated_between_scenes() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene_a = helpers.create_scene(client, name="场景甲")
         scene_b = helpers.create_scene(client, name="场景乙")
         credential_b = helpers.create_credential(client, scene_b["id"])

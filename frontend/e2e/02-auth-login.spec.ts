@@ -1,51 +1,34 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ADMIN } from "./admin";
 
 /**
- * Login / session flows. These assume an admin exists; the first test ensures
- * one is present so the suite is self-contained on any project (chromium runs
- * the registration spec first, webkit relies on this guarantee).
+ * Login / session flows. The single admin is seeded by the isolated backend
+ * from ADMIN_USERNAME / ADMIN_PASSWORD (see global-setup.ts), so every spec
+ * only ever logs in — there is no registration surface.
  */
 
 test.describe.configure({ mode: "serial" });
 
-const ADMIN = {
-  username: "benchmark-admin",
-  email: "benchmark-admin@example.com",
-  password: "benchmark-admin-password-1",
-};
-
-async function ensureAdmin(page: Page): Promise<void> {
-  await page.goto("/");
-  // The entry router decides client-side; wait until it settles on either the
-  // registration or the login surface before deciding whether to create one.
-  await page.waitForURL(/\/(register|login)$/, { timeout: 15_000 });
-  if (/\/register$/.test(page.url())) {
-    await page.getByLabel("用户名").fill(ADMIN.username);
-    await page.getByLabel("邮箱（可选）").fill(ADMIN.email);
-    await page.getByLabel("密码", { exact: true }).fill(ADMIN.password);
-    await page.getByLabel("确认密码").fill(ADMIN.password);
-    await page.getByRole("button", { name: "创建管理员" }).click();
-    await expect(page).toHaveURL(/\/evaluation-sets$/);
-    await page.getByRole("button", { name: "退出登录" }).click();
-    await expect(page).toHaveURL(/\/login$/);
-  }
-}
-
 async function login(page: Page): Promise<void> {
-  await page.getByLabel("邮箱地址").fill(ADMIN.username);
+  await page.getByLabel("用户名").fill(ADMIN.username);
   await page.getByLabel("密码", { exact: true }).fill(ADMIN.password);
   await page.getByRole("button", { name: "登 录" }).click();
 }
 
-test("an admin exists so login is the entry surface", async ({ page }) => {
-  await ensureAdmin(page);
-  await page.goto("/login");
+test("the entry surface is login (no registration exists)", async ({ page }) => {
+  await page.goto("/");
+  // The entry router resolves the (absent) session and lands on login.
+  await page.waitForURL(/\/login$/, { timeout: 15_000 });
   await expect(page.getByRole("heading", { name: "欢迎回来" })).toBeVisible();
+  // Negative regression: the old first-run entries are gone.
+  await page.goto("/register");
+  await expect(page).toHaveURL(/\/register$/);
+  await expect(page.getByRole("button", { name: "创建管理员" })).toHaveCount(0);
 });
 
 test("rejects invalid credentials with an inline error", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("邮箱地址").fill(ADMIN.username);
+  await page.getByLabel("用户名").fill(ADMIN.username);
   await page.getByLabel("密码", { exact: true }).fill("wrong-password");
   await page.getByRole("button", { name: "登 录" }).click();
 
@@ -62,14 +45,6 @@ test("logs in with username and password, then logs out", async ({ page }) => {
 
   await page.getByRole("button", { name: "退出登录" }).click();
   await expect(page).toHaveURL(/\/login$/);
-});
-
-test("logs in with the admin email as the identifier", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByLabel("邮箱地址").fill(ADMIN.email);
-  await page.getByLabel("密码", { exact: true }).fill(ADMIN.password);
-  await page.getByRole("button", { name: "登 录" }).click();
-  await expect(page).toHaveURL(/\/evaluation-sets$/);
 });
 
 test("session persists across a full reload", async ({ page }) => {

@@ -8,7 +8,7 @@ from tests import helpers
 
 
 def _setup_with_generated_question(client: TestClient) -> tuple[str, str]:
-    helpers.register_admin(client)
+    helpers.login_admin(client)
     scene = helpers.create_scene(client)
     credential = helpers.create_credential(client, scene["id"])
     response = helpers.upload_batch(
@@ -54,7 +54,7 @@ def test_library_requires_scene_and_filters_within_scene() -> None:
 def test_two_scenes_never_leak_questions_across_scenes() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene_a = helpers.create_scene(client, name="场景甲")
         scene_b = helpers.create_scene(client, name="场景乙")
         credential_a = helpers.create_credential(client, scene_a["id"])
@@ -266,7 +266,7 @@ def test_invalid_criteria_are_rejected() -> None:
 def test_publish_gates_block_generating_and_failed_questions() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
 
@@ -319,7 +319,7 @@ def test_credential_cannot_read_or_modify_questions() -> None:
     token: str
     scene_id: str
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         token = credential["token"]

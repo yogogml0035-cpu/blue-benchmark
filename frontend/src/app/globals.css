@@ -90,7 +90,6 @@
   --benchmark-auth-ink: #f7fbff;
   --benchmark-auth-muted: #91a7bd;
   --benchmark-auth-label: #d8e7f2;
-  --benchmark-auth-note: #839aaf;
   --benchmark-auth-placeholder: #627a92;
   --benchmark-auth-icon: #8098ae;
   --benchmark-auth-toggle: #849aaf;
@@ -102,7 +101,6 @@
   --benchmark-auth-input-bg-focus: rgba(6, 28, 51, 0.58);
   --benchmark-auth-accent: #31bfff;
   --benchmark-auth-accent-deep: #246ce4;
-  --benchmark-auth-link: #2dafff;
   --benchmark-auth-focus-ring: 0 0 0 4px rgba(49, 191, 255, 0.09);
   --benchmark-auth-panel-shadow: 0 34px 90px rgba(0, 4, 13, 0.24), inset 0 1px rgba(255, 255, 255, 0.04);
   --benchmark-auth-button-shadow: 0 13px 34px rgba(26, 132, 237, 0.25);

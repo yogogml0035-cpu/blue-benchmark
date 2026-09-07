@@ -10,15 +10,22 @@ from tests import helpers
 def test_single_admin_guard_blocks_second_registration() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client, username="first-admin")
-    # A separate unauthenticated client must be blocked by the single-admin rule.
+        helpers.login_admin(client)
+    # The register entry is gone; a second admin cannot be created over HTTP.
     with TestClient(app) as client:
         response = client.post(
             "/api/auth/register",
             json={"username": "second-admin", "password": "another-password-1"},
         )
-        assert response.status_code == 409
-        assert response.json()["error"]["code"] == "ADMIN_EXISTS"
+        assert response.status_code == 404
+    # Startup seeding stays idempotent: still exactly one admin, and a login
+    # with the old self-chosen credentials fails.
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/auth/login",
+            json={"identifier": "second-admin", "password": "another-password-1"},
+        )
+        assert login.status_code == 401
 
 
 def test_scene_requires_admin_session() -> None:
@@ -33,7 +40,7 @@ def test_scene_requires_admin_session() -> None:
 def test_scene_lifecycle_and_credential_one_to_one_rules() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client, name="媒体场景")
 
         # Duplicate names conflict.
@@ -105,7 +112,7 @@ def test_scene_lifecycle_and_credential_one_to_one_rules() -> None:
 def test_scene_listing_counts_questions() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client, name="有题场景")
         credential = helpers.create_credential(client, scene["id"])
         payload = helpers.make_batch("cmd-count", [helpers.make_case("case-count")])
@@ -121,7 +128,7 @@ def test_scene_listing_counts_questions() -> None:
 def test_blank_scene_name_is_rejected() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         for blank in ["", "   ", "\t\n"]:
             response = client.post("/api/scenes", json={"name": blank})
             assert response.status_code == 422, response.text
@@ -130,7 +137,7 @@ def test_blank_scene_name_is_rejected() -> None:
 def test_credential_label_length_is_enforced() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         response = client.post(
             f"/api/scenes/{scene['id']}/credentials",
@@ -142,7 +149,7 @@ def test_credential_label_length_is_enforced() -> None:
 def test_external_connection_status_reports_scene_without_token() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client, name="连接场景")
         credential = helpers.create_credential(client, scene["id"], label="ci")
         headers = {"Authorization": f"Bearer {credential['token']}"}
@@ -168,7 +175,7 @@ def test_external_connection_status_reports_scene_without_token() -> None:
 def test_scene_update_renames_and_rejects_duplicates() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client, name="原名称")
         other = helpers.create_scene(client, name="其他场景")
 
@@ -209,7 +216,7 @@ def test_scene_update_renames_and_rejects_duplicates() -> None:
 def test_empty_scene_delete_cascades_credentials() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client, name="待删除场景")
         helpers.create_credential(client, scene["id"], label="将随场景失效")
 
@@ -225,7 +232,7 @@ def test_empty_scene_delete_cascades_credentials() -> None:
 def test_nonempty_scene_delete_is_rejected_at_api_layer() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client, name="有题场景")
         credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
@@ -246,7 +253,7 @@ def test_nonempty_scene_delete_is_rejected_at_api_layer() -> None:
 def test_credential_create_and_reveal_responses_are_not_cacheable() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client, name="缓存控制场景")
 
         created = client.post(f"/api/scenes/{scene['id']}/credentials", json={"label": "a"})

@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     operation_lease_seconds: int = 60
     operation_max_attempts: int = 3
     database_schema_check_on_startup: bool = True
+    # Single admin account, written to the users table on API startup with the
+    # environment as the sole authority. Kept optional here so account-agnostic
+    # scripts (admin_cli scenes, openapi export) still import; startup seeding
+    # in app.features.auth.service fails fast when either value is blank.
+    admin_username: str = ""
+    admin_password: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("ADMIN_PASSWORD"),
+    )
 
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
@@ -64,12 +73,19 @@ class Settings(BaseSettings):
     def normalize_model_name(cls, value: object) -> str:
         return str(value or "").strip()
 
-    @field_validator("ai_api_key", "checkpoint_database_url", "langgraph_aes_key", mode="before")
+    @field_validator(
+        "ai_api_key", "checkpoint_database_url", "langgraph_aes_key", "admin_password", mode="before"
+    )
     @classmethod
     def normalize_api_key(cls, value: object) -> SecretStr:
         if isinstance(value, SecretStr):
             return SecretStr(value.get_secret_value().strip())
         return SecretStr(str(value or "").strip())
+
+    @field_validator("admin_username", mode="before")
+    @classmethod
+    def normalize_admin_username(cls, value: object) -> str:
+        return str(value or "").strip()
 
     @field_validator("ai_base_url", mode="before")
     @classmethod

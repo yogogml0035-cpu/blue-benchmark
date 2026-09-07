@@ -13,6 +13,7 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, openSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { ADMIN } from "./admin";
 
 const BACKEND_PORT = 8123;
 /** Persistent location for the isolated backend log so failures are inspectable. */
@@ -94,6 +95,10 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     SESSION_COOKIE_SECURE: "false",
     DATABASE_SCHEMA_CHECK_ON_STARTUP: "false",
     STORAGE_ROOT: path.join(workDir, "storage"),
+    // Seed the single admin deterministically (must match e2e/admin.ts); the
+    // API lifespan writes it into the fresh isolated database on startup.
+    ADMIN_USERNAME: ADMIN.username,
+    ADMIN_PASSWORD: ADMIN.password,
   };
 
   try {

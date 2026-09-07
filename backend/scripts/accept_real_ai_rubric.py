@@ -148,6 +148,8 @@ def main() -> int:
     os.environ["AI_RUNTIME_MODE"] = "production"
     os.environ["DATABASE_SCHEMA_CHECK_ON_STARTUP"] = "false"
     os.environ["SESSION_COOKIE_SECURE"] = "false"
+    os.environ["ADMIN_USERNAME"] = "admin"
+    os.environ["ADMIN_PASSWORD"] = "accept-real-ai-password-1"
 
     # Migrate the isolated business database (explicit step, never on startup).
     from alembic import command
@@ -197,24 +199,12 @@ def main() -> int:
         saver.setup()
     print(f"ACCEPT_REAL_AI_STAGE=checkpoint_ready db={ckpt_db}")
 
-    # Admin, scene and credential through the service layer; uploads and
-    # review through the real HTTP API.
-    from app.features.auth import service as auth_service
-    from app.features.auth.schemas import RegisterRequest
+    # Scene and credential through the service layer; uploads and review
+    # through the real HTTP API. The admin account is seeded by the API
+    # lifespan from ADMIN_USERNAME / ADMIN_PASSWORD when the server boots.
     from app.features.scenes import service as scene_service
     from app.features.scenes.schemas import SceneCreateRequest
 
-    class _NoopResponse:
-        def set_cookie(self, *a, **k):
-            pass
-
-        def delete_cookie(self, *a, **k):
-            pass
-
-    auth_service.register(
-        RegisterRequest(username="admin", password="accept-real-ai-password-1"),
-        _NoopResponse(),
-    )
     scene = scene_service.create_scene(SceneCreateRequest(name="真实验收场景"))
     issued = scene_service.create_or_replace_credential(scene.id, label="accept")
     print(f"ACCEPT_REAL_AI_STAGE=scene scene_id={scene.id}")

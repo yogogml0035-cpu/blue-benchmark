@@ -1,6 +1,6 @@
-/* Shared skin for the authentication panels on the particle artwork.
-   Geometry differs per page: login pins a fixed hero panel over the artwork's
-   reserved area (prototype-exact), register flows centered. */
+/* Shared skin for the authentication panel on the particle artwork.
+   The login page pins a fixed hero panel over the artwork's reserved area
+   (prototype-exact). */
 
 .panel {
   border: 1px solid var(--benchmark-auth-panel-line);
@@ -33,20 +33,14 @@
 }
 
 /* At the prototype's fixed height the leftover space is distributed between
-   the form rows (reference: signup line sits near the panel bottom). `gap`
-   stays as the minimum spacing on short, auto-height viewports. */
+   the form rows. `gap` stays as the minimum spacing on short, auto-height
+   viewports. */
 .panelHero .form {
   flex: 1;
   justify-content: space-between;
 }
 
-.panelFlow {
-  width: min(100%, 465px);
-  margin: auto;
-}
-
-/* Prototype-exact translucent navy inputs for every field in the panel,
-   including the shared TextField used by the register form. */
+/* Prototype-exact translucent navy inputs for every field in the panel. */
 .panel input:not([type="checkbox"]) {
   width: 100%;
   height: 50px;
@@ -214,21 +208,6 @@
 
 .messageError {
   color: var(--benchmark-auth-danger);
-}
-
-.footnote {
-  min-height: 20px;
-}
-
-.signup {
-  margin: 4px 0 0;
-  color: var(--benchmark-auth-note);
-  text-align: center;
-  font-size: 13px;
-}
-
-.signup a {
-  color: var(--benchmark-auth-link);
 }
 
 @media (prefers-reduced-motion: reduce) {

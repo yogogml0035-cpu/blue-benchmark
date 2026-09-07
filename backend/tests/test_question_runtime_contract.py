@@ -24,7 +24,7 @@ from tests import helpers
 
 
 def _upload_and_settle(client: TestClient, case_id: str = "case-rt") -> str:
-    helpers.register_admin(client)
+    helpers.login_admin(client)
     scene = helpers.create_scene(client)
     credential = helpers.create_credential(client, scene["id"])
     response = helpers.upload_batch(
@@ -382,7 +382,7 @@ def test_sse_stream_delivers_persisted_events_and_terminates() -> None:
 def test_failed_generation_records_run_failed_event() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         case = helpers.make_case("case-fail-ev")
@@ -522,7 +522,7 @@ def test_midrun_material_edit_ends_old_operation_with_run_failed() -> None:
 
 def _upload_and_settle_first_attempt(client: TestClient, case_id: str) -> str:
     """Upload and drive exactly ONE worker round (the sabotaged attempt)."""
-    helpers.register_admin(client)
+    helpers.login_admin(client)
     scene = helpers.create_scene(client)
     credential = helpers.create_credential(client, scene["id"])
     response = helpers.upload_batch(
@@ -570,7 +570,7 @@ def test_runtime_fingerprint_mismatch_refuses_resume() -> None:
     try:
         adapter_module.set_adapters(RuntimeAdapters(rubric_generator=DurableStub()))
         with TestClient(app) as client:
-            helpers.register_admin(client)
+            helpers.login_admin(client)
             scene = helpers.create_scene(client)
             credential = helpers.create_credential(client, scene["id"])
             response = helpers.upload_batch(

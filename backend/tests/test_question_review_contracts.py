@@ -8,7 +8,7 @@ from tests import helpers
 
 
 def _setup_pending_review(client: TestClient) -> str:
-    helpers.register_admin(client)
+    helpers.login_admin(client)
     scene = helpers.create_scene(client)
     credential = helpers.create_credential(client, scene["id"])
     response = helpers.upload_batch(
@@ -135,7 +135,7 @@ def test_review_reopen_requires_published_state_and_fresh_revision() -> None:
 def test_republish_after_reopen_keeps_single_record() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
@@ -240,7 +240,7 @@ def test_delete_gate_for_ever_published_questions() -> None:
 def test_delete_confirmation_title_is_normalized() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         case = helpers.make_case("case-nfc")
@@ -535,7 +535,7 @@ def test_retry_cas_requires_generation_failed_source() -> None:
 
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         from app.lib.ai_runtime.adapters import FakeRubricGenerator

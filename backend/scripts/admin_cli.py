@@ -1,8 +1,8 @@
 """Administrator CLI for the no-frontend phase.
 
-Covers scene metadata (create / list / status / update / delete), the
-scene-credential lifecycle (replace / revoke) and the local admin password
-reset, by calling the service layer directly against the business database.
+Covers scene metadata (create / list / status / update / delete) and the
+scene-credential lifecycle (replace / revoke), by calling the service layer
+directly against the business database.
 
 Each scene holds exactly one active credential. ``credentials replace``
 creates it when missing or replaces the current one (revoking it immediately).
@@ -10,33 +10,29 @@ Plaintext is persisted and can be revealed from the scene page; the CLI still
 prints it at replace time for handoff convenience. Status and list commands
 never return plaintext tokens.
 
+The single admin account is not managed here: ADMIN_USERNAME / ADMIN_PASSWORD
+in the environment are its sole authority and the API applies them on startup.
+
 Usage:
     uv run python -m scripts.admin_cli scenes create --name "媒体场景" [--description ...]
     uv run python -m scripts.admin_cli scenes list
     uv run python -m scripts.admin_cli scenes status --scene-id <id>
     uv run python -m scripts.admin_cli credentials replace --scene-id <id> [--label ...]
     uv run python -m scripts.admin_cli credentials revoke --scene-id <id> --credential-id <id>
-    uv run python -m scripts.admin_cli account reset-password
 
 Or through the Makefile:
     make admin ARGS="scenes list"
-
-The password-reset command reads the new password only through hidden
-interactive prompts (twice, for confirmation). It never accepts the password
-through argv or environment variables and never prints it.
 """
 
 from __future__ import annotations
 
 import argparse
-import getpass
 import json
 import sys
 
 from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
-from app.features.auth import service as auth_service
 from app.features.scenes import service as scene_service
 from app.features.scenes.schemas import SceneCreateRequest, SceneUpdateRequest
 from app.lib.errors import AppError
@@ -119,17 +115,6 @@ def _credentials_revoke(args: argparse.Namespace) -> None:
     _print_json(status.model_dump())
 
 
-def _account_reset_password(_args: argparse.Namespace) -> None:
-    # The new password is read twice via hidden interactive input only. It is
-    # never accepted through argv, environment variables, or echoed to output.
-    first = getpass.getpass("New password: ")
-    second = getpass.getpass("Confirm new password: ")
-    if first != second:
-        _fail("the two password inputs do not match; nothing was changed")
-    auth_service.reset_admin_password(first)
-    print("Password reset. All previous sessions were revoked.", file=sys.stderr)
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="admin_cli",
@@ -181,15 +166,6 @@ def build_parser() -> argparse.ArgumentParser:
     cred_revoke.add_argument("--scene-id", required=True)
     cred_revoke.add_argument("--credential-id", required=True)
     cred_revoke.set_defaults(func=_credentials_revoke)
-
-    account = sub.add_parser("account", help="Manage the single admin account.")
-    account_sub = account.add_subparsers(dest="action", required=True)
-
-    account_reset = account_sub.add_parser(
-        "reset-password",
-        help="Reset the admin password via hidden interactive input; revokes all sessions.",
-    )
-    account_reset.set_defaults(func=_account_reset_password)
 
     return parser
 

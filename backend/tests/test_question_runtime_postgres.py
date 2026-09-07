@@ -195,7 +195,7 @@ def pg_business_env():
 
 
 def _upload(client: TestClient, case_id: str) -> str:
-    helpers.register_admin(client)
+    helpers.login_admin(client)
     scene = helpers.create_scene(client)
     credential = helpers.create_credential(client, scene["id"])
     response = helpers.upload_batch(

@@ -10,7 +10,7 @@ from tests import helpers
 
 
 def _upload_one(client: TestClient, *, task_prompt: str | None = None) -> str:
-    helpers.register_admin(client)
+    helpers.login_admin(client)
     scene = helpers.create_scene(client)
     credential = helpers.create_credential(client, scene["id"])
     case = helpers.make_case("case-rubric")

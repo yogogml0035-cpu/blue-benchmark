@@ -51,7 +51,7 @@ def test_lease_lost_writer_cannot_commit_or_emit_completion() -> None:
     try:
         adapter_module.set_adapters(RuntimeAdapters(rubric_generator=StealingGenerator()))
         with TestClient(app) as client:
-            helpers.register_admin(client)
+            helpers.login_admin(client)
             scene = helpers.create_scene(client)
             credential = helpers.create_credential(client, scene["id"])
             response = helpers.upload_batch(
@@ -121,7 +121,7 @@ def test_generation_inputs_never_cross_questions() -> None:
     try:
         adapter_module.set_adapters(RuntimeAdapters(rubric_generator=RecordingGenerator()))
         with TestClient(app) as client:
-            helpers.register_admin(client)
+            helpers.login_admin(client)
             scene = helpers.create_scene(client)
             credential = helpers.create_credential(client, scene["id"])
             case_a = helpers.make_case("case-iso-a")
@@ -160,7 +160,7 @@ def test_generation_inputs_never_cross_questions() -> None:
 def test_late_sse_subscription_replays_full_log_and_terminates() -> None:
     clear_business_data()
     with TestClient(app) as client:
-        helpers.register_admin(client)
+        helpers.login_admin(client)
         scene = helpers.create_scene(client)
         credential = helpers.create_credential(client, scene["id"])
         response = helpers.upload_batch(
@@ -234,7 +234,7 @@ def test_partial_cleanup_crash_resumes_and_finishes_all_threads(pg_business_env,
     question_id = None
     try:
         with TestClient(app) as client:
-            helpers.register_admin(client)
+            helpers.login_admin(client)
             scene = helpers.create_scene(client)
             credential = helpers.create_credential(client, scene["id"])
             response = helpers.upload_batch(

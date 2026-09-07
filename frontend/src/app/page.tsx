@@ -3,16 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getBootstrap, getCurrentUser } from "@/lib/api/auth";
+import { getCurrentUser } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
 import styles from "./page.module.css";
 
 /**
  * Entry router.
  *
- * Resolves the session and the anonymous bootstrap flag in parallel, then
- * sends the visitor to the right surface: the app with a valid session, the
- * first-run registration when no admin exists, or the login page otherwise.
+ * Resolves the session, then sends the visitor to the app with a valid
+ * session or to the login page otherwise. The single admin account comes
+ * from the backend environment; there is no registration surface.
  */
 export default function RootPage(): React.JSX.Element {
   const router = useRouter();
@@ -24,26 +24,16 @@ export default function RootPage(): React.JSX.Element {
 
     async function decide(): Promise<void> {
       try {
-        const [meResult, bootstrapResult] = await Promise.allSettled([
-          getCurrentUser(controller.signal),
-          getBootstrap(controller.signal),
-        ]);
-
+        await getCurrentUser(controller.signal);
+        if (!cancelled) router.replace("/evaluation-sets");
+      } catch (err) {
         if (cancelled) return;
-
-        // A valid session always wins, regardless of bootstrap state.
-        if (meResult.status === "fulfilled") {
-          router.replace("/evaluation-sets");
-          return;
+        // A 401 from the session probe simply means "not logged in".
+        if (err instanceof ApiError && err.status === 401) {
+          router.replace("/login");
+        } else {
+          setFailed(true);
         }
-
-        const registrationOpen =
-          bootstrapResult.status === "fulfilled" &&
-          bootstrapResult.value.registration_available;
-
-        router.replace(registrationOpen ? "/register" : "/login");
-      } catch {
-        if (!cancelled) setFailed(true);
       }
     }
 

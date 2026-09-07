@@ -1,12 +1,11 @@
 "use client";
 
-import { Eye, EyeOff, Lock, Mail } from "lucide-react";
-import Link from "next/link";
+import { Eye, EyeOff, Lock, User } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-context";
-import { getBootstrap, login } from "@/lib/api/auth";
+import { login } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
 import { resolvePostAuthPath } from "@/lib/redirect";
 import styles from "@/features/auth/auth-form.module.css";
@@ -22,16 +21,6 @@ function LoginForm(): React.JSX.Element {
   const [revealed, setRevealed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [registrationOpen, setRegistrationOpen] = useState<boolean | null>(null);
-
-  // Show the first-run link only when registration is genuinely available.
-  useEffect(() => {
-    const controller = new AbortController();
-    getBootstrap(controller.signal)
-      .then((result) => setRegistrationOpen(result.registration_available))
-      .catch(() => setRegistrationOpen(false));
-    return () => controller.abort();
-  }, []);
 
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -46,11 +35,6 @@ function LoginForm(): React.JSX.Element {
       router.replace(resolvePostAuthPath(returnTo));
     } catch (err) {
       if (err instanceof ApiError) {
-        // 409 ADMIN_EXISTS here means the registration entry raced; bounce to it.
-        if (err.code === "ADMIN_EXISTS") {
-          router.replace("/register");
-          return;
-        }
         setError(err.message);
       } else {
         setError("登录失败，请稍后重试。");
@@ -69,16 +53,16 @@ function LoginForm(): React.JSX.Element {
       <form className={styles.form} onSubmit={handleSubmit} noValidate>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="login-identifier">
-            邮箱地址
+            用户名
           </label>
           <div className={styles.inputWrap}>
-            <Mail className={styles.leadingIcon} size={20} strokeWidth={1.7} aria-hidden="true" />
+            <User className={styles.leadingIcon} size={20} strokeWidth={1.7} aria-hidden="true" />
             <input
               id="login-identifier"
               name="identifier"
-              type="email"
+              type="text"
               autoComplete="username"
-              placeholder="输入您的邮箱地址"
+              placeholder="输入您的用户名"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               required
@@ -131,14 +115,6 @@ function LoginForm(): React.JSX.Element {
         >
           {error ?? ""}
         </p>
-
-        <div className={styles.footnote}>
-          {registrationOpen === true ? (
-            <p className={styles.signup}>
-              还没有账号？ <Link href="/register">创建账号</Link>
-            </p>
-          ) : null}
-        </div>
       </form>
     </section>
   );

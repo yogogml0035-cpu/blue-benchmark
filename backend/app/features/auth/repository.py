@@ -81,13 +81,6 @@ def add_first_user(user: UserRecord) -> bool:
             return False
 
 
-def count_users() -> int:
-    from sqlalchemy import func
-
-    with session_scope() as session:
-        return session.scalar(select(func.count(UserRow.id))) or 0
-
-
 def get_user(user_id: str) -> UserRecord | None:
     with session_scope() as session:
         row = session.get(UserRow, user_id)
@@ -156,22 +149,26 @@ def get_sole_admin() -> UserRecord | None:
         return _to_record(rows[0]) if rows else None
 
 
-def reset_admin_password(user_id: str, password_hash: str) -> None:
-    """Overwrite the admin password and revoke every session atomically.
+def update_admin_credentials(
+    user_id: str, username: str, password_hash: str, *, bump_generation: bool
+) -> None:
+    """Overwrite the admin's username/password from the env authority.
 
-    Bumping ``password_generation`` in the same transaction is the durable
-    half of the revocation: any session created under the old generation
-    (including one racing this reset) stops resolving, while the DELETE
-    sweeps the rows that already exist.
+    A password change bumps ``password_generation`` and sweeps every session
+    in the same transaction: any session created under the old generation
+    (including one racing this update) stops resolving. A username-only change
+    keeps the generation, so live sessions survive.
     """
 
     with session_scope() as session:
         row = session.get(UserRow, user_id)
         if row is None:
             raise LookupError("admin user missing")
+        row.username = username
         row.password_hash = password_hash
-        row.password_generation = int(row.password_generation) + 1
-        session.execute(delete(SessionRow).where(SessionRow.user_id == user_id))
+        if bump_generation:
+            row.password_generation = int(row.password_generation) + 1
+            session.execute(delete(SessionRow).where(SessionRow.user_id == user_id))
 
 
 def reset() -> None:

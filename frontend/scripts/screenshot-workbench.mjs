@@ -31,7 +31,7 @@ async function waitFor(url, t, label) {
   throw new Error(`timeout ${label}`);
 }
 
-const childEnv = { ...process.env, DATABASE_URL: databaseUrl, AI_RUNTIME_MODE: "fake", SESSION_COOKIE_SECURE: "false", DATABASE_SCHEMA_CHECK_ON_STARTUP: "false", STORAGE_ROOT: path.join(workDir, "storage") };
+const childEnv = { ...process.env, DATABASE_URL: databaseUrl, AI_RUNTIME_MODE: "fake", SESSION_COOKIE_SECURE: "false", DATABASE_SCHEMA_CHECK_ON_STARTUP: "false", STORAGE_ROOT: path.join(workDir, "storage"), ADMIN_USERNAME: "shot-admin", ADMIN_PASSWORD: "shot-admin-password-1" };
 
 async function main() {
   freePort(API_PORT); freePort(WEB_PORT);
@@ -43,8 +43,8 @@ async function main() {
   track(spawn("pnpm", ["start", "--port", String(WEB_PORT)], { cwd: frontendRoot, detached: true, env: { ...process.env, BACKEND_URL: API_BASE, NEXT_PUBLIC_AGENT_API_BASE_URL: API_BASE }, stdio: "ignore" }));
   await waitFor(`${WEB_BASE}/login`, 60000, "web");
 
-  // Seed: admin + scene + credential + question (fake generation).
-  await fetch(`${API_BASE}/api/auth/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "shot-admin", password: "shot-admin-password-1" }) });
+  // Seed: scene + credential + question (fake generation). The admin comes
+  // from ADMIN_USERNAME / ADMIN_PASSWORD via the backend startup seeding.
   const login = await fetch(`${API_BASE}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier: "shot-admin", password: "shot-admin-password-1" }) });
   const cookie = login.headers.get("set-cookie").split(";")[0];
   const scene = await (await fetch(`${API_BASE}/api/scenes`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify({ name: "截图评测集" }) })).json();
