@@ -8,7 +8,10 @@
 .materialBlock {
   display: flex;
   flex-direction: column;
+  align-self: flex-start;
   gap: 8px;
+  width: fit-content;
+  max-width: 100%;
   min-width: 0;
   border-radius: var(--benchmark-radius-md);
 }
@@ -24,6 +27,7 @@
 }
 
 .blockEditing {
+  width: 100%;
   outline: 1px solid var(--benchmark-focus-blue);
   outline-offset: 8px;
 }
@@ -63,20 +67,46 @@
   color: var(--benchmark-warning);
 }
 
-/* Every module renders one fixed-height mask box per material item; the box
-   scrolls internally when its content overflows, so all modules share the
-   same visual rhythm no matter how many items they hold. */
-.maskBox {
+/* One scroll area per module: short content stays compact, long content
+   wraps at the material column width and scrolls after reaching 280px. */
+.contentBox {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  height: 280px;
+  gap: 12px;
+  max-height: 280px;
+  max-width: 100%;
   padding: 12px;
   border-radius: var(--benchmark-radius-md);
   border: 1px solid var(--benchmark-line);
   background: var(--benchmark-surface);
   overflow-y: auto;
+  overflow-wrap: anywhere;
   min-width: 0;
+}
+
+.contentBox > * {
+  flex-shrink: 0;
+}
+
+.contentBox::-webkit-scrollbar {
+  width: 8px;
+}
+
+.contentBox::-webkit-scrollbar-thumb {
+  border-radius: var(--benchmark-radius-md);
+  background: var(--benchmark-line-strong);
+}
+
+.materialItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.materialItem + .materialItem {
+  padding-top: 12px;
+  border-top: 1px solid var(--benchmark-line);
 }
 
 .blockLabel {

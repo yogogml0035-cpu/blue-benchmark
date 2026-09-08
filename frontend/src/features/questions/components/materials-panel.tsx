@@ -120,7 +120,7 @@ export function MaterialsPanel({
             aria-label="题目内容"
           />
         ) : (
-          <div className={styles.maskBox}>
+          <div className={styles.materialItem}>
             <p className={styles.text}>{detail.task_prompt}</p>
           </div>
         )}
@@ -162,12 +162,12 @@ export function MaterialsPanel({
             </label>
           ))
         ) : detail.reference_examples.length === 0 ? (
-          <div className={styles.maskBox}>
+          <div className={styles.materialItem}>
             <p className={styles.empty}>无参考文本</p>
           </div>
         ) : (
           detail.reference_examples.map((e, i) => (
-            <div key={e.client_ref_id || i} className={styles.maskBox}>
+            <div key={e.client_ref_id || i} className={styles.materialItem}>
               {e.source_name ? <p className={styles.subLabel}>{e.source_name}</p> : null}
               <p className={styles.text}>{e.content_text}</p>
             </div>
@@ -215,12 +215,12 @@ export function MaterialsPanel({
             </div>
           ))
         ) : detail.bad_cases.length === 0 ? (
-          <div className={styles.maskBox}>
+          <div className={styles.materialItem}>
             <p className={styles.empty}>无 Bad case</p>
           </div>
         ) : (
           detail.bad_cases.map((b, i) => (
-            <div key={i} className={styles.maskBox}>
+            <div key={i} className={styles.materialItem}>
               <p className={styles.text}>{b.content_text}</p>
               {b.teacher_feedback_texts.map((f, j) => (
                 <p key={j} className={styles.feedback}>
@@ -256,7 +256,7 @@ export function MaterialsPanel({
             aria-label="标准答案内容"
           />
         ) : (
-          <div className={styles.maskBox}>
+          <div className={styles.materialItem}>
             <p className={styles.text}>{detail.reference_answer}</p>
           </div>
         )}
@@ -315,12 +315,12 @@ export function MaterialsPanel({
             <p className={styles.memoryNote}>由 Agent 自动筛选，上传时未逐条确认。</p>
             {memoryOpen ? (
               detail.memory_materials.length === 0 ? (
-                <div className={styles.maskBox}>
+                <div className={styles.materialItem}>
                   <p className={styles.empty}>无业务记忆</p>
                 </div>
               ) : (
                 detail.memory_materials.map((m, i) => (
-                  <div key={m.client_ref_id || i} className={styles.maskBox}>
+                  <div key={m.client_ref_id || i} className={styles.materialItem}>
                     <p className={styles.text}>{m.content_text}</p>
                   </div>
                 ))
@@ -414,7 +414,11 @@ function ModuleFrame({
           </Button>
         ) : null}
       </div>
-      {children}
+      {editing ? children : (
+        <div className={styles.contentBox} role="region" aria-label={`${label}材料`} tabIndex={0}>
+          {children}
+        </div>
+      )}
       {editing ? (
         <div className={styles.moduleFooter}>
           {saving ? (

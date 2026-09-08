@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { ADMIN } from "./admin";
 
 /**
@@ -173,6 +173,109 @@ test("completed run keeps a full public process replay", async ({ page, request 
   // not a single final summary line.
   await expect(body.getByTestId("timeline-stage").first()).toBeVisible();
   await expect(body.getByTestId("timeline-completed")).toBeVisible();
+});
+
+test("material modules shrink, wrap and scroll together without horizontal overflow", async ({ page, request }, testInfo) => {
+  await ensureLoggedIn(page);
+  const { sceneId, questionId } = await seedQuestion(page, request, "材料布局评测集");
+  await page.goto(`/evaluation-sets/${sceneId}/questions/${questionId}`);
+
+  const metrics = (region: Locator) => region.evaluate((element) => ({
+    width: element.getBoundingClientRect().width,
+    height: element.getBoundingClientRect().height,
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    // Module -> materials panel, whose width remains the column's limit.
+    columnWidth: element.parentElement!.parentElement!.getBoundingClientRect().width,
+  }));
+  const prompt = page.getByRole("region", { name: "题目材料", exact: true });
+  const references = page.getByRole("region", { name: /^参考文本/ });
+  const answer = page.getByRole("region", { name: "标准答案材料", exact: true });
+
+  await expect(prompt).toBeVisible();
+  for (const region of [prompt, references, answer, page.getByRole("region", { name: /^Bad case/ })]) {
+    const size = await metrics(region);
+    expect(size.width).toBeLessThan(size.columnWidth);
+    expect(size.height).toBeLessThan(280);
+    expect(size.scrollHeight).toBe(size.clientHeight);
+  }
+  await page.screenshot({ path: testInfo.outputPath("materials-short.png"), fullPage: true });
+
+  const cookie = await cookieHeader(page);
+  const before = await (await request.get(`/api/questions/${questionId}`, {
+    headers: { Cookie: cookie },
+  })).json();
+  const patch = await request.patch(`/api/questions/${questionId}/materials`, {
+    headers: { Cookie: cookie },
+    data: {
+      content_revision: before.content_revision,
+      task_prompt: "请根据提供的材料写一段完整说明，并保留准确的事实与来源。".repeat(3),
+      reference_answer: "LongMaterial".repeat(200),
+      reference_examples: Array.from({ length: 12 }, (_, i) => ({
+        client_ref_id: `ref-${i + 1}`,
+        source_name: `材料 ${i + 1}`,
+        content_text: `第 ${i + 1} 条参考资料。`,
+      })),
+      bad_cases: [{
+        content_text: "需要修改的初稿。\n".repeat(20),
+        teacher_feedback_texts: ["请保留事实，并说明来源。", "feedback".repeat(100)],
+        reason_summary: "reason".repeat(100),
+      }],
+      memory_materials: [
+        { client_ref_id: "mem-1", content_text: "业务规则。\n".repeat(20) },
+        { client_ref_id: "mem-2", content_text: "最后一条业务记忆。" },
+      ],
+    },
+  });
+  expect(patch.status(), await patch.text()).toBe(200);
+  await page.reload();
+  await expect(references).toHaveAccessibleName("参考文本（12）材料");
+  await page.getByRole("button", { name: "展开/收起业务记忆列表" }).click();
+
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(viewport);
+    const wrapped = await metrics(prompt);
+    expect(wrapped.width).toBeCloseTo(wrapped.columnWidth, 0);
+    expect(wrapped.height).toBeLessThan(280);
+    expect(wrapped.scrollHeight).toBe(wrapped.clientHeight);
+
+    const longAnswer = await metrics(answer);
+    expect(longAnswer.width).toBeCloseTo(longAnswer.columnWidth, 0);
+    for (const region of [references, answer, page.getByRole("region", { name: /^Bad case/ }), page.getByRole("region", { name: /^业务记忆/ })]) {
+      const size = await metrics(region);
+      expect(size.height).toBeCloseTo(280, 0);
+      expect(size.scrollHeight).toBeGreaterThan(size.clientHeight);
+    }
+    // Many short entries stay narrow and share a single scroll area.
+    const grouped = await metrics(references);
+    expect(grouped.width).toBeLessThan(grouped.columnWidth);
+    await references.focus();
+    await page.keyboard.press("End");
+    await expect.poll(() => references.evaluate((element) =>
+      element.scrollHeight - element.clientHeight - element.scrollTop,
+    )).toBeLessThanOrEqual(1);
+    await expect(references.getByText("第 12 条参考资料。", { exact: true })).toBeInViewport();
+    await expect(page.getByTestId("module-edit-reference_examples")).toBeInViewport();
+
+    const overflow = await page.getByRole("region").evaluateAll((regions) => ({
+      horizontal: regions.some((element) => element.scrollWidth > element.clientWidth),
+      nested: regions.some((region) => Array.from(region.querySelectorAll("*")).some((element) =>
+        /auto|scroll/.test(getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight,
+      )),
+      page: document.documentElement.scrollWidth > window.innerWidth,
+    }));
+    expect(overflow).toEqual({ horizontal: false, nested: false, page: false });
+    await page.screenshot({ path: testInfo.outputPath(`materials-long-${viewport.width}.png`), fullPage: true });
+  }
+
+  // Grouping does not change blur ownership: moving between entries must not save.
+  await page.getByTestId("module-edit-reference_examples").click();
+  const first = page.getByRole("textbox", { name: "参考文本 1 内容", exact: true });
+  await first.fill("第一条已修改。");
+  await page.getByRole("textbox", { name: "参考文本 2 内容", exact: true }).focus();
+  await expect(first).toBeVisible();
+  await page.getByRole("heading", { name: "评分维度" }).click();
+  await expect(references.getByText("第一条已修改。", { exact: true })).toBeVisible();
 });
 
 test("material autosave persists in place; regeneration is separate and confirmed", async ({ page, request }) => {
