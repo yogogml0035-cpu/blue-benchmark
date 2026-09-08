@@ -180,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print("PROBE_STAGE=model")
     model, identity = build_runtime_model(streaming=True)
-    print(f"PROBE_STAGE=model provider={identity.provider} fingerprint={identity.fingerprint}")
+    print(f"PROBE_STAGE=model provider={identity.provider} fingerprint={identity.endpoint_fingerprint}")
 
     dsn = _test_dsn()
     cfg = _probe_cfg(dsn)
@@ -222,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
             "pycryptodome": md.version("pycryptodome"),
         },
         "model": {"provider": identity.provider, "model": identity.model,
-                  "fingerprint": identity.fingerprint, "base_url_set": bool(identity.base_url)},
+                  "fingerprint": identity.endpoint_fingerprint, "base_url_set": bool(identity.base_url)},
         "case": {k: v for k, v in case_meta.items() if k != "extraction_summary"},
         "budget": {"max_model_calls": budget.max_model_calls,
                    "max_tool_calls": budget.max_tool_calls,

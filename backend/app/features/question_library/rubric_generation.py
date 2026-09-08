@@ -12,7 +12,6 @@ business save; a graph completion is recorded as a stage, never as the final
 from __future__ import annotations
 
 import hashlib
-import importlib.metadata as importlib_metadata
 import json
 import uuid
 from datetime import datetime, timezone
@@ -87,21 +86,26 @@ def materials_fingerprint(materials: RubricGenerationInput) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def runtime_fingerprint() -> str:
-    """Non-secret runtime identity used to refuse incompatible resumptions."""
-    from app.lib.ai_runtime.model import runtime_model_identity
-    from app.lib.settings import settings
+def generator_runtime_fingerprint(generator: Any) -> str:
+    """The authoritative run fingerprint: the ACTUAL generator's contract.
 
-    try:
-        identity = runtime_model_identity(settings, require_credentials=False)
-        model_part = identity.fingerprint
-    except Exception:
-        model_part = settings.ai_runtime_mode
-    try:
-        sdk_part = importlib_metadata.version("deepagents")
-    except importlib_metadata.PackageNotFoundError:  # pragma: no cover
-        sdk_part = "deepagents-missing"
-    return hashlib.sha256(f"{model_part}|{sdk_part}".encode()).hexdigest()[:16]
+    The service never re-derives model or SDK identity itself and never
+    degrades to a runtime-mode placeholder: a generator that cannot resolve
+    its harness contract is a deterministic configuration failure (terminal,
+    NON-retryable), not a best-effort identity. Injected test generators
+    carry an explicit contract for exactly this reason.
+    """
+
+    from app.lib.ai_runtime.contract import ResolvedHarnessContract
+
+    contract = getattr(generator, "harness_contract", None)
+    if not isinstance(contract, ResolvedHarnessContract):
+        raise RubricGenerationFailure(
+            "AI_CONFIG_INVALID",
+            "当前生成器没有可解析的 AI 运行合同，无法登记运行线程；请检查运行配置。",
+            retryable=False,
+        )
+    return contract.fingerprint
 
 
 class _CompletionGatedSink:
@@ -213,13 +217,22 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
             _precheck_terminal("superseded")
             raise SupersededOperation("题目已进入删除冻结，停止生成。")
         materials = build_generation_input(row)
-        fingerprint = materials_fingerprint(materials)
+        materials_fp = materials_fingerprint(materials)
         revision = row.content_revision
         question_id = row.id
 
     thread_id = run_streams.generation_thread_id(question_id, revision)
     generator = get_adapters().rubric_generator
     if getattr(generator, "uses_durable_runtime", False):
+        # Resolve the authoritative contract fingerprint BEFORE any
+        # checkpoint interaction: contract resolution failure is terminal
+        # for this attempt, leaves a visible failure event and never a
+        # dangling ``generating`` state.
+        try:
+            runtime_fp = generator_runtime_fingerprint(generator)
+        except RubricGenerationFailure:
+            _record_precheck_terminal(job, "contract_invalid")
+            raise
         try:
             run_streams.register_thread(
                 run_streams.ThreadRegistration(
@@ -227,8 +240,8 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
                     question_id=question_id,
                     operation_id=job.id,
                     materials_revision=revision,
-                    materials_fingerprint=fingerprint,
-                    runtime_fingerprint=runtime_fingerprint(),
+                    materials_fingerprint=materials_fp,
+                    runtime_fingerprint=runtime_fp,
                 )
             )
         except ValueError as exc:
@@ -236,12 +249,14 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
             if code in ("THREAD_RUNTIME_MISMATCH", "THREAD_MATERIALS_MISMATCH"):
                 # The persisted thread no longer matches what a fresh run on
                 # the SAME revision would see. Runtime mismatch means the
-                # model/SDK contract moved; materials mismatch means the
-                # teacher edited materials through the free autosave path
+                # harness contract moved (protocol, effort, schema, policy,
+                # budgets or tracked SDK versions); materials mismatch means
+                # the teacher edited materials through the free autosave path
                 # (which intentionally never bumps content_revision). Either
                 # way the old checkpoint is incompatible garbage: purge it
                 # and start a fresh run on the CURRENT materials, so a
                 # teacher retry actually recovers instead of dead-ending.
+                # Old messages are NEVER converted across contracts.
                 _purge_incompatible_thread(thread_id)
                 run_streams.register_thread(
                     run_streams.ThreadRegistration(
@@ -249,8 +264,8 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
                         question_id=question_id,
                         operation_id=job.id,
                         materials_revision=revision,
-                        materials_fingerprint=fingerprint,
-                        runtime_fingerprint=runtime_fingerprint(),
+                        materials_fingerprint=materials_fp,
+                        runtime_fingerprint=runtime_fp,
                     )
                 )
             else:
@@ -264,7 +279,7 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
         attempt_number=job.attempts,
         question_id=question_id,
         materials_revision=revision,
-        materials_fingerprint=fingerprint,
+        materials_fingerprint=materials_fp,
     )
     store_sink = run_streams.PersistentEventSink(
         question_id=question_id,
@@ -276,11 +291,30 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
     try:
         try:
             result = generator.generate(materials, context=context, sink=sink)
-        except RubricGenerationFailure:
+        except RubricGenerationFailure as exc:
+            _record_failure_diagnostics(
+                "generate", exc, generator, job, question_id, thread_id
+            )
             sink.emit_terminal("run_failed")
             raise
-        except Exception:
+        except Exception as exc:
+            # Lazy model construction and contract-adjacent configuration
+            # errors surface here (before or between checkpoint writes):
+            # deterministic, administrator-correctable, NON-retryable — the
+            # job still ends terminal with a visible failure event.
+            from app.lib.ai_runtime.contract import ContractConfigurationError
+            from app.lib.ai_runtime.model import ModelConfigurationError
+
+            _record_failure_diagnostics(
+                "model_init", exc, generator, job, question_id, thread_id
+            )
             sink.emit_terminal("run_failed")
+            if isinstance(exc, (ModelConfigurationError, ContractConfigurationError)):
+                raise RubricGenerationFailure(
+                    "AI_CONFIG_INVALID",
+                    "AI 运行配置无效，本轮生成已终止；请修正配置后显式重试。",
+                    retryable=False,
+                ) from exc
             raise
         try:
             criteria = normalize_criteria(result, materials)
@@ -395,6 +429,40 @@ def commit_generation_result(
         job_row.updated_at = now
         _mark_attempt(session, job_row, "succeeded")
     return True
+
+
+def _record_failure_diagnostics(
+    stage: str,
+    exc: BaseException,
+    generator: Any,
+    job: Any,
+    question_id: str,
+    thread_id: str,
+) -> None:
+    """Best-effort whitelisted diagnostics for one generation failure.
+
+    Never raises and never changes the failure semantics; the contract is
+    read safely (an unresolvable contract is recorded as unavailable).
+    """
+
+    try:
+        from app.lib.ai_runtime.diagnostics import record_ai_failure
+
+        try:
+            contract = getattr(generator, "harness_contract", None)
+        except Exception:  # noqa: BLE001
+            contract = None
+        record_ai_failure(
+            stage=stage,
+            exception=exc,
+            contract=contract,
+            operation_id=job.id,
+            question_id=question_id,
+            attempt=getattr(job, "attempts", None),
+            thread_id=thread_id,
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _purge_incompatible_thread(thread_id: str) -> None:

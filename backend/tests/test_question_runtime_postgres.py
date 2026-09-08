@@ -81,6 +81,14 @@ class _PgStubGenerator:
     ``crash_after`` simulates a worker death mid-run (retryable failure after
     real checkpoint writes); the resume attempt records how it was invoked so
     the test can assert inputs=None semantics.
+
+    The crash is a CONTROLLED FAULT at the identical budget/contract: the
+    stream is consumed only until the first tool superstep is durably
+    checkpointed (proved by the next superstep starting to emit under
+    ``durability="sync"``), then abandoned. No budget switching is used to
+    manufacture the interruption — budgets and the stub harness contract are
+    byte-identical across the crash and resume attempts, so the resume is a
+    genuine same-contract continuation.
     """
 
     uses_durable_runtime = True
@@ -91,6 +99,11 @@ class _PgStubGenerator:
         self._crash = crash_after
         self._crash_after_complete = crash_after_complete
         self.observations: list[dict[str, Any]] = []
+
+    @property
+    def harness_contract(self) -> Any:
+        # Explicit stub identity, identical in crash and resume attempts.
+        return helpers.stub_harness_contract()
 
     def _cfg(self) -> Any:
         from pydantic import SecretStr
@@ -119,16 +132,21 @@ class _PgStubGenerator:
                 ]
             else:
                 script = [AIMessage(content="候选集已完成。")]
+            # Crash mode installs a controlled-fault sink: it forwards every
+            # event to the real sink (the public log stays authentic) and
+            # raises exactly at the second model call after a tool round —
+            # a point that, under durability="sync", can only be reached
+            # after the tool superstep's checkpoint write completed.
+            effective_sink: Any = _CrashAfterToolRoundSink(sink) if self._crash else sink
             agent = dr.build_restricted_agent(
                 ScriptedModel(messages=iter(script)),
                 IDENTITY,
                 system_prompt="业务集成测试",
-                # The crash mode caps model calls at 1 so the run dies right
-                # after the first tool round — a genuinely incomplete thread
-                # with real persisted checkpoints.
-                budget=dr.RuntimeBudget(max_model_calls=1 if self._crash else 24),
+                # ONE constant budget for every attempt of this stub: the
+                # interruption is a controlled fault, never a budget change.
+                budget=dr.RuntimeBudget(),
                 counters=dr.BudgetCounters(),
-                sink=sink,
+                sink=effective_sink,
                 checkpointer=session.saver,
             )
             state_kind = dr.classify_thread_state(agent, session.thread_config())
@@ -148,14 +166,7 @@ class _PgStubGenerator:
                 return _fixed_result(materials)
             if self._crash:
                 if state_kind == "new":
-                    try:
-                        for _mode, _payload in agent.stream(
-                            inputs, config=session.thread_config(),
-                            stream_mode=list(dr.STREAM_MODES), durability="sync",
-                        ):
-                            pass
-                    except dr.BudgetExceededError:
-                        pass  # died mid-run exactly like a crashed worker
+                    self._stream_until_durable_tool_round(agent, session, inputs)
                 raise RubricGenerationFailure("SIMULATED_CRASH", "模拟 Worker 崩溃。", retryable=True)
             dr.run_streaming(agent, session, inputs=inputs, sink=sink)
             if self._crash_after_complete and state_kind != "complete":
@@ -168,6 +179,47 @@ class _PgStubGenerator:
             return _fixed_result(materials)
         finally:
             session.close()
+
+    def _stream_until_durable_tool_round(self, agent, session, inputs) -> None:
+        """Consume the stream until the crash sink fires inside the model
+        node — exactly where a killed worker would leave the thread."""
+
+        stream = agent.stream(
+            inputs, config=session.thread_config(),
+            stream_mode=list(dr.STREAM_MODES), durability="sync",
+        )
+        crashed = False
+        try:
+            for _mode, _payload in stream:
+                pass
+        except _SimulatedWorkerCrash:
+            crashed = True
+        finally:
+            stream.close()
+        assert crashed, "受控故障注入没有在工具轮后的模型调用点触发"
+
+
+class _SimulatedWorkerCrash(BaseException):
+    """Controlled fault marker: a worker killed at a precise point."""
+
+
+class _CrashAfterToolRoundSink:
+    """Forwards all events; raises at the first model call after a tool round."""
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+        self._tool_done = False
+
+    def emit(self, event: Any) -> None:
+        self._inner.emit(event)
+        if getattr(event, "kind", None) == "tool_finished":
+            self._tool_done = True
+        if (
+            self._tool_done
+            and getattr(event, "kind", None) == "stage"
+            and getattr(event, "stage", None) == "model_call_started"
+        ):
+            raise _SimulatedWorkerCrash()
 
 
 @pytest.fixture()
@@ -423,6 +475,7 @@ def test_real_adapter_recommits_completed_thread_without_streaming(pg_business_e
     adapter = DeepAgentRubricGenerator(
         model=ScriptedModel(messages=iter([])),
         identity=IDENTITY,
+        contract=helpers.stub_harness_contract(),
         session_factory=_session_factory,
     )
     sink = ListSink()
@@ -616,36 +669,60 @@ def test_real_adapter_resume_never_duplicates_initial_input(pg_business_env, mon
     def _session_factory(ctx):
         return dr.open_session(ctx.thread_id, _Cfg())
 
-    # Phase 1: real adapter, budget capped at one model call — the scripted
-    # model issues a tool call, the tool round persists, then the budget
-    # kills the second model call: a genuinely incomplete thread.
+    # Phase 1: real adapter under the DEFAULT budget — a controlled fault,
+    # not a budget switch. The scripted model issues a tool call; once the
+    # tool round is durably checkpointed (proved by the NEXT model call
+    # starting under durability="sync") the sink raises like a killed
+    # process would leave the run: a genuinely incomplete thread whose
+    # contract is byte-identical to the resume attempt's.
     tool_call = AIMessage(
         content="",
         tool_calls=[{"name": "write_file",
                      "args": {"file_path": "/workspace/note.md", "content": "中途笔记"},
                      "id": "w1", "type": "tool_call"}],
     )
+
+    class _CrashAfterToolRound(ListSink):
+        def __init__(self) -> None:
+            super().__init__()
+            self._tool_done = False
+
+        def emit(self, event):
+            super().emit(event)
+            if event.kind == "tool_finished":
+                self._tool_done = True
+            if self._tool_done and event.kind == "stage" and event.stage == "model_call_started":
+                raise RuntimeError("SIMULATED_WORKER_CRASH")
+
     gen1 = DeepAgentRubricGenerator(
         model=ScriptedModel(messages=iter([tool_call, AIMessage(content="不会到达")])),
         identity=IDENTITY,
+        contract=helpers.stub_harness_contract(),
         session_factory=_session_factory,
-        budget=dr.RuntimeBudget(max_model_calls=1),
+        budget=dr.RuntimeBudget(),
     )
     from app.lib.ai_runtime.adapters import RubricGenerationFailure
 
     with pytest.raises(RubricGenerationFailure) as exc_info:
-        gen1.generate(materials, context=context, sink=ListSink())
-    assert exc_info.value.code == "RUNTIME_BUDGET_EXCEEDED"
+        gen1.generate(materials, context=context, sink=_CrashAfterToolRound())
+    # An unclassified program error is honestly surfaced (AI_CALL_FAILED) and
+    # is NOT silently retryable-by-default anymore; the resume below proves
+    # the checkpoint itself is intact and continuable.
+    assert exc_info.value.code == "AI_CALL_FAILED"
+    assert exc_info.value.retryable is False
 
-    # Phase 2: real adapter resumes. The stored structured read is stubbed
-    # (ScriptedModel cannot produce response_format output), but the RESUME
-    # decision, input handling and message history are the real adapter's.
+    # Phase 2: real adapter resumes under the SAME default budget/contract.
+    # The stored structured read is stubbed (ScriptedModel cannot produce
+    # response_format output), but the RESUME decision, input handling and
+    # message history are the real adapter's.
     monkeypatch.setattr(dr, "final_structured_response",
                         lambda agent, session: _fixed_result(materials))
     gen2 = DeepAgentRubricGenerator(
         model=ScriptedModel(messages=iter([AIMessage(content="恢复后完成。")])),
         identity=IDENTITY,
+        contract=helpers.stub_harness_contract(),
         session_factory=_session_factory,
+        budget=dr.RuntimeBudget(),
     )
     sink2 = ListSink()
     result = gen2.generate(materials, context=context, sink=sink2)

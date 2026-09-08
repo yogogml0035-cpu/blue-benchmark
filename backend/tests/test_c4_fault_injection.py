@@ -111,6 +111,10 @@ def test_generation_inputs_never_cross_questions() -> None:
         # opens a checkpoint session, so no PG is required here.
         uses_durable_runtime = True
 
+        @property
+        def harness_contract(self):
+            return helpers.stub_harness_contract()
+
         def generate(self, materials, *, context: RunContext, sink):
             blob = json.dumps(materials.model_dump(), ensure_ascii=False)
             seen[context.question_id] = blob

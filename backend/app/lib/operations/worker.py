@@ -123,9 +123,12 @@ class OperationWorker:
                 except ValueError:
                     pass
             except Exception as exc:
-                import os as _os, traceback as _tb
-                if _os.environ.get("WORKER_DEBUG_TRACEBACK"):
-                    _tb.print_exc()
+                # Raw tracebacks are deliberately NOT printed: troubleshooting
+                # goes through the whitelisted diagnostics record (service
+                # boundary -> runtime/ai-diagnostics.jsonl + service log),
+                # which never carries credentials, materials or provider
+                # bodies. Unknown exceptions stay non-retryable here — the
+                # adapter/service translation owns the retryable contract.
                 from app.features.question_library import rubric_generation
                 from app.lib.ai_runtime.adapters import RubricGenerationFailure
                 from app.lib.ai_runtime.deep_runtime import DeepRuntimeError

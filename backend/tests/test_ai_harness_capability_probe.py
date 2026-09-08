@@ -70,7 +70,7 @@ def test_dry_run_never_constructs_a_model(tmp_path, monkeypatch):
     def _refuse(*args, **kwargs):
         raise AssertionError("dry-run 不得构造模型")
 
-    monkeypatch.setattr(probe, "build_candidate_model", _refuse)
+    monkeypatch.setattr(probe, "build_probe_runtime", _refuse)
     assert probe.main([
         "--corpus-root", str(tmp_path / "missing"),
         "--out", str(tmp_path / "out"),
@@ -213,24 +213,32 @@ def _settings(**overrides):
     })
 
 
-def test_candidate_model_is_responses_native_with_effort():
-    model, identity, summary = probe.build_candidate_model(_settings())
+def test_probe_runtime_is_production_assembly_with_target_gate():
+    from app.lib.ai_runtime.deep_runtime import RuntimeBudget
+
+    model, identity, contract, summary = probe.build_probe_runtime(
+        RuntimeBudget(), _settings()
+    )
     try:
+        # The model comes from the PRODUCTION factory: native Responses,
+        # effort preserved, client-held encrypted history.
         assert model.use_responses_api is True
         assert model.reasoning == {"effort": "medium"}
         assert model.store is False
         assert model.include == ["reasoning.encrypted_content"]
         assert model.use_previous_response_id is False
-        assert summary["protocol"] == "responses"
-        assert summary["endpoint_fingerprint"] == identity.fingerprint
-        assert "provider.example" not in json.dumps(summary)
-        # No Chat-only _generate override copied into the probe model.
+        # No Chat-only _generate override anywhere in the production path.
         assert "_generate" not in type(model).__dict__
+        assert contract.protocol == "responses"
+        assert contract.reasoning_effort == "medium"
+        assert summary["protocol"] == "responses"
+        assert summary["endpoint_fingerprint"] == identity.endpoint_fingerprint
+        assert summary["contract_fingerprint"] == contract.fingerprint
+        assert "provider.example" not in json.dumps(summary)
+
         from langchain_core.messages import HumanMessage
 
-        payload = model._get_request_payload(
-            [HumanMessage(content="hi")], stop=None,
-        )
+        payload = model._get_request_payload([HumanMessage(content="hi")], stop=None)
         assert payload["reasoning"] == {"effort": "medium"}
         assert payload["store"] is False
         assert payload["include"] == ["reasoning.encrypted_content"]
@@ -238,24 +246,40 @@ def test_candidate_model_is_responses_native_with_effort():
         model.http_client.close()
 
 
-def test_candidate_model_refuses_non_openai_provider():
+def test_probe_runtime_refuses_non_openai_provider():
+    from app.lib.ai_runtime.deep_runtime import RuntimeBudget
+
     with pytest.raises(probe.ProbeError) as excinfo:
-        probe.build_candidate_model(_settings(
+        probe.build_probe_runtime(RuntimeBudget(), _settings(
             ai_provider="anthropic", ai_model="claude-sonnet-4-6",
             ai_reasoning_effort="",
         ))
     assert excinfo.value.category == "provider_unsupported"
 
 
-def test_candidate_model_refuses_empty_effort():
+def test_probe_runtime_refuses_non_responses_protocol():
+    from app.lib.ai_runtime.deep_runtime import RuntimeBudget
+
     with pytest.raises(probe.ProbeError) as excinfo:
-        probe.build_candidate_model(_settings(ai_reasoning_effort=""))
+        probe.build_probe_runtime(RuntimeBudget(), _settings(
+            ai_openai_api="chat_completions",
+        ))
+    assert excinfo.value.category == "protocol_not_target"
+
+
+def test_probe_runtime_refuses_empty_effort():
+    from app.lib.ai_runtime.deep_runtime import RuntimeBudget
+
+    with pytest.raises(probe.ProbeError) as excinfo:
+        probe.build_probe_runtime(RuntimeBudget(), _settings(ai_reasoning_effort=""))
     assert excinfo.value.category == "effort_missing"
 
 
-def test_candidate_model_requires_full_settings_snapshot():
+def test_probe_runtime_requires_full_settings_snapshot():
+    from app.lib.ai_runtime.deep_runtime import RuntimeBudget
+
     with pytest.raises(probe.ProbeError) as excinfo:
-        probe.build_candidate_model(SimpleNamespace(ai_provider="openai"))
+        probe.build_probe_runtime(RuntimeBudget(), SimpleNamespace(ai_provider="openai"))
     assert excinfo.value.category == "config_invalid"
 
 

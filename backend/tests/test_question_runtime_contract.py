@@ -566,6 +566,10 @@ def test_runtime_fingerprint_mismatch_refuses_resume() -> None:
     class DurableStub:
         uses_durable_runtime = True
 
+        @property
+        def harness_contract(self):
+            return helpers.stub_harness_contract()
+
         def generate(self, materials, *, context, sink):
             raise AssertionError("fingerprint mismatch must fail before generation")
 
@@ -742,6 +746,7 @@ def test_adapter_bounded_revision_round_fixes_bad_citation(monkeypatch) -> None:
             __import__("langchain_core.messages", fromlist=["AIMessage"]).AIMessage(content="修订完成。"),
         ])),
         identity=IDENTITY,
+        contract=helpers.stub_harness_contract(),
         session_factory=lambda ctx: session,
     )
     sink = dr.ListSink()
@@ -764,6 +769,7 @@ def test_adapter_bounded_revision_round_fixes_bad_citation(monkeypatch) -> None:
             __import__("langchain_core.messages", fromlist=["AIMessage"]).AIMessage(content="初稿完成。"),
         ])),
         identity=IDENTITY,
+        contract=helpers.stub_harness_contract(),
         session_factory=lambda ctx: session2,
         max_revisions=0,
     )
@@ -947,6 +953,7 @@ def test_generator_repairs_before_validation_and_skips_revision(monkeypatch) -> 
             __import__("langchain_core.messages", fromlist=["AIMessage"]).AIMessage(content="初稿完成。"),
         ])),
         identity=IDENTITY,
+        contract=helpers.stub_harness_contract(),
         session_factory=lambda ctx: session,
     )
     sink = dr.ListSink()

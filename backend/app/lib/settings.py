@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     ai_provider: str = ""
     ai_model: str = ""
     ai_reasoning_effort: str = ""
+    # OpenAI wire protocol, explicit configuration only (never an automatic
+    # fallback after a failed request): "responses" (default; required for
+    # reasoning-effort + tool combinations such as gpt-5.6-luna/medium) or
+    # "chat_completions" for vendors that only expose the Chat Completions
+    # contract. Ignored for AI_PROVIDER=anthropic (Messages protocol).
+    ai_openai_api: str = "responses"
     ai_api_key: SecretStr = Field(
         default=SecretStr(""),
         validation_alias=AliasChoices("AI_API_KEY"),
@@ -77,6 +83,11 @@ class Settings(BaseSettings):
     @field_validator("ai_reasoning_effort", mode="before")
     @classmethod
     def normalize_reasoning_effort(cls, value: object) -> str:
+        return str(value or "").strip().lower()
+
+    @field_validator("ai_openai_api", mode="before")
+    @classmethod
+    def normalize_openai_api(cls, value: object) -> str:
         return str(value or "").strip().lower()
 
     @field_validator(

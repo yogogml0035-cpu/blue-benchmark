@@ -16,10 +16,11 @@ complete ``RubricGenerationResult`` contract while keeping
 * model-free cleanup with zero checkpoint residue.
 
 The probe reuses the production ``DeepAgentRubricGenerator`` through its model
-injection entrypoint; it never modifies ``backend/app``. The candidate model
-construction below is deliberately LOCAL to this probe (a candidate protocol
-under test, not a production contract); the C2 cutover replaces it with the
-unified production assembly.
+injection entrypoint and the SAME production assembly (``build_runtime_model``
++ ``resolve_harness_contract``) as the worker; it never modifies
+``backend/app`` and keeps no second model construction of its own. It gates on
+the target combination (Responses + reasoning effort + client-held encrypted
+history) and fails loudly when the configuration is anything else.
 
 Safety contract:
 
@@ -263,80 +264,78 @@ def load_case(config: ProbeConfig) -> tuple[Any, dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Candidate model construction (LOCAL to C1; deleted by the C2 cutover)
+# Production runtime assembly (C2 takeover: ONE production contract)
 # ---------------------------------------------------------------------------
 
-def build_candidate_model(config_source: Any = None) -> tuple[Any, Any, dict[str, Any]]:
-    """Native ChatOpenAI on the Responses protocol with encrypted reasoning.
+def build_probe_runtime(
+    budget: Any, config_source: Any = None
+) -> tuple[Any, Any, Any, dict[str, Any]]:
+    """Model + identity + contract through the PRODUCTION assembly path.
 
-    Explicit candidate combination under test — the production factory still
-    forces Chat Completions until C2. No ``_generate`` override, no streaming
-    parser, no message conversion is copied here: only HTTP configuration the
-    current endpoint is known to require (telemetry header stripping, timeout,
-    retry ceiling) is injected through the native client.
+    The probe no longer constructs a candidate model locally: it consumes
+    ``build_runtime_model`` and ``resolve_harness_contract`` — the exact
+    production semantics — and then GATES on the target combination
+    (Responses protocol, non-empty reasoning effort, client-held encrypted
+    history). A configuration that is not the target combination fails the
+    probe loudly instead of silently verifying something else.
     """
-    import httpx
-    from langchain_openai import ChatOpenAI
-
-    from app.lib.ai_runtime.model import (
-        ModelConfigurationError,
-        normalize_base_url,
-        runtime_model_identity,
+    from app.lib.ai_runtime.adapters import RubricGenerationResult
+    from app.lib.ai_runtime.contract import (
+        RESPONSES_HISTORY_POLICY,
+        resolve_harness_contract,
     )
+    from app.lib.ai_runtime.model import ModelConfigurationError, build_runtime_model
     from app.lib.settings import Settings, settings
 
     cfg = config_source if config_source is not None else settings
     if not isinstance(cfg, Settings):
         raise ProbeError("model", "config_invalid", "探针只接受完整 Settings 配置快照。")
     try:
-        identity = runtime_model_identity(cfg)
+        model, identity = build_runtime_model(cfg, streaming=True)
+        contract = resolve_harness_contract(
+            cfg, result_schema=RubricGenerationResult, budget=budget,
+        )
     except ModelConfigurationError as exc:
         raise ProbeError("model", "configuration_invalid", str(exc)) from exc
-    if identity.provider != "openai":
+    if contract.provider != "openai":
         raise ProbeError(
             "model", "provider_unsupported",
-            "C1 能力门只验证 OpenAI Responses 组合，当前配置不是 openai。",
+            "能力门只验证 OpenAI Responses 组合，当前配置不是 openai。",
         )
-    effort = str(cfg.ai_reasoning_effort or "").strip().lower()
-    if not effort:
+    if contract.protocol != "responses":
+        raise ProbeError(
+            "model", "protocol_not_target",
+            f"当前配置协议为 {contract.protocol}，能力门目标组合是 responses；"
+            "请检查 AI_OPENAI_API。",
+        )
+    if not contract.reasoning_effort:
         raise ProbeError(
             "model", "effort_missing",
             "AI_REASONING_EFFORT 为空：能力门的目标组合必须保留思考强度。",
         )
-
-    def strip_provider_blocked_headers(request: httpx.Request) -> None:
-        for header in list(request.headers):
-            if header.lower().startswith("x-stainless-"):
-                request.headers.pop(header, None)
-        request.headers.pop("user-agent", None)
-
-    model = ChatOpenAI(
-        model=identity.model,
-        api_key=cfg.ai_api_key.get_secret_value(),
-        base_url=normalize_base_url(cfg.ai_base_url) or "https://api.openai.com/v1",
-        streaming=True,
-        max_retries=int(cfg.ai_model_retries),
-        request_timeout=float(cfg.ai_request_timeout_seconds),
-        use_responses_api=True,
-        reasoning={"effort": effort},
-        store=False,
-        use_previous_response_id=False,
-        include=["reasoning.encrypted_content"],
-        http_client=httpx.Client(
-            event_hooks={"request": [strip_provider_blocked_headers]},
-        ),
-    )
+    if contract.responses_history_policy != RESPONSES_HISTORY_POLICY:
+        raise ProbeError(
+            "model", "history_policy_mismatch",
+            "生产装配没有使用客户端加密推理历史策略。",
+        )
     model_summary = {
-        "provider": identity.provider,
-        "model": identity.model,
-        "endpoint_fingerprint": identity.fingerprint,
-        "protocol": "responses",
-        "reasoning_effort": effort,
-        "store": False,
-        "use_previous_response_id": False,
-        "include": ["reasoning.encrypted_content"],
+        "provider": contract.provider,
+        "model": contract.model,
+        "endpoint_fingerprint": contract.endpoint_fingerprint,
+        "protocol": contract.protocol,
+        "reasoning_effort": contract.reasoning_effort,
+        "output_strategy": contract.output_strategy,
+        "responses_history_policy": contract.responses_history_policy,
+        "harness_policy_version": contract.harness_policy_version,
+        "contract_fingerprint": contract.fingerprint,
+        "result_schema_hash": contract.result_schema_hash,
+        "budget": {
+            "max_model_calls": contract.max_model_calls,
+            "max_tool_calls": contract.max_tool_calls,
+            "max_total_seconds": contract.max_total_seconds,
+        },
     }
-    return model, identity, model_summary
+    return model, identity, contract, model_summary
 
 
 def _checkpoint_settings(config: ProbeConfig) -> Any:
@@ -525,7 +524,7 @@ def _budget(config: ProbeConfig) -> Any:
     )
 
 
-def _generator(config: ProbeConfig, model: Any, identity: Any) -> Any:
+def _generator(config: ProbeConfig, model: Any, identity: Any, contract: Any) -> Any:
     from app.lib.ai_runtime.adapters import DeepAgentRubricGenerator
     from app.lib.ai_runtime.deep_runtime import open_session
 
@@ -537,6 +536,7 @@ def _generator(config: ProbeConfig, model: Any, identity: Any) -> Any:
     return DeepAgentRubricGenerator(
         model=model,
         identity=identity,
+        contract=contract,
         session_factory=session_factory,
         budget=_budget(config),
     )
@@ -566,10 +566,10 @@ def _result_summary(result: Any) -> dict[str, Any]:
 def stage_full_run(config: ProbeConfig) -> dict[str, Any]:
     """L01: one uninterrupted real generation through the production adapter."""
     materials, case_meta = load_case(config)
-    model, identity, model_summary = build_candidate_model()
+    model, identity, contract, model_summary = build_probe_runtime(_budget(config))
     sink = EvidenceSink(time.monotonic())
     install_request_capture(model, sink)
-    generator = _generator(config, model, identity)
+    generator = _generator(config, model, identity, contract)
     context = _run_context(config, case_meta["case_sha256"])
 
     t0 = time.monotonic()
@@ -780,10 +780,10 @@ def _describe_stage_error(exc: BaseException) -> str:
 def stage_interrupted_run(config: ProbeConfig) -> dict[str, Any]:
     """Run child: real generation, hard-killed after a durable tool round."""
     materials, case_meta = load_case(config)
-    model, identity, _summary = build_candidate_model()
+    model, identity, contract, _summary = build_probe_runtime(_budget(config))
     sink = EvidenceSink(time.monotonic())
     interrupting = InterruptingSink(sink)
-    generator = _generator(config, model, identity)
+    generator = _generator(config, model, identity, contract)
     context = _run_context(config, case_meta["case_sha256"])
     print(f"PROBE_STAGE=run_child thread={config.thread_id}", flush=True)
     try:
@@ -807,10 +807,10 @@ def stage_resume(config: ProbeConfig) -> dict[str, Any]:
     from app.lib.ai_runtime import deep_runtime as dr
 
     materials, case_meta = load_case(config)
-    model, identity, model_summary = build_candidate_model()
+    model, identity, contract, model_summary = build_probe_runtime(_budget(config))
     sink = EvidenceSink(time.monotonic())
     install_request_capture(model, sink)
-    generator = _generator(config, model, identity)
+    generator = _generator(config, model, identity, contract)
     context = _run_context(config, case_meta["case_sha256"])
 
     t0 = time.monotonic()
@@ -914,12 +914,13 @@ def stage_reread(config: ProbeConfig) -> dict[str, Any]:
     from app.lib.ai_runtime import deep_runtime as dr
 
     materials, case_meta = load_case(config)
-    _model, identity, _summary = build_candidate_model()
+    _model, identity, contract, _summary = build_probe_runtime(_budget(config))
     sink = EvidenceSink(time.monotonic())
     # Reread must not touch the provider: a no-call fake model would raise
     # StopIteration loudly if the generator tried any model call. The identity
-    # stays the real one so the restricted profile registration matches.
-    generator = _generator(config, _no_call_model(), identity)
+    # and contract stay the real ones so the restricted profile registration
+    # and the resume identity match the production assembly exactly.
+    generator = _generator(config, _no_call_model(), identity, contract)
     context = _run_context(config, case_meta["case_sha256"])
 
     try:
@@ -1054,7 +1055,7 @@ def run_dry(config_source: Any) -> dict[str, Any]:
         report["model"] = {
             "provider": identity.provider,
             "model": identity.model,
-            "endpoint_fingerprint": identity.fingerprint,
+            "endpoint_fingerprint": identity.endpoint_fingerprint,
             "base_url_set": bool(identity.base_url),
             "reasoning_effort": str(config_source.ai_reasoning_effort or "").strip().lower(),
         }

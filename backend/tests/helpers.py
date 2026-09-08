@@ -156,3 +156,33 @@ def complete_deletion(
     run_worker_until_idle()
     assert client.get(f"/api/questions/{question_id}").status_code == 404
     return body
+
+
+def stub_harness_contract(**overrides: Any) -> Any:
+    """An explicit test contract for injected durable generator stubs.
+
+    Injected models/generators must carry their OWN identity — global
+    settings are never used to fake a stub's runtime fingerprint. The
+    fingerprint is deterministic across processes (canonical JSON hash of
+    fixed test values), which keeps mismatch tests meaningful.
+    """
+    from app.lib.ai_runtime.contract import ResolvedHarnessContract
+
+    values: dict[str, Any] = {
+        "provider": "test",
+        "model": "scripted-model",
+        "endpoint_fingerprint": "test-endpoint-fp",
+        "protocol": "responses",
+        "reasoning_effort": "medium",
+        "output_strategy": "test_strategy",
+        "result_schema_hash": "test-schema-hash",
+        "harness_policy_version": "test-policy-v1",
+        "responses_history_policy": "not_applicable",
+        "max_model_calls": 24,
+        "max_tool_calls": 120,
+        "max_total_seconds": 1800.0,
+        "max_citation_revisions": 1,
+        "sdk_versions": {"deepagents": "test"},
+    }
+    values.update(overrides)
+    return ResolvedHarnessContract(**values)

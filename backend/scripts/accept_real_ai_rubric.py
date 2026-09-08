@@ -11,8 +11,9 @@ Flow (both C1 case groups by default):
 1. rebuild the C1 fixtures from the read-only corpus (hash-gated);
 2. upload the FULL real cases through the external HTTP API;
 3. run the production worker with the real provider on the deep runtime:
-   the recovery case first fails under a 1-model-call budget (real
-   checkpoints written), then a retry RESUMES the same thread without
+   for the recovery case an EXTERNAL worker process is SIGKILLed right after
+   the first durably-checkpointed tool round; the requeued job then RESUMES
+   the same thread under the identical harness contract, without
    re-appending the initial input;
 4. assert the complete contract: anchors contain the suggested score, bases
    classify claims, every citation quotes the question's own materials;
@@ -150,6 +151,10 @@ def main() -> int:
     os.environ["SESSION_COOKIE_SECURE"] = "false"
     os.environ["ADMIN_USERNAME"] = "admin"
     os.environ["ADMIN_PASSWORD"] = "accept-real-ai-password-1"
+    # Short lease in the ISOLATED acceptance environment only: the recovery
+    # phase SIGKILLs a real worker subprocess and the requeue must not wait
+    # the production-default lease. Never touches the main environment.
+    os.environ["OPERATION_LEASE_SECONDS"] = "30"
 
     # Migrate the isolated business database (explicit step, never on startup).
     from alembic import command
@@ -223,19 +228,31 @@ def main() -> int:
     if status != 200:
         _fail("login", f"管理员登录失败 status={status}")
 
-    status, body = _http_json(
-        f"{base_url}/api/external/question-batches",
-        method="POST",
-        payload={
-            "schema_version": "1.0",
-            "command_id": f"accept-real-ai-{int(time.time())}",
-            "cases": cases,
-        },
-        headers={"Authorization": f"Bearer {issued.token}"},
-    )
-    if status != 201:
-        _fail("upload", f"真实样本上传失败 status={status}")
-    question_ids = {item["client_case_id"]: item["question_id"] for item in body["cases"]}
+    # The recovery case is uploaded FIRST in its own batch: the queue is
+    # FIFO by created_at, so the interruptible external worker deterministically
+    # claims exactly that question's job.
+    recovery_cases = [c for c in cases if c["client_case_id"] == args.recovery_case]
+    other_cases = [c for c in cases if c["client_case_id"] != args.recovery_case]
+
+    def _upload(batch_cases: list[dict], suffix: str) -> dict[str, str]:
+        status_, body_ = _http_json(
+            f"{base_url}/api/external/question-batches",
+            method="POST",
+            payload={
+                "schema_version": "1.0",
+                "command_id": f"accept-real-ai-{suffix}-{int(time.time())}",
+                "cases": batch_cases,
+            },
+            headers={"Authorization": f"Bearer {issued.token}"},
+        )
+        if status_ != 201:
+            _fail("upload", f"真实样本上传失败 status={status_}")
+        return {item["client_case_id"]: item["question_id"] for item in body_["cases"]}
+
+    question_ids: dict[str, str] = {}
+    question_ids.update(_upload(recovery_cases, "recovery-first"))
+    if other_cases:
+        question_ids.update(_upload(other_cases, "main"))
     print(f"ACCEPT_REAL_AI_STAGE=uploaded questions={len(question_ids)}")
 
     from sqlalchemy import select
@@ -246,13 +263,26 @@ def main() -> int:
     from app.lib.database.models import OperationJobRow, QuestionRunEventRow, QuestionRunThreadRow
     from app.lib.operations.worker import OperationWorker
 
+    from app.lib.ai_runtime.adapters import RubricGenerationResult
+    from app.lib.ai_runtime.contract import resolve_harness_contract
+    from app.lib.settings import settings as _settings
+
     model, identity = build_runtime_model(streaming=True)
-    full_adapter = adapter_module.RuntimeAdapters(
-        rubric_generator=adapter_module.DeepAgentRubricGenerator(model=model, identity=identity)
+    # Injected model => injected contract, resolved from the SAME settings
+    # snapshot the model was built from (never a faked identity).
+    injected_contract = resolve_harness_contract(
+        _settings, result_schema=RubricGenerationResult
     )
-    # Install the real deep-agent adapters ONCE; per-phase budget overrides
-    # swap only the generator, never back to the fake default.
+    full_adapter = adapter_module.RuntimeAdapters(
+        rubric_generator=adapter_module.DeepAgentRubricGenerator(
+            model=model, identity=identity, contract=injected_contract
+        )
+    )
+    # Install the real deep-agent adapters ONCE; the recovery phase kills a
+    # real external worker process instead of swapping generator budgets, so
+    # the harness contract stays IDENTICAL across the interruption.
     adapter_module.set_adapters(full_adapter)
+    contract = full_adapter.rubric_generator.harness_contract
 
     def build_worker() -> OperationWorker:
         from app.features.question_library import deletion, rubric_generation
@@ -374,8 +404,17 @@ def main() -> int:
             "git_sha": git_sha,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "model": {"provider": identity.provider, "model": identity.model,
-                      "fingerprint": identity.fingerprint,
+                      "fingerprint": identity.endpoint_fingerprint,
                       "base_url_set": bool(identity.base_url)},
+            "contract": {
+                "fingerprint": contract.fingerprint,
+                "protocol": contract.protocol,
+                "reasoning_effort": contract.reasoning_effort or "unspecified",
+                "output_strategy": contract.output_strategy,
+                "harness_policy_version": contract.harness_policy_version,
+                "budget": [contract.max_model_calls, contract.max_tool_calls,
+                           contract.max_total_seconds],
+            },
             "sdk_versions": {
                 "deepagents": importlib_md.version("deepagents"),
                 "langgraph": importlib_md.version("langgraph"),
@@ -396,38 +435,42 @@ def main() -> int:
         print(f"ACCEPT_REAL_AI_STAGE=generate case={case_id}")
 
         if case_id == args.recovery_case:
-            # Phase 1: a real run under a 1-model-call budget writes real
-            # checkpoints and fails bounded — the thread stays incomplete.
-            budgeted = adapter_module.RuntimeAdapters(
-                rubric_generator=adapter_module.DeepAgentRubricGenerator(
-                    model=model,
-                    identity=identity,
-                    budget=deep_runtime.RuntimeBudget(max_model_calls=1),
-                )
+            # L03 real recovery: an EXTERNAL production worker process runs
+            # the real generation; once a tool round is durably checkpointed
+            # the worker is SIGKILLed (a genuine crash: no finally blocks, no
+            # graceful shutdown). The lease expires, the requeued job resumes
+            # in-process from the SAME checkpoint under the SAME contract —
+            # no budget games, no fingerprint tricks, no duplicated input.
+            worker_proc = subprocess.Popen(
+                [sys.executable, "-m", "app.lib.operations.worker"],
+                cwd=str(Path(__file__).resolve().parents[1]),
+                env=dict(os.environ),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
-            adapter_module.set_adapters(budgeted)
-            try:
-                detail = wait_status(question_id, {"generation_failed"}, args.max_minutes_per_case)
-            finally:
-                adapter_module.set_adapters(full_adapter)
-            if detail["last_error"]["code"] != "RUNTIME_BUDGET_EXCEEDED":
-                _fail("recovery", f"预算阶段错误码异常：{detail['last_error']}")
+            print(f"ACCEPT_REAL_AI_STAGE=worker_spawned pid={worker_proc.pid}")
+            interrupt_facts = _interrupt_worker_after_tool_round(
+                worker_proc, question_id, base_url, opener,
+                timeout_minutes=args.max_minutes_per_case,
+            )
+            print(f"ACCEPT_REAL_AI_STAGE=worker_killed {interrupt_facts}")
 
-            # Phase 2: retry with the full budget must RESUME the same thread.
-            status_, _body = _http_json(
-                f"{base_url}/api/questions/{question_id}/generation-retry",
-                method="POST",
-                payload={"command_id": f"accept-retry-{case_id}",
-                         "content_revision": detail["content_revision"]},
-                opener=opener,
-            )
-            if status_ != 200:
-                _fail("recovery", f"重试受理失败 status={status_}")
+            # The killed worker left the job running with a lease; wait for
+            # lease expiry, then the in-process rounds requeue and RESUME it.
+            lease_wait = settings.operation_lease_seconds + 10
+            print(f"ACCEPT_REAL_AI_STAGE=lease_wait seconds={lease_wait}")
+            time.sleep(lease_wait)
             detail = wait_status(question_id, {"pending_review"}, args.max_minutes_per_case)
             if not _thread_observed_resume(question_id):
-                _fail("recovery", "重试未观察到从检查点恢复（thread_state_incomplete）")
+                _fail("recovery", "重启后未观察到从检查点恢复（thread_state_incomplete）")
+            evidence.setdefault("interruption", {}).update({
+                "case": case_id,
+                "worker_pid": worker_proc.pid,
+                **interrupt_facts,
+                "lease_seconds": settings.operation_lease_seconds,
+                "contract_fingerprint": contract.fingerprint,
+            })
         else:
-            adapter_module.set_adapters(full_adapter)
             detail = wait_status(question_id, {"pending_review"}, args.max_minutes_per_case)
 
         assert_complete_contract(case, detail)
@@ -605,6 +648,59 @@ def _thread_observed_resume(question_id: str) -> bool:
             )
         ).scalars().all()
     return any(stage == "thread_state_incomplete" for stage in rows)
+
+
+def _interrupt_worker_after_tool_round(
+    proc: Any, question_id: str, base_url: str, opener: Any, *, timeout_minutes: float
+) -> dict[str, Any]:
+    """SIGKILL a real worker process after ONE durable tool round.
+
+    Polls the persisted public event log (events are durable before they are
+    served, so an observed ``tool_finished`` means the run is really mid-flight);
+    then waits a short grace period for the synchronous tool-superstep
+    checkpoint write and hard-kills the process — a genuine crash with no
+    finally blocks and no graceful shutdown. Returns redacted facts only.
+    """
+    import signal
+
+    deadline = time.monotonic() + timeout_minutes * 60
+    saw_tool = False
+    event_count = 0
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            _fail(
+                "recovery",
+                f"Worker 进程在到达中断点前提前退出 exit={proc.returncode}",
+            )
+        status_, detail = _http_json(f"{base_url}/api/questions/{question_id}", opener=opener)
+        operation_id = (detail or {}).get("last_operation_id") if status_ == 200 else None
+        if operation_id:
+            status_, events = _http_json(
+                f"{base_url}/api/questions/{question_id}/runs/{operation_id}/events",
+                opener=opener,
+            )
+            if status_ == 200 and events.get("events"):
+                kinds = [e["kind"] for e in events["events"]]
+                event_count = len(kinds)
+                if "tool_finished" in kinds:
+                    saw_tool = True
+                    break
+        time.sleep(2.0)
+    if not saw_tool:
+        proc.kill()
+        proc.wait(timeout=30)
+        _fail("recovery", "期限内未观察到任何真实工具轮，中断恢复证据不成立")
+    # durability="sync": the tool superstep checkpoint is written before the
+    # next model call starts; the grace period places the kill safely after
+    # that write and long before the final structured output completes.
+    time.sleep(8)
+    proc.send_signal(signal.SIGKILL)
+    exit_code = proc.wait(timeout=30)
+    return {
+        "killed_after": "first_tool_round",
+        "events_observed": event_count,
+        "worker_exit_signal": -exit_code if exit_code < 0 else exit_code,
+    }
 
 
 if __name__ == "__main__":

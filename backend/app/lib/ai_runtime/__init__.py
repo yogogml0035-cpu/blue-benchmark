@@ -18,21 +18,30 @@ from app.lib.ai_runtime.adapters import (
     reset_adapters,
     set_adapters,
 )
+from app.lib.ai_runtime.contract import (
+    ContractConfigurationError,
+    ResolvedHarnessContract,
+    resolve_harness_contract,
+)
 from app.lib.ai_runtime.model import (
     ModelConfigurationError,
     RuntimeModelIdentity,
     build_runtime_model,
     normalize_base_url,
+    openai_protocol,
     runtime_model_identity,
+    validated_reasoning_effort,
 )
 
 __all__ = [
+    "ContractConfigurationError",
     "CriterionBasis",
     "CriterionDraft",
     "DeepAgentRubricGenerator",
     "FakeRubricGenerator",
     "ModelConfigurationError",
     "PassScoreBasis",
+    "ResolvedHarnessContract",
     "RubricGenerationFailure",
     "RubricGenerationInput",
     "RubricGenerationResult",
@@ -44,8 +53,11 @@ __all__ = [
     "build_runtime_model",
     "get_adapters",
     "normalize_base_url",
+    "openai_protocol",
     "production_adapters",
+    "resolve_harness_contract",
     "reset_adapters",
     "runtime_model_identity",
     "set_adapters",
+    "validated_reasoning_effort",
 ]

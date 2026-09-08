@@ -428,8 +428,75 @@ _SYSTEM_PROMPT = """你是评测平台的评分维度起草智能体。你只依
 """
 
 
+# ---------------------------------------------------------------------------
+# Provider error translation (standard ModelError semantics, one path)
+# ---------------------------------------------------------------------------
+
+# Deterministic, administrator-correctable categories: automatic repetition
+# is refused (the incident 400 must not consume attempts 2 and 3); an
+# explicit retry after fixing the configuration still recovers.
+_DETERMINISTIC_CONFIG_CATEGORIES = {
+    "model_invalid_request": "模型请求被服务端拒绝（无效请求）：当前协议、思考强度与工具组合不被该模型/网关支持，请核对 AI_OPENAI_API、AI_REASONING_EFFORT 与 AI_MODEL。",
+    "authentication": "模型鉴权失败，请核对 AI_API_KEY。",
+    "permission_denied": "模型访问被拒绝（权限不足），请核对该密钥对当前模型的访问权限。",
+    "model_not_found": "配置的模型不存在，请核对 AI_MODEL 与 AI_BASE_URL。",
+    "configuration_invalid": "AI 运行配置无效，请修正配置后显式重试。",
+}
+
+_TRANSIENT_MESSAGE = "模型服务暂时不可用（限流、服务端错误或网络超时），将按既有上限自动重试。"
+_STRUCTURED_OUTPUT_MESSAGE = "AI 输出未通过原生结构化校验，将由后续尝试重新生成。"
+_UNKNOWN_MESSAGE = "发生未分类的程序错误，已停止自动重试；请查看运行诊断（runtime/ai-diagnostics.jsonl）。"
+
+
+def translate_provider_error(exc: BaseException, *, stage_message: str) -> RubricGenerationFailure:
+    """Translate a provider/transport failure into a safe business failure.
+
+    Single translation path for the generation round and the citation
+    revision round. Classification comes from the standard LangChain
+    ``ModelError`` semantics via the diagnostics whitelist walker; the raw
+    exception is kept as ``__cause__`` for controlled diagnostics only and
+    never reaches the public message.
+    """
+
+    from app.lib.ai_runtime.diagnostics import classify_exception
+
+    classified = classify_exception(exc)
+    category = classified["category"]
+    if category in _DETERMINISTIC_CONFIG_CATEGORIES:
+        return RubricGenerationFailure(
+            "AI_CONFIG_INVALID", _DETERMINISTIC_CONFIG_CATEGORIES[category], retryable=False
+        )
+    if category in {"rate_limit", "server", "connection", "timeout", "provider_api"}:
+        return RubricGenerationFailure(
+            "AI_CALL_FAILED", f"{stage_message}：{_TRANSIENT_MESSAGE}", retryable=True
+        )
+    if category == "structured_output_validation":
+        return RubricGenerationFailure(
+            "AI_OUTPUT_INVALID", _STRUCTURED_OUTPUT_MESSAGE, retryable=True
+        )
+    if category == "unknown":
+        return RubricGenerationFailure(
+            "AI_CALL_FAILED", f"{stage_message}：{_UNKNOWN_MESSAGE}", retryable=False
+        )
+    # Any other classified-but-unmapped category: honest, safe, non-retryable.
+    return RubricGenerationFailure(
+        "AI_CALL_FAILED",
+        f"{stage_message}：模型调用失败（{category}），已停止自动重试。",
+        retryable=False,
+    )
+
+
 class DeepAgentRubricGenerator:
     """Production adapter: one restricted deep-agent run per attempt.
+
+    This class is the SINGLE production assembly entrypoint: it resolves the
+    immutable harness contract (model identity, protocol, reasoning effort,
+    output strategy, schema, harness policy, budgets, SDK versions) once and
+    shares it with the model factory semantics, the deep-agent assembly, the
+    service run fingerprint and diagnostics. Normal worker runs, acceptance
+    scripts and the capability probe all go through this entrypoint; injected
+    test models MUST come with their own explicit contract — global settings
+    are never used to fake an injected model's identity.
 
     Continuity semantics (owned by the worker, exercised here):
     * a fresh attempt streams the initial instruction + material files;
@@ -439,6 +506,14 @@ class DeepAgentRubricGenerator:
     Structured output uses the locked SDK's ``response_format``; deterministic
     citation/contract validation happens after the run and failures surface as
     retryable generation failures (the job's attempt budget bounds retries).
+
+    Error semantics: provider failures are translated from the standard
+    LangChain ``ModelError`` classification — deterministic configuration,
+    auth, permission, 404 and invalid-request errors become NON-retryable
+    failures (the administrator fixes the configuration, then an explicit
+    retry recovers); transient errors (rate limit, server, connection,
+    timeout) stay retryable within the existing SDK and job attempt limits;
+    unknown program errors are never silently retryable.
     """
 
     # The worker registers run threads (deletion enumeration source) only for
@@ -450,25 +525,75 @@ class DeepAgentRubricGenerator:
         model: Any = None,
         identity: Any = None,
         *,
+        contract: Any = None,
+        config: Any = None,
         session_factory: Any = None,
         budget: Any = None,
         max_revisions: int = 1,
     ) -> None:
+        from app.lib.ai_runtime.contract import (
+            ResolvedHarnessContract,
+            resolve_harness_contract,
+        )
+        from app.lib.settings import settings as global_settings
+
         # The model is built lazily on first generate() so a worker process
         # can serve model-free jobs (e.g. deletion cleanup) even when the
-        # provider configuration is missing or broken.
+        # provider configuration is missing or broken. Contract resolution is
+        # equally lazy: it is pure configuration validation and must never
+        # run at import/construction time.
         self._model = model
         self._identity = identity
+        self._explicit_contract = contract
+        self._config = config if config is not None else global_settings
         self._session_factory = session_factory
         self._budget = budget
         self._max_revisions = max_revisions
         self._revisions_used = 0
+        self._resolved_contract: ResolvedHarnessContract | None = None
+        if contract is not None and model is None:
+            raise ValueError(
+                "注入合同必须伴随注入模型；懒构造生产模型只从配置解析自己的合同。"
+            )
+        if model is not None and contract is None:
+            # T11: global settings must never fake the run identity of an
+            # injected model. Tests and scripts inject BOTH, so the recorded
+            # fingerprint always describes what actually runs.
+            raise ValueError(
+                "注入模型必须显式携带对应的 harness contract；"
+                "不得用全局配置为注入模型伪造运行身份。"
+            )
+
+    @property
+    def harness_contract(self) -> Any:
+        """The resolved contract this generator actually runs under.
+
+        Resolution failures are deterministic configuration errors; the
+        service projects them as a terminal, NON-retryable generation
+        failure and diagnostics record the fingerprint as unavailable.
+        """
+
+        if self._resolved_contract is None:
+            from app.lib.ai_runtime.contract import resolve_harness_contract
+
+            if self._explicit_contract is not None:
+                self._resolved_contract = self._explicit_contract
+            else:
+                self._resolved_contract = resolve_harness_contract(
+                    self._config,
+                    result_schema=RubricGenerationResult,
+                    budget=self._budget,
+                    max_revisions=self._max_revisions,
+                )
+        return self._resolved_contract
 
     def _ensure_model(self) -> None:
         if self._model is None or self._identity is None:
             from app.lib.ai_runtime.model import build_runtime_model
 
-            self._model, self._identity = build_runtime_model(streaming=True)
+            self._model, self._identity = build_runtime_model(
+                self._config, streaming=True
+            )
 
     def _open_session(self, context: RunContext) -> Any:
         if self._session_factory is not None:
@@ -544,9 +669,9 @@ class DeepAgentRubricGenerator:
                     raise RubricGenerationFailure(exc.code, exc.message, retryable=False) from exc
                 except deep_runtime.DeepRuntimeError as exc:
                     raise RubricGenerationFailure(exc.code, exc.message, retryable=exc.retryable) from exc
-                except Exception as exc:  # provider/transport errors: never leak raw details
-                    raise RubricGenerationFailure(
-                        "AI_CALL_FAILED", f"评分维度生成调用失败：{type(exc).__name__}"
+                except Exception as exc:  # provider/transport errors: standard classification, never leak raw details
+                    raise translate_provider_error(
+                        exc, stage_message="评分维度生成调用失败"
                     ) from exc
 
             interrupted, _payloads = deep_runtime.inspect_interrupt(agent, session)
@@ -597,9 +722,8 @@ class DeepAgentRubricGenerator:
                         d_exc.code, d_exc.message, retryable=d_exc.retryable
                     ) from d_exc
                 except Exception as g_exc:
-                    raise RubricGenerationFailure(
-                        "AI_CALL_FAILED",
-                        f"修订轮调用失败：{type(g_exc).__name__}",
+                    raise translate_provider_error(
+                        g_exc, stage_message="修订轮调用失败"
                     ) from g_exc
                 interrupted, _ = deep_runtime.inspect_interrupt(agent, session)
                 if interrupted:
@@ -1032,7 +1156,29 @@ def reset_adapters() -> None:
     _adapters = RuntimeAdapters(rubric_generator=FakeRubricGenerator())
 
 
-def production_adapters(model: Any = None, identity: Any = None) -> RuntimeAdapters:
+def production_adapters(
+    model: Any = None,
+    identity: Any = None,
+    *,
+    contract: Any = None,
+    config: Any = None,
+    budget: Any = None,
+    max_revisions: int = 1,
+) -> RuntimeAdapters:
+    """Adapters on the single production assembly entrypoint.
+
+    With no arguments the generator lazily builds the model AND resolves its
+    contract from the same configuration snapshot. Injected models (scripts,
+    tests) must carry their explicit contract — see DeepAgentRubricGenerator.
+    """
+
     return RuntimeAdapters(
-        rubric_generator=DeepAgentRubricGenerator(model=model, identity=identity)
+        rubric_generator=DeepAgentRubricGenerator(
+            model=model,
+            identity=identity,
+            contract=contract,
+            config=config,
+            budget=budget,
+            max_revisions=max_revisions,
+        )
     )

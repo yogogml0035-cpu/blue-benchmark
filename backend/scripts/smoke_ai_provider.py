@@ -125,8 +125,26 @@ def main() -> int:
         saver = deep_runtime.build_saver(conn, _Cfg())
         saver.setup()
 
-    model, identity = build_runtime_model(streaming=True)
-    generator = production_adapters(model=model, identity=identity).rubric_generator
+    # Fail fast on broken provider configuration before touching databases;
+    # the generator below lazily builds the SAME model from the SAME config
+    # and resolves its own contract (no injected identity to drift).
+    build_runtime_model(streaming=True)
+    # The parsed budget options are REAL run limits: they flow into the same
+    # contract the generator resolves, so the smoke's budget and the recorded
+    # contract identity can never diverge from what actually executed.
+    budget = deep_runtime.RuntimeBudget(
+        max_model_calls=args.max_model_calls,
+        max_tool_calls=args.max_tool_calls,
+    )
+    generator = production_adapters(budget=budget).rubric_generator
+    contract = generator.harness_contract
+    print(
+        f"AI_SMOKE_CONTRACT protocol={contract.protocol} "
+        f"effort={contract.reasoning_effort or 'unspecified'} "
+        f"output_strategy={contract.output_strategy} "
+        f"fingerprint={contract.fingerprint[:16]} "
+        f"budget=({contract.max_model_calls},{contract.max_tool_calls})"
+    )
     sink = ListSink()
 
     started = time.monotonic()
@@ -173,7 +191,8 @@ def main() -> int:
         _fail("冒烟运行没有产生任何真实增量或工具事件")
     print(
         f"AI_SMOKE=OK criteria={len(result.criteria)} pass_scores={scores} "
-        f"events={kinds} elapsed_seconds={elapsed:.1f}"
+        f"events={kinds} elapsed_seconds={elapsed:.1f} "
+        f"contract_fingerprint={contract.fingerprint[:16]}"
     )
     return 0
 
