@@ -576,6 +576,7 @@ def stage_full_run(config: ProbeConfig) -> dict[str, Any]:
     except ProbeError:
         raise
     except Exception as exc:  # noqa: BLE001
+        print(f"PROBE_STAGE=error stage=full_run {_describe_stage_error(exc)}", flush=True)
         raise ProbeError(
             "full_run", _error_category(exc),
             f"真实生成失败：{type(exc).__name__}",
@@ -671,6 +672,11 @@ def _expected_effort() -> str:
 
 def _error_category(exc: BaseException) -> str:
     """Whitelisted, non-secret error category for the evidence report."""
+    from app.lib.ai_runtime.adapters import RubricGenerationFailure
+    from app.lib.ai_runtime.deep_runtime import DeepRuntimeError
+
+    if isinstance(exc, (RubricGenerationFailure, DeepRuntimeError)):
+        return f"generation_failure:{exc.code}"
     name = type(exc).__name__
     status = getattr(getattr(exc, "response", None), "status_code", None)
     if status is not None:
@@ -689,6 +695,29 @@ def _error_category(exc: BaseException) -> str:
         "RubricGenerationFailure": "generation_failure",
     }
     return mapping.get(name, "unknown")
+
+
+def _describe_stage_error(exc: BaseException) -> str:
+    """Console-only diagnostic: safe code/message plus the cause's TYPE.
+
+    ``RubricGenerationFailure``/``DeepRuntimeError`` messages are
+    safe-to-display by contract; the raw provider cause is never printed —
+    only its exception class and (when present) HTTP status. The persisted
+    evidence keeps only the whitelisted category.
+    """
+    from app.lib.ai_runtime.adapters import RubricGenerationFailure
+    from app.lib.ai_runtime.deep_runtime import DeepRuntimeError
+
+    parts = [f"type={type(exc).__name__}"]
+    if isinstance(exc, (RubricGenerationFailure, DeepRuntimeError)):
+        parts.append(f"code={exc.code}")
+        parts.append(f"retryable={exc.retryable}")
+        parts.append(f"message={str(exc.message)[:400]}")
+    cause = exc.__cause__
+    if cause is not None:
+        status = getattr(getattr(cause, "response", None), "status_code", None)
+        parts.append(f"cause={type(cause).__name__}" + (f"({status})" if status else ""))
+    return " ".join(parts)
 
 
 def stage_interrupted_run(config: ProbeConfig) -> dict[str, Any]:
@@ -733,6 +762,7 @@ def stage_resume(config: ProbeConfig) -> dict[str, Any]:
     except ProbeError:
         raise
     except Exception as exc:  # noqa: BLE001
+        print(f"PROBE_STAGE=error stage=resume {_describe_stage_error(exc)}", flush=True)
         raise ProbeError(
             "resume", _error_category(exc),
             f"恢复运行失败：{type(exc).__name__}",
@@ -1054,8 +1084,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--execute", action="store_true",
                         help="真实执行能力门（需要实施批准与隔离 DSN）")
-    parser.add_argument("--stage", choices=["run-child"], default=None,
-                        help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--stage",
+        choices=["run-child", "full-run", "resume", "reread", "cleanup"],
+        default=None,
+        help="单独执行一个阶段（编排/诊断用；完整能力门请不带 --stage 运行）",
+    )
     parser.add_argument("--checkpoint-dsn", default=None)
     parser.add_argument(
         "--corpus-root",
@@ -1091,12 +1125,21 @@ def main(argv: list[str] | None = None) -> int:
     except ProbeError as exc:
         _fail(exc.stage, exc.category, exc.message)
         raise AssertionError("unreachable") from exc
-    if args.stage == "run-child":
+    if args.stage is not None:
+        stage_functions = {
+            "run-child": stage_interrupted_run,
+            "full-run": stage_full_run,
+            "resume": stage_resume,
+            "reread": stage_reread,
+            "cleanup": stage_cleanup,
+        }
         try:
-            stage_interrupted_run(config)
+            payload = stage_functions[args.stage](config)
         except ProbeError as exc:
             _fail(exc.stage, exc.category, exc.message)
-        return 1
+            raise AssertionError("unreachable") from exc
+        print(json.dumps({f"stage_{args.stage}": payload}, ensure_ascii=False, indent=2))
+        return 0
     try:
         return run_execute(config)
     except ProbeError as exc:
