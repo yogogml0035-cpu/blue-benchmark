@@ -269,6 +269,10 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
                     )
                 )
             else:
+                # Registration refused for a non-mismatch reason: terminal for
+                # this attempt BEFORE any checkpoint write; leave a visible
+                # failure event so the public log never trails off silently.
+                _record_precheck_terminal(job, "registration_refused")
                 raise RubricGenerationFailure(
                     code, "材料与已保存的线程快照不一致，本轮拒绝续跑。", retryable=False
                 ) from exc

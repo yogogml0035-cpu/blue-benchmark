@@ -602,6 +602,24 @@ class DeepAgentRubricGenerator:
 
         return deep_runtime.open_session(context.thread_id)
 
+    def _resolved_response_format(self) -> Any:
+        """The Agent structured-output strategy, resolved ONCE from the contract.
+
+        OpenAI combinations declared for native structured output use the
+        EXPLICIT ``ProviderStrategy`` (json_schema on the wire; verified
+        against the current gateway together with the file tools by the
+        capability gate). Other providers keep the profile-resolved default
+        strategy. The strategy is never re-selected after a model error —
+        there is no failure-driven downgrade path.
+        """
+
+        contract = self.harness_contract
+        if contract is not None and contract.output_strategy == "provider_strategy_json_schema":
+            from langchain.agents.structured_output import ProviderStrategy
+
+            return ProviderStrategy(RubricGenerationResult)
+        return RubricGenerationResult
+
     def generate(
         self,
         materials: RubricGenerationInput,
@@ -632,7 +650,7 @@ class DeepAgentRubricGenerator:
                 counters=counters,
                 sink=sink,
                 checkpointer=session.saver,
-                response_format=RubricGenerationResult,
+                response_format=self._resolved_response_format(),
             )
             state_kind = deep_runtime.classify_thread_state(agent, session.thread_config())
             sink.emit(PublicEvent(

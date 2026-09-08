@@ -383,3 +383,39 @@ def test_diagnostics_survive_alembic_style_logger_disabling(tmp_path, monkeypatc
         logger.removeHandler(handler)
         handler.close()
     logger._ai_diagnostics_configured = False
+
+
+# ---------------------------------------------------------------------------
+# Explicit output strategy resolution (no failure-driven re-selection)
+# ---------------------------------------------------------------------------
+
+def test_openai_contract_uses_explicit_provider_strategy():
+    from langchain.agents.structured_output import ProviderStrategy
+
+    generator = DeepAgentRubricGenerator(config=_config())
+    resolved = generator._resolved_response_format()
+    assert isinstance(resolved, ProviderStrategy)
+    assert resolved.schema is RubricGenerationResult
+
+
+def test_chat_completions_contract_also_uses_explicit_provider_strategy():
+    from langchain.agents.structured_output import ProviderStrategy
+
+    generator = DeepAgentRubricGenerator(config=_config(ai_openai_api="chat_completions"))
+    assert isinstance(generator._resolved_response_format(), ProviderStrategy)
+
+
+def test_anthropic_contract_keeps_profile_default_strategy():
+    generator = DeepAgentRubricGenerator(config=_config(
+        ai_provider="anthropic", ai_model="claude-sonnet-4-6", ai_reasoning_effort="",
+    ))
+    assert generator._resolved_response_format() is RubricGenerationResult
+
+
+def test_stub_contract_never_forces_provider_strategy():
+    generator = DeepAgentRubricGenerator(
+        model=ScriptedModel(messages=iter([])),
+        identity=IDENTITY,
+        contract=helpers.stub_harness_contract(),
+    )
+    assert generator._resolved_response_format() is RubricGenerationResult
