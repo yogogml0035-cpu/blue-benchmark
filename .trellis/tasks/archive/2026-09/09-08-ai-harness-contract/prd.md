@@ -28,16 +28,18 @@
 
 ## 验收标准
 
-| 编号 | 可观察的通过条件 | 对应需求 |
-|---|---|---|
-| AC1 | 目标组合经过实际生产 Harness，发生真实材料工具调用及至少一次工具结果回送，返回符合当前 schema、锚点、依据和引用规则的非空评分项；全过程保留 `medium` | R1、R2 |
-| AC2 | 最终发送的协议、思考参数、工具集合及输出策略与登记的合同完全一致；同步普通调用、Agent 流式及内部模型调用均遵守协议选择 | R2 |
-| AC3 | 本例 400 在第 1 次 attempt 后进入失败终态，不再自动发起第 2/3 次；修正配置后的显式重试仍可恢复，题目材料保留 | R3 |
-| AC4 | 429/超时/服务端临时错误仍有限重试；schema/引用纠正使用原有有限预算；中断、取消及未知程序错误不被吞成可重复执行的普通失败 | R3、R6 |
-| AC5 | 工具轮之后重启 Worker，恢复时不重复初始输入；graph 已完成而业务未提交时不重新调用模型；协议/思考强度/schema/Harness 合同变化触发已有不兼容重建流程，旧数据不被跨协议转换或回填 | R4 |
-| AC6 | 公开流不包含 reasoning/encrypted_content/凭证/原始工具正文；运维诊断可按作业定位本例的 HTTP 400 和 reasoning 参数类别，不再只有异常类名 | R5 |
-| AC7 | 原有权限、CAS、发布确认、SSE 回放、材料编辑、删除清理及模型不可用清理测试通过；不新增业务状态、评分算法或 HTTP 字段 | R6 |
-| AC8 | 旧逻辑定向检索、文档与测试同步完成；完整质量门和目标组合的真实 Worker→PostgreSQL→浏览器验收在任务分支及合并后的 main 均通过 | R7 |
+最终验收记录（2026-09-08，交付 SHA `4dc71c9`，归档收尾 `741e864`；全部证据可由表中入口复核）：
+
+| 编号 | 可观察的通过条件 | 对应需求 | 结果与证据 |
+|---|---|---|---|
+| AC1 | 目标组合经过实际生产 Harness，发生真实材料工具调用及至少一次工具结果回送，返回符合当前 schema、锚点、依据和引用规则的非空评分项；全过程保留 `medium` | R1、R2 | ✅ L01 探针（11 次工具往返、4-5 维度全合同校验、每请求 reasoning.effort=medium）+ L02 两组真实样本经生产 Worker 完成；证据 `backend/storage/acceptance/c1-capability/`、`m0-accept-real-ai/`（gitignored），C1 归档报告与 C2 prd 状态行 |
+| AC2 | 最终发送的协议、思考参数、工具集合及输出策略与登记的合同完全一致；同步普通调用、Agent 流式及内部模型调用均遵守协议选择 | R2 | ✅ 探针逐请求断言（/v1/responses、medium、7 文件工具、text.format=json_schema、store=false、无 previous_response_id）；离线 T01–T04 含同步 invoke 与流式的原生分发（tests/test_ai_runtime_model.py） |
+| AC3 | 本例 400 在第 1 次 attempt 后进入失败终态，不再自动发起第 2/3 次；修正配置后的显式重试仍可恢复，题目材料保留 | R3 | ✅ T07 worker 级测试（attempts=1、failed 终态、AI_CONFIG_INVALID、材料不变、run_failed 事件、显式重试受理）；translate_provider_error 不可重试分类 |
+| AC4 | 429/超时/服务端临时错误仍有限重试；schema/引用纠正使用原有有限预算；中断、取消及未知程序错误不被吞成可重复执行的普通失败 | R3、R6 | ✅ T08/T09 离线 + 真实运行中 structured_output_validation 瞬时失败按 attempt 预算自愈（main 验收诊断记录实证）；审查修正补齐裸 httpx/APIError 瞬时白名单；未知错误 retryable=False |
+| AC5 | 工具轮之后重启 Worker，恢复时不重复初始输入；graph 已完成而业务未提交时不重新调用模型；协议/思考强度/schema/Harness 合同变化触发已有不兼容重建流程，旧数据不被跨协议转换或回填 | R4 | ✅ L03 真实外部 Worker SIGKILL→lease 过期→重启恢复（同合同指纹 a5d6adf7…，run_resumed/thread_state_incomplete 事件，初始输入恰 1 次）；P02/探针 reread 完成态零模型调用；T10/P03 指纹变化重建、无转换回填 |
+| AC6 | 公开流不包含 reasoning/encrypted_content/凭证/原始工具正文；运维诊断可按作业定位本例的 HTTP 400 和 reasoning 参数类别，不再只有异常类名 | R5 | ✅ T06/T12 哨兵测试三出口（last_error/事件/诊断文件）；真实诊断记录含 http_status/param/request_id/operation/question/attempt/thread/合同身份（accept 运行 stderr 实证）；storage/runtime/ai-diagnostics.jsonl |
+| AC7 | 原有权限、CAS、发布确认、SSE 回放、材料编辑、删除清理及模型不可用清理测试通过；不新增业务状态、评分算法或 HTTP 字段 | R6 | ✅ 分支与 main 全量 make test（backend 404 + frontend 74）+ RUNTIME_PG_REQUIRED=1 17 项 + L04 浏览器链（发布/重开/审改/删除零残留/断线回放）；openapi 合同零漂移 |
+| AC8 | 旧逻辑定向检索、文档与测试同步完成；完整质量门和目标组合的真实 Worker→PostgreSQL→浏览器验收在任务分支及合并后的 main 均通过 | R7 | ✅ 审查代理 A 定向检索 8 项删除全 DONE 零残留；README/.env.example/spec/deploy 模板同步；L05 在 main 检出重跑 make test/build + PG 门 + L01–L04 全 PASS（证据 git_sha=4dc71c9） |
 
 完整分层验证、失败注入和禁止冒充验收的规则见 [验证矩阵](research/validation-matrix.md)。
 
@@ -58,5 +60,6 @@
 ## 审批状态
 
 - 2026-09-08 用户明确批准本父子计划并要求实施执行，批准覆盖整棵任务树（C1、C2）；实施按 C1 → C2 严格串行。
+- 2026-09-08 任务完成：C1（能力门 PASS，归档 378e809）→ C2（生产切换交付 4dc71c9，归档 741e864）→ 父验收 AC1–AC8 全部通过（见上表）。主环境切换/原题重试不在本任务执行范围，按运维动作另行处理。
 - 父任务保持协调职责，不作为产品实施入口，不运行父任务的 `task.py start`。
 - 真实模型调用授权：C1 `--execute` 能力门与 C2 真实验收门在本批准范围内，仅限任务独占隔离资源；当前业务两库、现有常驻服务与原失败题自动重试仍不在授权内。
