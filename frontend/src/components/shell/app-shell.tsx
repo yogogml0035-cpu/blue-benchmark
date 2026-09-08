@@ -14,7 +14,7 @@ export interface AppShellProps {
 
 /**
  * Desktop application chrome: a fixed navigation sidebar plus a content
- * region. The sidebar keeps the BenchMark 232px width and pins the single
+ * region. The sidebar keeps the BenchMark 240px width and pins the single
  * admin identity with a logout action at the bottom.
  */
 export function AppShell({ username, onLogout, loggingOut = false, children }: AppShellProps): React.JSX.Element {

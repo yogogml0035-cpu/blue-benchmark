@@ -7,7 +7,7 @@
 
 .loadingSidebar {
   flex: none;
-  width: 232px;
+  width: 240px;
   display: flex;
   flex-direction: column;
   gap: 14px;

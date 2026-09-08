@@ -9,7 +9,7 @@
 
 .sidebar {
   flex: none;
-  width: 232px;
+  width: 240px;
   display: flex;
   flex-direction: column;
   background: var(--benchmark-nav);
