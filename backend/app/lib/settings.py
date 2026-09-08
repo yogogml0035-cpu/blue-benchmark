@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     ai_runtime_mode: str = "production"
     ai_provider: str = ""
     ai_model: str = ""
+    ai_reasoning_effort: str = ""
     ai_api_key: SecretStr = Field(
         default=SecretStr(""),
         validation_alias=AliasChoices("AI_API_KEY"),
@@ -72,6 +73,11 @@ class Settings(BaseSettings):
     @classmethod
     def normalize_model_name(cls, value: object) -> str:
         return str(value or "").strip()
+
+    @field_validator("ai_reasoning_effort", mode="before")
+    @classmethod
+    def normalize_reasoning_effort(cls, value: object) -> str:
+        return str(value or "").strip().lower()
 
     @field_validator(
         "ai_api_key", "checkpoint_database_url", "langgraph_aes_key", "admin_password", mode="before"

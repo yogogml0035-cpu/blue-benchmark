@@ -26,6 +26,8 @@ cp .env.example .env
 
 编辑 `.env`：`ADMIN_USERNAME`、`ADMIN_PASSWORD`（单管理员账号，缺失或为空时 API 拒绝启动）、`AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY`、可选 `AI_BASE_URL`、`AI_REQUEST_TIMEOUT_SECONDS`、`DATABASE_URL`、`CHECKPOINT_DATABASE_URL`（生成运行检查点库，psycopg DSN）、`LANGGRAPH_AES_KEY`（16/24/32 字节，检查点加密密钥，缺失时生产生成拒绝落库）、`OPERATION_LEASE_SECONDS`、`OPERATION_MAX_ATTEMPTS`。`AI_PROVIDER=openai` 使用 OpenAI 或 OpenAI 兼容厂商（兼容端点通常把 `/v1` 放在 `AI_BASE_URL`）；`AI_PROVIDER=anthropic` 使用 Anthropic 或兼容 Messages API 的服务。本地 HTTP 开发需显式设置 `SESSION_COOKIE_SECURE=false`。不要把真实密钥提交到 Git。
 
+可选 `AI_REASONING_EFFORT` 控制 OpenAI 推理模型的思考强度，直接传给 Chat Completions 的 `reasoning_effort`。留空时不传参数，沿用模型默认行为；可填 `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`，具体支持哪些档位由模型和兼容网关决定。通常档位越高，耗时和推理 Token 消耗越多。不支持推理的模型或 `AI_PROVIDER=anthropic` 应留空。修改后需重启 Worker；使用 `make start-all` 时重新启动整组服务。
+
 安装依赖：
 
 ```bash

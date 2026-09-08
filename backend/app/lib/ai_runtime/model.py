@@ -143,6 +143,15 @@ def build_runtime_model(
         "streaming": streaming,
         "max_retries": int(getattr(config, "ai_model_retries", 1)),
     }
+    reasoning_effort = str(getattr(config, "ai_reasoning_effort", "") or "").strip().lower()
+    if reasoning_effort:
+        if identity.provider != "openai":
+            raise ModelConfigurationError("AI_REASONING_EFFORT requires AI_PROVIDER=openai")
+        if reasoning_effort not in {"none", "minimal", "low", "medium", "high", "xhigh", "max"}:
+            raise ModelConfigurationError(
+                "AI_REASONING_EFFORT must be empty, none, minimal, low, medium, high, xhigh or max"
+            )
+        kwargs["reasoning_effort"] = reasoning_effort
     request_timeout = float(getattr(config, "ai_request_timeout_seconds", 180.0))
     if identity.provider == "openai":
         try:
