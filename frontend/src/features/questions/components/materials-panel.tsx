@@ -263,7 +263,7 @@ export function MaterialsPanel({
       </ModuleFrame>
 
       <ModuleFrame
-        label={`用户记忆（${detail.memory_materials.length}）`}
+        label={`业务记忆（${detail.memory_materials.length}）`}
         moduleKey="memory_materials"
         editable={canEdit && detail.memory_materials.length > 0}
         editing={editing("memory_materials")}
@@ -278,7 +278,7 @@ export function MaterialsPanel({
           (buffer as MemoryMaterialBuffer[]).map((m, i) => (
             <label key={m.client_ref_id || i} className={styles.fieldArea}>
               <span className={styles.fieldAreaLabel}>
-                {`记忆 ${i + 1}${m.source_label ? ` · ${m.source_label}` : ""}`}
+                {`业务记忆 ${i + 1}${m.source_label ? ` · ${m.source_label}` : ""}`}
               </span>
               <textarea
                 className={styles.textarea}
@@ -293,7 +293,7 @@ export function MaterialsPanel({
                   )
                 }
                 onKeyDown={escapeCancels}
-                aria-label={`用户记忆 ${i + 1} 内容`}
+                aria-label={`业务记忆 ${i + 1} 内容`}
               />
             </label>
           ))
@@ -310,18 +310,17 @@ export function MaterialsPanel({
               ) : (
                 <ChevronRight size={15} aria-hidden="true" />
               )}
-              展开/收起记忆列表
+              展开/收起业务记忆列表
             </button>
             <p className={styles.memoryNote}>由 Agent 自动筛选，上传时未逐条确认。</p>
             {memoryOpen ? (
               detail.memory_materials.length === 0 ? (
                 <div className={styles.maskBox}>
-                  <p className={styles.empty}>无用户记忆</p>
+                  <p className={styles.empty}>无业务记忆</p>
                 </div>
               ) : (
                 detail.memory_materials.map((m, i) => (
                   <div key={m.client_ref_id || i} className={styles.maskBox}>
-                    {m.source_label ? <p className={styles.subLabel}>{m.source_label}</p> : null}
                     <p className={styles.text}>{m.content_text}</p>
                   </div>
                 ))

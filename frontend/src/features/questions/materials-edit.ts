@@ -1,7 +1,7 @@
 /**
  * Per-module material autosave model for the workbench.
  *
- * Each material module (题目/标准答案/参考文本/Bad case/用户记忆) keeps a local
+ * Each material module (题目/标准答案/参考文本/Bad case/业务记忆) keeps a local
  * buffer while its edit state is open; leaving the module builds a PATCH
  * /materials payload for that single field. Absent fields keep their stored
  * values server-side, so a module commit never overwrites concurrent edits
