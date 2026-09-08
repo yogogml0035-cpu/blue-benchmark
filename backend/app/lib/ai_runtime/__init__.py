@@ -19,7 +19,6 @@ from app.lib.ai_runtime.adapters import (
     set_adapters,
 )
 from app.lib.ai_runtime.contract import (
-    ContractConfigurationError,
     ResolvedHarnessContract,
     resolve_harness_contract,
 )
@@ -34,7 +33,6 @@ from app.lib.ai_runtime.model import (
 )
 
 __all__ = [
-    "ContractConfigurationError",
     "CriterionBasis",
     "CriterionDraft",
     "DeepAgentRubricGenerator",

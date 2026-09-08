@@ -150,6 +150,9 @@ def main() -> int:
     os.environ["DATABASE_SCHEMA_CHECK_ON_STARTUP"] = "false"
     os.environ["SESSION_COOKIE_SECURE"] = "false"
     os.environ["ADMIN_USERNAME"] = "admin"
+    # One-shot credential for THIS isolated acceptance environment only
+    # (fresh task-exclusive database, random free port, process lifetime);
+    # never a production or shared secret.
     os.environ["ADMIN_PASSWORD"] = "accept-real-ai-password-1"
     # Short lease in the ISOLATED acceptance environment only: the recovery
     # phase SIGKILLs a real worker subprocess and the requeue must not wait
@@ -340,7 +343,12 @@ def main() -> int:
                 if retry_status != 200:
                     _fail("generation", f"自动重试受理失败 status={retry_status}")
             time.sleep(1.0)
-        _fail("generation", f"等待超时，当前状态 {detail.get('status')} 错误 {detail.get('last_error')}")
+        last_error = detail.get("last_error") or {}
+        _fail(
+            "generation",
+            f"等待超时，当前状态 {detail.get('status')} "
+            f"错误码 {last_error.get('code')}（message 不落 stdout，见业务库与运行诊断）",
+        )
         raise AssertionError
 
     def locator_texts_for(case: dict) -> dict[str, str]:
@@ -596,9 +604,13 @@ def main() -> int:
     print(f"ACCEPT_REAL_AI_STAGE=deleted case={first_case_id} threads={len(thread_ids)}")
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "accept-evidence.json").write_text(
-        json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    blob = json.dumps(evidence, ensure_ascii=False, indent=2)
+    from scripts.probe_ai_harness_capability import _secret_values
+
+    for secret in _secret_values():
+        if secret and secret in blob:
+            _fail("evidence", "证据包含配置密钥值，拒绝写入")
+    (out_dir / "accept-evidence.json").write_text(blob, encoding="utf-8")
     print("ACCEPT_REAL_AI=PASS")
     return 0
 

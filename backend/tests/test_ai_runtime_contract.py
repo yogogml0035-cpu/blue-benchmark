@@ -306,7 +306,7 @@ def test_business_failure_message_carries_no_provider_text():
     assert "SECRET-PROVIDER-TEXT" not in failure.message
 
 
-def test_record_ai_failure_writes_jsonl_and_stderr(tmp_path, monkeypatch, caplog):
+def test_record_ai_failure_writes_jsonl_and_stderr(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(diag, "storage_root", lambda: tmp_path)
     logger = logging.getLogger(diag.DIAGNOSTICS_LOGGER_NAME)
     for handler in list(logger.handlers):
@@ -314,16 +314,15 @@ def test_record_ai_failure_writes_jsonl_and_stderr(tmp_path, monkeypatch, caplog
         handler.close()
     logger._ai_diagnostics_configured = False
 
-    with caplog.at_level(logging.ERROR, logger=diag.DIAGNOSTICS_LOGGER_NAME):
-        record = diag.record_ai_failure(
-            stage="generate",
-            exception=ModelRateLimitError("slow down"),
-            contract=_contract(_config()),
-            operation_id="op-77",
-            question_id="q-77",
-            attempt=1,
-            thread_id="qgen-q-77-r1",
-        )
+    record = diag.record_ai_failure(
+        stage="generate",
+        exception=ModelRateLimitError("slow down"),
+        contract=_contract(_config()),
+        operation_id="op-77",
+        question_id="q-77",
+        attempt=1,
+        thread_id="qgen-q-77-r1",
+    )
     assert record["category"] == "rate_limit"
     log_file = tmp_path / "runtime" / "ai-diagnostics.jsonl"
     assert log_file.exists()
@@ -331,6 +330,10 @@ def test_record_ai_failure_writes_jsonl_and_stderr(tmp_path, monkeypatch, caplog
     assert line["operation_id"] == "op-77"
     assert line["category"] == "rate_limit"
     assert set(line.keys()) == set(diag.RECORD_FIELDS)
+    # The stderr outlet (existing service log) carries the SAME record —
+    # propagate=False means caplog cannot see it; capsys can.
+    err = capsys.readouterr().err
+    assert "\"op-77\"" in err and "\"rate_limit\"" in err
 
     for handler in list(logger.handlers):
         logger.removeHandler(handler)
@@ -419,3 +422,118 @@ def test_stub_contract_never_forces_provider_strategy():
         contract=helpers.stub_harness_contract(),
     )
     assert generator._resolved_response_format() is RubricGenerationResult
+
+
+# ---------------------------------------------------------------------------
+# Review-fix regressions: prompt binding, history-policy binding, transient
+# transport whitelist, diagnostics hardening
+# ---------------------------------------------------------------------------
+
+def test_prompt_text_change_moves_fingerprint():
+    from app.lib.ai_runtime.contract import prompt_identity_hash
+
+    a = _contract(_config(), prompt_texts=("prompt-a", "rev-a"))
+    b = _contract(_config(), prompt_texts=("prompt-b", "rev-a"))
+    assert a.prompt_identity == prompt_identity_hash("prompt-a", "rev-a")
+    assert a.fingerprint != b.fingerprint
+
+
+def test_production_contract_binds_actual_prompt_texts():
+    from app.lib.ai_runtime.adapters import _REVISION_PROMPT_PREFIX, _SYSTEM_PROMPT
+    from app.lib.ai_runtime.contract import prompt_identity_hash
+
+    contract = _contract(_config())
+    assert contract.prompt_identity == prompt_identity_hash(
+        _SYSTEM_PROMPT, _REVISION_PROMPT_PREFIX
+    )
+
+
+def test_responses_history_policy_constant_is_bound_to_model_kwargs():
+    from app.lib.ai_runtime.contract import RESPONSES_HISTORY_POLICY
+
+    model, _identity = __import__(
+        "app.lib.ai_runtime.model", fromlist=["build_runtime_model"]
+    ).build_runtime_model(_config())
+    try:
+        assert model.store is False
+        assert model.use_previous_response_id is False
+        assert model.include == ["reasoning.encrypted_content"]
+        assert RESPONSES_HISTORY_POLICY == "client-held-encrypted-v1"
+    finally:
+        model.http_client.close()
+
+
+def test_bare_httpx_stream_errors_stay_retryable():
+    import httpx
+
+    for exc in (
+        httpx.ReadTimeout("stream stall"),
+        httpx.ConnectError("refused"),
+        httpx.RemoteProtocolError("peer closed connection without sending complete message body"),
+    ):
+        failure = translate_provider_error(exc, stage_message="生成轮")
+        assert failure.code == "AI_CALL_FAILED", exc
+        assert failure.retryable is True, exc
+
+
+def test_bare_openai_api_error_event_stays_retryable():
+    from openai import APIError
+
+    failure = translate_provider_error(
+        APIError("stream error event", request=None, body=None), stage_message="生成轮"
+    )
+    assert failure.code == "AI_CALL_FAILED"
+    assert failure.retryable is True
+
+
+def test_context_overflow_is_deterministic_with_material_guidance():
+    from langchain_core.exceptions import ModelError
+
+    class OpenAIContextOverflowError(ModelError):
+        pass
+
+    failure = translate_provider_error(
+        OpenAIContextOverflowError("too long"), stage_message="生成轮"
+    )
+    assert failure.code == "AI_CONFIG_INVALID"
+    assert failure.retryable is False
+    assert "材料" in failure.message
+
+
+def test_fallback_message_uses_fixed_vocabulary_not_class_names():
+    failure = translate_provider_error(ZeroDivisionError("boom"), stage_message="生成轮")
+    assert "ZeroDivisionError" not in failure.message
+    assert "ai-diagnostics.jsonl" in failure.message
+
+
+def test_diagnostics_whitelist_rejects_trailing_newline_and_bool_status():
+    from types import SimpleNamespace
+
+    class WeirdError(Exception):
+        pass
+
+    exc = WeirdError("x")
+    exc.response = SimpleNamespace(status_code=True, headers={})
+    record = diag.build_diagnostic_record(event="ai_failure", stage="gen\n", exception=exc)
+    assert record["stage"] == "unknown"          # trailing newline rejected
+    assert record["http_status"] is None          # bool is not an HTTP status
+    assert record["category"] == "WeirdError"
+
+
+def test_diagnostics_reads_request_id_from_mapping_headers():
+    from types import SimpleNamespace
+    from collections.abc import Mapping
+
+    class HeadersLike(Mapping):
+        def __init__(self, data): self._data = data
+        def __getitem__(self, key): return self._data[key]
+        def __iter__(self): return iter(self._data)
+        def __len__(self): return len(self._data)
+
+    from langchain_core.exceptions import ModelRateLimitError
+
+    exc = ModelRateLimitError("slow down")
+    exc.response = SimpleNamespace(status_code=429, headers=HeadersLike({"x-request-id": "req_abc-123"}))
+    record = diag.build_diagnostic_record(event="ai_failure", stage="generate", exception=exc)
+    assert record["request_id"] == "req_abc-123"
+    assert record["http_status"] == 429

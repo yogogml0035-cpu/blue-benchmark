@@ -437,6 +437,7 @@ _SYSTEM_PROMPT = """你是评测平台的评分维度起草智能体。你只依
 # explicit retry after fixing the configuration still recovers.
 _DETERMINISTIC_CONFIG_CATEGORIES = {
     "model_invalid_request": "模型请求被服务端拒绝（无效请求）：当前协议、思考强度与工具组合不被该模型/网关支持，请核对 AI_OPENAI_API、AI_REASONING_EFFORT 与 AI_MODEL。",
+    "context_overflow": "本题材料体量超出模型上下文窗口，请精简材料后重新生成；重试同一材料不会恢复。",
     "authentication": "模型鉴权失败，请核对 AI_API_KEY。",
     "permission_denied": "模型访问被拒绝（权限不足），请核对该密钥对当前模型的访问权限。",
     "model_not_found": "配置的模型不存在，请核对 AI_MODEL 与 AI_BASE_URL。",
@@ -479,9 +480,11 @@ def translate_provider_error(exc: BaseException, *, stage_message: str) -> Rubri
             "AI_CALL_FAILED", f"{stage_message}：{_UNKNOWN_MESSAGE}", retryable=False
         )
     # Any other classified-but-unmapped category: honest, safe, non-retryable.
+    # The category (an internal exception class name) goes to diagnostics
+    # only — the teacher-facing message uses fixed vocabulary.
     return RubricGenerationFailure(
         "AI_CALL_FAILED",
-        f"{stage_message}：模型调用失败（{category}），已停止自动重试。",
+        f"{stage_message}：模型调用发生未预期错误，已停止自动重试；请查看运行诊断（runtime/ai-diagnostics.jsonl）。",
         retryable=False,
     )
 
@@ -687,6 +690,10 @@ class DeepAgentRubricGenerator:
                     raise RubricGenerationFailure(exc.code, exc.message, retryable=False) from exc
                 except deep_runtime.DeepRuntimeError as exc:
                     raise RubricGenerationFailure(exc.code, exc.message, retryable=exc.retryable) from exc
+                except RubricGenerationFailure:
+                    # Already-translated business failures (e.g. raised from
+                    # an injected sink) keep their code and retryable flag.
+                    raise
                 except Exception as exc:  # provider/transport errors: standard classification, never leak raw details
                     raise translate_provider_error(
                         exc, stage_message="评分维度生成调用失败"
@@ -739,6 +746,8 @@ class DeepAgentRubricGenerator:
                     raise RubricGenerationFailure(
                         d_exc.code, d_exc.message, retryable=d_exc.retryable
                     ) from d_exc
+                except RubricGenerationFailure:
+                    raise
                 except Exception as g_exc:
                     raise translate_provider_error(
                         g_exc, stage_message="修订轮调用失败"

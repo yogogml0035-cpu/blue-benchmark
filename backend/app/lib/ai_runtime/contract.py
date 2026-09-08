@@ -71,14 +71,6 @@ TRACKED_SDK_PACKAGES: tuple[str, ...] = (
 )
 
 
-class ContractConfigurationError(RuntimeError):
-    """The harness contract could not be resolved from the configuration.
-
-    Deterministic and administrator-correctable: it must never be retried
-    automatically, and it must never be masked by a fallback identity.
-    """
-
-
 def tracked_sdk_versions() -> dict[str, str]:
     versions: dict[str, str] = {}
     for package in TRACKED_SDK_PACKAGES:
@@ -99,6 +91,15 @@ def result_schema_hash(result_schema: Any) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def prompt_identity_hash(*texts: str) -> str:
+    """Mechanical prompt identity: ANY change to the instruction texts that
+    shape a run (system prompt, revision instruction) moves the contract
+    fingerprint — the policy version constant is no longer the only guard."""
+
+    joined = "\u0000".join(texts)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+
 @dataclass(frozen=True)
 class ResolvedHarnessContract:
     """Everything one generation run's identity and recovery depend on."""
@@ -111,6 +112,7 @@ class ResolvedHarnessContract:
     output_strategy: str
     result_schema_hash: str
     harness_policy_version: str
+    prompt_identity: str
     responses_history_policy: str
     max_model_calls: int
     max_tool_calls: int
@@ -128,6 +130,7 @@ class ResolvedHarnessContract:
             "output_strategy": self.output_strategy,
             "result_schema_hash": self.result_schema_hash,
             "harness_policy_version": self.harness_policy_version,
+            "prompt_identity": self.prompt_identity,
             "responses_history_policy": self.responses_history_policy,
             "budget": {
                 "max_model_calls": self.max_model_calls,
@@ -169,6 +172,7 @@ def resolve_harness_contract(
     result_schema: Any,
     budget: RuntimeBudget | None = None,
     max_revisions: int = 1,
+    prompt_texts: tuple[str, ...] | None = None,
 ) -> ResolvedHarnessContract:
     """Resolve the contract from a configuration snapshot.
 
@@ -200,6 +204,13 @@ def resolve_harness_contract(
         output_strategy = "model_profile_default"
         responses_history = "not_applicable"
     effective_budget = budget if budget is not None else RuntimeBudget()
+    if prompt_texts is None:
+        # Production default: the actual instruction texts of the rubric
+        # generator (imported lazily; adapters never imports this module at
+        # module scope, so there is no cycle).
+        from app.lib.ai_runtime.adapters import _REVISION_PROMPT_PREFIX, _SYSTEM_PROMPT
+
+        prompt_texts = (_SYSTEM_PROMPT, _REVISION_PROMPT_PREFIX)
     return ResolvedHarnessContract(
         provider=identity.provider,
         model=identity.model,
@@ -209,6 +220,7 @@ def resolve_harness_contract(
         output_strategy=output_strategy,
         result_schema_hash=result_schema_hash(result_schema),
         harness_policy_version=HARNESS_POLICY_VERSION,
+        prompt_identity=prompt_identity_hash(*prompt_texts),
         responses_history_policy=responses_history,
         max_model_calls=effective_budget.max_model_calls,
         max_tool_calls=effective_budget.max_tool_calls,
@@ -231,8 +243,8 @@ __all__ = [
     "HARNESS_POLICY_VERSION",
     "RESPONSES_HISTORY_POLICY",
     "TRACKED_SDK_PACKAGES",
-    "ContractConfigurationError",
     "ResolvedHarnessContract",
+    "prompt_identity_hash",
     "protocol_uses_chat_completions",
     "protocol_uses_responses",
     "resolve_harness_contract",

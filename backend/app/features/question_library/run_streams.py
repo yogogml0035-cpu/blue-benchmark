@@ -62,10 +62,14 @@ def register_thread(registration: ThreadRegistration) -> ThreadRegistration:
     """
     now = _utc_now()
     with session_scope() as session:
+        # Row-lock the existing registration so a concurrent mismatch→purge→
+        # re-register flow serializes per thread instead of interleaving with
+        # this writer (the checkpoint advisory lock only covers the purge and
+        # execution phases, not this business-side registration window).
         existing = session.execute(
             select(QuestionRunThreadRow).where(
                 QuestionRunThreadRow.thread_id == registration.thread_id
-            )
+            ).with_for_update()
         ).scalar_one_or_none()
         if existing is not None:
             if existing.materials_fingerprint != registration.materials_fingerprint:

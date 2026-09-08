@@ -240,6 +240,10 @@ def build_runtime_model(
             # gateway stores nothing, and multi-turn tool rounds round-trip
             # the opaque reasoning items the SDK produces. Verified end to
             # end by the C1 capability gate (see the archived C1 report).
+            # THESE THREE KWARGS ARE the contract's RESPONSES_HISTORY_POLICY
+            # ("client-held-encrypted-v1"): changing any of them without
+            # bumping that constant is a contract violation — the binding is
+            # asserted in tests/test_ai_runtime_contract.py.
             kwargs["store"] = False
             kwargs["use_previous_response_id"] = False
             kwargs["include"] = ["reasoning.encrypted_content"]

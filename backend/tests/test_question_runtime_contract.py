@@ -630,6 +630,12 @@ def test_runtime_fingerprint_mismatch_refuses_resume() -> None:
             assert detail["last_error"]["code"] in (
                 "CHECKPOINT_UNAVAILABLE", "CHECKPOINT_DSN_MISSING", "CHECKPOINT_KEY_MISSING",
             ), detail["last_error"]
+            # The purge failure before any checkpoint write still leaves a
+            # visible terminal event — the public log never trails off.
+            operation_id = _generation_operation(question_id)
+            events_page = _events(client, question_id, operation_id)
+            kinds = [e["kind"] for e in events_page["events"]]
+            assert "run_failed" in kinds
     finally:
         adapter_module.set_adapters(previous)
 
@@ -1073,6 +1079,9 @@ def test_provider_400_fails_terminally_after_first_attempt(tmp_path, monkeypatch
             kinds = [e["kind"] for e in events_page["events"]]
             assert "run_failed" in kinds
             assert "run_completed" not in kinds
+            # Third outlet: the persisted public event log stays clean too.
+            assert secret_marker not in json.dumps(events_page, ensure_ascii=False)
+            assert header_marker not in json.dumps(events_page, ensure_ascii=False)
 
             # Explicit retry (the administrator fixed the configuration) is
             # still accepted with a fresh attempt budget.

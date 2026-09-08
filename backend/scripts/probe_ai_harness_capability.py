@@ -769,7 +769,10 @@ def _describe_stage_error(exc: BaseException) -> str:
     if isinstance(exc, (RubricGenerationFailure, DeepRuntimeError)):
         parts.append(f"code={exc.code}")
         parts.append(f"retryable={exc.retryable}")
-        parts.append(f"message={str(exc.message)[:400]}")
+        # Message length only: AI_CITATION_INVALID messages embed verbatim
+        # material spans, and probe stdout must stay corpus-free like the
+        # evidence files. Full text lives in the service-side projections.
+        parts.append(f"message_chars={len(str(exc.message))}")
     cause = exc.__cause__
     if cause is not None:
         status = getattr(getattr(cause, "response", None), "status_code", None)
@@ -975,10 +978,11 @@ def stage_cleanup(config: ProbeConfig) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def _stage_child_args(config: ProbeConfig, stage: str) -> list[str]:
+    # The DSN travels via C1_CHECKPOINT_DSN in the child environment, never
+    # through argv (process listings are world-readable on the host).
     return [
         sys.executable, "-m", "scripts.probe_ai_harness_capability",
         "--execute", "--stage", stage,
-        "--checkpoint-dsn", config.checkpoint_dsn,
         "--corpus-root", str(config.corpus_root),
         "--case", config.case_id,
         "--out", str(config.out_dir),
@@ -994,6 +998,7 @@ def _spawn_stage(config: ProbeConfig, stage: str, expect_code: int = 0) -> int:
     completed = subprocess.run(
         _stage_child_args(config, stage),
         cwd=str(BACKEND_ROOT),
+        env={**os.environ, "C1_CHECKPOINT_DSN": config.checkpoint_dsn},
         timeout=int(config.max_seconds) + 300,
     )
     if completed.returncode != expect_code:

@@ -151,7 +151,11 @@ def main() -> int:
     try:
         result = generator.generate(materials, context=context, sink=sink)
     except RubricGenerationFailure as exc:
-        print(f"AI_SMOKE=FAIL code={exc.code} message={exc.message}")
+        # stdout stays sanitized: AI_CITATION_INVALID messages embed verbatim
+        # material spans (teacher-facing feedback), which must never reach a
+        # console log that claims "never material bodies". Full messages live
+        # in the business last_error and the run diagnostics.
+        print(f"AI_SMOKE=FAIL code={exc.code} message_chars={len(exc.message)}")
         return 1
     finally:
         # The smoke thread is always cleaned up (model-free), success or not.

@@ -36,6 +36,7 @@ registers a second production entrypoint or a compatibility switch.
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -237,6 +238,17 @@ def public_tool_detail(args: Mapping[str, Any] | None) -> str | None:
     return None
 
 
+# Stage labels are deterministic identifiers (Chinese included), never free
+# text: block control characters, newlines and quote-like JSON breakers even
+# if a future middleware starts using the custom stream channel.
+_CUSTOM_STAGE_ALLOWED = re.compile(r"^[^\x00-\x1f\"'`]{1,120}$")
+
+
+def _safe_custom_stage(value: Any) -> str:
+    text = str(value or "").strip()
+    return text if _CUSTOM_STAGE_ALLOWED.fullmatch(text) else "custom"
+
+
 def normalize_stream_chunk(mode: str, payload: Any) -> list[PublicEvent]:
     """Map one native ``stream(stream_mode=[...])`` chunk to public events.
 
@@ -267,7 +279,7 @@ def normalize_stream_chunk(mode: str, payload: Any) -> list[PublicEvent]:
 
     if mode == "custom":
         if isinstance(payload, Mapping):
-            stage = str(payload.get("stage") or "custom")
+            stage = _safe_custom_stage(payload.get("stage"))
             text = payload.get("text")
             return [PublicEvent(kind="stage", stage=stage,
                                 text=str(text)[:_DETAIL_LIMIT] if text is not None else None)]
@@ -389,7 +401,9 @@ def bound_tool_names(agent: Any) -> set[str]:
     registry = getattr(data, "tools_by_name", None)
     if isinstance(registry, Mapping):
         return set(registry.keys())
-    raise DeepRuntimeError("RUNTIME_INTROSPECTION_FAILED", "无法检查已装配的工具列表。")
+    raise DeepRuntimeError(
+        "RUNTIME_INTROSPECTION_FAILED", "无法检查已装配的工具列表。", retryable=True
+    )
 
 
 class ObservationMiddleware(_AgentMiddlewareBase):
@@ -804,7 +818,9 @@ def run_streaming(
         for event in normalize_stream_chunk(mode, payload):
             sink.emit(event)
     if not saw_any:
-        raise DeepRuntimeError("RUNTIME_NO_EVENTS", "运行没有产生任何事件。")
+        raise DeepRuntimeError(
+            "RUNTIME_NO_EVENTS", "运行没有产生任何事件。", retryable=True
+        )
     interrupted, payloads = inspect_interrupt(agent, session)
     if interrupted:
         sink.emit(PublicEvent(kind="interrupted",

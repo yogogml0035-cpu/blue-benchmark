@@ -257,17 +257,27 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
                 # and start a fresh run on the CURRENT materials, so a
                 # teacher retry actually recovers instead of dead-ending.
                 # Old messages are NEVER converted across contracts.
-                _purge_incompatible_thread(thread_id)
-                run_streams.register_thread(
-                    run_streams.ThreadRegistration(
-                        thread_id=thread_id,
-                        question_id=question_id,
-                        operation_id=job.id,
-                        materials_revision=revision,
-                        materials_fingerprint=materials_fp,
-                        runtime_fingerprint=runtime_fp,
+                try:
+                    _purge_incompatible_thread(thread_id)
+                    run_streams.register_thread(
+                        run_streams.ThreadRegistration(
+                            thread_id=thread_id,
+                            question_id=question_id,
+                            operation_id=job.id,
+                            materials_revision=revision,
+                            materials_fingerprint=materials_fp,
+                            runtime_fingerprint=runtime_fp,
+                        )
                     )
-                )
+                except RubricGenerationFailure:
+                    # Purge failed: the incompatible checkpoint still exists;
+                    # never continue writing new state on top of it. Leave a
+                    # visible terminal event for this attempt.
+                    _record_precheck_terminal(job, "purge_failed")
+                    raise
+                except ValueError:
+                    _record_precheck_terminal(job, "registration_refused")
+                    raise
             else:
                 # Registration refused for a non-mismatch reason: terminal for
                 # this attempt BEFORE any checkpoint write; leave a visible
@@ -306,14 +316,13 @@ def process_rubric_generation(job: Any) -> dict[str, Any]:
             # errors surface here (before or between checkpoint writes):
             # deterministic, administrator-correctable, NON-retryable — the
             # job still ends terminal with a visible failure event.
-            from app.lib.ai_runtime.contract import ContractConfigurationError
             from app.lib.ai_runtime.model import ModelConfigurationError
 
             _record_failure_diagnostics(
                 "model_init", exc, generator, job, question_id, thread_id
             )
             sink.emit_terminal("run_failed")
-            if isinstance(exc, (ModelConfigurationError, ContractConfigurationError)):
+            if isinstance(exc, ModelConfigurationError):
                 raise RubricGenerationFailure(
                     "AI_CONFIG_INVALID",
                     "AI 运行配置无效，本轮生成已终止；请修正配置后显式重试。",

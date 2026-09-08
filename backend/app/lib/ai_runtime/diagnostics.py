@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -73,6 +74,10 @@ _SAFE_CORRELATION_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 _KNOWN_CATEGORY_BY_NAME = {
     "ModelInvalidRequestError": "model_invalid_request",
     "BadRequestError": "model_invalid_request",
+    "ConflictError": "model_invalid_request",
+    "UnprocessableEntityError": "model_invalid_request",
+    "OpenAIContextOverflowError": "context_overflow",
+    "ContextOverflowError": "context_overflow",
     "ModelAuthenticationError": "authentication",
     "AuthenticationError": "authentication",
     "ModelPermissionDeniedError": "permission_denied",
@@ -88,15 +93,32 @@ _KNOWN_CATEGORY_BY_NAME = {
     "InternalServerError": "server",
     "ModelAPIError": "provider_api",
     "APIStatusError": "provider_api",
+    "APIError": "provider_api",
+    # Raw transport errors can surface unwrapped when a STREAMING response
+    # body fails mid-iteration (the SDK only wraps request-phase errors):
+    # these are the classic transient gateway failures and must stay
+    # retryable.
+    "ReadTimeout": "timeout",
+    "ConnectTimeout": "timeout",
+    "PoolTimeout": "timeout",
+    "WriteTimeout": "timeout",
+    "ConnectError": "connection",
+    "ReadError": "connection",
+    "WriteError": "connection",
+    "CloseError": "connection",
+    "RemoteProtocolError": "connection",
+    "IncompleteRead": "connection",
+    "StreamClosed": "connection",
+    "StreamConsumed": "connection",
+    "GraphRecursionError": "budget_exceeded",
     "StructuredOutputValidationError": "structured_output_validation",
     "BudgetExceededError": "budget_exceeded",
     "ModelConfigurationError": "configuration_invalid",
-    "ContractConfigurationError": "configuration_invalid",
     "DeepRuntimeError": "deep_runtime",
     "RubricGenerationFailure": "generation_failure",
 }
 
-_MAX_CAUSE_DEPTH = 8
+_MAX_CAUSE_DEPTH = 16
 
 
 def storage_root() -> Path:
@@ -153,12 +175,12 @@ def get_diagnostics_logger() -> logging.Logger:
 
 def _safe_identifier(value: Any) -> str | None:
     text = str(value or "")
-    return text if _SAFE_IDENTIFIER.match(text) else None
+    return text if _SAFE_IDENTIFIER.fullmatch(text) else None
 
 
 def _safe_correlation_id(value: Any) -> str | None:
     text = str(value or "")
-    return text if _SAFE_CORRELATION_ID.match(text) else None
+    return text if _SAFE_CORRELATION_ID.fullmatch(text) else None
 
 
 def _walk_causes(exc: BaseException) -> list[BaseException]:
@@ -210,20 +232,20 @@ def classify_exception(exc: BaseException) -> dict[str, Any]:
     for candidate in chain:
         response = getattr(candidate, "response", None)
         status = getattr(response, "status_code", None)
-        if http_status is None and isinstance(status, int):
+        if http_status is None and isinstance(status, int) and not isinstance(status, bool):
             http_status = status
         body = getattr(candidate, "body", None)
         if param is None and isinstance(body, dict):
             error_body = body.get("error")
             if isinstance(error_body, dict):
                 raw_param = error_body.get("param")
-                if raw_param is not None and _SAFE_PARAM.match(str(raw_param)):
+                if raw_param is not None and _SAFE_PARAM.fullmatch(str(raw_param)):
                     param = str(raw_param)
         if request_id is None:
             headers = getattr(response, "headers", None)
-            if isinstance(headers, dict):
+            if isinstance(headers, Mapping):
                 raw_request_id = headers.get("x-request-id") or headers.get("request-id")
-                if raw_request_id and _SAFE_PARAM.match(str(raw_request_id)):
+                if raw_request_id and _SAFE_PARAM.fullmatch(str(raw_request_id)):
                     request_id = str(raw_request_id)
         if retryable is None:
             flag = getattr(candidate, "is_retryable", None)
@@ -296,7 +318,7 @@ def build_diagnostic_record(
             identity = contract.diagnostics_identity()
             record["contract_fingerprint"] = identity["contract_fingerprint"]
             record["provider"] = identity["provider"]
-            record["model"] = identity["model"]
+            record["model"] = str(identity["model"])[:128]
             record["endpoint_fingerprint"] = identity["endpoint_fingerprint"]
             record["protocol"] = identity["protocol"]
             record["reasoning_effort"] = identity["reasoning_effort"]

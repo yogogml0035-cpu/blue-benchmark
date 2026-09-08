@@ -469,7 +469,9 @@ def test_stage_child_args_keep_contract_identical(tmp_path):
     assert child_args[child_args.index("--max-model-calls") + 1] == "9"
     assert child_args[child_args.index("--max-tool-calls") + 1] == "33"
     assert child_args[child_args.index("--max-seconds") + 1] == "77.0"
-    assert child_args[child_args.index("--checkpoint-dsn") + 1] == config.checkpoint_dsn
+    # The DSN never travels through argv (world-readable process listings);
+    # the child resolves it from C1_CHECKPOINT_DSN in its environment.
+    assert "--checkpoint-dsn" not in child_args
 
 
 # ---------------------------------------------------------------------------

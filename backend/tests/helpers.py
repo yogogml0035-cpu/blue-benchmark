@@ -177,6 +177,7 @@ def stub_harness_contract(**overrides: Any) -> Any:
         "output_strategy": "test_strategy",
         "result_schema_hash": "test-schema-hash",
         "harness_policy_version": "test-policy-v1",
+        "prompt_identity": "test-prompt-identity",
         "responses_history_policy": "not_applicable",
         "max_model_calls": 24,
         "max_tool_calls": 120,

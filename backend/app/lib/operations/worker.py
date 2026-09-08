@@ -181,7 +181,16 @@ class OperationWorker:
                 try:
                     if not self.run_once():
                         time.sleep(poll_seconds)
-                except Exception:
+                except Exception as exc:
+                    # Persistent queue/projection errors must not vanish
+                    # silently: one whitelisted diagnostics record per
+                    # occurrence (type/category only, never raw text).
+                    try:
+                        from app.lib.ai_runtime.diagnostics import record_ai_failure
+
+                        record_ai_failure(stage="worker_loop", exception=exc)
+                    except Exception:  # noqa: BLE001
+                        pass
                     time.sleep(poll_seconds)
 
 
