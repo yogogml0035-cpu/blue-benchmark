@@ -117,7 +117,11 @@ test("workbench shows AI candidates unselected and blocks premature publish/save
     expect(await cb.isChecked()).toBe(false);
   }
 
-  // Complete contract is visible: anchors and a basis disclosure per criterion.
+  // Complete contract: anchors (collapsed by default) and a basis disclosure
+  // per criterion. Expanding the anchors section reveals the anchor rows.
+  await expect(page.getByRole("button", { name: "分数表现说明" }).first()).toBeVisible();
+  await page.getByRole("button", { name: "分数表现说明" }).first().click();
+  await expect(page.locator('input[aria-label$="锚点 1 的分数"]').first()).toBeVisible();
   await expect(page.getByRole("button", { name: "查看依据" }).first()).toBeVisible();
   await page.getByRole("button", { name: "查看依据" }).first().click();
   await expect(page.getByText("为什么设这个维度").first()).toBeVisible();

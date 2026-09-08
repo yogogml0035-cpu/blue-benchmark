@@ -89,6 +89,7 @@ export function CriteriaEditor({
 }: CriteriaEditorProps): React.JSX.Element {
   const selectedCount = drafts.filter((d) => d.selected).length;
   const [basisOpen, setBasisOpen] = useState<Record<string, boolean>>({});
+  const [anchorsOpen, setAnchorsOpen] = useState<Record<string, boolean>>({});
 
   function patchAt(index: number, patch: Partial<CriterionDraft>): void {
     onChange((list) => list.map((d, i) => (i === index ? { ...d, ...patch } : d)));
@@ -216,6 +217,7 @@ export function CriteriaEditor({
         {drafts.map((d, i) => {
           const stale = hasStaleExplanation(d);
           const open = basisOpen[d.id] ?? false;
+          const anchorsExpanded = anchorsOpen[d.id] ?? false;
           const hasBasis = d.criterion_basis !== null || d.pass_score_basis !== null;
           return (
             <li key={d.id} className={[styles.item, d.selected ? styles.itemSelected : null].join(" ")}>
@@ -290,61 +292,88 @@ export function CriteriaEditor({
 
               <section className={styles.anchors} aria-label={`维度 ${d.id} 的分数说明`}>
                 <div className={styles.sectionHead}>
-                  <h3 className={styles.sectionTitle}>分数表现说明</h3>
+                  <h3 className={styles.sectionTitle}>
+                    <button
+                      type="button"
+                      className={styles.anchorsToggle}
+                      aria-expanded={anchorsExpanded}
+                      onClick={() => setAnchorsOpen((prev) => ({ ...prev, [d.id]: !anchorsExpanded }))}
+                    >
+                      {anchorsExpanded ? (
+                        <ChevronDown size={14} aria-hidden="true" />
+                      ) : (
+                        <ChevronRight size={14} aria-hidden="true" />
+                      )}
+                      分数表现说明
+                    </button>
+                  </h3>
                   {!readOnly && d.score_anchors.length < MAX_ANCHORS ? (
-                    <Button variant="ghost" className={styles.addAnchor} onClick={() => addAnchor(i)}>
+                    <Button
+                      variant="ghost"
+                      className={styles.addAnchor}
+                      onClick={() => {
+                        // Adding while collapsed would create a blank anchor the
+                        // teacher cannot see, so the section opens first.
+                        setAnchorsOpen((prev) => ({ ...prev, [d.id]: true }));
+                        addAnchor(i);
+                      }}
+                    >
                       <Plus size={13} aria-hidden="true" />
                       添加分数说明
                     </Button>
                   ) : null}
                 </div>
-                {d.score_anchors.length === 0 ? (
-                  <p className={styles.empty}>
-                    暂无分数说明{d.pass_score_basis ? "（依据仍可解释建议分）" : ""}。锚点只是辅助理解，通过分可填任意 0–10 整数。
-                  </p>
+                {anchorsExpanded ? (
+                  <>
+                    {d.score_anchors.length === 0 ? (
+                      <p className={styles.empty}>
+                        暂无分数说明{d.pass_score_basis ? "（依据仍可解释建议分）" : ""}。锚点只是辅助理解，通过分可填任意 0–10 整数。
+                      </p>
+                    ) : null}
+                    <ul className={styles.anchorList}>
+                      {d.score_anchors.map((anchor, j) => (
+                        <li key={`${d.id}-anchor-${j}`} className={styles.anchorRow}>
+                          <label className={styles.anchorScore}>
+                            <input
+                              type="number"
+                              min={0}
+                              max={MAX_PASS_SCORE}
+                              step={1}
+                              value={anchor.score}
+                              disabled={readOnly}
+                              onChange={(e) => {
+                                const n = Number(e.target.value);
+                                patchAnchor(i, j, { score: Number.isFinite(n) ? Math.round(n) : 0 });
+                              }}
+                              onBlur={() => commitAnchors(d)}
+                              aria-label={`维度 ${d.id} 锚点 ${j + 1} 的分数`}
+                            />
+                            <span className={styles.scoreMax}>分</span>
+                          </label>
+                          <AutoGrowTextarea
+                            className={styles.anchorDescription}
+                            value={anchor.description}
+                            readOnly={readOnly}
+                            placeholder="该分数对应的可观察表现…"
+                            onChange={(e) => patchAnchor(i, j, { description: e.target.value })}
+                            onBlur={() => commitAnchors(d)}
+                            aria-label={`维度 ${d.id} 锚点 ${j + 1} 的表现描述`}
+                          />
+                          {!readOnly ? (
+                            <Button
+                              variant="ghost"
+                              className={styles.deleteButton}
+                              onClick={() => removeAnchor(i, j)}
+                              aria-label={`删除维度 ${d.id} 的锚点 ${j + 1}`}
+                            >
+                              <Trash2 size={13} aria-hidden="true" />
+                            </Button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 ) : null}
-                <ul className={styles.anchorList}>
-                  {d.score_anchors.map((anchor, j) => (
-                    <li key={`${d.id}-anchor-${j}`} className={styles.anchorRow}>
-                      <label className={styles.anchorScore}>
-                        <input
-                          type="number"
-                          min={0}
-                          max={MAX_PASS_SCORE}
-                          step={1}
-                          value={anchor.score}
-                          disabled={readOnly}
-                          onChange={(e) => {
-                            const n = Number(e.target.value);
-                            patchAnchor(i, j, { score: Number.isFinite(n) ? Math.round(n) : 0 });
-                          }}
-                          onBlur={() => commitAnchors(d)}
-                          aria-label={`维度 ${d.id} 锚点 ${j + 1} 的分数`}
-                        />
-                        <span className={styles.scoreMax}>分</span>
-                      </label>
-                      <AutoGrowTextarea
-                        className={styles.anchorDescription}
-                        value={anchor.description}
-                        readOnly={readOnly}
-                        placeholder="该分数对应的可观察表现…"
-                        onChange={(e) => patchAnchor(i, j, { description: e.target.value })}
-                        onBlur={() => commitAnchors(d)}
-                        aria-label={`维度 ${d.id} 锚点 ${j + 1} 的表现描述`}
-                      />
-                      {!readOnly ? (
-                        <Button
-                          variant="ghost"
-                          className={styles.deleteButton}
-                          onClick={() => removeAnchor(i, j)}
-                          aria-label={`删除维度 ${d.id} 的锚点 ${j + 1}`}
-                        >
-                          <Trash2 size={13} aria-hidden="true" />
-                        </Button>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
               </section>
 
               {hasBasis ? (
