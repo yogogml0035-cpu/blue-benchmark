@@ -60,7 +60,7 @@ make build     # 后端编译/导入验证
 
 ## 真实 AI 回归门
 
-- [ ] `make ai-smoke` 只证明当前 Provider 的一次结构化调用；不能外推业务 E2E。
+- [ ] `make ai-smoke` 以真实样本经生产装配入口跑完整生成合同（受限工具、流式、结构化结果、引用可核查），输出合同身份摘要且预算参数真实生效；它仍不能外推业务 E2E（Worker 恢复、SSE、浏览器链归 `accept_real_ai_rubric` / `make accept-web`）。
 - [ ] 真实 Worker 必须在隔离业务库上运行；先 `make db-migrate`，配置/连接失败在 claim 前退出。
 - [ ] 真实模型请求有有限 timeout，长处理期间能续租，重启/lease reclaim 不产生第二个业务结果。
 - [ ] 真实端到端用 `scripts/accept_real_ai_rubric.py`，只输出阶段/计数/错误码；禁止把 `EvalData`、凭证、正文或 raw model output 写入 Git。

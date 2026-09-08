@@ -12,7 +12,7 @@ backend/
 │   │   ├── auth/{router,service,repository,schemas}.py
 │   │   ├── scenes/{router,service,repository,schemas}.py
 │   │   └── question_library/{router,external_router,service,repository,schemas,rubric_generation,rubric_rules}.py
-│   └── lib/{errors,schemas,settings,ai_runtime/{model,adapters,deep_runtime},operations/,database/}
+│   └── lib/{errors,schemas,settings,ai_runtime/{model,contract,adapters,deep_runtime,diagnostics},operations/,database/}
 ├── scripts/{export_openapi,verify_openapi,check_schema,migrate,smoke_ai_provider,accept_real_ai_rubric,accept_skill_push,m0_samples,probe_deep_runtime,reset_local_data,admin_cli}.py
 ├── migrations/versions/
 ├── tests/
@@ -39,7 +39,7 @@ schemas -> HTTP 输入、输出和领域枚举
 - `repository.py` 只拥有本 Feature 的 Record 到数据库 Row 的映射和基本读写；不处理 HTTP，也不返回 FastAPI Response。
 - `schemas.py` 用 Pydantic 模型定义外部合同；内部状态使用 `@dataclass(frozen=True)` Record。参考 `question_library/schemas.py` 与 `question_library/repository.py`。
 - `question_library/rubric_generation.py` 负责评分维度生成的 Worker handler、原子提交（CAS + fencing）与失败投影；`rubric_rules.py` 是纯函数规则（可执行性、隐私兜底、逐项及格），被 API 校验与 Worker 共用。
-- `lib/ai_runtime` 只拥有模型构造（`model.py`）与评分维度生成 adapter（`adapters.py`）；它不直接写业务表、不产生 HTTP DTO。
+- `lib/ai_runtime` 只拥有模型构造（`model.py`）、统一运行合同（`contract.py`）、评分维度生成 adapter（`adapters.py`）、受限运行与检查点原语（`deep_runtime.py`）和白名单运行诊断（`diagnostics.py`）；它不直接写业务表、不产生 HTTP DTO。`DeepAgentRubricGenerator` 是唯一生产装配入口：同一份 `ResolvedHarnessContract` 贯穿模型协议、Harness 装配、运行指纹与诊断；注入模型必须显式携带合同，注入合同必须伴随模型，不得用全局配置替注入模型伪造身份。
 - `lib/operations/__init__.py` 只重导出 Repository/Attempt 能力；`OperationWorker` 和 `fake_worker` 必须惰性导出，避免 `python -m app.lib.operations.worker` 在模块执行前被包级导入触发 runpy warning 或循环加载。
 
 ## 跨 Feature 依赖

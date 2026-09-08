@@ -24,9 +24,11 @@
 cp .env.example .env
 ```
 
-编辑 `.env`：`ADMIN_USERNAME`、`ADMIN_PASSWORD`（单管理员账号，缺失或为空时 API 拒绝启动）、`AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY`、可选 `AI_BASE_URL`、`AI_REQUEST_TIMEOUT_SECONDS`、`DATABASE_URL`、`CHECKPOINT_DATABASE_URL`（生成运行检查点库，psycopg DSN）、`LANGGRAPH_AES_KEY`（16/24/32 字节，检查点加密密钥，缺失时生产生成拒绝落库）、`OPERATION_LEASE_SECONDS`、`OPERATION_MAX_ATTEMPTS`。`AI_PROVIDER=openai` 使用 OpenAI 或 OpenAI 兼容厂商（兼容端点通常把 `/v1` 放在 `AI_BASE_URL`）；`AI_PROVIDER=anthropic` 使用 Anthropic 或兼容 Messages API 的服务。本地 HTTP 开发需显式设置 `SESSION_COOKIE_SECURE=false`。不要把真实密钥提交到 Git。
+编辑 `.env`：`ADMIN_USERNAME`、`ADMIN_PASSWORD`（单管理员账号，缺失或为空时 API 拒绝启动）、`AI_PROVIDER`、`AI_MODEL`、`AI_API_KEY`、可选 `AI_BASE_URL`、`AI_OPENAI_API`（OpenAI 协议，默认 `responses`）、`AI_REQUEST_TIMEOUT_SECONDS`、`DATABASE_URL`、`CHECKPOINT_DATABASE_URL`（生成运行检查点库，psycopg DSN）、`LANGGRAPH_AES_KEY`（16/24/32 字节，检查点加密密钥，缺失时生产生成拒绝落库）、`OPERATION_LEASE_SECONDS`、`OPERATION_MAX_ATTEMPTS`。`AI_PROVIDER=openai` 使用 OpenAI 或 OpenAI 兼容厂商（兼容端点通常把 `/v1` 放在 `AI_BASE_URL`）；`AI_PROVIDER=anthropic` 使用 Anthropic 或兼容 Messages API 的服务。本地 HTTP 开发需显式设置 `SESSION_COOKIE_SECURE=false`。不要把真实密钥提交到 Git。
 
-可选 `AI_REASONING_EFFORT` 控制 OpenAI 推理模型的思考强度，直接传给 Chat Completions 的 `reasoning_effort`。留空时不传参数，沿用模型默认行为；可填 `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`，具体支持哪些档位由模型和兼容网关决定。通常档位越高，耗时和推理 Token 消耗越多。不支持推理的模型或 `AI_PROVIDER=anthropic` 应留空。修改后需重启 Worker；使用 `make start-all` 时重新启动整组服务。
+`AI_OPENAI_API` 显式选择 OpenAI 线协议，只对 `AI_PROVIDER=openai` 生效：默认 `responses`（原生 Responses API，思考强度经 `reasoning.effort` 传递，多轮工具历史由客户端持有：`store=false`、不依赖 `previous_response_id`、加密推理项随消息历史往返）；只支持 Chat Completions 契约的兼容网关显式设 `chat_completions`（思考强度经顶层 `reasoning_effort` 传递）。这是部署前的配置选择，不是请求失败后的自动降级：当前 OpenAI 推理模型（如 `gpt-5.6-luna`）在 Chat Completions 中不支持函数工具与思考强度并存，服务端会以 HTTP 400 拒绝该组合。
+
+可选 `AI_REASONING_EFFORT` 控制 OpenAI 推理模型的思考强度。留空时不传参数，沿用模型默认行为（与显式 `none` 不同，后者会明确发送）；可填 `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`，具体支持哪些档位由模型和网关决定。通常档位越高，耗时和推理 Token 消耗越多；`medium` 档下最终结构化输出的单次流式调用可能需要数分钟到二十分钟，验收超时须容纳该时序。不支持推理的模型或 `AI_PROVIDER=anthropic` 应留空。协议、思考强度、评分项 schema、Harness 策略、预算与受影响 SDK 版本共同构成运行合同指纹：任何一项变化后，旧检查点按既有不兼容流程清理重建，不做跨协议转换。修改后需重启 Worker；使用 `make start-all` 时重新启动整组服务。
 
 安装依赖：
 
@@ -50,7 +52,7 @@ make db-check
 SMOKE_CHECKPOINT_DSN=postgresql://...@127.0.0.1:5432/<隔离检查点库> make ai-smoke
 ```
 
-成功标记为 `AI_SMOKE=OK ...`；冒烟使用 C1 真实会话样本（`.local-samples/m0`，只读）与隔离检查点库，指向项目库会被拒绝；没有真实密钥或语料时明确失败，不能用 Fake 结果或通用连通性检查冒充。
+成功标记为 `AI_SMOKE=OK ...`（并输出 `AI_SMOKE_CONTRACT` 合同身份摘要：协议、思考强度、输出策略、合同指纹与实际预算）；冒烟使用 C1 真实会话样本（`.local-samples/m0`，只读）与隔离检查点库，指向项目库会被拒绝；没有真实密钥或语料时明确失败，不能用 Fake 结果或通用连通性检查冒充。
 
 同一个业务数据库只允许一个长驻 Worker（进程锁保证）。`make start-all` 会同时启动 API、恰好一个 Worker 和前端三个进程，任一退出即清理其余进程；也可以分开单独启动调试：
 
@@ -67,6 +69,8 @@ make frontend-dev    # 前端 dev，http://127.0.0.1:3000（BACKEND_URL 默认�
 - OpenAPI 文档：<http://127.0.0.1:8000/api/docs>。
 
 若 API 因 schema 未就绪退出，先运行 `make db-migrate` 和 `make db-check`。Fake 模式（`AI_RUNTIME_MODE=fake` 或 `--fake`）仅用于确定性测试，只允许连接 SQLite 业务库，不能用它做真实 AI 验收。
+
+AI 生成失败排查：题目详情给出可行动的中文失败说明（`last_error`），运维按作业关联的结构化诊断在 `backend/storage/runtime/ai-diagnostics.jsonl`（容器内 `/app/storage/runtime/ai-diagnostics.jsonl`，位于 appdata 卷；5 MiB×1 轮转，gitignored）。诊断只含白名单字段：时间、operation/question/attempt/thread 关联、合同指纹、模型/协议/思考强度、异常分类、HTTP 状态、服务端报告的参数名与 request_id；不含凭证、材料、原始请求或私有推理。配置/鉴权/400 类错误不会自动重试，修正配置后用题目详情的重试入口显式恢复。
 
 ## 管理端（Next.js）
 

@@ -46,6 +46,13 @@ M0 业务码包括 `COMMAND_ID_REUSED`、`COMMAND_IN_PROGRESS`、`CASE_ALREADY_E
 
 新增错误码时同步检查后端 Router `responses`、`backend/openapi.json` 以及对应状态测试。
 
-## 当前没有日志规范
+## AI 运行诊断（唯一的结构化日志面）
 
-仓库未配置日志库，也没有结构化日志实现。不要把模板中的 log level、字段或追踪 ID 当作现行规则。未来引入日志时必须另立任务，先确定敏感数据边界和测试，再新增对应规范。
+`ai_runtime/diagnostics.py` 是仓库唯一的结构化日志实现，只服务 AI 运行失败排查，不是通用日志框架：
+
+- 单一白名单序列化（`RECORD_FIELDS`）：时间、event/stage、异常分类、HTTP status、服务端 param、request_id、retryable、合同身份（fingerprint/provider/model/endpoint_fingerprint/协议/思考强度/输出策略/策略版本）、operation/question/attempt/thread 关联 ID。
+- 出口是标准 `logging`（`ai_runtime.diagnostics` logger）：stderr + `storage/runtime/ai-diagnostics.jsonl`（5 MiB×1 轮转，gitignored；路径按模块位置推导，容器为 `/app/storage/...`，不用 PROJECT_ROOT）。
+- 分类取异常链最深 cause（业务包装不得掩盖 provider 分类）；`retryable` 采用 LangChain `ModelError` 标准语义。未知异常按类名（代码标识符）记录，否则 `unknown`；合同不可解析记 `unavailable`，不伪装默认身份。
+- 永不记录：provider 原始消息、材料、headers、完整 URL、原始工具负载、私有推理、凭证、任意异常的 `str(exc)`。哨兵测试（T12）覆盖 last_error、公开事件与诊断文件三个出口。
+- 诊断失败（文件不可写、logger 被迁移工具禁用）不得改变原始失败语义；logger 每次访问强制 re-enable。
+- 其余仓库范围仍无日志规范；新增其它日志面必须另立任务并先定敏感数据边界。
