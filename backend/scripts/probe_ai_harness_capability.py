@@ -138,6 +138,7 @@ class ProbeConfig:
     max_model_calls: int
     max_tool_calls: int
     max_seconds: float
+    max_attempts: int
 
     @property
     def db_name(self) -> str:
@@ -162,6 +163,7 @@ def resolve_config(args: argparse.Namespace) -> ProbeConfig:
         max_model_calls=args.max_model_calls,
         max_tool_calls=args.max_tool_calls,
         max_seconds=args.max_seconds,
+        max_attempts=args.max_attempts,
     )
     if config.db_name in PROTECTED_DB_NAMES:
         raise ProbeError(
@@ -673,8 +675,10 @@ def _expected_effort() -> str:
 def _error_category(exc: BaseException) -> str:
     """Whitelisted, non-secret error category for the evidence report."""
     from app.lib.ai_runtime.adapters import RubricGenerationFailure
-    from app.lib.ai_runtime.deep_runtime import DeepRuntimeError
+    from app.lib.ai_runtime.deep_runtime import BudgetExceededError, DeepRuntimeError
 
+    if isinstance(exc, BudgetExceededError):
+        return "budget_exceeded"
     if isinstance(exc, (RubricGenerationFailure, DeepRuntimeError)):
         return f"generation_failure:{exc.code}"
     name = type(exc).__name__
@@ -695,6 +699,59 @@ def _error_category(exc: BaseException) -> str:
         "RubricGenerationFailure": "generation_failure",
     }
     return mapping.get(name, "unknown")
+
+
+# Categories that represent TRANSIENT provider/content outcomes: the production
+# Worker treats these as retryable job attempts that resume from the same
+# checkpoint (e.g. the model sampled a final structured output that violates a
+# cross-field pydantic validator the wire JSON Schema cannot express —
+# StructuredOutputValidationError surfaces as AI_CALL_FAILED). The probe
+# re-attempts a stage within its bound exactly like the Worker's attempt
+# budget; contract/capability violations are NEVER retried.
+_TRANSIENT_CATEGORIES = frozenset({
+    "generation_failure:AI_CALL_FAILED",
+    "generation_failure:AI_OUTPUT_EMPTY",
+    "generation_failure:AI_OUTPUT_INVALID",
+    "generation_failure:AI_CITATION_INVALID",
+    "http_429", "http_500", "http_502", "http_503", "http_504",
+    "rate_limit", "connection", "timeout", "server",
+})
+
+
+def _is_transient(category: str) -> bool:
+    return category in _TRANSIENT_CATEGORIES
+
+
+def _run_stage_bounded(
+    stage: str,
+    fn: Any,
+    *,
+    max_attempts: int,
+    between_attempts: Any = None,
+) -> tuple[dict[str, Any], int]:
+    """Run one stage with a bounded number of attempts.
+
+    Mirrors the production attempt budget: a transient provider/content
+    failure re-runs the SAME stage on the SAME thread and contract (the
+    checkpoint makes this a continuation, never a restart with duplicated
+    input). Non-transient failures — capability/contract violations — fail
+    immediately. Returns ``(payload, attempts_used)``.
+    """
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            return fn(), attempts
+        except ProbeError as exc:
+            if not _is_transient(exc.category) or attempts >= max_attempts:
+                raise
+            print(
+                f"PROBE_STAGE=transient_retry stage={stage} attempt={attempts} "
+                f"category={exc.category}",
+                flush=True,
+            )
+            if between_attempts is not None:
+                between_attempts()
 
 
 def _describe_stage_error(exc: BaseException) -> str:
@@ -976,6 +1033,7 @@ def _evidence_base(config: ProbeConfig) -> dict[str, Any]:
             "max_model_calls": config.max_model_calls,
             "max_tool_calls": config.max_tool_calls,
             "max_total_seconds": config.max_seconds,
+            "max_stage_attempts": config.max_attempts,
         },
     }
 
@@ -1035,19 +1093,40 @@ def run_execute(config: ProbeConfig) -> int:
 
     print("PROBE_STAGE=full_run", flush=True)
     try:
-        evidence["full_run"] = stage_full_run(config)
+        # A transient content/provider failure re-runs the full generation on
+        # a CLEANED thread (bounded, like the Worker's attempt budget); the
+        # attempt count is part of the honest evidence.
+        full_run, full_run_attempts = _run_stage_bounded(
+            "full_run",
+            stage_full_run,
+            max_attempts=config.max_attempts,
+            between_attempts=lambda: stage_cleanup(config),
+        )
+        evidence["full_run"] = full_run
+        evidence["full_run_attempts"] = full_run_attempts
     except ProbeError as exc:
+        _write_evidence(config, evidence, verdict=f"FAIL:{exc.stage}:{exc.category}")
         _fail(exc.stage, exc.category, exc.message)
     # The full run completed the graph on this thread; clean before the
     # interrupt/resume sequence so the recovery evidence is unambiguous.
     evidence["post_full_run_cleanup"] = stage_cleanup(config)
 
     print("PROBE_STAGE=interrupt_resume", flush=True)
-    _spawn_stage(config, "run-child", expect_code=INTERRUPT_EXIT_CODE)
     try:
-        evidence["resume"] = stage_resume(config)
+        _spawn_stage(config, "run-child", expect_code=INTERRUPT_EXIT_CODE)
+        # Resume re-attempts continue from the SAME checkpoint with the same
+        # contract and budget — exactly the production retryable-attempt path.
+        resume, resume_attempts = _run_stage_bounded(
+            "resume", stage_resume, max_attempts=config.max_attempts,
+        )
+        evidence["resume"] = resume
+        evidence["resume_attempts"] = resume_attempts
+        evidence["interrupt"] = {"child_exit_code": INTERRUPT_EXIT_CODE}
         evidence["reread"] = stage_reread(config)
         evidence["cleanup"] = stage_cleanup(config)
+    except subprocess.TimeoutExpired:
+        _write_evidence(config, evidence, verdict="FAIL:run-child:timeout")
+        _fail("run-child", "timeout", "中断子进程超时。")
     except ProbeError as exc:
         _write_evidence(config, evidence, verdict=f"FAIL:{exc.stage}:{exc.category}")
         _fail(exc.stage, exc.category, exc.message)
@@ -1101,6 +1180,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-model-calls", type=int, default=24)
     parser.add_argument("--max-tool-calls", type=int, default=120)
     parser.add_argument("--max-seconds", type=float, default=1800.0)
+    parser.add_argument(
+        "--max-attempts", type=int, default=3,
+        help="单阶段对瞬时 Provider/内容失败的有限重试上限（同一线程与合同，"
+             "镜像生产 Worker attempt 语义；合同/能力违规永不重试）",
+    )
     return parser
 
 

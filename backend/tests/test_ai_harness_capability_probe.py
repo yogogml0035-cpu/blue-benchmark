@@ -365,6 +365,68 @@ def test_error_category_is_whitelisted():
     assert probe._error_category(RuntimeError()) == "unknown"
     assert probe._error_category(APIStatusError(400)) == "http_400"
 
+    from app.lib.ai_runtime.adapters import RubricGenerationFailure
+    from app.lib.ai_runtime.deep_runtime import BudgetExceededError
+
+    assert (
+        probe._error_category(RubricGenerationFailure("AI_CALL_FAILED", "x"))
+        == "generation_failure:AI_CALL_FAILED"
+    )
+    assert probe._error_category(BudgetExceededError("x")) == "budget_exceeded"
+
+
+# ---------------------------------------------------------------------------
+# Bounded stage re-attempts: transient only, contract violations never retried
+# ---------------------------------------------------------------------------
+
+def test_bounded_stage_retries_transient_then_succeeds():
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) < 3:
+            raise probe.ProbeError(
+                "resume", "generation_failure:AI_CALL_FAILED", "transient"
+            )
+        return {"ok": True}
+
+    payload, attempts = probe._run_stage_bounded("resume", flaky, max_attempts=3)
+    assert payload == {"ok": True}
+    assert attempts == 3
+
+
+def test_bounded_stage_never_retries_contract_violations():
+    def violating():
+        raise probe.ProbeError("resume", "not_resumed", "contract violation")
+
+    with pytest.raises(probe.ProbeError) as excinfo:
+        probe._run_stage_bounded("resume", violating, max_attempts=3)
+    assert excinfo.value.category == "not_resumed"
+
+
+def test_bounded_stage_respects_attempt_ceiling():
+    calls = []
+
+    def always_transient():
+        calls.append(1)
+        raise probe.ProbeError("resume", "http_429", "rate limited")
+
+    with pytest.raises(probe.ProbeError) as excinfo:
+        probe._run_stage_bounded("resume", always_transient, max_attempts=2)
+    assert excinfo.value.category == "http_429"
+    assert len(calls) == 2
+
+
+def test_transient_category_classification():
+    assert probe._is_transient("generation_failure:AI_CALL_FAILED")
+    assert probe._is_transient("http_429")
+    assert probe._is_transient("timeout")
+    assert not probe._is_transient("generation_failure:AI_RUN_INTERRUPTED")
+    assert not probe._is_transient("budget_exceeded")
+    assert not probe._is_transient("http_400")
+    assert not probe._is_transient("protocol_mismatch")
+    assert not probe._is_transient("duplicate_initial_input")
+
 
 def test_stage_child_args_keep_contract_identical(tmp_path):
     args = _parse([
