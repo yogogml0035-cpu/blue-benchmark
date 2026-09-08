@@ -1098,7 +1098,7 @@ def run_execute(config: ProbeConfig) -> int:
         # attempt count is part of the honest evidence.
         full_run, full_run_attempts = _run_stage_bounded(
             "full_run",
-            stage_full_run,
+            lambda: stage_full_run(config),
             max_attempts=config.max_attempts,
             between_attempts=lambda: stage_cleanup(config),
         )
@@ -1117,7 +1117,7 @@ def run_execute(config: ProbeConfig) -> int:
         # Resume re-attempts continue from the SAME checkpoint with the same
         # contract and budget — exactly the production retryable-attempt path.
         resume, resume_attempts = _run_stage_bounded(
-            "resume", stage_resume, max_attempts=config.max_attempts,
+            "resume", lambda: stage_resume(config), max_attempts=config.max_attempts,
         )
         evidence["resume"] = resume
         evidence["resume_attempts"] = resume_attempts

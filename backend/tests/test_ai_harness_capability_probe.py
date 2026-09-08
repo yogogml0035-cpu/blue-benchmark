@@ -446,3 +446,103 @@ def test_stage_child_args_keep_contract_identical(tmp_path):
     assert child_args[child_args.index("--max-tool-calls") + 1] == "33"
     assert child_args[child_args.index("--max-seconds") + 1] == "77.0"
     assert child_args[child_args.index("--checkpoint-dsn") + 1] == config.checkpoint_dsn
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator wiring: full sequence with stubbed stages (offline)
+# ---------------------------------------------------------------------------
+
+def _stub_orchestrator(monkeypatch, tmp_path, *, resume_failures=0, full_run_failures=0):
+    args = _parse([
+        "--execute",
+        "--checkpoint-dsn", "postgresql://u@127.0.0.1:5432/blue_benchmark_c1_capability",
+        "--corpus-root", str(tmp_path),
+        "--out", str(tmp_path / "out"),
+    ])
+    config = probe.resolve_config(args)
+    calls: list[str] = []
+    state = {"resume_failures": resume_failures, "full_run_failures": full_run_failures}
+
+    def stub(name, payload=None, fail_key=None):
+        def _fn(_config):
+            calls.append(name)
+            if fail_key and state[fail_key] > 0:
+                state[fail_key] -= 1
+                raise probe.ProbeError(
+                    name, "generation_failure:AI_CALL_FAILED", "transient"
+                )
+            return payload if payload is not None else {"stub": name}
+        return _fn
+
+    monkeypatch.setattr(probe, "verify_live_database", lambda cfg: cfg.db_name)
+    monkeypatch.setattr(probe, "stage_cleanup", stub("cleanup"))
+    monkeypatch.setattr(
+        probe, "stage_full_run", stub("full_run", fail_key="full_run_failures")
+    )
+    monkeypatch.setattr(
+        probe, "stage_resume", stub("resume", fail_key="resume_failures")
+    )
+    monkeypatch.setattr(probe, "stage_reread", stub("reread"))
+    monkeypatch.setattr(probe, "_spawn_stage",
+                        lambda cfg, stage, expect_code=0: calls.append(f"spawn:{stage}"))
+    monkeypatch.setattr(probe, "_evidence_base", lambda cfg: {"stub_base": True})
+    return config, calls
+
+
+def test_run_execute_orchestrates_full_sequence(monkeypatch, tmp_path):
+    config, calls = _stub_orchestrator(monkeypatch, tmp_path)
+    assert probe.run_execute(config) == 0
+    assert calls == [
+        "cleanup",            # pre-clean
+        "full_run",
+        "cleanup",            # post full-run clean
+        "spawn:run-child",    # interrupted subprocess
+        "resume",
+        "reread",
+        "cleanup",            # final zero-residue cleanup
+    ]
+    evidence = json.loads(
+        (tmp_path / "out" / "c1-capability-evidence.json").read_text(encoding="utf-8")
+    )
+    assert evidence["verdict"] == "PASS"
+    assert evidence["full_run_attempts"] == 1
+    assert evidence["resume_attempts"] == 1
+    assert evidence["interrupt"] == {"child_exit_code": probe.INTERRUPT_EXIT_CODE}
+
+
+def test_run_execute_retries_transient_resume_on_same_thread(monkeypatch, tmp_path):
+    config, calls = _stub_orchestrator(monkeypatch, tmp_path, resume_failures=2)
+    assert probe.run_execute(config) == 0
+    # Two transient failures, then success — bounded, no extra interrupt spawn
+    # and no thread cleaning between resume attempts (continuation semantics).
+    assert calls.count("resume") == 3
+    assert calls.count("spawn:run-child") == 1
+    assert calls.count("cleanup") == 3
+    evidence = json.loads(
+        (tmp_path / "out" / "c1-capability-evidence.json").read_text(encoding="utf-8")
+    )
+    assert evidence["resume_attempts"] == 3
+    assert evidence["verdict"] == "PASS"
+
+
+def test_run_execute_cleans_thread_between_full_run_attempts(monkeypatch, tmp_path):
+    config, calls = _stub_orchestrator(monkeypatch, tmp_path, full_run_failures=1)
+    assert probe.run_execute(config) == 0
+    # pre-clean, failed full_run, between-attempt clean, successful full_run,
+    # post-full-run clean, ..., final clean
+    assert calls[:4] == ["cleanup", "full_run", "cleanup", "full_run"]
+    evidence = json.loads(
+        (tmp_path / "out" / "c1-capability-evidence.json").read_text(encoding="utf-8")
+    )
+    assert evidence["full_run_attempts"] == 2
+
+
+def test_run_execute_writes_fail_evidence_on_exhausted_attempts(monkeypatch, tmp_path):
+    config, _calls = _stub_orchestrator(monkeypatch, tmp_path, resume_failures=99)
+    with pytest.raises(SystemExit) as excinfo:
+        probe.run_execute(config)
+    assert excinfo.value.code == 1
+    evidence = json.loads(
+        (tmp_path / "out" / "c1-capability-evidence.json").read_text(encoding="utf-8")
+    )
+    assert evidence["verdict"] == "FAIL:resume:generation_failure:AI_CALL_FAILED"
