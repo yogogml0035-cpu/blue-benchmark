@@ -15,7 +15,7 @@
   "branch": "codex/ai-harness-capability",
   "base_branch": "main",
   "worktree_path": "/Users/hsikey/Company/blue-benchmark-wt/ai-harness-capability",
-  "commit": null,
+  "commit": "964f74c",
   "pr_url": null,
   "subtasks": [],
   "children": [],
@@ -24,7 +24,7 @@
     "backend/scripts/probe_ai_harness_capability.py",
     "backend/tests/test_ai_harness_capability_probe.py"
   ],
-  "notes": "验证交付，不切换生产。失败报告不能作为 C2 的通过凭证。2026-09-08 用户批准实施；开工时创建规划中的分支/worktree。",
+  "notes": "验证交付，不切换生产。2026-09-08 真实能力门 PASS（分支 13e3121 起全序列一次通过；main 复验 964f74c PASS，full_run/resume 各 1 attempt）。交付：探针+40 项离线测试+脱敏报告。",
   "meta": {
     "role": "child",
     "implementation_approved": true,
