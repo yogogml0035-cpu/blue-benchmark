@@ -1,0 +1,38 @@
+{
+  "id": "ai-harness-contract",
+  "name": "ai-harness-contract",
+  "title": "统一 AI Harness 运行合同，修复思考强度与工具调用冲突",
+  "description": "从实际 400 错误出发，研究模型协议、Deep Agents 装配、工具和结构化输出、检查点恢复、失败诊断及完整链路验收，形成待批准的根因修复计划。",
+  "status": "planning",
+  "dev_type": "backend",
+  "scope": "ai-runtime-harness-parent",
+  "package": "backend",
+  "priority": "P1",
+  "creator": "hsikey",
+  "assignee": "hsikey",
+  "createdAt": "2026-09-08",
+  "completedAt": null,
+  "branch": "codex/ai-harness-contract",
+  "base_branch": "main",
+  "worktree_path": "/Users/hsikey/Company/blue-benchmark-wt/ai-harness-contract",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-08-ai-harness-capability",
+    "09-08-ai-harness-cutover"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "父任务只拥有需求、共享设计、任务映射与最终验收；C1 能力门通过并交付 main 后才可启动 C2。2026-09-08 用户批准整棵任务树实施。",
+  "meta": {
+    "implementation_approved": true,
+    "planning_only": false,
+    "approved_at": "2026-09-08",
+    "role": "parent",
+    "implementation_target": false,
+    "execution_order": ["09-08-ai-harness-capability", "09-08-ai-harness-cutover"],
+    "planning_base_commit": "f108fe7cea2cb7875fa193f1245df29932d035ea",
+    "main_reviewed_at_planning_end": "404029ed9455feef19dec861ed9679d06e7a0fb3"
+  }
+}

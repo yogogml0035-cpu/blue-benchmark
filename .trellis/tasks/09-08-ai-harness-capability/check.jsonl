@@ -1,0 +1,6 @@
+{"file":".trellis/spec/backend/core/structure-and-boundaries.md","reason":"核对 C1 未侵入 backend/app 或常驻生产入口。"}
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"核对测试无外部副作用，真实 Provider/PG 门与 main 复验明确通过。"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"核对模型/流式/恢复证据与隐私边界。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/incident-and-call-chain.md","reason":"确保探针覆盖生产实际组合，而非重复普通对话验证。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/sdk-and-harness-findings.md","reason":"核对 SDK 使用与 native schema，禁止无依据替换策略。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/validation-matrix.md","reason":"独立审查 L01 证据、调用上限、真实工具及同合同恢复。"}

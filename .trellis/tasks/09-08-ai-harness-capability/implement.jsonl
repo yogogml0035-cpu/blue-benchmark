@@ -1,0 +1,6 @@
+{"file":".trellis/spec/backend/core/structure-and-boundaries.md","reason":"探针只消费已有生成器与运行原语，不修改生产装配或业务权威。"}
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"区分离线、真实 Provider 和持久化验收，执行独立分支/main 质量门。"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"保持公开过程和凭证边界，不用普通对话替代完整能力验证。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/incident-and-call-chain.md","reason":"实际 HTTP 400 与现有装配缺口，C1 验证的原始问题。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/sdk-and-harness-findings.md","reason":"当前 SDK 的原生 Responses、完整 schema、工具和加密历史构造证据。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/validation-matrix.md","reason":"L01、恢复边界和禁止降低预算伪造恢复的验收规则。"}

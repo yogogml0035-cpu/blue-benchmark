@@ -1,0 +1,8 @@
+{"file":".trellis/spec/backend/core/structure-and-boundaries.md","reason":"审查最终生产装配与业务权威边界。"}
+{"file":".trellis/spec/backend/core/stub-state-and-contracts.md","reason":"审查指纹、重建、恢复、原子提交与删除完整性。"}
+{"file":".trellis/spec/backend/core/errors-and-api-responses.md","reason":"审查重试分类、日志白名单及初始化失败的业务终态。"}
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"核对任务分支和 main 的真实门禁而非规划 PASS。"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"核对公开事件、生成类型和真实 Worker/端口/数据库身份。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/incident-and-call-chain.md","reason":"防止只换协议开关而遗留错误包装或旧指纹。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/sdk-and-harness-findings.md","reason":"检查原生 SDK 路径和已验证能力，C1 探针不得保留第二套模型构造。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/validation-matrix.md","reason":"逐项审查 T/P/L 结果与最终 main 证据。"}

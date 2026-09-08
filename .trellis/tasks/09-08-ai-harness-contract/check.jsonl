@@ -1,0 +1,8 @@
+{"file":".trellis/spec/backend/core/structure-and-boundaries.md","reason":"检查 Harness、业务权威、模型惰性初始化和无模型清理边界。"}
+{"file":".trellis/spec/backend/core/stub-state-and-contracts.md","reason":"检查新指纹与已有恢复/清理/CAS/SSE 合同一致。"}
+{"file":".trellis/spec/backend/core/errors-and-api-responses.md","reason":"检查不可重试错误、安全诊断和前端失败投影。"}
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"确认完整质量门与真实双库、真实 Worker 验收未被跳过。"}
+{"file":".trellis/spec/guides/cross-layer-contracts.md","reason":"核对错误码、生成类型、公开过程及精确运行身份。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/incident-and-call-chain.md","reason":"避免只修参数而留下错误重试、分散指纹和错误验收对象。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/sdk-and-harness-findings.md","reason":"检查实现基于实际 SDK，未复制旧 profile 参数或新增自动 fallback。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/validation-matrix.md","reason":"逐项核对 T/P/L 分层证据，不把离线构造或普通对话作为业务验收。"}

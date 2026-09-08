@@ -1,0 +1,8 @@
+{"file":".trellis/spec/backend/core/structure-and-boundaries.md","reason":"保持模型运行、业务服务与队列的职责边界，不建立第二套执行引擎。"}
+{"file":".trellis/spec/backend/core/stub-state-and-contracts.md","reason":"保留材料、生成状态、指纹失配重建、单写者和最终 CAS 合同。"}
+{"file":".trellis/spec/backend/core/errors-and-api-responses.md","reason":"错误分类与公开失败投影必须安全且保持现有 HTTP 形状。"}
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"按当前后端、跨层和真实 AI 门禁验证，区分 Mock 与真实运行。"}
+{"file":".trellis/spec/guides/code-reuse.md","reason":"统一已存在的合同所有者，限制抽象和改动范围。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/incident-and-call-chain.md","reason":"实际 HTTP 400、装配断点、重复重试与当前恢复身份缺口。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/sdk-and-harness-findings.md","reason":"当前 SDK 原生协议和 profile 能力、受控请求证据及不应照搬的技能经验。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/validation-matrix.md","reason":"最终请求、多轮恢复、错误分类和当前网关组合验收的可观察门禁。"}

@@ -1,0 +1,8 @@
+{"file":".trellis/spec/backend/core/structure-and-boundaries.md","reason":"统一 Harness 合同但保持模型、运行、服务和队列所有权。"}
+{"file":".trellis/spec/backend/core/stub-state-and-contracts.md","reason":"保留材料、指纹失配重建、CAS、权限及模型不可用清理。"}
+{"file":".trellis/spec/backend/core/errors-and-api-responses.md","reason":"标准异常语义和白名单中文失败投影。"}
+{"file":".trellis/spec/backend/core/quality-and-tests.md","reason":"生产变更与完整验证同任务交付，含 main 复验。"}
+{"file":".trellis/spec/guides/code-reuse.md","reason":"删除旧模型包装和 C1 局部构造，禁止双合同与另建执行引擎。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/incident-and-call-chain.md","reason":"真实事故、错误重试和身份分散的根因定位。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/sdk-and-harness-findings.md","reason":"协议/profile/策略/消息往返的 SDK 能力及不可照搬的经验。"}
+{"file":".trellis/tasks/09-08-ai-harness-contract/research/validation-matrix.md","reason":"T/P/L 全量验收与禁止冒充的标准。"}
