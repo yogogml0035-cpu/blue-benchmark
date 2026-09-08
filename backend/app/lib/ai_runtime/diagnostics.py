@@ -118,6 +118,11 @@ def get_diagnostics_logger() -> logging.Logger:
     """
 
     logger = logging.getLogger(DIAGNOSTICS_LOGGER_NAME)
+    # Alembic's fileConfig (migrations) and other logging.config users run
+    # with disable_existing_loggers=True by default and silently disable
+    # this logger. Operational diagnostics must survive that, so every
+    # access re-enables it.
+    logger.disabled = False
     if getattr(logger, "_ai_diagnostics_configured", False):
         return logger
     logger.setLevel(logging.INFO)
@@ -177,6 +182,12 @@ def classify_exception(exc: BaseException) -> dict[str, Any]:
     ``param`` name when the server reported one (e.g. ``reasoning_effort``
     for the incident 400), and ``retryable`` from the standard LangChain
     ``ModelError`` semantics when available.
+
+    The chain is walked DEEPEST-CAUSE-FIRST for the category: business
+    wrappers (RubricGenerationFailure/DeepRuntimeError) sit on the surface
+    and would otherwise hide the actionable provider classification. When
+    the winner is a wrapper, its machine code is appended so the record
+    stays precise (``generation_failure:AI_CITATION_INVALID``).
     """
 
     category = "unknown"
@@ -185,10 +196,18 @@ def classify_exception(exc: BaseException) -> dict[str, Any]:
     request_id: str | None = None
     retryable: bool | None = None
 
-    for candidate in _walk_causes(exc):
+    chain = _walk_causes(exc)
+    for candidate in reversed(chain):
         name = type(candidate).__name__
-        if category == "unknown" and name in _KNOWN_CATEGORY_BY_NAME:
+        if name in _KNOWN_CATEGORY_BY_NAME:
             category = _KNOWN_CATEGORY_BY_NAME[name]
+            if category in ("generation_failure", "deep_runtime"):
+                code = getattr(candidate, "code", None)
+                if code is not None and _SAFE_PARAM.match(str(code)):
+                    category = f"{category}:{code}"
+            break
+
+    for candidate in chain:
         response = getattr(candidate, "response", None)
         status = getattr(response, "status_code", None)
         if http_status is None and isinstance(status, int):

@@ -967,3 +967,207 @@ def test_generator_repairs_before_validation_and_skips_revision(monkeypatch) -> 
     assert result.criteria[0].criterion_basis.claims[0].citation.quote == "老师认可的标准答案全文。"
     assert any(e.stage == "citations_repaired" for e in sink.events)
     assert not any(e.stage == "revision_requested" for e in sink.events)
+
+
+# ---------------------------------------------------------------------------
+# T07 / T13: deterministic failure terminal states through the REAL worker
+# ---------------------------------------------------------------------------
+
+def test_provider_400_fails_terminally_after_first_attempt(tmp_path, monkeypatch) -> None:
+    """T07 (the incident) + T12 (sentinel containment): an HTTP 400
+    invalid-request from the provider is deterministic — the job must fail on
+    attempt 1 with NO automatic attempts 2/3, the question projects
+    generation_failed with a safe AI_CONFIG_INVALID message, materials stay
+    untouched, a run_failed event exists, and an explicit retry (after the
+    administrator fixes the configuration) is still accepted. The provider's
+    raw body and headers must not leak into last_error, the public event log
+    or the diagnostics file, while the diagnostics record DOES carry the
+    actionable classification (status 400, param reasoning_effort)."""
+    import logging
+    from types import SimpleNamespace
+
+    from langchain_core.exceptions import ModelInvalidRequestError
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from app.lib.ai_runtime import adapters as adapter_module
+    from app.lib.ai_runtime import deep_runtime as dr
+    from app.lib.ai_runtime import diagnostics as diag
+    from app.lib.operations import repository as ops_repository
+    from tests.test_deep_runtime import IDENTITY, ScriptedModel
+
+    secret_marker = "SECRET-PROVIDER-BODY-材料哨兵"
+    header_marker = "SENTINEL-HEADER-VALUE"
+
+    # Redirect the diagnostics JSONL sink into the test tmp dir.
+    monkeypatch.setattr(diag, "storage_root", lambda: tmp_path)
+    logger = logging.getLogger(diag.DIAGNOSTICS_LOGGER_NAME)
+    for handler in list(logger.handlers):
+        logger.removeHandler(handler)
+        handler.close()
+    logger._ai_diagnostics_configured = False
+
+    class ExplodingModel(ScriptedModel):
+        def _raise(self):
+            exc = ModelInvalidRequestError(
+                f"Function tools with reasoning_effort are not supported {secret_marker}"
+            )
+            exc.response = SimpleNamespace(
+                status_code=400, headers={"x-api-key": header_marker}
+            )
+            exc.body = {"error": {"type": "invalid_request_error",
+                                  "param": "reasoning_effort"}}
+            raise exc
+
+        def _stream(self, messages, stop=None, run_manager=None, **kwargs):
+            self._raise()
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            self._raise()
+
+    def session_factory(ctx):
+        session = dr.CheckpointSession(None, InMemorySaver(), ctx.thread_id)
+        session._lock_held = True  # in-memory protocol test; no PG lock
+        return session
+
+    generator = adapter_module.DeepAgentRubricGenerator(
+        model=ExplodingModel(messages=iter([])),
+        identity=IDENTITY,
+        contract=helpers.stub_harness_contract(),
+        session_factory=session_factory,
+    )
+    clear_business_data()
+    previous = adapter_module.get_adapters()
+    try:
+        adapter_module.set_adapters(
+            adapter_module.RuntimeAdapters(rubric_generator=generator)
+        )
+        with TestClient(app) as client:
+            helpers.login_admin(client)
+            scene = helpers.create_scene(client)
+            credential = helpers.create_credential(client, scene["id"])
+            case = helpers.make_case("case-t07")
+            response = helpers.upload_batch(
+                client, credential["token"], helpers.make_batch("cmd-t07", [case])
+            )
+            assert response.status_code == 201
+            question_id = response.json()["cases"][0]["question_id"]
+            helpers.run_worker_until_idle()
+
+            detail = client.get(f"/api/questions/{question_id}").json()
+            assert detail["status"] == "generation_failed"
+            assert detail["last_error"]["code"] == "AI_CONFIG_INVALID"
+            assert "模型请求被服务端拒绝" in detail["last_error"]["message"], detail["last_error"]
+            # Safe projection: no provider body, no material sentinels.
+            assert secret_marker not in json.dumps(detail["last_error"], ensure_ascii=False)
+            # Materials untouched.
+            assert detail["task_prompt"] == case["task_prompt"]
+
+            # The job is terminal after EXACTLY one attempt.
+            operation_id = _generation_operation(question_id)
+            job = ops_repository.get(operation_id)
+            assert job is not None
+            assert job.status == ops_repository.OperationJobStatus.failed
+            assert job.attempts == 1, f"400 不得消耗第 2/3 次 attempt，实际 {job.attempts}"
+
+            events_page = _events(client, question_id, operation_id)
+            kinds = [e["kind"] for e in events_page["events"]]
+            assert "run_failed" in kinds
+            assert "run_completed" not in kinds
+
+            # Explicit retry (the administrator fixed the configuration) is
+            # still accepted with a fresh attempt budget.
+            retry = client.post(
+                f"/api/questions/{question_id}/generation-retry",
+                json={"command_id": "retry-t07",
+                      "content_revision": detail["content_revision"]},
+            )
+            assert retry.status_code == 200, retry.text
+
+        # T12: the diagnostics FILE carries the actionable classification but
+        # never the provider body or header sentinels.
+        log_file = tmp_path / "runtime" / "ai-diagnostics.jsonl"
+        assert log_file.exists(), "400 失败必须留下可关联的运行诊断"
+        lines = [
+            json.loads(line)
+            for line in log_file.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        incident = [
+            record for record in lines
+            if record.get("http_status") == 400 and record.get("param") == "reasoning_effort"
+        ]
+        assert incident, f"诊断缺少本例 400/reasoning 参数分类：{lines}"
+        record = incident[0]
+        assert record["question_id"] == question_id
+        assert record["category"] == "model_invalid_request"
+        blob = json.dumps(lines, ensure_ascii=False)
+        assert secret_marker not in blob
+        assert header_marker not in blob
+    finally:
+        adapter_module.set_adapters(previous)
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+            handler.close()
+        logger._ai_diagnostics_configured = False
+
+
+def test_contract_failure_before_checkpoint_terminates_job_and_cleanup_survives() -> None:
+    """T13: a contract resolution failure BEFORE any checkpoint interaction
+    leaves zero model requests, never a permanent ``generating``, a visible
+    terminal failure with event, and the model-free deletion cleanup keeps
+    working with the same broken generator installed."""
+    from app.lib.ai_runtime import adapters as adapter_module
+    from app.lib.operations import repository as ops_repository
+
+    class NoContractGenerator:
+        # Durable registration path is requested, but NO harness contract can
+        # be resolved — the service must fail terminally before generation.
+        uses_durable_runtime = True
+
+        def generate(self, materials, *, context, sink):
+            raise AssertionError("合同解析失败后不得到达生成阶段")
+
+    clear_business_data()
+    previous = adapter_module.get_adapters()
+    try:
+        adapter_module.set_adapters(
+            adapter_module.RuntimeAdapters(rubric_generator=NoContractGenerator())
+        )
+        with TestClient(app) as client:
+            helpers.login_admin(client)
+            scene = helpers.create_scene(client)
+            credential = helpers.create_credential(client, scene["id"])
+            case = helpers.make_case("case-t13")
+            response = helpers.upload_batch(
+                client, credential["token"], helpers.make_batch("cmd-t13", [case])
+            )
+            assert response.status_code == 201
+            question_id = response.json()["cases"][0]["question_id"]
+            helpers.run_worker_until_idle()
+
+            detail = client.get(f"/api/questions/{question_id}").json()
+            assert detail["status"] == "generation_failed", "不得残留永久 generating"
+            assert detail["last_error"]["code"] == "AI_CONFIG_INVALID"
+
+            operation_id = _generation_operation(question_id)
+            job = ops_repository.get(operation_id)
+            assert job is not None
+            assert job.status == ops_repository.OperationJobStatus.failed
+            assert job.attempts == 1
+
+            events_page = _events(client, question_id, operation_id)
+            kinds = [e["kind"] for e in events_page["events"]]
+            assert "run_failed" in kinds
+
+            # Model-free cleanup still works with the broken generator.
+            accepted = client.request(
+                "DELETE",
+                f"/api/questions/{question_id}",
+                json={"command_id": "del-t13",
+                      "content_revision": detail["content_revision"]},
+            )
+            assert accepted.status_code == 202, accepted.text
+            helpers.run_worker_until_idle()
+            assert client.get(f"/api/questions/{question_id}").status_code == 404
+    finally:
+        adapter_module.set_adapters(previous)

@@ -206,10 +206,24 @@ def test_normalize_message_delta_and_private_filtering():
     assert dr.normalize_stream_chunk(
         "messages", (_Chunk("", {"reasoning_content": "私有"}), {})
     ) == []
+    # Responses-API shape: opaque encrypted reasoning blocks never surface
+    # publicly — they stay inside the message history/checkpoint only.
+    assert dr.normalize_stream_chunk(
+        "messages",
+        (_Chunk([{"type": "reasoning", "id": "rs_1",
+                  "encrypted_content": "ENCRYPTED-SENTINEL"}]), {}),
+    ) == []
     # Mixed chunk keeps only the public text.
     mixed = _Chunk([{"type": "thinking", "thinking": "私有"}, {"type": "text", "text": "公开"}])
     events = dr.normalize_stream_chunk("messages", (mixed, {}))
     assert events == [dr.PublicEvent(kind="message_delta", text="公开")]
+    mixed_responses = _Chunk([
+        {"type": "reasoning", "id": "rs_2", "encrypted_content": "ENCRYPTED-SENTINEL"},
+        {"type": "text", "text": "公开增量"},
+    ])
+    events = dr.normalize_stream_chunk("messages", (mixed_responses, {}))
+    assert events == [dr.PublicEvent(kind="message_delta", text="公开增量")]
+    assert all("ENCRYPTED-SENTINEL" not in (e.text or "") for e in events)
 
 
 def test_normalize_updates_and_custom():

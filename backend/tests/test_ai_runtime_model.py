@@ -391,3 +391,114 @@ def test_anthropic_ignores_openai_protocol_setting(protocol_setting):
     assert identity.provider == "anthropic"
     # No Responses/Chat fields leak into the Messages-protocol construction.
     assert getattr(model, "use_responses_api", None) is None
+
+
+# ---------------------------------------------------------------------------
+# T05: Responses tool round-trip with client-held encrypted reasoning history
+# ---------------------------------------------------------------------------
+
+def _responses_tool_body(model: str) -> dict:
+    return {
+        "id": "resp_1", "object": "response", "created_at": 0, "model": model,
+        "status": "completed",
+        "output": [
+            {"type": "reasoning", "id": "rs_1", "summary": [],
+             "encrypted_content": "ENCRYPTED-SENTINEL"},
+            {"type": "function_call", "call_id": "call_1", "name": "read_file",
+             "arguments": "{\"file_path\": \"/materials/a.md\"}"},
+        ],
+        "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+    }
+
+
+def _responses_text_body(model: str) -> dict:
+    return {
+        "id": "resp_2", "object": "response", "created_at": 0, "model": model,
+        "status": "completed",
+        "output": [{
+            "type": "message", "id": "msg_2", "role": "assistant",
+            "status": "completed",
+            "content": [{"type": "output_text", "text": "done", "annotations": []}],
+        }],
+        "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+    }
+
+
+def test_responses_tool_round_trip_keeps_encrypted_reasoning_client_side():
+    """The follow-up request after a tool round must carry the opaque
+    reasoning item, the function_call and the matching function_call_output —
+    all client-held, no previous_response_id, no server session."""
+    from langchain_core.messages import ToolMessage
+    from langchain_core.tools import tool
+
+    @tool
+    def read_file(file_path: str) -> str:
+        """Read a file."""
+        return "content"
+
+    captured: list[dict] = []
+
+    def send(self, request, **kwargs):
+        for hook in self.event_hooks.get("request", []):
+            hook(request)
+        payload = json.loads(request.content)
+        captured.append(payload)
+        body = (
+            _responses_tool_body(payload["model"])
+            if len(captured) == 1
+            else _responses_text_body(payload["model"])
+        )
+        response = httpx.Response(200, request=request, json=body)
+        for hook in self.event_hooks.get("response", []):
+            hook(response)
+        return response
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(httpx.Client, "send", send)
+        model, _ = build_runtime_model(
+            _config(ai_reasoning_effort="medium"),
+        )
+        bound = model.bind_tools([read_file])
+
+        try:
+            ai = bound.invoke([HumanMessage(content="hi")])
+            assert ai.tool_calls == [{
+                "name": "read_file",
+                "args": {"file_path": "/materials/a.md"},
+                "id": "call_1",
+                "type": "tool_call",
+            }]
+            # The opaque reasoning block lives INSIDE the message history the
+            # client holds — that is what makes the next turn possible without
+            # server-side storage.
+            reasoning_blocks = [
+                b for b in ai.content
+                if isinstance(b, dict) and b.get("type") == "reasoning"
+            ]
+            assert reasoning_blocks and reasoning_blocks[0]["encrypted_content"] == (
+                "ENCRYPTED-SENTINEL"
+            )
+
+            bound.invoke([
+                HumanMessage(content="hi"),
+                ai,
+                ToolMessage(content="文件内容", tool_call_id="call_1"),
+            ])
+        finally:
+            model.http_client.close()
+
+    assert len(captured) == 2
+    second = captured[1]
+    kinds = [item.get("type") for item in second["input"]]
+    assert "reasoning" in kinds and "function_call" in kinds
+    assert "function_call_output" in kinds
+    reasoning = next(i for i in second["input"] if i.get("type") == "reasoning")
+    assert reasoning["encrypted_content"] == "ENCRYPTED-SENTINEL"
+    assert reasoning["id"] == "rs_1"
+    call = next(i for i in second["input"] if i.get("type") == "function_call")
+    output = next(i for i in second["input"] if i.get("type") == "function_call_output")
+    assert call["call_id"] == output["call_id"] == "call_1"
+    # Still no server-session dependency on the follow-up request.
+    assert second.get("store") is False
+    assert second.get("previous_response_id") is None
+    assert second["reasoning"] == {"effort": "medium"}

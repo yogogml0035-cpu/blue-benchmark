@@ -356,3 +356,30 @@ def test_diagnostics_file_failure_does_not_mask_original_error(tmp_path, monkeyp
         logger.removeHandler(handler)
         handler.close()
     logger._ai_diagnostics_configured = False
+
+
+def test_diagnostics_survive_alembic_style_logger_disabling(tmp_path, monkeypatch):
+    """Migration tooling (alembic fileConfig) disables existing loggers by
+    default; operational diagnostics must keep recording anyway."""
+    monkeypatch.setattr(diag, "storage_root", lambda: tmp_path)
+    logger = logging.getLogger(diag.DIAGNOSTICS_LOGGER_NAME)
+    for handler in list(logger.handlers):
+        logger.removeHandler(handler)
+        handler.close()
+    logger._ai_diagnostics_configured = False
+    logger.disabled = True  # exactly what disable_existing_loggers does
+
+    record = diag.record_ai_failure(
+        stage="generate", exception=ModelRateLimitError("429"),
+        operation_id="op-disabled", question_id="q-disabled",
+    )
+    assert record["category"] == "rate_limit"
+    log_file = tmp_path / "runtime" / "ai-diagnostics.jsonl"
+    assert log_file.exists()
+    line = json.loads(log_file.read_text(encoding="utf-8").strip())
+    assert line["operation_id"] == "op-disabled"
+
+    for handler in list(logger.handlers):
+        logger.removeHandler(handler)
+        handler.close()
+    logger._ai_diagnostics_configured = False
