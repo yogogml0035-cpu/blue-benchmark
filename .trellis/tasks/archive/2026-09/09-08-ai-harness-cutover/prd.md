@@ -1,6 +1,6 @@
 # C2 统一 Harness 生产合同并完成根因修复验收
 
-状态：已获实施批准（2026-09-08，用户批准覆盖整棵任务树）；开工仍以 C1 通过并交付已验证 main 为先决门。父任务：[统一 Harness 合同](../09-08-ai-harness-contract/prd.md)。
+状态：已完成（2026-09-08）。交付 SHA 4dc71c9（分支与 main 同一 SHA）。证据：离线 T01–T13（backend 404 项测试）、P01–P05（RUNTIME_PG_REQUIRED=1 17 项）、L01 探针（PASS，attempts 1/1，合同指纹 a5d6adf7…）、L02/L03 accept_real_ai_rubric（PASS，外部 Worker SIGKILL 后同合同恢复）、L04 accept-web（PASS，含 worker_restart_recovery_verified）、L05 main 复验（make test/build + PG 门 + 探针 + accept + web 全部在 main 检出重跑通过）。四代理对抗审查（删除完整性/错误语义/指纹恢复并发/隐私白名单）发现 2 major+若干 minor 已全部修正并补回归测试。父任务：[统一 Harness 合同](../09-08-ai-harness-contract/prd.md)。
 
 ## 目标
 
@@ -26,11 +26,11 @@
 
 ## 独立验收标准
 
-- [ ] C2-AC1：父 AC1、AC2 通过；当前模型/网关、medium、工具和完整 schema 经最终生产装配完成，C1 探针不再单独构造模型。
-- [ ] C2-AC2：父 AC3、AC4 通过；本例 400 attempts=1，瞬时故障仍有限恢复，未知错误/取消不被包装成自动重试。
-- [ ] C2-AC3：父 AC5 通过；真实 Worker 工具轮后恢复、不重复初始输入、完成后重提不再调用模型，合同变化与清理失败处理正确。
-- [ ] C2-AC4：父 AC6、AC7 通过；安全日志能定位故障类别，权限/业务/CAS/SSE/删除等既有合同保持。
-- [ ] C2-AC5：父 AC8 通过；全部旧路径和 C1 临时构造已删除，维护文档与测试同步，任务分支和同一 main SHA 的完整质量及真实系统验收通过。
+- [x] C2-AC1：父 AC1、AC2 通过；当前模型/网关、medium、工具和完整 schema 经最终生产装配完成，C1 探针不再单独构造模型。
+- [x] C2-AC2：父 AC3、AC4 通过；本例 400 attempts=1，瞬时故障仍有限恢复，未知错误/取消不被包装成自动重试。
+- [x] C2-AC3：父 AC5 通过；真实 Worker 工具轮后恢复、不重复初始输入、完成后重提不再调用模型，合同变化与清理失败处理正确。
+- [x] C2-AC4：父 AC6、AC7 通过；安全日志能定位故障类别，权限/业务/CAS/SSE/删除等既有合同保持。
+- [x] C2-AC5：父 AC8 通过；全部旧路径和 C1 临时构造已删除，维护文档与测试同步，任务分支和同一 main SHA 的完整质量及真实系统验收通过。
 
 详细矩阵按父 [validation-matrix](../09-08-ai-harness-contract/research/validation-matrix.md) 的 T01–T13、P01–P05、L01–L05 执行；C1 的 L01 只做开工前提，C2 仍须在最终生产入口复核，不冒充最终验收。
 
